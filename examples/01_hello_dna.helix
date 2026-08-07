@@ -1,0 +1,9 @@
+# Example 1: Hello DNA - minimal smoke test
+# ATG=START  GCT=BUILD_PROTEIN(Ala, arg=1)  GGT=BUILD_MEMBRANE(Gly, arg=2)
+# GTA=MOVE(Val, arg=2=South)  TAA=HALT
+
+#gene name=hello
+ATG GCT GGT GTA TAA
+#end
+
+#config ticks=1 output=stdout

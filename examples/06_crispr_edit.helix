@@ -1,0 +1,44 @@
+# Example 6: CRISPR-Cas gene editing
+# Concept demo: sgRNA design -> Cas9 cleavage -> NHEJ/HDR repair
+#
+# This .helix file declares one editing operation via the #crispr bio-instruction annotation,
+# with the target gene containing a readable ORF; the Python API comments below supplement with equivalent script calls.
+#
+# Target gene: DNA sequence containing an NGG PAM (SpCas9 recognition site)
+# PAM = 5'-NGG-3', located downstream of the spacer
+
+#gene name=target_gene
+ATG GCT GCT GCT GCT GCT GCT GCT GCT GCT TAA
+#end
+
+# CRISPR edit instruction: insert "GGGG" with SpCas9 at position=50 of target_gene
+# The parser records it as BioInstruction(kind=crispr, target=target_gene, params=...)
+#crispr target=target_gene position=50 new_sequence="GGGG" cas=SpCas9 repair=HDR
+
+# Note: the following is a Python API example for CRISPR editing (equivalent to the #crispr annotation above)
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.crispr import design_guide, cut_dna, edit_gene, on_target_score
+#
+# # Target DNA (contains NGG PAM)
+# target = "ATCGATCGATCGATCGATCGGATC"   # ...GGATC, GG = PAM
+#
+# # Design sgRNA (SpCas9, 20nt spacer, NGG PAM)
+# guide = design_guide(target, cas_variant="SpCas9")
+# print(f"Spacer: {guide.spacer}")
+# print(f"PAM: {guide.pam}")
+# print(f"On-target score: {on_target_score(guide):.3f}")
+#
+# # Simulated cleavage + NHEJ repair (cut_dna returns the edited DNA string)
+# edited_dna = cut_dna(target, guide, repair="NHEJ")
+# print(f"Edited length: {len(edited_dna)} (original {len(target)})")
+#
+# # Full edit pipeline (edit_gene returns EditResult, including edit_type / edit_length)
+# result = edit_gene(target, target_position=10,
+#                    new_sequence="GGGG", cas_variant="SpCas9")
+# print(f"Edit type:   {result.edit_type}")
+# print(f"Edit length: {result.edit_length}")
+# print(f"Success:     {result.success}")
+# print(f"Off-targets: {len(result.off_targets)}")
+
+#config ticks=1 output=stdout

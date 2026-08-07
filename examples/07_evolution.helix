@@ -1,0 +1,50 @@
+# Example 7: Evolution simulation - mutation + selection + drift
+# Concept demo: adaptive evolution of a population under selection pressure
+#
+# This .helix file declares one evolution run via the #evolve bio-instruction annotation,
+# seeded with the ancestor gene; the Python API comments below supplement with equivalent script calls.
+#
+# Parameters (based on real data):
+# - E. coli mutation rate 2.2e-10 /nt/gen (Lee 2012)
+# - transition:transversion = 2:1 (Stoltzfus 2009)
+# - Effective population size Ne = 1.3e8 (E. coli)
+# - Wright-Fisher model: mutation -> selection -> drift -> recombination
+
+# Seed gene: initial ancestral sequence
+#gene name=ancestor
+ATG CTG CTG CTG CTG CTG CTG CTG CTG CTG TAA
+#end
+
+# Evolution instruction: evolve 100 generations targeting ancestor, with mutation rate 0.01
+# The parser records it as BioInstruction(kind=evolve, target=ancestor, params=...)
+#evolve target=ancestor generations=100 mutation_rate=0.01 population_size=1000
+
+# Note: the following is a Python API example for the evolution simulation (equivalent to the #evolve annotation above)
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.evolution import EvolutionConfig, Population, mutate, dnds_ratio
+#
+# config = EvolutionConfig(
+#     mutation_rate=2.2e-10,         # E. coli base substitution rate
+#     indel_rate=4.5e-11,            # indel rate
+#     transition_transversion_ratio=2.0,
+#     population_size=1000,
+#     generations=100,
+# )
+#
+# ancestor = "ATG" + "CTG" * 50 + "TAA"
+# pop = Population(initial_dna=ancestor, config=config,
+#                  target_dna=ancestor, fitness_method="hamming")
+#
+# # Evolve 100 generations with Hamming distance as fitness
+# pop.evolve(generations=100)
+#
+# print(f"Best fitness: {pop.best_individual().fitness:.4f}")
+#
+# # dN/dS analysis (dnds_ratio returns a dict, signature dnds_ratio(dna, ancestral))
+# ref = "ATGCTGCTGCTGTAA"
+# query = "ATGCTACTGCTGTAA"
+# result = dnds_ratio(query, ref)
+# print(f"dN/dS = {result['dNdS']:.3f}")   # >1 = positive selection, <1 = purifying selection
+
+#config ticks=1 output=stdout

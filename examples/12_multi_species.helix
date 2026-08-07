@@ -1,0 +1,51 @@
+# Example 12: Multi-species codon preference
+# The same protein (M-A-L-E-V-I-F-G-S) is encoded with each species' optimal codons
+# Demonstrates HelixLang's variable translation table / species-adaptation background
+#
+# Species optimal-codon differences (synonymous-codon third-base wobble):
+#   E. coli  : prefers A/T endings (highly expressed genes)
+#   Yeast    : prefers C endings
+#   Human    : prefers C/G endings, avoids CpG
+#
+# HelixLang annotates the species context via #config species=...;
+# the actual codon adaptation index (CAI) calculation runs via the Python API:
+
+#promoter name=p_ecoli strength=-0.3
+#promoter name=p_yeast strength=-0.3
+#promoter name=p_human strength=-0.3
+
+# E. coli optimal-codon version (protein: M-A-L-E-V-I-F-G-S)
+#gene name=gene_ecoli promoter=p_ecoli
+ATG GCT CTG GAA GTT ATT TTT GGT TCT TAA
+#end
+
+# Yeast optimal-codon version (same protein, wobble positions biased to C)
+#gene name=gene_yeast promoter=p_yeast
+ATG GCC CTG GAG GTC ATC TTC GGC TCC TAA
+#end
+
+# Human optimal-codon version (same protein, wobble positions biased to C/G)
+#gene name=gene_human promoter=p_human
+ATG GCC CTG GAG GTG ATC TTC GGC AGC TAA
+#end
+
+#regulate p_ecoli -> gene_ecoli strength=+0.9
+#regulate p_yeast -> gene_yeast strength=+0.9
+#regulate p_human -> gene_human strength=+0.9
+
+# Note: the following is a Python API example for codon-preference analysis
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.bio_data import get_codon_usage, calculate_cai
+#
+# protein = "MALEVIFGS"
+#
+# for species in ("ecoli", "yeast", "human"):
+#     table = get_codon_usage(species)           # relative synonymous codon usage (RSCU)
+#     cai = calculate_cai(protein, table)
+#     print(f"{species:8s} CAI = {cai:.3f}")
+#     # E. coli  CAI ≈ 0.95  (self-optimized)
+#     # Yeast    CAI ≈ 0.42  (low heterologous expression)
+#     # Human    CAI ≈ 0.38  (low heterologous expression)
+
+#config ticks=1 output=stdout species=ecoli

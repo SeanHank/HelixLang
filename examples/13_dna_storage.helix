@@ -1,0 +1,40 @@
+# Example 13: DNA data storage
+# Encodes digital information into DNA sequences and (conceptually) reads it back
+#
+# Workflow:
+#   1. Binary data -> base encoding (e.g., Erlich's Goldman coding, with rotation + redundancy)
+#   2. Synthesize oligos -> physical DNA
+#   3. Sequencing -> alignment & decoding -> restore original bytes
+#
+# This .helix file provides a DNA carrier context (any #gene block acts as a "storage sequence");
+# the actual encoding/decoding runs via the Python API:
+
+#promoter name=p_storage strength=-0.2
+
+# Carrier sequence (illustrative, not real encoded data)
+#gene name=storage_payload promoter=p_storage
+ATG GCT GGT GCT GGT GCT GGT TAA
+#end
+
+#regulate p_storage -> storage_payload strength=+0.5
+
+# Note: the following is a Python API example for DNA data storage
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.apps.dna_storage import DNAStorage
+#
+# storage = DNAStorage(scheme='erlich')        # Goldman+Erlich high-density rotation code
+# encoded = storage.store(b'Hello DNA')         # bytes -> oligo list (StorageReport)
+# print(f"oligo count: {len(encoded.oligos)}")
+# print(f"first oligo: {encoded.oligos[0]}")
+#
+# # Simulated synthesis + sequencing + decoding
+# decoded = storage.retrieve(encoded.oligos, total_len=len(b'Hello DNA'))
+# print(f"decoded bytes: {decoded!r}")
+# assert decoded == b'Hello DNA'
+#
+# # Physical-constraint check (GC content 40-60%, no homopolymers >3)
+# report = storage.analyze(encoded.oligos, data_len=len(b'Hello DNA'))
+# print(f"GC content: {report.gc_content:.2f}, max homopolymer: {report.max_homopolymer}")
+
+#config ticks=1 output=stdout

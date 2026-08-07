@@ -1,0 +1,12 @@
+# Example 4: Turing pattern - Gray-Scott reaction-diffusion
+
+#promoter name=p_pigment strength=-0.4
+#gene name=pigment promoter=p_pigment
+ATG GAT GAT GAA TAA
+#end
+
+#regulate p_pigment -> pigment strength=+0.5
+
+#field size=32 F=0.035 k=0.065 Du=0.16 Dv=0.08
+
+#config ticks=100 output=stdout react_steps=2

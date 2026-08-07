@@ -1,0 +1,64 @@
+# Example 8: Epigenetic regulation - DNA methylation + histone modification
+# Concept demo: effects of epigenetic modifications on gene expression
+#
+# This .helix file declares epigenetic modifications via the #methylate and #histone bio-instruction annotations,
+# targeting regulated_gene; the Python API comments below supplement with equivalent script calls.
+#
+# Data sources:
+# - Dam methylation: GATC sites (Marinus 1973)
+# - CpG methylation: CG sites (Bird 2002)
+# - H3K4me3: active promoter (+0.5)
+# - H3K27me3: Polycomb repression (-0.7)
+# - DNA methylation represses gene expression by ~70% (Bird 2002)
+
+#promoter name=p_epigenetic strength=0.5
+#gene name=regulated_gene promoter=p_epigenetic
+ATG GCT GCT GCT GCT GCT GCT TAA
+#end
+
+# Regulation: epigenetic modifications indirectly affect expression via expression-modifier factors
+#regulate p_epigenetic -> regulated_gene strength=+0.8
+
+# Epigenetic instructions: apply Dam methylation + H3K4me3 histone marks to regulated_gene
+# The parser records them as two BioInstructions (kind=methylate / histone, target=regulated_gene)
+#methylate target=regulated_gene methylase=dam level=0.8
+#histone target=regulated_gene mark=H3K4me3 level=0.9
+
+# Note: the following is a Python API example for epigenetics (equivalent to the #methylate/#histone annotations above)
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.epigenetics import (
+#     find_cpg_sites, find_dam_sites, find_cpg_islands,
+#     methylate_dna, add_histone_marks,
+#     calculate_accessibility, calculate_expression_modifier,
+# )
+#
+# dna = "ATCGCGATCGCGATCGCGATCGCG"
+#
+# # 1. Search for methylation sites
+# cpg_sites = find_cpg_sites(dna)        # CpG sites
+# dam_sites = find_dam_sites(dna)        # GATC sites
+# islands = find_cpg_islands(dna)        # CpG islands
+#
+# # 2. Methylate (CpG, level 0.8 = 80% methylation)
+# meth = methylate_dna(dna, cpg_sites, methylase="cpg", level=0.8)
+#
+# # 3. Histone modification
+# marks = add_histone_marks(
+#     positions=[2, 8],
+#     marks=["H3K4me3", "H3K27me3"],   # activating + repressing
+#     levels=[0.9, 0.5],
+# )
+#
+# # 4. Calculate accessibility
+# accessibility = calculate_accessibility(meth, marks)
+#
+# # 5. Expression modifier
+# mod = calculate_expression_modifier(
+#     meth, marks,
+#     gene_positions={"gene1": (0, 10), "gene2": (11, 20)},
+# )
+# print(f"gene1 expression modifier: {mod['gene1']:.3f}")
+# # Methylation -> reduced expression; H3K4me3 -> increased expression; H3K27me3 -> reduced expression
+
+#config ticks=1 output=stdout

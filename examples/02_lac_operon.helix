@@ -1,0 +1,25 @@
+# Example 2: lac operon - GRN sigmoid scheduling verification
+# p_lacI constitutive (strength<0 means always active) -> lacI expression -> represses p_lac -> lacZ/lacY off
+# Real induction would require setting lacI=0 midway; this shows steady-state repression
+
+#promoter name=p_lac strength=0.5
+#promoter name=p_lacI strength=-0.5
+
+#gene name=lacZ promoter=p_lac
+ATG GCT GCT GCT TAA
+#end
+
+#gene name=lacY promoter=p_lac
+ATG GGT GGT GGT TAA
+#end
+
+#gene name=lacI promoter=p_lacI
+ATG GCT GCT TAA
+#end
+
+#regulate p_lacI -> lacI strength=+0.8
+#regulate lacI -> p_lac strength=-0.9
+#regulate p_lac -> lacZ strength=+0.9
+#regulate p_lac -> lacY strength=+0.9
+
+#config ticks=20 output=csv

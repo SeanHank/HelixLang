@@ -1,0 +1,86 @@
+"""Semantic analysis: symbol table, reference integrity, ORF validity, config."""
+from __future__ import annotations
+
+from helixlang.ast_nodes import Gene, Program, Promoter
+from helixlang.errors import RegulationError, SemanticError
+
+
+class SemanticAnalyzer:
+    """Run static checks on the AST."""
+
+    def __init__(self, program: Program):
+        self.prog = program
+        self.symbols: dict[str, Promoter | Gene] = {}
+        self.warnings: list[str] = []
+
+    def check(self) -> None:
+        self._collect_symbols()
+        self._check_references()
+        self._check_orfs()
+        self._check_regulation_cycles()
+        self._check_config()
+
+    def _collect_symbols(self) -> None:
+        for p in self.prog.promoters:
+            if p.name in self.symbols:
+                raise SemanticError(f"duplicate symbol {p.name!r}")
+            self.symbols[p.name] = p
+        for g in self.prog.genes:
+            if g.name in self.symbols:
+                raise SemanticError(f"duplicate symbol {g.name!r}")
+            self.symbols[g.name] = g
+
+    def _check_references(self) -> None:
+        for r in self.prog.regulations:
+            if r.source not in self.symbols:
+                raise RegulationError(
+                    f"#regulate source {r.source!r} not defined")
+            if r.target not in self.symbols:
+                raise RegulationError(
+                    f"#regulate target {r.target!r} not defined")
+        for g in self.prog.genes:
+            if g.promoter and g.promoter not in self.symbols:
+                raise SemanticError(
+                    f"#gene {g.name!r} references unknown promoter {g.promoter!r}")
+
+    def _check_orfs(self) -> None:
+        for g in self.prog.genes:
+            if not g.orf:
+                raise SemanticError(f"#gene {g.name!r} has empty ORF")
+            if g.orf[0].seq != "ATG":
+                raise SemanticError(
+                    f"#gene {g.name!r} ORF must start with ATG, got {g.orf[0].seq}")
+            if g.orf[-1].seq not in ("TAA", "TAG", "TGA"):
+                raise SemanticError(
+                    f"#gene {g.name!r} ORF must end with STOP codon, got {g.orf[-1].seq}")
+
+    def _check_regulation_cycles(self) -> None:
+        """Detect regulation cycles and issue a warning (not an error)."""
+        # Simple DFS to find cycles
+        graph: dict[str, list[str]] = {}
+        for r in self.prog.regulations:
+            graph.setdefault(r.source, []).append(r.target)
+
+        def dfs(node: str, seen: set[str]) -> bool:
+            if node in seen:
+                return True
+            seen.add(node)
+            for nxt in graph.get(node, []):
+                if dfs(nxt, seen):
+                    return True
+            seen.discard(node)
+            return False
+
+        for n in graph:
+            if dfs(n, set()):
+                self.warnings.append(f"regulation cycle detected at {n!r}")
+                break
+
+    def _check_config(self) -> None:
+        c = self.prog.config
+        if c.ticks <= 0:
+            raise SemanticError(f"#config ticks must be > 0, got {c.ticks}")
+        if c.ops_per_tick <= 0:
+            raise SemanticError("#config ops_per_tick must be > 0")
+        if c.react_steps <= 0:
+            raise SemanticError("#config react_steps must be > 0")

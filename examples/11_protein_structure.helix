@@ -1,0 +1,35 @@
+# Example 11: Protein structure prediction - mixed helix/sheet propensity
+# The gene encodes a small ~50 aa protein with alternating alpha-helix / beta-sheet / random-coil segments
+#
+# Segment design (propensity):
+#   alpha-helix  : Ala(GCT) Glu(GAA) Leu(CTG)  - high helix propensity
+#   beta-sheet   : Val(GTT) Ile(ATT) Phe(TTT)  - high sheet propensity
+#   loop         : Gly(GGT) Ser(TCT)            - flexible turns
+#
+# HelixLang's ORF provides the protein sequence context;
+# the actual 3D structure prediction runs via the Python API:
+
+#promoter name=p_fold strength=-0.4
+
+#gene name=folding_demo promoter=p_fold
+ATG GCT GAA CTG GCT GAA CTG GCT GAA CTG GGT TCT GGT GTT ATT TTT GTT ATT TTT GGT TCT GGT GCT GAA CTG GCT GAA CTG GGT TCT GGT GTT ATT TTT GTT ATT GGT TCT GCT GAA CTG GCT GAA CTG GCT GGT TCT GGT GTT ATT TTT TAA
+#end
+
+#regulate p_fold -> folding_demo strength=+0.8
+
+# Note: the following is a Python API example for protein structure prediction
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.protein_structure import predict_structure
+#
+# protein_seq = "MAEAEAEAEAGSGVIFVIFGSGMAEAEAEGSGVIFVIGSAEAEAEAGSGVIF"
+# report = predict_structure(protein_seq)
+#
+# print(f"Length:        {report.length} aa")
+# print(f"SS prediction: {report.secondary_structure}")
+# print(f"Helix %:       {report.helix_fraction:.2f}")
+# print(f"Sheet %:       {report.sheet_fraction:.2f}")
+# print(f"Coil  %:       {report.coil_fraction:.2f}")
+# print(f"Disorder:      {report.disorder_regions}")
+
+#config ticks=1 output=stdout

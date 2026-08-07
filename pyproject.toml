@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helixlang"
+version = "0.1.0"
+description = "A bio-genetic DSL that compiles DNA codons to bytecode and simulates biological behavior/morphology."
+requires-python = ">=3.11"
+authors = [{name = "HelixLang Project"}]
+license = {text = "MIT"}
+keywords = ["DSL", "DNA", "compiler", "artificial-life", "biological-simulation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Software Development :: Compilers",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4,<9", "pytest-cov>=4.1,<6"]
+fast = ["numpy>=1.26,<3"]
+viz = ["matplotlib>=3.8,<4"]
+web = ["flask>=3.0,<4"]   # Web visualization frontend: python -m helixlang --serve
+bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2"]   # Physical DNA codec + IUPAC validation
+
+[project.scripts]
+helixlang = "helixlang.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+helixlang = ["data/*.json", "web/*.html", "web/*.css", "web/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["helixlang"]
+branch = true
+omit = [
+    "*/__main__.py",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+# Coverage gate: CI relies on this config as the lower-bound reference for --cov-fail-under=80.
+# Current measured ~92%; 80% is a reasonable baseline that also leaves headroom for future modules.
+fail_under = 80
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+

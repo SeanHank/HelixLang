@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HelixLang Labs · Laboratory Features</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0a1a;
+    --bg-elev: #15102a;
+    --bg-card: #1c1538;
+    --bg-input: #251b47;
+    --border: #34255f;
+    --border-light: #4a3578;
+    --accent: #7b5cff;
+    --accent-2: #a78bfa;
+    --accent-dim: #5b3fd6;
+    --cyan: #22d3ee;
+    --green: #34d399;
+    --text: #e9d5ff;
+    --text-dim: #a78bfa;
+    --text-muted: #7c6ba8;
+    --success: #34d399;
+    --error: #f87171;
+    --warning: #fbbf24;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    overflow: hidden;
+  }
+  body {
+    background:
+      radial-gradient(circle at 18% -10%, rgba(123,92,255,0.18), transparent 45%),
+      radial-gradient(circle at 85% 110%, rgba(34,211,238,0.08), transparent 45%),
+      var(--bg);
+  }
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+
+  /* ===== Top navigation ===== */
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px;
+    background: rgba(21,16,42,0.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  header .logo {
+    font-weight: 800; font-size: 17px; letter-spacing: 0.3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  header .logo .lab {
+    -webkit-text-fill-color: var(--cyan);
+    font-weight: 600;
+    margin-left: 2px;
+  }
+  header .sub { color: var(--text-muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  header .back {
+    color: var(--text-dim); text-decoration: none; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; transition: all .15s;
+  }
+  header .back:hover { border-color: var(--accent); color: var(--accent-2); background: rgba(123,92,255,0.08); }
+  header .pill {
+    font-size: 11px; color: var(--cyan); border: 1px solid rgba(34,211,238,0.3);
+    background: rgba(34,211,238,0.08); border-radius: 999px; padding: 2px 10px;
+  }
+
+  /* ===== Main layout ===== */
+  .body {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    overflow: hidden;
+  }
+
+  /* ===== Left navigation ===== */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    background: var(--bg-elev);
+    overflow-y: auto;
+    padding: 12px 10px;
+  }
+  .sidebar .nav-title {
+    font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 1.2px; padding: 6px 10px 10px; font-weight: 600;
+  }
+  .nav-btn {
+    width: 100%; display: flex; align-items: center; gap: 11px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-muted); padding: 10px 11px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; text-align: left;
+    font-family: var(--sans); transition: all .15s; margin-bottom: 3px;
+  }
+  .nav-btn .ico {
+    width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text-dim); transition: all .15s;
+  }
+  .nav-btn .ico svg { width: 16px; height: 16px; }
+  .nav-btn .lbl { display: flex; flex-direction: column; line-height: 1.3; }
+  .nav-btn .lbl b { color: var(--text); font-weight: 600; font-size: 13px; }
+  .nav-btn .lbl span { color: var(--text-muted); font-size: 11px; }
+  .nav-btn:hover { background: rgba(123,92,255,0.06); color: var(--text-dim); }
+  .nav-btn:hover .ico { border-color: var(--accent); color: var(--accent-2); }
+  .nav-btn.active {
+    background: linear-gradient(135deg, rgba(123,92,255,0.18), rgba(167,139,250,0.06));
+    border-color: var(--accent);
+  }
+  .nav-btn.active .ico {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border-color: var(--accent-2); color: #fff;
+    box-shadow: 0 0 14px rgba(123,92,255,0.45);
+  }
+  .nav-btn.active .lbl b { color: var(--accent-2); }
+
+  /* ===== Right content ===== */
+  .content { overflow: hidden; position: relative; }
+  .panel {
+    position: absolute; inset: 0; padding: 16px 18px;
+    overflow: auto; display: none;
+  }
+  .panel.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  .panel-head {
+    display: flex; align-items: baseline; gap: 10px;
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .panel-head h2 {
+    margin: 0; font-size: 18px; font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-2), var(--cyan));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .panel-head .desc { color: var(--text-muted); font-size: 12px; }
+
+  .grid { display: grid; gap: 14px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 1100px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
+  }
+  .card h4 {
+    margin: 0 0 10px; font-size: 13px; color: var(--accent-2);
+    display: flex; align-items: center; gap: 8px; font-weight: 600;
+  }
+  .card h4 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+  /* ===== Form controls ===== */
+  label.fld { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text-muted); }
+  label.fld .req { color: var(--cyan); }
+  input[type=text], input[type=number], textarea, select {
+    background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 9px; font-size: 13px; outline: none; font-family: var(--sans);
+    transition: border-color .15s;
+  }
+  textarea { font-family: var(--mono); line-height: 1.5; resize: vertical; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  input[type=range] { accent-color: var(--accent); width: 100%; }
+  .range-val { color: var(--cyan); font-family: var(--mono); font-size: 12px; }
+  .checkbox-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .checkbox-row label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-dim); cursor: pointer; }
+  .checkbox-row input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none; color: #fff; border-radius: 7px;
+    padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+    font-family: var(--sans); transition: all .15s;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  button.btn:hover { box-shadow: 0 0 16px rgba(123,92,255,0.4); transform: translateY(-1px); }
+  button.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+  button.btn.secondary {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text-dim);
+  }
+  button.btn.secondary:hover { border-color: var(--accent); color: var(--accent-2); box-shadow: none; }
+  button.btn.cyan { background: linear-gradient(135deg, var(--cyan), #0ea5b9); }
+  button.btn.green { background: linear-gradient(135deg, var(--green), #059669); }
+
+  /* ===== Output elements ===== */
+  .chart { width: 100%; height: 300px; }
+  .chart-sm { width: 100%; height: 220px; }
+  .canvas-wrap {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px; text-align: center; overflow: auto;
+  }
+  canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  pre.mono, code.mono {
+    font-family: var(--mono); font-size: 12px; line-height: 1.55;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; margin: 0; color: var(--text-dim); white-space: pre-wrap; word-break: break-all;
+    max-height: 360px; overflow: auto;
+  }
+  .seq { font-family: var(--mono); font-size: 13px; line-height: 1.7; word-break: break-all; letter-spacing: 1px; }
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 5px 12px; font-size: 13px; }
+  .kv .k { color: var(--text-muted); }
+  .kv .v { color: var(--text); font-family: var(--mono); }
+
+  .badge {
+    display: inline-block; padding: 1px 7px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-ok { background: rgba(52,211,153,0.18); color: var(--success); }
+  .badge-err { background: rgba(248,113,113,0.18); color: var(--error); }
+  .badge-info { background: rgba(34,211,238,0.15); color: var(--cyan); }
+
+  .error-box {
+    background: rgba(248,113,113,0.1); border: 1px solid var(--error);
+    color: var(--error); padding: 9px 13px; border-radius: 7px;
+    margin-bottom: 12px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap;
+  }
+  .info-box {
+    background: rgba(34,211,238,0.07); border: 1px solid rgba(34,211,238,0.3);
+    color: var(--cyan); padding: 9px 13px; border-radius: 7px;
+    margin-bottom: 12px; font-size: 12px;
+  }
+  .empty { color: var(--text-muted); font-size: 12px; font-style: italic; padding: 8px 0; }
+
+  .spinner {
+    display: inline-block; width: 13px; height: 13px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== Tables ===== */
+  table.tbl {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+    font-family: var(--mono);
+  }
+  table.tbl th, table.tbl td {
+    padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border);
+  }
+  table.tbl th {
+    color: var(--accent-2); font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0;
+    background: var(--bg-card);
+  }
+  table.tbl td { color: var(--text-dim); }
+  table.tbl tr:hover td { background: rgba(123,92,255,0.06); color: var(--text); }
+  .tbl-wrap { max-height: 280px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+
+  /* ===== Amino acid coloring ===== */
+  .aa { display: inline-block; padding: 1px 3px; border-radius: 3px; font-weight: 700; color: #0d0a1a; }
+  .aa-stop { color: var(--text-muted) !important; background: transparent !important; font-weight: 400; }
+
+  /* ===== Progress bar ===== */
+  .progress { height: 8px; background: var(--bg-input); border-radius: 4px; overflow: hidden; }
+  .progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan)); transition: width .4s; }
+  .progress.green > div { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+  .progress.red > div { background: linear-gradient(90deg, var(--error), var(--warning)); }
+
+  /* ===== Diff highlighting ===== */
+  .diff-add { background: rgba(52,211,153,0.22); color: var(--success); border-radius: 2px; }
+  .diff-del { background: rgba(248,113,113,0.22); color: var(--error); text-decoration: line-through; border-radius: 2px; }
+  .diff-eq { color: var(--text-muted); }
+
+  /* Debugger highlight instruction */
+  .cur-ins { background: rgba(34,211,238,0.2); border-left: 3px solid var(--cyan); padding-left: 6px; margin-left: -9px; display: block; }
+
+  .stack-frame { font-family: var(--mono); font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--text-dim); }
+  details.raw { margin-top: 8px; }
+  details.raw summary { cursor: pointer; color: var(--text-muted); font-size: 11px; }
+  details.raw pre { margin-top: 6px; }
+  .hint { color: var(--text-muted); font-size: 11px; font-style: italic; }
+  .editor {
+    width: 100%; min-height: 180px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; resize: vertical; outline: none; tab-size: 4;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">HelixLang<span class="lab"> · Labs</span></div>
+    <div class="sub">New lab feature set · 9 interactive modules</div>
+    <div class="spacer"></div>
+    <span class="pill">v0.1 labs</span>
+    <a class="back" href="/">← Back to Home</a>
+  </header>
+
+  <div class="body">
+    <!-- ===== Left navigation ===== -->
+    <nav class="sidebar">
+      <div class="nav-title">Feature Modules</div>
+      <button class="nav-btn active" data-panel="central-dogma">
+        <span class="ico"></span>
+        <span class="lbl"><b>Central Dogma</b><span>Central Dogma</span></span>
+      </button>
+      <button class="nav-btn" data-panel="evolution">
+        <span class="ico"></span><span class="lbl"><b>Evolution</b><span>Evolution</span></span>
+      </button>
+      <button class="nav-btn" data-panel="population">
+        <span class="ico"></span><span class="lbl"><b>Population</b><span>Population</span></span>
+      </button>
+      <button class="nav-btn" data-panel="crispr">
+        <span class="ico"></span><span class="lbl"><b>Gene Editing</b><span>Gene Editing</span></span>
+      </button>
+      <button class="nav-btn" data-panel="epigenetics">
+        <span class="ico"></span><span class="lbl"><b>Epigenetics</b><span>Epigenetics</span></span>
+      </button>
+      <button class="nav-btn" data-panel="morphology3d">
+        <span class="ico"></span><span class="lbl"><b>3D Morphology</b><span>3D Morphology</span></span>
+      </button>
+      <button class="nav-btn" data-panel="dna-storage">
+        <span class="ico"></span><span class="lbl"><b>DNA Storage</b><span>DNA Storage</span></span>
+      </button>
+      <button class="nav-btn" data-panel="synbio">
+        <span class="ico"></span><span class="lbl"><b>SynBio Designer</b><span>SynBio Designer</span></span>
+      </button>
+      <button class="nav-btn" data-panel="metabolism">
+        <span class="ico"></span><span class="lbl"><b>Metabolism FBA</b><span>Flux Balance Analysis</span></span>
+      </button>
+      <button class="nav-btn" data-panel="protein-structure">
+        <span class="ico"></span><span class="lbl"><b>Protein Structure</b><span>Protein Structure</span></span>
+      </button>
+      <button class="nav-btn" data-panel="multispecies">
+        <span class="ico"></span><span class="lbl"><b>Multi-Species</b><span>Multi-Species</span></span>
+      </button>
+      <button class="nav-btn" data-panel="debugger">
+        <span class="ico"></span><span class="lbl"><b>Debugger</b><span>Debugger</span></span>
+      </button>
+    </nav>
+
+    <!-- ===== Right content ===== -->
+    <main class="content">
+
+      <!-- ============ Panel 1: Central Dogma ============ -->
+      <section id="panel-central-dogma" class="panel active">
+        <div class="panel-head"><h2>Central Dogma</h2><span class="desc">DNA → mRNA → protein, with coupled-dynamics time series</span></div>
+        <div class="grid grid-2">
+          <div class="card">
+            <h4><span class="dot"></span>Input</h4>
+            <label class="fld">DNA Sequence <span class="req">*</span>
+              <textarea id="cd-dna" rows="4" spellcheck="false">ATGGCTGGTAAGGGTAACTCGTTGAACCGGCAAGGTAAAGCATAATGCTAGCTAGCTAGCTAGCTAA</textarea>
+            </label>
+            <label class="fld" style="margin-top:10px;">Promoter Strength <span class="range-val" id="cd-prom-v">0.8</span>
+              <input type="range" id="cd-prom" min="0" max="1" step="0.05" value="0.8">
+            </label>
+            <div class="btn-row" style="margin-top:12px;">
+              <button class="btn" data-act="transcribe">Transcribe</button>
+              <button class="btn cyan" data-act="translate">Translate</button>
+              <button class="btn green" data-act="coupled">Coupled Dynamics</button>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="dot"></span>Transcription/Translation Parameters</h4>
+            <div id="cd-params" class="kv"><div class="empty">Parameters appear after running "Transcribe / Translate / Coupled".</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>mRNA Sequence <span class="badge badge-info" id="cd-mrna-len"></span></h4>
+          <div id="cd-mrna" class="seq"><span class="empty">—</span></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Protein Sequence <span class="badge badge-info" id="cd-prot-len"></span></h4>
+          <div id="cd-prot" class="seq"><span class="empty">—</span></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>mRNA / Protein Concentration Timeline</h4>
+          <div id="cd-chart" class="chart"></div>
+        </div>
+        <div id="cd-raw"></div>
+      </section>
+
+      <!-- ============ Panel 2: Evolution ============ -->
+      <section id="panel-evolution" class="panel">
+        <div class="panel-head"><h2>Evolution</h2><span class="desc">Directed-evolution simulation, fitness tracking and dN/dS statistics</span></div>
+        <div class="grid grid-3">
+          <div class="card">
+            <h4><span class="dot"></span>Input Parameters</h4>
+            <label class="fld">Initial DNA
+              <textarea id="evo-init" rows="3" spellcheck="false">ATGGCTGGTAAGGGTAAC</textarea>
+            </label>
+            <label class="fld" style="margin-top:8px;">Target DNA
+              <textarea id="evo-target" rows="3" spellcheck="false">ATGCCCGGTAAGGGTAAC</textarea>
+            </label>
+            <label class="fld" style="margin-top:8px;">Generations <span class="range-val" id="evo-gen-v">50</span>
+              <input type="range" id="evo-gen" min="5" max="200" step="5" value="50">
+            </label>
+            <label class="fld" style="margin-top:8px;">Population Size
+              <input type="number" id="evo-pop" value="100" min="10" max="1000">
+            </label>
+            <label class="fld" style="margin-top:8px;">Mutation Rate <span class="range-val" id="evo-mut-v">0.02</span>
+              <input type="range" id="evo-mut" min="0" max="0.2" step="0.005" value="0.02">
+            </label>
+            <div class="btn-row" style="margin-top:12px;">
+              <button class="btn" data-act="run">Run Evolution</button>
+            </div>
+          </div>
+          <div class="card">
+            <h4><span class="dot"></span>Fitness Evolution</h4>
+            <div id="evo-chart-fit" class="chart-sm"></div>
+          </div>
+          <div class="card">
+            <h4><span class="dot"></span>Diversity</h4>
+            <div id="evo-chart-div" class="chart-sm"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>DNA Comparison (Initial → Final) &amp; dN/dS Statistics</h4>
+          <div id="evo-diff"></div>
+          <div id="evo-dnds" class="kv" style="margin-top:10px;"></div>
+        </div>
+        <div id="evo-raw"></div>
+      </section>
+
+      <!-- ============ Panel 3: Population ============ -->
+      <section id="panel-population" class="panel">
+        <div class="panel-head"><h2>Population</h2><span class="desc">Spatial population dynamics and signaling-molecule fields</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input Parameters</h4>
+          <div class="grid grid-3">
+            <label class="fld">Initial Cells <input type="number" id="pop-init" value="20" min="1"></label>
+            <label class="fld">Simulation Generations <input type="number" id="pop-gen" value="40" min="1"></label>
+            <label class="fld">Grid Size <input type="number" id="pop-grid" value="40" min="8" max="80"></label>
+          </div>
+          <div class="btn-row" style="margin-top:12px;"><button class="btn" data-act="run">Run Simulation</button></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Population Growth Curve</h4><div id="pop-chart" class="chart"></div></div>
+          <div class="card"><h4><span class="dot"></span>Statistics Panel</h4><div id="pop-stats" class="kv"><div class="empty">—</div></div></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Spatial Distribution Heatmap (color=cell count)</h4>
+            <div class="canvas-wrap"><canvas id="pop-canvas-spatial" width="360" height="360"></canvas></div></div>
+          <div class="card"><h4><span class="dot"></span>Signaling Molecule Field</h4>
+            <div class="canvas-wrap"><canvas id="pop-canvas-signal" width="360" height="360"></canvas></div></div>
+        </div>
+        <div id="pop-raw"></div>
+      </section>
+
+      <!-- ============ Panel 4: CRISPR ============ -->
+      <section id="panel-crispr" class="panel">
+        <div class="panel-head"><h2>CRISPR Gene Editing</h2><span class="desc">PAM search · sgRNA design · off-target prediction · editing</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-3">
+            <label class="fld" style="grid-column: span 2;">DNA Sequence
+              <textarea id="cr-dna" rows="3" spellcheck="false">ATGACCTGATGGAGTCTCGACCTAGAATCGTACGGTACCGTACGGNGGATGACCTGATGGAGTCTCGACCTAG</textarea>
+            </label>
+            <label class="fld">Cas Variant
+              <select id="cr-cas"><option>SpCas9</option><option>SaCas9</option><option>Cas12a</option></select>
+            </label>
+          </div>
+          <label class="fld" style="margin-top:8px;max-width:200px;">Target Position
+            <input type="number" id="cr-pos" value="10" min="0">
+          </label>
+          <label class="fld" style="margin-top:8px;max-width:280px;">New Sequence (HDR repair template, for editing only)
+            <input type="text" id="cr-new-seq" value="GGGG" spellcheck="false">
+          </label>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="pam">Search PAM</button>
+            <button class="btn cyan" data-act="guide">Design Guide</button>
+            <button class="btn green" data-act="edit">Apply Edit</button>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card">
+            <h4><span class="dot"></span>PAM Sites</h4>
+            <div class="tbl-wrap"><table class="tbl" id="cr-pam-tbl"><thead><tr><th>Position</th><th>PAM</th><th>Strand</th><th>spacer</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card">
+            <h4><span class="dot"></span>sgRNA Info</h4>
+            <div id="cr-sgrna"><div class="empty">Click "Design Guide"</div></div>
+            <h4 style="margin-top:12px;"><span class="dot"></span>Off-Target Prediction</h4>
+            <div class="tbl-wrap"><table class="tbl" id="cr-off-tbl"><thead><tr><th>Position</th><th>Sequence</th><th>Mismatches</th><th>Score</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Edit Result (original vs edited, diff highlighted)</h4>
+          <div id="cr-diff"></div>
+        </div>
+        <div id="cr-raw"></div>
+      </section>
+
+      <!-- ============ Panel 5: Epigenetics ============ -->
+      <section id="panel-epigenetics" class="panel">
+        <div class="panel-head"><h2>Epigenetics</h2><span class="desc">Methylation · histone modification · CpG islands</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-2">
+            <label class="fld">DNA Sequence
+              <textarea id="ep-dna" rows="3" spellcheck="false">ATGCGATCGCGCGCGATCGCGATCGCGCGCGCGATCGCGCGCGATCGCGCGATCGCGATCGCGCGCGCGATCGC</textarea>
+            </label>
+            <label class="fld">Cell Type
+              <select id="ep-cell"><option value="ecoli">ecoli (Dam)</option><option value="human">human (CpG)</option><option value="eukaryote">eukaryote (CpG)</option></select>
+            </label>
+          </div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="methylate">Methylation Analysis</button>
+            <button class="btn cyan" data-act="histone">Histone Modifications</button>
+            <button class="btn green" data-act="cpg">CpG Island Detection</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Methylation Map (red=methylated · green=unmethylated)</h4>
+          <div class="canvas-wrap"><canvas id="ep-canvas-meth" width="720" height="80"></canvas></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>CpG Islands</h4>
+            <div class="tbl-wrap"><table class="tbl" id="ep-cpg-tbl"><thead><tr><th>Start</th><th>End</th><th>Length</th><th>GC%</th><th>O/E</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card"><h4><span class="dot"></span>Histone Modifications (chromatin bands)</h4>
+            <div class="canvas-wrap"><canvas id="ep-canvas-hist" width="360" height="120"></canvas></div>
+            <div id="ep-factors" style="margin-top:10px;"></div>
+          </div>
+        </div>
+        <div id="ep-raw"></div>
+      </section>
+
+      <!-- ============ Panel 6: 3D Morphology ============ -->
+      <section id="panel-morphology3d" class="panel">
+        <div class="panel-head"><h2>3D Morphology</h2><span class="desc">L-system 3D morphogenesis with rotatable projection</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-3">
+            <label class="fld">Preset
+              <select id="m3d-preset"><option value="fern">fern</option><option value="tree3d">tree3d</option><option value="bush">bush</option><option value="algae">algae</option><option value="custom">custom</option></select>
+            </label>
+            <label class="fld">Iterations <span class="range-val" id="m3d-iter-v">4</span>
+              <input type="range" id="m3d-iter" min="1" max="6" step="1" value="4">
+            </label>
+            <label class="fld">Rotation Angle <span class="range-val" id="m3d-rot-v">25°</span>
+              <input type="range" id="m3d-rot" min="0" max="360" step="5" value="25">
+            </label>
+          </div>
+          <label class="fld" style="margin-top:8px;">Axiom (used when preset=custom)<input type="text" id="m3d-axiom" value="F"></label>
+          <label class="fld" style="margin-top:8px;">Rules (used when preset=custom, e.g. F=FF+[+F-F-F]-[-F+F+F])<input type="text" id="m3d-rule" value="F=FF+[+F-F-F]-[-F+F+F]"></label>
+          <div class="btn-row" style="margin-top:12px;"><button class="btn" data-act="generate">Generate</button></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card" style="grid-column: span 2;"><h4><span class="dot"></span>3D Visualization (drag the rotation slider to view)</h4>
+            <div class="canvas-wrap"><canvas id="m3d-canvas" width="720" height="460"></canvas></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Statistics</h4>
+          <div id="m3d-stats" class="kv"><div class="empty">—</div></div>
+        </div>
+        <div id="m3d-raw"></div>
+      </section>
+
+      <!-- ============ Panel 7: DNA Storage ============ -->
+      <section id="panel-dna-storage" class="panel">
+        <div class="panel-head"><h2>DNA Storage</h2><span class="desc">Text→oligo encoding · lifecycle simulation · density analysis</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-3">
+            <label class="fld" style="grid-column: span 2;">Text Data
+              <textarea id="ds-text" rows="3" spellcheck="false">Hello, HelixLang! DNA can store data for thousands of years.</textarea>
+            </label>
+            <label class="fld">Encoding Scheme
+              <select id="ds-scheme"><option>Goldman</option><option>Erlich</option></select>
+            </label>
+          </div>
+          <label class="fld" style="margin-top:8px;max-width:300px;">Redundancy <span class="range-val" id="ds-red-v">2</span>
+            <input type="range" id="ds-red" min="1" max="5" step="1" value="2">
+          </label>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="store">Encode</button>
+            <button class="btn cyan" data-act="lifecycle">Lifecycle Simulation</button>
+            <button class="btn green" data-act="analyze">Analyze</button>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Oligo List</h4>
+            <div class="tbl-wrap"><table class="tbl" id="ds-oligo-tbl"><thead><tr><th>#</th><th>Sequence</th><th>GC%</th><th>Homopolymer</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card"><h4><span class="dot"></span>Storage Density Comparison</h4><div id="ds-chart" class="chart-sm"></div></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Cost / Durability</h4><div id="ds-cost" class="kv"><div class="empty">—</div></div></div>
+          <div class="card"><h4><span class="dot"></span>Lifecycle Simulation (integrity &amp; error rate)</h4><div id="ds-lifecycle" class="kv"><div class="empty">—</div></div></div>
+        </div>
+        <div id="ds-raw"></div>
+      </section>
+
+      <!-- ============ Panel 8: SynBio ============ -->
+      <section id="panel-synbio" class="panel">
+        <div class="panel-head"><h2>SynBio Designer</h2><span class="desc">Expression cassette · vector · validation · GenBank export</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-3">
+            <label class="fld">Protein Sequence
+              <textarea id="sb-protein" rows="3" spellcheck="false">MVHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLG</textarea>
+            </label>
+            <label class="fld">Promoter
+              <select id="sb-prom"><option>T7</option><option>lacUV5</option><option>araBAD</option><option>CMV</option><option>EF1a</option></select>
+            </label>
+            <label class="fld">Terminator
+              <select id="sb-term"><option>T7 terminator</option><option>rrnB T1</option><option>SV40 polyA</option><option>bgh polyA</option></select>
+            </label>
+          </div>
+          <div class="checkbox-row" style="margin-top:10px;">
+            <label><input type="checkbox" id="sb-cai" checked> CAI Optimization</label>
+            <label><input type="checkbox" id="sb-restr" checked> Restriction Site Removal</label>
+            <label><input type="checkbox" id="sb-his"> His-tag</label>
+          </div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="cassette">Design Cassette</button>
+            <button class="btn cyan" data-act="vector">Design Vector</button>
+            <button class="btn green" data-act="validate">Validate</button>
+            <button class="btn secondary" data-act="genbank">Export GenBank</button>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Cassette Sequence (annotated)</h4><div id="sb-cassette" class="seq"><div class="empty">—</div></div></div>
+          <div class="card"><h4><span class="dot"></span>Validation Report (radar)</h4><div id="sb-radar" class="chart-sm"></div></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Vector Map (circular plasmid)</h4>
+            <div class="canvas-wrap"><canvas id="sb-canvas-vector" width="380" height="380"></canvas></div></div>
+          <div class="card"><h4><span class="dot"></span>GenBank Output</h4><pre id="sb-genbank" class="mono"><span class="empty">Click "Export GenBank"</span></pre></div>
+        </div>
+        <div id="sb-raw"></div>
+      </section>
+
+      <!-- ============ Panel 9: Metabolism FBA ============ -->
+      <section id="panel-metabolism" class="panel">
+        <div class="panel-head"><h2>Flux Balance Analysis (FBA)</h2><span class="desc">E. coli core metabolic model · flux solving · subsystem analysis</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Model Overview</h4>
+          <div id="mb-overview" class="kv"><div class="empty">Click "Load Model"</div></div>
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn" data-act="model">Load Model</button>
+            <button class="btn cyan" data-act="fba">Run FBA</button>
+            <button class="btn green" data-act="analyze">Metabolic Analysis</button>
+          </div>
+          <div class="grid grid-2" style="margin-top:10px;">
+            <label class="fld">Objective Reaction
+              <select id="mb-obj"><option value="biomass">biomass</option></select>
+            </label>
+            <label class="fld">Glucose Uptake Rate (mmol/gDW/h) <span class="range-val" id="mb-glc-v">10.0</span>
+              <input type="range" id="mb-glc" min="0" max="30" step="0.5" value="10">
+            </label>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Subsystem Reaction Distribution</h4><div id="mb-subsystem" class="chart-sm"></div></div>
+          <div class="card"><h4><span class="dot"></span>FBA Objective Value</h4><div id="mb-objective" class="kv"><div class="empty">—</div></div></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Flux Distribution (Top 15 reactions)</h4>
+          <div class="tbl-wrap"><table class="tbl" id="mb-flux-tbl"><thead><tr><th>Reaction</th><th>Name</th><th>Subsystem</th><th>Flux</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Metabolic Analysis Report</h4>
+          <div id="mb-analysis" class="kv"><div class="empty">Click "Metabolic Analysis"</div></div>
+        </div>
+        <div id="mb-raw"></div>
+      </section>
+
+      <!-- ============ Panel 10: Protein Structure ============ -->
+      <section id="panel-protein-structure" class="panel">
+        <div class="panel-head"><h2>Protein Structure Prediction</h2><span class="desc">Secondary structure · transmembrane helices · intrinsically disordered regions</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Input</h4>
+          <div class="grid grid-2">
+            <label class="fld" style="grid-column: span 2;">Protein Sequence
+              <textarea id="ps-seq" rows="3" spellcheck="false">MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKLFKQIKTQALIKHKRIIAEK</textarea>
+            </label>
+            <label class="fld">Secondary Structure Method
+              <select id="ps-method"><option value="chou-fasman">Chou-Fasman (60%)</option><option value="gor">GOR IV (simplified)</option></select>
+            </label>
+          </div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="secondary">Predict Secondary Structure</button>
+            <button class="btn cyan" data-act="transmembrane">Transmembrane Prediction</button>
+            <button class="btn green" data-act="disorder">Disorder Prediction</button>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card" style="grid-column: span 2;"><h4><span class="dot"></span>Secondary Structure (H=helix E=sheet T=turn '-'=none)</h4>
+            <pre id="ps-ss" class="mono"><span class="empty">Click "Predict Secondary Structure"</span></pre></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Secondary Structure Segments</h4>
+            <div class="tbl-wrap"><table class="tbl" id="ps-seg-tbl"><thead><tr><th>Type</th><th>Start</th><th>End</th><th>Length</th><th>Score</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card"><h4><span class="dot"></span>Transmembrane Helices</h4>
+            <div id="ps-tm" class="kv"><div class="empty">Click "Transmembrane Prediction"</div></div>
+            <h4 style="margin-top:8px;"><span class="dot"></span>Hydrophobicity (GRAVY)</h4>
+            <div id="ps-gravy" class="kv"><div class="empty">—</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Intrinsically Disordered Regions</h4>
+          <div id="ps-disorder" class="kv"><div class="empty">Click "Disorder Prediction"</div></div>
+        </div>
+        <div id="ps-raw"></div>
+      </section>
+
+      <!-- ============ Panel 11: Multi-Species ============ -->
+      <section id="panel-multispecies" class="panel">
+        <div class="panel-head"><h2>Multi-Species Comparison</h2><span class="desc">Codon usage bias · tRNA abundance · cross-species comparison</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Species Selection</h4>
+          <div class="grid grid-3">
+            <label class="fld">Species A
+              <select id="ms-sp-a"><option value="ecoli">ecoli</option><option value="yeast">yeast</option><option value="human">human</option></select>
+            </label>
+            <label class="fld">Species B
+              <select id="ms-sp-b"><option value="yeast">yeast</option><option value="ecoli">ecoli</option><option value="human">human</option></select>
+            </label>
+            <label class="fld">Data Type
+              <select id="ms-type"><option value="codon">Codon Usage Frequency</option><option value="trna">tRNA Abundance</option></select>
+            </label>
+          </div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn" data-act="compare">Compare</button>
+            <button class="btn cyan" data-act="list">List Species</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Supported Species</h4>
+          <div id="ms-species" class="kv"><div class="empty">Click "List Species"</div></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Species A · <span id="ms-a-title">—</span></h4>
+            <div class="tbl-wrap"><table class="tbl" id="ms-tbl-a"><thead><tr><th>Codon</th><th>Amino Acid</th><th>‰</th><th>Score</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card"><h4><span class="dot"></span>Species B · <span id="ms-b-title">—</span></h4>
+            <div class="tbl-wrap"><table class="tbl" id="ms-tbl-b"><thead><tr><th>Codon</th><th>Amino Acid</th><th>‰</th><th>Score</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h4><span class="dot"></span>Codon Usage Comparison (Top 20)</h4>
+          <div id="ms-chart" class="chart-sm"></div>
+        </div>
+        <div id="ms-raw"></div>
+      </section>
+
+      <!-- ============ Panel 12: Debugger ============ -->
+      <section id="panel-debugger" class="panel">
+        <div class="panel-head"><h2>Debugger</h2><span class="desc">Bytecode disassembly · variable watch · call stack · breakpoints · step/continue</span></div>
+        <div class="card">
+          <h4><span class="dot"></span>Source Editor</h4>
+          <textarea id="dbg-editor" class="editor" spellcheck="false">#gene name=demo
+ATG GCT GGT AAG GGT AAC TCG TTG AAC CGG CAA GGT AAA GCA TAA
+#end
+#config ticks=8</textarea>
+          <div class="btn-row" style="margin-top:10px;">
+            <button class="btn" data-act="session">Start Debug Session</button>
+            <button class="btn cyan" data-act="step">Step</button>
+            <button class="btn secondary" data-act="continue">Continue</button>
+            <button class="btn green" data-act="breakpoint">Set Breakpoint</button>
+            <button class="btn secondary" data-act="clearbp">Clear Breakpoints</button>
+          </div>
+          <div class="grid grid-3" style="margin-top:10px;">
+            <label class="fld">Breakpoint Offset (offset)
+              <input type="number" id="dbg-bp-offset" value="5" min="0">
+            </label>
+            <label class="fld">Breakpoint Line (optional)
+              <input type="number" id="dbg-bp-line" value="" min="1">
+            </label>
+            <label class="fld">Condition (optional, e.g. energy&lt;50)
+              <input type="text" id="dbg-bp-cond" value="" spellcheck="false">
+            </label>
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Bytecode Disassembly (current instruction highlighted)</h4>
+            <pre id="dbg-disasm" class="mono"><span class="empty">Click "Start Debug Session"</span></pre></div>
+          <div class="card"><h4><span class="dot"></span>Variable Watch</h4>
+            <div id="dbg-watch" class="kv"><div class="empty">—</div></div></div>
+        </div>
+        <div class="grid grid-2" style="margin-top:14px;">
+          <div class="card"><h4><span class="dot"></span>Call Stack</h4><div id="dbg-stack"><div class="empty">—</div></div>
+            <h4 style="margin-top:10px;"><span class="dot"></span>Breakpoint List</h4>
+            <div id="dbg-bps" class="kv"><div class="empty">—</div></div></div>
+          <div class="card"><h4><span class="dot"></span>Cell State</h4><div id="dbg-cell" class="kv"><div class="empty">—</div></div></div>
+        </div>
+        <div id="dbg-raw"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   HelixLang Labs — single-file interaction logic
+   Each panel is wrapped in its own object and calls the API through fetchJSON.
+   ============================================================ */
+
+/* ---------- Global utilities ---------- */
+const $ = (id) => document.getElementById(id);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+/** Unified POST request */
+async function fetchJSON(url, data) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data || {})
+  });
+  let body;
+  try { body = await r.json(); } catch (e) { body = {error: `Non-JSON response (HTTP ${r.status})`}; }
+  if (!r.ok && body && !body.error) body.error = `HTTP ${r.status}`;
+  return body;
+}
+
+function setLoading(btn, loading, origText) {
+  if (loading) {
+    btn._orig = btn._orig || btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> ${origText || "Processing..."}`;
+  } else {
+    btn.disabled = false;
+    if (btn._orig) btn.innerHTML = btn._orig;
+  }
+}
+
+function showError(container, msg) {
+  container.innerHTML = `<div class="error-box">${escapeHtml(msg)}</div>`;
+}
+function showInfo(container, msg) {
+  container.innerHTML = `<div class="info-box">${escapeHtml(msg)}</div>`;
+}
+function clearBox(container) { container.innerHTML = ""; }
+
+/** Append a collapsible raw JSON section at the end of the container, useful for debugging backend responses */
+function appendRaw(container, data) {
+  if (!container) return;
+  const det = document.createElement("details");
+  det.className = "raw";
+  det.innerHTML = `<summary>View raw API response</summary><pre class="mono">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+  container.innerHTML = "";
+  container.appendChild(det);
+}
+
+/** Determine whether the API succeeded (compatible with ok / error fields) */
+function apiOk(data) { return data && !data.error && data.ok !== false; }
+
+/* ---------- ECharts helper ---------- */
+const charts = {};
+function setChart(id, option) {
+  const el = $(id);
+  if (!el || typeof echarts === "undefined") return null;
+  if (charts[id]) charts[id].dispose();
+  const c = echarts.init(el, null, {renderer: "canvas"});
+  c.setOption(option);
+  charts[id] = c;
+  return c;
+}
+const PALETTE = ["#7b5cff", "#a78bfa", "#22d3ee", "#34d399", "#f0abfc", "#fbbf24", "#f87171", "#60a5fa"];
+const AX = {axisLabel: {color: "#7c6ba8"}, splitLine: {lineStyle: {color: "#251b47"}}};
+
+/* ---------- Amino acid coloring (by physicochemical properties) ---------- */
+const AA_COLOR = {
+  'A': '#fbbf24', 'V': '#fbbf24', 'L': '#fbbf24', 'I': '#fbbf24', 'M': '#fbbf24',
+  'F': '#f59e0b', 'W': '#f59e0b', 'P': '#f97316',
+  'G': '#94a3b8',
+  'S': '#34d399', 'T': '#34d399', 'C': '#22d3ee', 'Y': '#22d3ee', 'N': '#34d399', 'Q': '#34d399',
+  'K': '#60a5fa', 'R': '#60a5fa', 'H': '#38bdf8',
+  'D': '#f87171', 'E': '#f87171',
+  '*': '#7c6ba8'
+};
+function renderProtein(seq) {
+  if (!seq) return '<span class="empty">—</span>';
+  return seq.split("").map(a => {
+    const c = AA_COLOR[a] || "#a78bfa";
+    if (a === "*") return `<span class="aa aa-stop">·</span>`;
+    return `<span class="aa" style="background:${c}">${escapeHtml(a)}</span>`;
+  }).join("");
+}
+
+/* ---------- DNA coloring ---------- */
+const DNA_COLOR = {'A':'#34d399','T':'#f87171','G':'#fbbf24','C':'#60a5fa','U':'#22d3ee','N':'#7c6ba8'};
+function renderSeq(seq) {
+  if (!seq) return '<span class="empty">—</span>';
+  return seq.split("").map(b => {
+    const c = DNA_COLOR[b.toUpperCase()];
+    return c ? `<span style="color:${c}">${escapeHtml(b)}</span>` : escapeHtml(b);
+  }).join("");
+}
+
+/* ---------- Nav button SVG icons ---------- */
+const ICONS = {
+  "central-dogma": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7c4-4 12-4 16 0M4 17c4 4 12 4 16 0M6 5v14M18 5v14"/></svg>',
+  "evolution": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l4-4 3 3 5-6 6 6"/><path d="M3 21h18"/></svg>',
+  "population": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="9" r="2.5"/><circle cx="16" cy="9" r="2.5"/><circle cx="12" cy="15" r="2.5"/></svg>',
+  "crispr": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><path d="M8 8l10 10M16 4l4 4-8 4-4-4z"/></svg>',
+  "epigenetics": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="18" height="4" rx="1"/><circle cx="7" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="17" cy="12" r="1" fill="currentColor"/></svg>',
+  "morphology3d": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 5v8l-9 5-9-5V8z"/><path d="M12 12l9-4M12 12v9M12 12L3 8"/></svg>',
+  "dna-storage": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="6" rx="8" ry="3"/><ellipse cx="12" cy="18" rx="8" ry="3"/><path d="M4 6v12M20 6v12"/></svg>',
+  "synbio": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4"/></svg>',
+  "metabolism": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>',
+  "protein-structure": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4c4 4 12 12 16 16M4 20c4-4 12-12 16-16"/><circle cx="4" cy="4" r="2"/><circle cx="20" cy="20" r="2"/><circle cx="4" cy="20" r="2"/><circle cx="20" cy="4" r="2"/></svg>',
+  "multispecies": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="3"/><circle cx="15" cy="15" r="3"/><path d="M3 21c0-3 3-5 6-5M21 3c0 3-3 5-6 5"/></svg>',
+  "debugger": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2v6M15 2v6M5 8h14v4a7 7 0 0 1-14 0z"/><path d="M12 19v3"/></svg>'
+};
+$$(".nav-btn").forEach(b => {
+  const ico = b.querySelector(".ico");
+  const key = b.dataset.panel;
+  if (ico && ICONS[key]) ico.innerHTML = ICONS[key];
+});
+
+/* ---------- Navigation switching ---------- */
+function switchPanel(name) {
+  $$(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.panel === name));
+  $$(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+  setTimeout(() => Object.values(charts).forEach(c => c && c.resize()), 60);
+}
+$$(".nav-btn").forEach(b => b.addEventListener("click", () => switchPanel(b.dataset.panel)));
+
+/* ---------- Generic: slider value display ---------- */
+function bindRange(rangeId, valId, fmt) {
+  const r = $(rangeId), v = $(valId);
+  if (!r || !v) return;
+  const upd = () => v.textContent = fmt ? fmt(r.value) : r.value;
+  r.addEventListener("input", upd); upd();
+}
+
+/* ============================================================
+   Panel 1: Central Dogma
+   ============================================================ */
+const CentralDogma = {
+  root: () => $("panel-central-dogma"),
+  init() {
+    bindRange("cd-prom", "cd-prom-v", v => parseFloat(v).toFixed(2));
+    this.root().querySelectorAll("button[data-act]").forEach(btn => {
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act));
+    });
+  },
+  async run(btn, act) {
+    const dna = $("cd-dna").value.trim();
+    if (!dna) { showError(this.root().querySelector(".btn-row").parentElement, "Please enter a DNA sequence"); return; }
+    setLoading(btn, true);
+    const url = {transcribe: "/api/central-dogma/transcribe", translate: "/api/central-dogma/translate", coupled: "/api/central-dogma/coupled"}[act];
+    try {
+      const data = await fetchJSON(url, {dna, promoter_strength: parseFloat($("cd-prom").value)});
+      if (!apiOk(data)) {
+        showError($("cd-raw"), data.error || "Request failed");
+        $("cd-mrna").innerHTML = '<span class="empty">Error</span>';
+        return;
+      }
+      this.render(data, act);
+    } catch (e) {
+      showError($("cd-raw"), String(e));
+    } finally {
+      setLoading(btn, false);
+    }
+  },
+  render(data, act) {
+    clearBox($("cd-raw"));
+    const mrna = data.mrna || "";
+    const protein = data.protein || "";
+    $("cd-mrna").innerHTML = renderSeq(mrna);
+    $("cd-mrna-len").textContent = mrna ? `${mrna.length} nt` : "";
+    $("cd-prot").innerHTML = renderProtein(protein);
+    $("cd-prot-len").textContent = protein ? `${protein.length} aa` : "";
+
+    // Parameters panel
+    const params = data.params || data.parameters || {};
+    const keys = Object.keys(params);
+    $("cd-params").innerHTML = keys.length
+      ? keys.map(k => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(params[k])}</div>`).join("")
+      : `<div class="empty">${act} complete (no extra parameters)</div>`;
+
+    // Time series (coupled)
+    const ts = data.time_series;
+    if (ts && (ts.time || ts.mrna_level)) {
+      const t = ts.time || Array.from({length: (ts.mrna_level||[]).length}, (_, i) => i);
+      setChart("cd-chart", {
+        tooltip: {trigger: "axis"},
+        legend: {data: ["mRNA", "Protein"], textStyle: {color: "#a78bfa"}},
+        xAxis: {type: "category", data: t, ...AX},
+        yAxis: {type: "value", ...AX},
+        series: [
+          {name: "mRNA", type: "line", smooth: true, data: ts.mrna_level || [],
+           itemStyle: {color: "#22d3ee"}, areaStyle: {opacity: 0.2}},
+          {name: "Protein", type: "line", smooth: true, data: ts.protein_level || [],
+           itemStyle: {color: "#34d399"}, areaStyle: {opacity: 0.2}}
+        ]
+      });
+    } else {
+      setChart("cd-chart", {title: {text: "Time series is shown in coupled-dynamics mode", textStyle: {color: "#7c6ba8"}, left: "center", top: "center"}});
+    }
+    appendRaw($("cd-raw"), data);
+  }
+};
+
+/* ============================================================
+   Panel 2: Evolution
+   ============================================================ */
+const Evolution = {
+  root: () => $("panel-evolution"),
+  init() {
+    bindRange("evo-gen", "evo-gen-v"); bindRange("evo-mut", "evo-mut-v", v => parseFloat(v).toFixed(3));
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn)));
+  },
+  async run(btn) {
+    setLoading(btn, true);
+    const body = {
+      initial_dna: $("evo-init").value.trim(),
+      target_dna: $("evo-target").value.trim(),
+      generations: parseInt($("evo-gen").value, 10),
+      population_size: parseInt($("evo-pop").value, 10),
+      mutation_rate: parseFloat($("evo-mut").value)
+    };
+    try {
+      const data = await fetchJSON("/api/evolution/run", body);
+      if (!apiOk(data)) { showError($("evo-raw"), data.error || "Request failed"); return; }
+      this.render(data, body);
+    } catch (e) { showError($("evo-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  render(data, body) {
+    clearBox($("evo-raw"));
+    const fh = data.fitness_history || data.history || {};
+    const gens = fh.generations || fh.generation || Array.from({length: (fh.avg||[]).length}, (_, i) => i);
+    setChart("evo-chart-fit", {
+      tooltip: {trigger: "axis"}, legend: {data: ["Average fitness", "Maximum fitness"], textStyle: {color: "#a78bfa"}},
+      xAxis: {type: "category", data: gens, ...AX}, yAxis: {type: "value", ...AX},
+      series: [
+        {name: "Average fitness", type: "line", smooth: true, data: fh.avg || fh.mean || [], itemStyle: {color: "#7b5cff"}, areaStyle: {opacity: 0.2}},
+        {name: "Maximum fitness", type: "line", smooth: true, data: fh.max || [], itemStyle: {color: "#34d399"}}
+      ]
+    });
+    setChart("evo-chart-div", {
+      tooltip: {trigger: "axis"},
+      xAxis: {type: "category", data: gens, ...AX}, yAxis: {type: "value", ...AX},
+      series: [{name: "Diversity", type: "line", smooth: true, data: data.diversity || fh.diversity || [],
+                itemStyle: {color: "#22d3ee"}, areaStyle: {opacity: 0.25}}]
+    });
+
+    // DNA comparison
+    const init = data.initial_dna || body.initial_dna;
+    const fin = data.final_dna || data.best_dna || "";
+    let diffHtml = '<div class="seq"><div class="hint">Initial:</div>';
+    if (init && fin) {
+      const maxL = Math.max(init.length, fin.length);
+      const out = [];
+      for (let i = 0; i < maxL; i++) {
+        const a = init[i] || "·", b = fin[i] || "·";
+        if (a === b) out.push(`<span class="diff-eq">${escapeHtml(a)}</span>`);
+        else out.push(`<span class="diff-del">${escapeHtml(a)}</span><span class="diff-add">${escapeHtml(b)}</span>`);
+      }
+      diffHtml = `<div class="hint">Initial vs Final (deleted=red/strikethrough, added=green)</div><div class="seq">${out.join("")}</div>`;
+    } else {
+      diffHtml += `${renderSeq(init)}</div><div class="seq"><div class="hint">Final:</div>${renderSeq(fin)}</div>`;
+    }
+    $("evo-diff").innerHTML = diffHtml;
+
+    // dN/dS
+    const dn = data.dn_ds || data.dNdS || {};
+    const dk = Object.keys(dn);
+    $("evo-dnds").innerHTML = dk.length ? dk.map(k => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(dn[k])}</div>`).join("")
+      : `<div class="k">dN/dS</div><div class="v">${escapeHtml(data.dn_ds_ratio ?? data.dnds ?? "—")}</div>`;
+    appendRaw($("evo-raw"), data);
+  }
+};
+
+/* ============================================================
+   Panel 3: Population
+   ============================================================ */
+const Population = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn)));
+  },
+  root: () => $("panel-population"),
+  async run(btn) {
+    setLoading(btn, true);
+    const gridSize = parseInt($("pop-grid").value, 10);
+    const body = {
+      initial_count: parseInt($("pop-init").value, 10),
+      generations: parseInt($("pop-gen").value, 10),
+      config: { grid_width: gridSize, grid_height: gridSize }
+    };
+    try {
+      const data = await fetchJSON("/api/population/simulate", body);
+      if (!apiOk(data)) { showError($("pop-raw"), data.error || "Request failed"); return; }
+      this.render(data);
+    } catch (e) { showError($("pop-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  render(data) {
+    clearBox($("pop-raw"));
+    const h = data.history || data.timeseries || {};
+    const gens = h.generations || h.generation || Array.from({length: (h.population||h.alive||[]).length}, (_, i) => i);
+    setChart("pop-chart", {
+      tooltip: {trigger: "axis"},
+      legend: {data: ["Alive"], textStyle: {color: "#a78bfa"}},
+      xAxis: {type: "category", data: gens, ...AX}, yAxis: {type: "value", ...AX},
+      series: [{name: "Alive", type: "line", smooth: true, data: h.population || h.alive || [],
+                itemStyle: {color: "#34d399"}, areaStyle: {opacity: 0.25}}]
+    });
+    // Statistics
+    const s = data.stats || data.statistics || {};
+    const sk = Object.keys(s);
+    $("pop-stats").innerHTML = sk.length ? sk.map(k => `<div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(s[k])}</div>`).join("")
+      : `<div class="k">Final population</div><div class="v">${data.final_population ?? "—"}</div>`;
+    // Spatial + signal heatmaps
+    this.drawHeat($("pop-canvas-spatial"), data.spatial || data.grid || data.distribution, "spatial");
+    this.drawHeat($("pop-canvas-signal"), data.signal || data.signal_field || data.signal_molecule, "signal");
+    appendRaw($("pop-raw"), data);
+  },
+  drawHeat(cv, mat, kind) {
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0d0a1a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (!mat || !mat.length) {
+      ctx.fillStyle = "#7c6ba8"; ctx.font = "13px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("No spatial data", cv.width / 2, cv.height / 2); return;
+    }
+    const n = mat.length;
+    const cell = cv.width / n;
+    let maxV = 0;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) maxV = Math.max(maxV, mat[i][j] || 0);
+    maxV = maxV || 1;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const v = (mat[i][j] || 0) / maxV;
+        let r, g, b;
+        if (kind === "signal") { r = Math.round(20 + v * 40); g = Math.round(180 + v * 75); b = Math.round(200 + v * 55); }
+        else { r = Math.round(40 + v * 90); g = Math.round(20 + v * 50); b = Math.round(80 + v * 175); }
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(j * cell, i * cell, Math.ceil(cell), Math.ceil(cell));
+      }
+    }
+  }
+};
+
+/* ============================================================
+   Panel 4: CRISPR
+   ============================================================ */
+const Crispr = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-crispr"),
+  async run(btn, act) {
+    const dna = $("cr-dna").value.trim();
+    if (!dna) { showError($("cr-raw"), "Please enter a DNA sequence"); return; }
+    setLoading(btn, true);
+    const url = {pam: "/api/crispr/find-pam", guide: "/api/crispr/design-guide", edit: "/api/crispr/edit"}[act];
+    const body = {dna, cas_variant: $("cr-cas").value, position: parseInt($("cr-pos").value, 10) || 0};
+    if (act === "edit") {
+      body.target_position = body.position;
+      body.new_sequence = $("cr-new-seq").value.trim();
+    }
+    try {
+      const data = await fetchJSON(url, body);
+      if (!apiOk(data)) { showError($("cr-raw"), data.error || "Request failed"); return; }
+      if (act === "pam") this.renderPam(data);
+      else if (act === "guide") this.renderGuide(data);
+      else this.renderEdit(data);
+      appendRaw($("cr-raw"), data);
+    } catch (e) { showError($("cr-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  renderPam(data) {
+    const pams = data.pams || data.pam_sites || data.sites || [];
+    const tb = $("cr-pam-tbl").querySelector("tbody");
+    tb.innerHTML = pams.length ? pams.map(p => `<tr><td>${p.position ?? p.pos ?? ""}</td><td>${escapeHtml(p.pam || p.sequence || "")}</td><td>${escapeHtml(p.strand || "+")}</td><td style="color:var(--cyan)">${escapeHtml(p.spacer || p.guide || "")}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No PAM sites found</td></tr>`;
+  },
+  renderGuide(data) {
+    const sg = data.sgrna || data.guide || data.sgRNA || {};
+    const score = sg.on_target_score ?? sg.score ?? sg.efficiency;
+    const scorePct = (score != null) ? Math.round(score * 100) : null;
+    $("cr-sgrna").innerHTML = `
+      <div class="kv">
+        <div class="k">spacer</div><div class="v" style="color:var(--cyan)">${escapeHtml(sg.spacer || sg.sequence || "")}</div>
+        <div class="k">Full sgRNA</div><div class="v">${escapeHtml(sg.full_sequence || sg.sgrna || "")}</div>
+        <div class="k">On-target score</div><div class="v">${score != null ? score.toFixed(3) : "—"}</div>
+      </div>
+      ${scorePct != null ? `<div class="progress ${scorePct >= 60 ? "green" : "red"}" style="margin-top:8px;"><div style="width:${scorePct}%"></div></div>` : ""}`;
+    const offs = data.off_targets || data.offtarget || [];
+    const tb = $("cr-off-tbl").querySelector("tbody");
+    tb.innerHTML = offs.length ? offs.map(o => `<tr><td>${o.position ?? o.pos ?? ""}</td><td>${escapeHtml(o.sequence || o.target || "")}</td><td>${o.mismatches ?? o.mm ?? ""}</td><td>${(o.score ?? 0).toFixed(2)}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No off-target predictions</td></tr>`;
+  },
+  renderEdit(data) {
+    const orig = data.original || data.original_dna || "";
+    const edited = data.edited || data.edited_dna || "";
+    if (!orig && !edited) { $("cr-diff").innerHTML = '<div class="empty">No edit result</div>'; return; }
+    const maxL = Math.max(orig.length, edited.length);
+    const out = [];
+    for (let i = 0; i < maxL; i++) {
+      const a = orig[i] || "·", b = edited[i] || "·";
+      if (a === b) out.push(`<span class="diff-eq">${escapeHtml(a)}</span>`);
+      else out.push(`<span class="diff-del">${escapeHtml(a)}</span><span class="diff-add">${escapeHtml(b)}</span>`);
+    }
+    $("cr-diff").innerHTML = `<div class="hint">Deleted=red/strikethrough, added=green</div><div class="seq">${out.join("")}</div>`;
+  }
+};
+
+/* ============================================================
+   Panel 5: Epigenetics
+   ============================================================ */
+const Epigenetics = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-epigenetics"),
+  async run(btn, act) {
+    const dna = $("ep-dna").value.trim();
+    if (!dna) { showError($("ep-raw"), "Please enter a DNA sequence"); return; }
+    setLoading(btn, true);
+    const url = {methylate: "/api/epigenetics/methylate", histone: "/api/epigenetics/histone", cpg: "/api/epigenetics/cpg-islands"}[act];
+    const cellType = $("ep-cell").value;
+    const body = {dna, cell_type: cellType};
+    if (act === "methylate") {
+      body.methylase = cellType === "ecoli" ? "dam" : "cpg";
+    }
+    try {
+      const data = await fetchJSON(url, body);
+      if (!apiOk(data)) { showError($("ep-raw"), data.error || "Request failed"); return; }
+      if (act === "methylate") this.renderMeth(data);
+      else if (act === "histone") this.renderHist(data);
+      else this.renderCpg(data);
+      appendRaw($("ep-raw"), data);
+    } catch (e) { showError($("ep-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  renderMeth(data) {
+    const sites = data.methylation || data.sites || data.positions || [];
+    const cv = $("ep-canvas-meth"); const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0d0a1a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (!sites.length) { ctx.fillStyle = "#7c6ba8"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.fillText("No methylation data", cv.width / 2, cv.height / 2); return; }
+    const n = sites.length;
+    const step = cv.width / (n + 1);
+    for (let i = 0; i < n; i++) {
+      const s = sites[i];
+      const meth = s.methylated != null ? s.methylated : (s.level != null ? s.level > 0.5 : !!s.meth);
+      const x = (i + 1) * step;
+      const y = cv.height / 2;
+      ctx.fillStyle = meth ? "#f87171" : "#34d399";
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, 2 * Math.PI); ctx.fill();
+      // Methylation glow
+      if (meth) { ctx.shadowBlur = 8; ctx.shadowColor = "#f87171"; ctx.fill(); ctx.shadowBlur = 0; }
+    }
+    ctx.fillStyle = "#7c6ba8"; ctx.font = "11px monospace"; ctx.textAlign = "left";
+    ctx.fillText(`CpG sites: ${n}`, 6, 14);
+  },
+  renderCpg(data) {
+    const islands = data.islands || data.cpg_islands || [];
+    const tb = $("ep-cpg-tbl").querySelector("tbody");
+    tb.innerHTML = islands.length ? islands.map(i => `<tr><td>${i.start ?? ""}</td><td>${i.end ?? ""}</td><td>${i.length ?? (i.end - i.start) ?? ""}</td><td>${((i.gc_content ?? i.gc ?? 0) * 100).toFixed(1)}%</td><td>${(i.observed_expected ?? i.oe ?? 0).toFixed(2)}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">No CpG islands found</td></tr>`;
+  },
+  renderHist(data) {
+    const mods = data.modifications || data.marks || data.histone_marks || [];
+    const cv = $("ep-canvas-hist"); const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0d0a1a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    if (!mods.length) { ctx.fillStyle = "#7c6ba8"; ctx.font = "12px sans-serif"; ctx.textAlign = "center"; ctx.fillText("No histone modification data", cv.width / 2, cv.height / 2); return; }
+    const bw = cv.width / mods.length;
+    const markColors = {"H3K4me3": "#34d399", "H3K27me3": "#f87171", "H3K9me3": "#7b5cff", "H3K27ac": "#fbbf24", "H3K4me1": "#22d3ee", "H3K36me3": "#a78bfa"};
+    mods.forEach((m, i) => {
+      const x = i * bw;
+      const level = m.level != null ? m.level : (m.intensity != null ? m.intensity : 0.5);
+      const color = markColors[m.mark || m.name] || "#a78bfa";
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.3 + level * 0.7;
+      ctx.fillRect(x + 2, 10, bw - 4, cv.height - 30);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#e9d5ff"; ctx.font = "9px monospace"; ctx.textAlign = "center";
+      ctx.fillText(m.mark || m.name || "", x + bw / 2, cv.height - 6);
+    });
+    // Factors panel
+    $("ep-factors").innerHTML = `<div class="kv">` + mods.slice(0, 6).map(m =>
+      `<div class="k">${escapeHtml(m.mark || m.name || "")}</div><div class="v">${(m.level != null ? m.level : m.intensity ?? 0).toFixed(2)}</div>`
+    ).join("") + `</div>`;
+  }
+};
+
+/* ============================================================
+   Panel 6: 3D Morphology
+   ============================================================ */
+const Morphology3D = {
+  cache: null,
+  init() {
+    bindRange("m3d-iter", "m3d-iter-v"); bindRange("m3d-rot", "m3d-rot-v", v => v + "°");
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn)));
+    $("m3d-rot").addEventListener("input", () => this.project(this.cache));
+  },
+  root: () => $("panel-morphology3d"),
+  async run(btn) {
+    setLoading(btn, true);
+    const body = {
+      preset: $("m3d-preset").value,
+      iterations: parseInt($("m3d-iter").value, 10),
+      axiom: $("m3d-axiom").value,
+      rules: $("m3d-rule").value
+    };
+    try {
+      const data = await fetchJSON("/api/morphology3d/generate", body);
+      if (!apiOk(data)) { showError($("m3d-raw"), data.error || "Request failed"); return; }
+      this.cache = data;
+      this.project(data);
+      this.stats(data);
+      appendRaw($("m3d-raw"), data);
+    } catch (e) { showError($("m3d-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  project(data) {
+    if (!data) return;
+    const cv = $("m3d-canvas"); const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0d0a1a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    const verts = data.vertices || data.points || [];
+    const segs = data.segments || data.edges || [];
+    if (!verts.length) { ctx.fillStyle = "#7c6ba8"; ctx.font = "13px sans-serif"; ctx.textAlign = "center"; ctx.fillText("No vertex data", cv.width / 2, cv.height / 2); return; }
+    const ang = parseFloat($("m3d-rot").value) * Math.PI / 180;
+    const cosA = Math.cos(ang), sinA = Math.sin(ang);
+    // Rotate around Y axis + simple perspective
+    const proj = verts.map(v => {
+      const [x, y, z] = v;
+      const rx = x * cosA + z * sinA;
+      const rz = -x * sinA + z * cosA;
+      const persp = 600 / (600 + rz);
+      return [cv.width / 2 + rx * persp * 8, cv.height / 2 - y * persp * 8, rz];
+    });
+    // Bounds
+    let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+    proj.forEach(p => { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); miny = Math.min(miny, p[1]); maxy = Math.max(maxy, p[1]); });
+    const sc = Math.min((cv.width - 60) / (maxx - minx || 1), (cv.height - 60) / (maxy - miny || 1));
+    const ox = (cv.width - (maxx - minx) * sc) / 2 - minx * sc;
+    const oy = (cv.height - (maxy - miny) * sc) / 2 - miny * sc;
+    const grad = ctx.createLinearGradient(0, 0, cv.width, cv.height);
+    grad.addColorStop(0, "#7b5cff"); grad.addColorStop(0.5, "#a78bfa"); grad.addColorStop(1, "#22d3ee");
+    ctx.strokeStyle = grad; ctx.lineWidth = 1.3;
+    if (segs.length) {
+      segs.forEach(s => {
+        const a = proj[s[0]], b = proj[s[1]];
+        if (!a || !b) return;
+        ctx.beginPath(); ctx.moveTo(a[0] * sc + ox, a[1] * sc + oy); ctx.lineTo(b[0] * sc + ox, b[1] * sc + oy); ctx.stroke();
+      });
+    } else {
+      ctx.beginPath();
+      proj.forEach((p, i) => i === 0 ? ctx.moveTo(p[0] * sc + ox, p[1] * sc + oy) : ctx.lineTo(p[0] * sc + ox, p[1] * sc + oy));
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#34d399"; ctx.beginPath();
+    if (proj[0]) ctx.arc(proj[0][0] * sc + ox, proj[0][1] * sc + oy, 3, 0, 2 * Math.PI); ctx.fill();
+  },
+  stats(data) {
+    const verts = data.vertices || data.points || [];
+    const segs = data.segments || data.edges || [];
+    const b = data.bounds || data.bounding_box || {};
+    $("m3d-stats").innerHTML = `
+      <div class="k">Vertices</div><div class="v">${verts.length}</div>
+      <div class="k">Segments</div><div class="v">${segs.length}</div>
+      <div class="k">Bounds X</div><div class="v">${b.min_x ?? "—"} ~ ${b.max_x ?? "—"}</div>
+      <div class="k">Bounds Y</div><div class="v">${b.min_y ?? "—"} ~ ${b.max_y ?? "—"}</div>
+      <div class="k">Bounds Z</div><div class="v">${b.min_z ?? "—"} ~ ${b.max_z ?? "—"}</div>`;
+  }
+};
+
+/* ============================================================
+   Panel 7: DNA Storage
+   ============================================================ */
+const DnaStorage = {
+  init() {
+    bindRange("ds-red", "ds-red-v");
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-dna-storage"),
+  async run(btn, act) {
+    setLoading(btn, true);
+    const url = {store: "/api/dna-storage/store", lifecycle: "/api/dna-storage/lifecycle", analyze: "/api/dna-storage/analyze"}[act];
+    const body = {
+      text: $("ds-text").value, scheme: $("ds-scheme").value,
+      redundancy: parseInt($("ds-red").value, 10)
+    };
+    try {
+      const data = await fetchJSON(url, body);
+      if (!apiOk(data)) { showError($("ds-raw"), data.error || "Request failed"); return; }
+      if (act === "store") this.renderStore(data);
+      else if (act === "lifecycle") this.renderLifecycle(data);
+      else this.renderAnalyze(data);
+      appendRaw($("ds-raw"), data);
+    } catch (e) { showError($("ds-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  renderStore(data) {
+    const oligos = data.oligos || [];
+    const tb = $("ds-oligo-tbl").querySelector("tbody");
+    tb.innerHTML = oligos.length ? oligos.map(o => `<tr><td>${o.index ?? ""}</td><td style="color:var(--cyan)">${escapeHtml(o.sequence || "")}</td><td>${((o.gc_content ?? 0) * 100).toFixed(1)}%</td><td>${o.max_homopolymer ?? "—"}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No oligos</td></tr>`;
+  },
+  renderAnalyze(data) {
+    const d = data.density || {};
+    const bits_per_nt = d.bits_per_nt;
+    setChart("ds-chart", {
+      tooltip: {trigger: "axis"},
+      legend: {textStyle: {color: "#a78bfa"}},
+      xAxis: {type: "category", data: ["This scheme", "Goldman 2013", "Erlich 2017", "Shannon limit"], ...AX},
+      yAxis: {type: "value", name: "bits/nt", ...AX},
+      series: [{name: "Storage density", type: "bar", data: [
+        bits_per_nt ?? 1.0, 0.83, 1.57, 1.98
+      ], itemStyle: {color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+        {offset: 0, color: "#22d3ee"}, {offset: 1, color: "#7b5cff"}
+      ])}, barWidth: "45%"}]
+    });
+    const c = data.cost || {}, dur = data.durability || {};
+    $("ds-cost").innerHTML = `
+      <div class="k">Storage density</div><div class="v">${bits_per_nt ?? "—"} bits/nt</div>
+      <div class="k">Total oligos</div><div class="v">${data.total_oligos ?? "—"}</div>
+      <div class="k">Total bytes</div><div class="v">${data.total_bytes ?? "—"}</div>
+      <div class="k">Cost/MB</div><div class="v">${c.per_mb ?? "—"} $</div>
+      <div class="k">Durability</div><div class="v">${dur.years ?? "—"} years</div>`;
+  },
+  renderLifecycle(data) {
+    const integ = data.integrity || [];
+    const err = data.error_rate || [];
+    const li = [];
+    if (integ.length) li.push(`<div class="k">Integrity (final)</div><div class="v">${(integ[integ.length - 1] * 100).toFixed(1)}%</div>`);
+    if (err.length) li.push(`<div class="k">Error rate (final)</div><div class="v">${(err[err.length - 1] * 100).toFixed(2)}%</div>`);
+    li.push(`<div class="k">Sample points</div><div class="v">${integ.length || err.length}</div>`);
+    $("ds-lifecycle").innerHTML = li.join("") || '<div class="empty">No lifecycle data</div>';
+  }
+};
+
+/* ============================================================
+   Panel 8: SynBio
+   ============================================================ */
+const SynBio = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-synbio"),
+  body() {
+    return {
+      protein: $("sb-protein").value.trim(),
+      promoter: $("sb-prom").value, terminator: $("sb-term").value,
+      optimize_codons: $("sb-cai").checked, remove_restriction_sites: $("sb-restr").checked,
+      add_histidine_tag: $("sb-his").checked
+    };
+  },
+  async run(btn, act) {
+    if (!$("sb-protein").value.trim()) { showError($("sb-raw"), "Please enter a protein sequence"); return; }
+    setLoading(btn, true);
+    const url = {cassette: "/api/synbio/design-cassette", vector: "/api/synbio/design-vector",
+                 validate: "/api/synbio/validate", genbank: "/api/synbio/export-genbank"}[act];
+    // validate/genbank need DNA: prefer the last cassette output, otherwise design once on the fly
+    const body = this.body();
+    if (act === "validate" || act === "genbank") {
+      let dna = this.lastDna;
+      if (!dna) {
+        try {
+          const tmp = await fetchJSON("/api/synbio/design-cassette", body);
+          if (apiOk(tmp) && tmp.cassette) {
+            dna = tmp.cassette.full_sequence || tmp.cassette.orf_seq || "";
+          }
+        } catch (e) { /* ignore; an empty DNA below will trigger a backend error message */ }
+      }
+      body.dna = dna || body.protein;  // fall back to the protein sequence to trigger a friendly error
+      body.name = "helixlang_cassette";
+    }
+    try {
+      const data = await fetchJSON(url, body);
+      if (!apiOk(data)) { showError($("sb-raw"), data.error || "Request failed"); return; }
+      if (act === "cassette" && data.cassette) {
+        this.lastDna = data.cassette.full_sequence || data.cassette.orf_seq || "";
+        this.renderCassette(data);
+      } else if (act === "vector") this.renderVector(data);
+      else if (act === "validate") this.renderValidate(data);
+      else this.renderGenbank(data);
+      appendRaw($("sb-raw"), data);
+    } catch (e) { showError($("sb-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  renderCassette(data) {
+    const cas = data.cassette || {};
+    const seq = cas.full_sequence || cas.orf_seq || "";
+    // Build annotations based on known segment lengths
+    const anns = [];
+    let cursor = 0;
+    if (cas.promoter_seq) { anns.push({type:"promoter", start:cursor, end:cursor+cas.promoter_seq.length}); cursor += cas.promoter_seq.length; }
+    if (cas.rbs_seq) { anns.push({type:"RBS", start:cursor, end:cursor+cas.rbs_seq.length}); cursor += cas.rbs_seq.length; }
+    if (cas.orf_seq) { anns.push({type:"ORF", start:cursor, end:cursor+cas.orf_seq.length}); cursor += cas.orf_seq.length; }
+    if (cas.terminator_seq) { anns.push({type:"terminator", start:cursor, end:cursor+cas.terminator_seq.length}); cursor += cas.terminator_seq.length; }
+    if (!seq) { $("sb-cassette").innerHTML = '<div class="empty">No cassette</div>'; return; }
+    const typeColor = {promoter: "#22d3ee", RBS: "#fbbf24", ORF: "#34d399", terminator: "#f87171", his_tag: "#a78bfa"};
+    // Build the sequence with colored annotations
+    const chars = seq.split("");
+    const marks = new Array(seq.length).fill(null);
+    anns.forEach(a => {
+      const s = a.start ?? 0, e = a.end ?? seq.length;
+      for (let i = s; i < e && i < seq.length; i++) marks[i] = a.type || a.label;
+    });
+    let html = "";
+    // Legend
+    html += '<div style="margin-bottom:8px;">' + anns.map(a => {
+      const c = typeColor[a.type] || "#a78bfa";
+      return `<span class="badge" style="background:${c}33;color:${c}">${escapeHtml(a.type || a.label)}: ${a.start}-${a.end}</span>`;
+    }).join(" ") + '</div>';
+    html += '<div class="seq" style="background:var(--bg);padding:8px;border-radius:6px;border:1px solid var(--border)">';
+    chars.forEach((b, i) => {
+      const m = marks[i];
+      const c = m ? (typeColor[m] || "#a78bfa") : null;
+      html += c ? `<span style="color:${c};font-weight:600">${escapeHtml(b)}</span>` : `<span style="color:var(--text-muted)">${escapeHtml(b)}</span>`;
+    });
+    html += '</div>';
+    $("sb-cassette").innerHTML = html;
+  },
+  renderVector(data) {
+    const cv = $("sb-canvas-vector"); const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0d0a1a"; ctx.fillRect(0, 0, cv.width, cv.height);
+    const cx = cv.width / 2, cy = cv.height / 2, R = 130;
+    // Main ring
+    ctx.strokeStyle = "#4a3578"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+    const feats = data.features || data.map_features || data.vector_features || [];
+    const fc = ["#22d3ee", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#60a5fa"];
+    feats.forEach((f, i) => {
+      const start = (f.start ?? 0) / (f.total_length || data.length || 1000) * 2 * Math.PI;
+      const end = (f.end ?? 100) / (f.total_length || data.length || 1000) * 2 * Math.PI;
+      ctx.strokeStyle = fc[i % fc.length]; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.arc(cx, cy, R, start - Math.PI / 2, end - Math.PI / 2); ctx.stroke();
+      // Labels
+      const mid = (start + end) / 2 - Math.PI / 2;
+      const lx = cx + Math.cos(mid) * (R + 22), ly = cy + Math.sin(mid) * (R + 22);
+      ctx.fillStyle = fc[i % fc.length]; ctx.font = "10px monospace"; ctx.textAlign = "center";
+      ctx.fillText(f.name || f.label || f.type || "", lx, ly);
+    });
+    // Center text
+    ctx.fillStyle = "#a78bfa"; ctx.font = "bold 13px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(data.name || data.vector_name || "Vector", cx, cy - 6);
+    ctx.fillStyle = "#7c6ba8"; ctx.font = "11px monospace";
+    ctx.fillText(`${data.size || data.length || "?"} bp`, cx, cy + 12);
+  },
+  renderValidate(data) {
+    const m = data.metrics || data.validation || {};
+    const cai = m.cai ?? m.cai_score ?? 0;
+    const gc = m.gc_content ?? m.gc ?? 0.5;
+    const hp = m.homopolymer ?? m.max_homopolymer ?? 0;
+    const rs = m.restriction_sites ?? m.restriction_site_count ?? 0;
+    // Radar chart: normalized to 0-100, higher is better
+    const hpScore = Math.max(0, 100 - hp * 10);
+    const rsScore = Math.max(0, 100 - rs * 5);
+    setChart("sb-radar", {
+      tooltip: {},
+      radar: {
+        indicator: [
+          {name: "GC content", max: 100}, {name: "CAI", max: 100},
+          {name: "Homopolymers", max: 100}, {name: "Restriction sites", max: 100}
+        ],
+        axisName: {color: "#a78bfa"}, splitLine: {lineStyle: {color: "#34255f"}},
+        splitArea: {areaStyle: {color: ["rgba(123,92,255,0.03)", "rgba(123,92,255,0.06)"]}}
+      },
+      series: [{type: "radar", data: [{value: [gc * 100, cai * 100, hpScore, rsScore], name: "Validation metrics"}],
+        areaStyle: {color: "rgba(34,211,238,0.25)"}, lineStyle: {color: "#22d3ee"}, itemStyle: {color: "#22d3ee"}}]
+    });
+  },
+  renderGenbank(data) {
+    const gb = data.genbank || data.genbank_text || data.content || "";
+    $("sb-genbank").innerHTML = gb ? escapeHtml(gb) : '<span class="empty">No GenBank output</span>';
+  }
+};
+
+/* ============================================================
+   Panel 9: Metabolism FBA
+   ============================================================ */
+const Metabolism = {
+  model: null,
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+    const glc = $("mb-glc");
+    if (glc) glc.addEventListener("input", () => $("mb-glc-v").textContent = parseFloat(glc.value).toFixed(1));
+  },
+  root: () => $("panel-metabolism"),
+  async run(btn, act) {
+    setLoading(btn, true);
+    try {
+      if (act === "model") await this.loadModel();
+      else if (act === "fba") await this.fba();
+      else if (act === "analyze") await this.analyze();
+    } catch (e) { showError($("mb-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  async loadModel() {
+    const r = await fetch("/api/metabolism/model");
+    const data = await r.json();
+    if (!apiOk(data)) { showError($("mb-raw"), data.error || "Load failed"); return; }
+    this.model = data;
+    $("mb-overview").innerHTML = `
+      <div class="k">Reactions</div><div class="v">${data.n_reactions}</div>
+      <div class="k">Metabolites</div><div class="v">${data.n_metabolites}</div>
+      <div class="k">Biomass reaction</div><div class="v" style="color:var(--green)">${escapeHtml(data.biomass_reaction || "—")}</div>`;
+    // Subsystem pie chart
+    const subs = data.subsystems || {};
+    setChart("mb-subsystem", {
+      tooltip: {trigger: "item"},
+      legend: {bottom: 0, textStyle: {color: "#a78bfa", fontSize: 10}},
+      series: [{type: "pie", radius: ["35%", "65%"], center: ["50%", "45%"],
+        data: Object.entries(subs).map(([k, v]) => ({name: k, value: v})),
+        label: {color: "#c4b5fd", fontSize: 10}}]
+    });
+    // Populate the objective reaction dropdown
+    const sel = $("mb-obj");
+    sel.innerHTML = `<option value="biomass">biomass</option>` +
+      (data.reactions || []).filter(r => r.subsystem !== "exchange").slice(0, 20).map(r => `<option value="${r.id}">${r.id}</option>`).join("");
+    showInfo($("mb-raw"), `Model loaded: ${data.n_reactions} reactions, ${data.n_metabolites} metabolites`);
+    appendRaw($("mb-raw"), data);
+  },
+  async fba() {
+    const body = {objective: $("mb-obj").value, glc_uptake: parseFloat($("mb-glc").value)};
+    const data = await fetchJSON("/api/metabolism/fba", body);
+    if (!apiOk(data)) { showError($("mb-raw"), data.error || "FBA failed"); return; }
+    const objVal = data.objective_value ?? 0;
+    $("mb-objective").innerHTML = `
+      <div class="k">Objective reaction</div><div class="v">${escapeHtml(data.objective || "—")}</div>
+      <div class="k">Objective value</div><div class="v" style="color:var(--green);font-size:1.2em">${objVal.toFixed(4)}</div>`;
+    // Flux table (Top 15 by abs)
+    const fluxes = Object.entries(data.fluxes || {})
+      .map(([k, v]) => [k, v])
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, 15);
+    const rxnMap = {};
+    (this.model?.reactions || []).forEach(r => rxnMap[r.id] = r);
+    const tb = $("mb-flux-tbl").querySelector("tbody");
+    tb.innerHTML = fluxes.length ? fluxes.map(([rid, v]) => {
+      const rxn = rxnMap[rid] || {};
+      return `<tr><td style="color:var(--cyan)">${escapeHtml(rid)}</td><td>${escapeHtml(rxn.name || "—")}</td><td>${escapeHtml(rxn.subsystem || "—")}</td><td style="color:${v >= 0 ? "var(--green)" : "var(--red)"}">${v.toFixed(3)}</td></tr>`;
+    }).join("") : `<tr><td colspan="4" class="empty">No flux</td></tr>`;
+    showInfo($("mb-raw"), `FBA solve complete: ${data.objective} = ${objVal.toFixed(4)}`);
+    appendRaw($("mb-raw"), data);
+  },
+  async analyze() {
+    const body = {objective: $("mb-obj").value, glc_uptake: parseFloat($("mb-glc").value)};
+    const data = await fetchJSON("/api/metabolism/analyze", body);
+    if (!apiOk(data)) { showError($("mb-raw"), data.error || "Analysis failed"); return; }
+    const a = data.analysis || {};
+    const sub = a.subsystem_fluxes || {};
+    let html = `<div class="k">Biomass/glucose</div><div class="v">${(a.biomass_per_glucose ?? 0).toFixed(4)}</div>`;
+    html += `<div class="k">Growth rate (1/h)</div><div class="v">${(a.growth_rate_per_hour ?? 0).toFixed(4)}</div>`;
+    html += `<div class="k">Glucose uptake</div><div class="v">${(a.glucose_uptake ?? 0).toFixed(2)}</div>`;
+    const byp = a.byproduct_secretion || {};
+    html += `<div class="k">Byproducts</div><div class="v">${Object.entries(byp).map(([k, v]) => `${k}=${v.toFixed(2)}`).join(", ") || "—"}</div>`;
+    const eb = a.energy_balance || {};
+    html += `<div class="k">Energy balance</div><div class="v">${Object.entries(eb).map(([k, v]) => `${k}=${v.toFixed(2)}`).join(", ") || "—"}</div>`;
+    html += `<div class="k">Subsystem fluxes</div><div class="v">${Object.keys(sub).length} subsystems</div>`;
+    $("mb-analysis").innerHTML = html;
+    showInfo($("mb-raw"), "Metabolic analysis complete");
+    appendRaw($("mb-raw"), data);
+  }
+};
+
+/* ============================================================
+   Panel 10: Protein Structure
+   ============================================================ */
+const ProteinStructure = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-protein-structure"),
+  async run(btn, act) {
+    const seq = $("ps-seq").value.trim();
+    if (!seq) { showError($("ps-raw"), "Please enter a protein sequence"); return; }
+    setLoading(btn, true);
+    const url = {secondary: "/api/protein/secondary",
+                 transmembrane: "/api/protein/transmembrane",
+                 disorder: "/api/protein/disorder"}[act];
+    const body = {sequence: seq};
+    if (act === "secondary") body.method = $("ps-method").value;
+    try {
+      const data = await fetchJSON(url, body);
+      if (!apiOk(data)) { showError($("ps-raw"), data.error || "Request failed"); return; }
+      if (act === "secondary") this.renderSecondary(data);
+      else if (act === "transmembrane") this.renderTM(data);
+      else this.renderDisorder(data);
+      appendRaw($("ps-raw"), data);
+    } catch (e) { showError($("ps-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  renderSecondary(data) {
+    const ss = data.secondary_structure || "";
+    const seq = data.sequence || "";
+    // Display sequence + secondary structure aligned
+    const lines = [];
+    for (let i = 0; i < seq.length; i += 60) {
+      lines.push(escapeHtml(seq.slice(i, i + 60)));
+      lines.push('<span style="color:var(--cyan)">' + escapeHtml(ss.slice(i, i + 60)) + '</span>');
+    }
+    $("ps-ss").innerHTML = lines.join("\n") || '<span class="empty">No result</span>';
+    // Segments table
+    const segs = data.segments || [];
+    const tb = $("ps-seg-tbl").querySelector("tbody");
+    const ssName = {H: "Helix", E: "Sheet", T: "Turn", "-": "None"};
+    tb.innerHTML = segs.length ? segs.map(s => `<tr><td style="color:var(--cyan)">${escapeHtml(ssName[s.ss_type] || s.ss_type)}</td><td>${s.start}</td><td>${s.end}</td><td>${s.end - s.start + 1}</td><td>${(s.score ?? 0).toFixed(2)}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">No segments</td></tr>`;
+    showInfo($("ps-raw"), `Secondary structure prediction complete (${data.method}, ${ss.length} residues)`);
+  },
+  renderTM(data) {
+    const tms = data.helices || [];
+    let html = `<div class="k">Transmembrane helices</div><div class="v">${tms.length}</div>`;
+    html += `<div class="k">Membrane protein</div><div class="v">${data.is_membrane_protein ? "yes" : "no"}</div>`;
+    if (tms.length) {
+      html += `<div class="k">Positions</div><div class="v">${tms.map(t => `${t.start}-${t.end} (${t.length}aa)`).join(", ")}</div>`;
+    }
+    $("ps-tm").innerHTML = html;
+    $("ps-gravy").innerHTML = `<div class="k">GRAVY</div><div class="v" style="color:var(--cyan)">${(data.gravy ?? 0).toFixed(3)}</div>`;
+    showInfo($("ps-raw"), tms.length ? `Found ${tms.length} transmembrane helices` : "No transmembrane helices");
+  },
+  renderDisorder(data) {
+    const regions = data.regions || [];
+    let html = `<div class="k">Disordered regions</div><div class="v">${regions.length}</div>`;
+    html += `<div class="k">Disorder fraction</div><div class="v" style="color:var(--cyan)">${((data.disorder_fraction ?? 0) * 100).toFixed(1)}%</div>`;
+    if (regions.length) {
+      html += `<div class="k">Positions</div><div class="v">${regions.map(r => `${r.start}-${r.end} (${r.length}aa)`).join(", ")}</div>`;
+    }
+    $("ps-disorder").innerHTML = html;
+    showInfo($("ps-raw"), regions.length ? `Found ${regions.length} disordered regions` : "No disordered regions");
+  }
+};
+
+/* ============================================================
+   Panel 11: Multi-Species Comparison
+   ============================================================ */
+const MultiSpecies = {
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-multispecies"),
+  async run(btn, act) {
+    setLoading(btn, true);
+    try {
+      if (act === "compare") await this.compare();
+      else if (act === "list") await this.listSpecies();
+    } catch (e) { showError($("ms-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  async listSpecies() {
+    const r = await fetch("/api/bio/species");
+    const data = await r.json();
+    if (!apiOk(data)) { showError($("ms-raw"), data.error || "Failed"); return; }
+    const sps = data.species || [];
+    $("ms-species").innerHTML = sps.length ? sps.map(s => `<div class="k">${escapeHtml(s.id)}</div><div class="v">${escapeHtml(s.name)} · ${s.n_codons} codons${s.has_trna ? " · +tRNA" : ""}</div>`).join("") : '<div class="empty">None</div>';
+    showInfo($("ms-raw"), `Total ${sps.length} species`);
+    appendRaw($("ms-raw"), data);
+  },
+  async compare() {
+    const spA = $("ms-sp-a").value;
+    const spB = $("ms-sp-b").value;
+    const type = $("ms-type").value;
+    const isTrna = type === "trna";
+    const urlA = `/api/bio/${isTrna ? "trna" : "codon-usage"}?species=${encodeURIComponent(spA)}`;
+    const urlB = `/api/bio/${isTrna ? "trna" : "codon-usage"}?species=${encodeURIComponent(spB)}`;
+    const [rA, rB] = await Promise.all([fetch(urlA), fetch(urlB)]);
+    const [dA, dB] = await Promise.all([rA.json(), rB.json()]);
+    if (!apiOk(dA) || !apiOk(dB)) { showError($("ms-raw"), dA.error || dB.error || "Query failed"); return; }
+    $("ms-a-title").textContent = spA;
+    $("ms-b-title").textContent = spB;
+    if (isTrna) {
+      this.renderTrnaTable("ms-tbl-a", dA.trna_abundance || []);
+      this.renderTrnaTable("ms-tbl-b", dB.trna_abundance || []);
+      this.renderTrnaChart(spA, spB, dA.trna_abundance || [], dB.trna_abundance || []);
+    } else {
+      this.renderCodonTable("ms-tbl-a", dA.codon_usage || []);
+      this.renderCodonTable("ms-tbl-b", dB.codon_usage || []);
+      this.renderCodonChart(spA, spB, dA.codon_usage || [], dB.codon_usage || []);
+    }
+    showInfo($("ms-raw"), `${spA} vs ${spB} comparison complete (${type})`);
+    appendRaw($("ms-raw"), {a: dA, b: dB});
+  },
+  renderCodonTable(tblId, rows) {
+    const tb = $(tblId).querySelector("tbody");
+    const top = rows.sort((a, b) => b.per_thousand - a.per_thousand).slice(0, 20);
+    tb.innerHTML = top.length ? top.map(r => `<tr><td style="color:var(--cyan)">${escapeHtml(r.codon)}</td><td>${escapeHtml(r.aa)}</td><td>${r.per_thousand.toFixed(1)}</td><td>${(r.fraction ?? 0).toFixed(3)}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No data</td></tr>`;
+  },
+  renderTrnaTable(tblId, rows) {
+    const tb = $(tblId).querySelector("tbody");
+    const top = rows.sort((a, b) => b.abundance - a.abundance).slice(0, 20);
+    tb.innerHTML = top.length ? top.map(r => `<tr><td style="color:var(--cyan)">${escapeHtml(r.codon)}</td><td>—</td><td>${r.abundance}</td><td>${(r.fraction ?? 0).toFixed(3)}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="empty">No data</td></tr>`;
+  },
+  renderCodonChart(spA, spB, rowsA, rowsB) {
+    const mapB = {};
+    rowsB.forEach(r => mapB[r.codon] = r.per_thousand);
+    const merged = rowsA.map(r => ({codon: r.codon, a: r.per_thousand, b: mapB[r.codon] || 0}))
+      .sort((x, y) => y.a - x.a).slice(0, 20);
+    setChart("ms-chart", {
+      tooltip: {trigger: "axis"},
+      legend: {data: [spA, spB], textStyle: {color: "#a78bfa"}},
+      grid: {left: 40, right: 20, top: 40, bottom: 80},
+      xAxis: {type: "category", data: merged.map(m => m.codon),
+        axisLabel: {color: "#a78bfa", rotate: 45, fontSize: 10}},
+      yAxis: {type: "value", axisLabel: {color: "#a78bfa"}},
+      series: [
+        {name: spA, type: "bar", data: merged.map(m => m.a), itemStyle: {color: "#22d3ee"}},
+        {name: spB, type: "bar", data: merged.map(m => m.b), itemStyle: {color: "#a78bfa"}}
+      ]
+    });
+  },
+  renderTrnaChart(spA, spB, rowsA, rowsB) {
+    const mapB = {};
+    rowsB.forEach(r => mapB[r.codon] = r.abundance);
+    const merged = rowsA.map(r => ({codon: r.codon, a: r.abundance, b: mapB[r.codon] || 0}))
+      .sort((x, y) => y.a - x.a).slice(0, 20);
+    setChart("ms-chart", {
+      tooltip: {trigger: "axis"},
+      legend: {data: [spA, spB], textStyle: {color: "#a78bfa"}},
+      grid: {left: 40, right: 20, top: 40, bottom: 80},
+      xAxis: {type: "category", data: merged.map(m => m.codon),
+        axisLabel: {color: "#a78bfa", rotate: 45, fontSize: 10}},
+      yAxis: {type: "value", axisLabel: {color: "#a78bfa"}},
+      series: [
+        {name: spA, type: "bar", data: merged.map(m => m.a), itemStyle: {color: "#22d3ee"}},
+        {name: spB, type: "bar", data: merged.map(m => m.b), itemStyle: {color: "#a78bfa"}}
+      ]
+    });
+  }
+};
+
+/* ============================================================
+   Panel 12: Debugger (real API: session / step / continue / breakpoint / state)
+   ============================================================ */
+const Debugger = {
+  cache: null,      // compile/disassembly cache (from session response)
+  sessionId: null,  // debug session ID
+  disasm: [],       // disassembly lines array
+  ip: 0,            // current instruction pointer
+  halted: false,
+  init() {
+    this.root().querySelectorAll("button[data-act]").forEach(btn =>
+      btn.addEventListener("click", () => this.run(btn, btn.dataset.act)));
+  },
+  root: () => $("panel-debugger"),
+  async run(btn, act) {
+    setLoading(btn, true);
+    try {
+      if (act === "session") await this.startSession();
+      else if (act === "step") await this.step();
+      else if (act === "continue") await this.cont();
+      else if (act === "breakpoint") await this.setBreakpoint();
+      else if (act === "clearbp") await this.clearBreakpoints();
+    } catch (e) { showError($("dbg-raw"), String(e)); }
+    finally { setLoading(btn, false); }
+  },
+  async startSession() {
+    const source = $("dbg-editor").value;
+    if (!source.trim()) { showError($("dbg-raw"), "Please enter source code"); return; }
+    const data = await fetchJSON("/api/debug/session", {source, table: "standard"});
+    if (!apiOk(data)) { showError($("dbg-raw"), data.error || "Failed to create session"); return; }
+    this.sessionId = data.session_id;
+    this.halted = false;
+    // also fetch disassembly for highlighting
+    const cmp = await fetchJSON("/api/compile", {source, table: "standard"});
+    if (apiOk(cmp)) {
+      this.disasm = (cmp.disassemble || "").split("\n");
+      this.cache = cmp;
+    }
+    // render initial state
+    this.renderState(data.initial_state, [], []);
+    appendRaw($("dbg-raw"), data);
+    showInfo($("dbg-raw"), `Debug session created (sid=${data.session_id.slice(0,8)})`);
+  },
+  async step() {
+    if (!this.sessionId) { showError($("dbg-raw"), "Please start a debug session first"); return; }
+    const data = await fetchJSON("/api/debug/step", {session_id: this.sessionId});
+    if (!apiOk(data)) { showError($("dbg-raw"), data.error || "Step failed"); return; }
+    if (data.halted) { this.halted = true; showInfo($("dbg-raw"), "Reached HALT (program finished)"); }
+    await this.refreshFullState(data.state);
+    appendRaw($("dbg-raw"), data);
+  },
+  async cont() {
+    if (!this.sessionId) { showError($("dbg-raw"), "Please start a debug session first"); return; }
+    const data = await fetchJSON("/api/debug/continue", {session_id: this.sessionId});
+    if (!apiOk(data)) { showError($("dbg-raw"), data.error || "Continue failed"); return; }
+    if (data.halted) { this.halted = true; showInfo($("dbg-raw"), "Reached HALT (no breakpoint hit)"); }
+    else { showInfo($("dbg-raw"), "Breakpoint hit, paused"); }
+    await this.refreshFullState(data.state);
+    appendRaw($("dbg-raw"), data);
+  },
+  async setBreakpoint() {
+    if (!this.sessionId) { showError($("dbg-raw"), "Please start a debug session first"); return; }
+    const body = {session_id: this.sessionId, action: "set"};
+    const off = parseInt($("dbg-bp-offset").value, 10);
+    const line = parseInt($("dbg-bp-line").value, 10);
+    const cond = $("dbg-bp-cond").value.trim();
+    if (!isNaN(off)) body.offset = off;
+    if (!isNaN(line)) body.line = line;
+    if (cond) body.condition = cond;
+    const data = await fetchJSON("/api/debug/breakpoint", body);
+    if (!apiOk(data)) { showError($("dbg-raw"), data.error || "Failed to set breakpoint"); return; }
+    this.renderBreakpoints(data.breakpoints || []);
+    showInfo($("dbg-raw"), `Breakpoint set (offset=${body.offset ?? "—"}, line=${body.line ?? "—"})`);
+    appendRaw($("dbg-raw"), data);
+  },
+  async clearBreakpoints() {
+    if (!this.sessionId) { showError($("dbg-raw"), "Please start a debug session first"); return; }
+    const data = await fetchJSON("/api/debug/breakpoint",
+      {session_id: this.sessionId, action: "clear"});
+    if (!apiOk(data)) { showError($("dbg-raw"), data.error || "Failed to clear breakpoints"); return; }
+    this.renderBreakpoints([]);
+    showInfo($("dbg-raw"), "All breakpoints cleared");
+    appendRaw($("dbg-raw"), data);
+  },
+  async refreshFullState(state) {
+    // state may be null (halted)
+    if (!state) {
+      const r = await fetch(`/api/debug/state?session_id=${encodeURIComponent(this.sessionId)}`);
+      const d = await r.json();
+      if (apiOk(d)) {
+        this.renderState(d.state, d.call_stack || [], d.breakpoints || []);
+        this.halted = !!d.halted;
+        return;
+      }
+    }
+    // fetch full state (with call stack, breakpoints)
+    const r = await fetch(`/api/debug/state?session_id=${encodeURIComponent(this.sessionId)}`);
+    const d = await r.json();
+    if (apiOk(d)) {
+      this.renderState(d.state || state, d.call_stack || [], d.breakpoints || []);
+      this.halted = !!d.halted;
+    } else if (state) {
+      this.renderState(state, [], []);
+    }
+  },
+  renderState(state, callStack, breakpoints) {
+    clearBox($("dbg-raw"));
+    if (!state) {
+      $("dbg-disasm").innerHTML = '<span class="empty">Program finished</span>';
+      $("dbg-watch").innerHTML = '<div class="empty">HALTED</div>';
+      $("dbg-stack").innerHTML = '<div class="empty">No call frames</div>';
+      $("dbg-cell").innerHTML = '<div class="empty">—</div>';
+      this.renderBreakpoints(breakpoints);
+      return;
+    }
+    this.ip = state.ip ?? 0;
+    // Highlight current instruction line in disassembly (based on the bytecode offset of ip)
+    const dis = this.disasm.length ? this.disasm : [];
+    const lines = dis.map((ln, i) => {
+      // Simple heuristic: the closer the line index to ip, the more likely highlighted; prefer lines with an offset marker
+      if (ln.includes(`[${this.ip}]`) || (i === this.ip && dis.length)) {
+        return `<span class="cur-ins">${escapeHtml(ln || " ")}</span>`;
+      }
+      return escapeHtml(ln || " ");
+    });
+    $("dbg-disasm").innerHTML = lines.length ? lines.join("\n") : '<span class="empty">No disassembly</span>';
+
+    // Variable watch
+    const cs = state.cell_state || {};
+    const gs = state.grn_state || {};
+    let watch = `<div class="k">IP</div><div class="v" style="color:var(--cyan)">${state.ip ?? "—"}</div>`;
+    watch += `<div class="k">Current Op</div><div class="v">${escapeHtml(state.op || "—")}</div>`;
+    watch += `<div class="k">Gene</div><div class="v">${escapeHtml(state.gene || "—")}</div>`;
+    watch += `<div class="k">Line</div><div class="v">${state.line ?? "—"}</div>`;
+    watch += `<div class="k">Codon index</div><div class="v">${state.codon_index ?? "—"}</div>`;
+    watch += `<div class="k">Stack depth</div><div class="v">${(state.stack || []).length}</div>`;
+    if (cs.energy != null) watch += `<div class="k">Energy</div><div class="v" style="color:var(--green)">${cs.energy}</div>`;
+    $("dbg-watch").innerHTML = watch;
+
+    // Call stack
+    if (callStack && callStack.length) {
+      $("dbg-stack").innerHTML = callStack.map(f =>
+        `<div class="stack-frame">#${f.depth} ${escapeHtml(f.gene || "<anon>")} — ip=${f.ip}</div>`
+      ).join("");
+    } else {
+      $("dbg-stack").innerHTML = '<div class="empty">No call frames</div>';
+    }
+
+    // Cell state
+    if (cs && Object.keys(cs).length) {
+      $("dbg-cell").innerHTML = `
+        <div class="k">Position</div><div class="v">(${cs.x ?? "?"}, ${cs.y ?? "?"})</div>
+        <div class="k">Energy</div><div class="v" style="color:var(--green)">${cs.energy ?? "—"}</div>
+        <div class="k">Protein species</div><div class="v">${Object.keys(cs.proteins || {}).length}</div>
+        <div class="k">Alive</div><div class="v">${cs.alive ? "yes" : "no"}</div>
+        <div class="k">Divisions</div><div class="v">${cs.divisions ?? 0}</div>`;
+    } else {
+      $("dbg-cell").innerHTML = '<div class="empty">No cell state</div>';
+    }
+    this.renderBreakpoints(breakpoints);
+  },
+  renderBreakpoints(bps) {
+    if (!bps || !bps.length) {
+      $("dbg-bps").innerHTML = '<div class="empty">No breakpoints</div>';
+      return;
+    }
+    $("dbg-bps").innerHTML = bps.map(b => {
+      const loc = b.offset != null ? `offset=${b.offset}` :
+                  (b.line != null ? `line=${b.line}` : `codon=${b.codon_index}`);
+      return `<div class="k">${escapeHtml(loc)}</div><div class="v">${b.enabled ? "enabled" : "disabled"} · hit=${b.hit_count ?? 0}${b.condition ? " · "+escapeHtml(b.condition) : ""}</div>`;
+    }).join("");
+  }
+};
+
+/* ============================================================
+   Register panels + initialization
+   ============================================================ */
+const PANELS = {CentralDogma, Evolution, Population, Crispr, Epigenetics, Morphology3D, DnaStorage, SynBio, Metabolism, ProteinStructure, MultiSpecies, Debugger};
+Object.values(PANELS).forEach(p => p.init && p.init());
+
+window.addEventListener("resize", () => Object.values(charts).forEach(c => c && c.resize()));
+</script>
+</body>
+</html>

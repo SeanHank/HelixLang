@@ -1,0 +1,12 @@
+# Example 3: Plant growth - L-system morphogenesis
+
+#promoter name=p_grow strength=-0.3
+#gene name=grow promoter=p_grow
+ATG CTC TAA
+#end
+
+#regulate p_grow -> grow strength=+0.6
+
+#lsystem name=plant axiom=F rules=0:F->F[+F]F[-F]F angle=25 step=1.0
+
+#config ticks=5 output=stdout

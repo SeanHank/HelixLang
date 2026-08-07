@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>HelixLang · DNA → Bytecode → Life</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #0f0a1e;
+    --bg-elev: #1a1230;
+    --bg-card: #221842;
+    --bg-input: #2a1f4a;
+    --border: #3d2a6b;
+    --accent: #a855f7;
+    --accent-2: #c084fc;
+    --accent-dim: #6b21a8;
+    --text: #e9d5ff;
+    --text-dim: #a78bfa;
+    --text-muted: #7c6ba8;
+    --success: #4ade80;
+    --error: #f87171;
+    --warning: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    overflow: hidden;
+  }
+  body {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(168,85,247,0.15), transparent 40%),
+      radial-gradient(circle at 80% 100%, rgba(192,132,252,0.10), transparent 40%),
+      var(--bg);
+  }
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px;
+    background: rgba(26,18,48,0.85);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  header .logo {
+    font-weight: 700; font-size: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  header .sub { color: var(--text-muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  header select, header button, header input {
+    background: var(--bg-input); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; outline: none;
+  }
+  header button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    border: none; cursor: pointer; font-weight: 600;
+    transition: opacity .2s;
+  }
+  header button:hover { opacity: 0.85; }
+  header button.secondary {
+    background: var(--bg-input); border: 1px solid var(--border);
+  }
+  header button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .main {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    overflow: hidden;
+  }
+  .left {
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg-elev);
+    overflow: hidden;
+  }
+  .left .section {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .left .section h3 {
+    margin: 0 0 8px; font-size: 12px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+  }
+  .examples-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    overflow-y: auto; max-height: 90px;
+  }
+  .examples-list button {
+    background: var(--bg-input); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font-size: 12px; cursor: pointer;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .examples-list button:hover {
+    border-color: var(--accent); color: var(--accent-2);
+  }
+  .editor-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #editor {
+    flex: 1; width: 100%;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; line-height: 1.5; resize: none; outline: none;
+    tab-size: 4;
+  }
+  .right {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .tabs {
+    display: flex; gap: 2px; padding: 8px 12px 0;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab {
+    padding: 8px 16px; cursor: pointer;
+    color: var(--text-muted); font-size: 13px; font-weight: 500;
+    border: 1px solid transparent; border-bottom: none;
+    border-radius: 6px 6px 0 0; white-space: nowrap;
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text-dim); }
+  .tab.active {
+    color: var(--accent-2); background: var(--bg);
+    border-color: var(--border);
+  }
+  .panels { flex: 1; overflow: hidden; position: relative; }
+  .panel {
+    position: absolute; inset: 0; padding: 12px;
+    overflow: auto; display: none;
+  }
+  .panel.active { display: block; }
+
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px; margin-bottom: 12px;
+  }
+  .card h4 {
+    margin: 0 0 8px; font-size: 13px; color: var(--accent-2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .chart { width: 100%; height: 320px; }
+  .chart-tall { width: 100%; height: 480px; }
+
+  pre.disasm {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; margin: 0;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; line-height: 1.5; color: var(--text-dim);
+    white-space: pre-wrap; word-break: break-all;
+    max-height: 70vh; overflow: auto;
+  }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 13px; }
+  .kv .k { color: var(--text-muted); }
+  .kv .v { color: var(--text); font-family: ui-monospace, monospace; }
+
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-ok { background: rgba(74,222,128,0.2); color: var(--success); }
+  .badge-err { background: rgba(248,113,113,0.2); color: var(--error); }
+
+  .error-box {
+    background: rgba(248,113,113,0.1); border: 1px solid var(--error);
+    color: var(--error); padding: 8px 12px; border-radius: 6px;
+    margin-bottom: 12px; font-family: ui-monospace, monospace; font-size: 12px;
+    white-space: pre-wrap;
+  }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .6s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .gene-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-family: ui-monospace, monospace;
+  }
+  .gene-row .bar {
+    flex: 1; height: 6px; background: var(--bg-input);
+    border-radius: 3px; overflow: hidden;
+  }
+  .gene-row .bar-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .3s;
+  }
+  .canvas-wrap {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px; text-align: center;
+  }
+  canvas { max-width: 100%; height: auto; image-rendering: pixelated; }
+  .hint { color: var(--text-muted); font-size: 12px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">HelixLang</div>
+    <div class="sub">DNA codons → bytecode → biological simulation</div>
+    <div class="spacer"></div>
+    <label style="color:var(--text-muted);font-size:12px;">Translation table</label>
+    <select id="table">
+      <option value="standard">standard</option>
+      <option value="mito_vertebrate">mito_vertebrate</option>
+      <option value="ciliate">ciliate</option>
+    </select>
+    <label style="color:var(--text-muted);font-size:12px;">ticks</label>
+    <input id="ticks" type="number" value="" placeholder="Default" style="width:80px;">
+    <button class="secondary" id="btn-compile">Compile</button>
+    <button id="btn-run">▶ Run</button>
+  </header>
+
+  <div class="main">
+    <div class="left">
+      <div class="section" style="flex:0 0 auto;">
+        <h3>Examples</h3>
+        <div class="examples-list" id="examples"></div>
+      </div>
+      <div class="section editor-wrap">
+        <h3>Source Editor <span id="src-status" class="badge badge-ok">Ready</span></h3>
+        <textarea id="editor" spellcheck="false"
+                  placeholder="#gene name=hello&#10;ATG GCT GGT TAA&#10;#end&#10;#config ticks=10"></textarea>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="overview">Overview</div>
+        <div class="tab" data-tab="disasm">Disassembly</div>
+        <div class="tab" data-tab="trace">Time Series</div>
+        <div class="tab" data-tab="grn">GRN Network</div>
+        <div class="tab" data-tab="lsystem">L-system</div>
+        <div class="tab" data-tab="field">Reaction-Diffusion Field</div>
+      </div>
+      <div class="panels">
+        <div class="panel active" data-panel="overview" id="panel-overview"></div>
+        <div class="panel" data-panel="disasm"><pre class="disasm" id="panel-disasm">Not compiled yet. Click "Compile" or "Run" in the top right.</pre></div>
+        <div class="panel" data-panel="trace">
+          <div class="card"><h4>Energy &amp; Morphology Points</h4><div id="chart-energy" class="chart"></div></div>
+          <div class="card"><h4>Morphology Field V Total</h4><div id="chart-field" class="chart"></div></div>
+          <div class="card"><h4>Gene Expression Levels</h4><div id="chart-genes" class="chart"></div></div>
+          <div class="card"><h4>Protein Concentration</h4><div id="chart-proteins" class="chart"></div></div>
+        </div>
+        <div class="panel" data-panel="grn">
+          <div class="card"><h4>Regulatory Network (purple=activation, red=inhibition, node size=expression level)</h4><div id="chart-grn" class="chart-tall"></div></div>
+        </div>
+        <div class="panel" data-panel="lsystem">
+          <div class="card"><h4>L-system Morphogenesis</h4>
+            <div class="canvas-wrap"><canvas id="canvas-lsystem" width="600" height="400"></canvas></div>
+            <p class="hint">The purple polyline is the turtle path; each OP_GROW_LSYSTEM triggers one iteration.</p>
+          </div>
+        </div>
+        <div class="panel" data-panel="field">
+          <div class="grid-2">
+            <div class="card"><h4>U Field (substrate)</h4><div class="canvas-wrap"><canvas id="canvas-u" width="320" height="320"></canvas></div></div>
+            <div class="card"><h4>V Field (catalyst)</h4><div class="canvas-wrap"><canvas id="canvas-v" width="320" height="320"></canvas></div></div>
+          </div>
+          <p class="hint">Uses Pearson 1993 default parameters F=0.035, k=0.065.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== Global state ==========
+let charts = {};
+let lastResult = null;
+
+// ========== Utilities ==========
+function $(id) { return document.getElementById(id); }
+function setStatus(text, ok=true) {
+  const el = $("src-status");
+  el.textContent = text;
+  el.className = "badge " + (ok ? "badge-ok" : "badge-err");
+}
+function showError(msg) {
+  const overview = $("panel-overview");
+  overview.innerHTML = `<div class="error-box">${escapeHtml(msg)}</div>`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+async function api(path, opts={}) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// ========== Examples list ==========
+async function loadExamples() {
+  const data = await api("/api/examples");
+  const el = $("examples");
+  el.innerHTML = "";
+  for (const name of data.examples) {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.onclick = () => loadExample(name);
+    el.appendChild(b);
+  }
+}
+async function loadExample(name) {
+  const data = await api(`/api/examples/${encodeURIComponent(name)}`);
+  if (data.error) { setStatus("Load failed", false); return; }
+  $("editor").value = data.source;
+  setStatus(`Loaded ${name}`);
+}
+
+// ========== Compile ==========
+async function compile() {
+  setStatus("Compiling...");
+  const source = $("editor").value;
+  const table = $("table").value;
+  const data = await api("/api/compile", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({source, table})
+  });
+  if (!data.ok) {
+    setStatus("Compile failed", false);
+    showError(data.error || "Unknown error");
+    return;
+  }
+  setStatus("Compile succeeded");
+  $("panel-disasm").textContent = data.disassemble || "(empty)";
+  renderOverview({program: data.program, disassemble: data.disassemble,
+                  chunk_bytes: data.chunk_bytes,
+                  constants_count: data.constants_count, ok: true});
+  // Switch to overview
+  switchTab("overview");
+}
+
+// ========== Run ==========
+async function run() {
+  setStatus("Running...");
+  const btn = $("btn-run"); btn.disabled = true;
+  const source = $("editor").value;
+  const table = $("table").value;
+  const ticksVal = $("ticks").value;
+  const body = {source, table};
+  if (ticksVal !== "") body.ticks = parseInt(ticksVal, 10);
+  try {
+    const data = await api("/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    if (!data.ok) {
+      setStatus("Run failed", false);
+      showError(data.error || "Unknown error");
+      return;
+    }
+    setStatus(`Run complete · ${data.ticks_run} ticks`);
+    lastResult = data;
+    $("panel-disasm").textContent = data.disassemble || "(empty)";
+    renderOverview(data);
+    renderTrace(data);
+    renderGRN(data);
+    renderLSystem(data);
+    renderField(data);
+  } catch (e) {
+    setStatus("Network error", false);
+    showError(String(e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ========== Render: overview ==========
+function renderOverview(data) {
+  const p = data.program || {};
+  const cell = data.cell;
+  const html = [];
+  if (data.ok === false) {
+    html.push(`<div class="error-box">${escapeHtml(data.error||"")}</div>`);
+  }
+  html.push(`<div class="card"><h4>Program Summary</h4><div class="kv">
+    <div class="k">Gene count</div><div class="v">${(p.genes||[]).length}</div>
+    <div class="k">Promoter count</div><div class="v">${(p.promoters||[]).length}</div>
+    <div class="k">Regulation edge count</div><div class="v">${(p.regulations||[]).length}</div>
+    <div class="k">L-system</div><div class="v">${(p.lsystems||[]).length}</div>
+    <div class="k">Morphology field</div><div class="v">${p.has_field ? "yes" : "no"}</div>
+    <div class="k">ticks config</div><div class="v">${(p.config||{}).ticks ?? "-"}</div>
+    <div class="k">table</div><div class="v">${(p.config||{}).table ?? "-"}</div>
+  </div></div>`);
+
+  if (p.genes && p.genes.length) {
+    html.push(`<div class="card"><h4>Gene ORF</h4>`);
+    for (const g of p.genes) {
+      html.push(`<div class="gene-row">
+        <span style="color:var(--accent-2);min-width:80px;">${escapeHtml(g.name)}</span>
+        <span style="color:var(--text-muted);">prom=${escapeHtml(g.promoter||"none")}</span>
+        <span style="flex:1;">${g.orf.join(" ")} <span class="hint">(${g.orf_length} codons)</span></span>
+      </div>`);
+    }
+    html.push(`</div>`);
+  }
+
+  if (cell) {
+    html.push(`<div class="card"><h4>Cell Final State</h4><div class="kv">
+      <div class="k">Position</div><div class="v">(${cell.x}, ${cell.y})</div>
+      <div class="k">Energy</div><div class="v">${cell.energy}</div>
+      <div class="k">Alive</div><div class="v">${cell.alive ? "yes" : "no"}</div>
+      <div class="k">Age</div><div class="v">${cell.age}</div>
+      <div class="k">Divisions</div><div class="v">${cell.divisions}</div>
+      <div class="k">Color</div><div class="v">rgb(${cell.color.join(",")})</div>
+      <div class="k">Protein species</div><div class="v">${Object.keys(cell.proteins).length}</div>
+      <div class="k">Memory slots used</div><div class="v">${cell.slots_used}</div>
+    </div></div>`);
+  }
+
+  if (p.regulations && p.regulations.length) {
+    html.push(`<div class="card"><h4>Regulations</h4>`);
+    for (const r of p.regulations) {
+      const sign = r.strength >= 0 ? "+" : "";
+      const color = r.strength >= 0 ? "var(--success)" : "var(--error)";
+      html.push(`<div class="gene-row">
+        <span style="color:var(--accent-2);">${escapeHtml(r.source)}</span>
+        <span style="color:${color};">→ ${sign}${r.strength} →</span>
+        <span style="color:var(--accent-2);">${escapeHtml(r.target)}</span>
+      </div>`);
+    }
+    html.push(`</div>`);
+  }
+
+  $("panel-overview").innerHTML = html.join("");
+}
+
+// ========== Render: time series ==========
+function renderTrace(data) {
+  const s = data.trace_series;
+  if (!s || !s.ticks.length) return;
+
+  // Energy + morphology points
+  setChart("chart-energy", {
+    tooltip: {trigger: "axis"},
+    legend: {data: ["Energy", "Morphology points"], textStyle: {color: "#a78bfa"}},
+    xAxis: {type: "category", data: s.ticks, axisLabel: {color: "#7c6ba8"}},
+    yAxis: [
+      {type: "value", name: "Energy", axisLabel: {color: "#7c6ba8"}, splitLine: {lineStyle: {color: "#2a1f4a"}}},
+      {type: "value", name: "Points", axisLabel: {color: "#7c6ba8"}, splitLine: {show: false}}
+    ],
+    series: [
+      {name: "Energy", type: "line", smooth: true, data: s.energy,
+       itemStyle: {color: "#a855f7"}, areaStyle: {opacity: 0.2}},
+      {name: "Morphology points", type: "line", yAxisIndex: 1, smooth: true, data: s.morphology_points,
+       itemStyle: {color: "#c084fc"}}
+    ]
+  });
+
+  // field_total_v
+  setChart("chart-field", {
+    tooltip: {trigger: "axis"},
+    xAxis: {type: "category", data: s.ticks, axisLabel: {color: "#7c6ba8"}},
+    yAxis: {type: "value", axisLabel: {color: "#7c6ba8"}, splitLine: {lineStyle: {color: "#2a1f4a"}}},
+    series: [{name: "V Total", type: "line", smooth: true, data: s.field_total_v,
+              itemStyle: {color: "#a855f7"}, areaStyle: {opacity: 0.3}}]
+  });
+
+  // Gene levels
+  const geneNames = Object.keys(s.gene_levels);
+  const geneSeries = geneNames.map((n, i) => ({
+    name: n, type: "line", smooth: true, data: s.gene_levels[n],
+    itemStyle: {color: pickColor(i)}
+  }));
+  setChart("chart-genes", {
+    tooltip: {trigger: "axis"},
+    legend: {data: geneNames, textStyle: {color: "#a78bfa"}},
+    xAxis: {type: "category", data: s.ticks, axisLabel: {color: "#7c6ba8"}},
+    yAxis: {type: "value", min: 0, max: 1, axisLabel: {color: "#7c6ba8"},
+            splitLine: {lineStyle: {color: "#2a1f4a"}}},
+    series: geneSeries
+  });
+
+  // Proteins
+  const protKeys = Object.keys(s.proteins);
+  if (protKeys.length) {
+    const protSeries = protKeys.map((k, i) => ({
+      name: `protein[${k}]`, type: "line", smooth: true, data: s.proteins[k],
+      itemStyle: {color: pickColor(i + geneNames.length)}
+    }));
+    setChart("chart-proteins", {
+      tooltip: {trigger: "axis"},
+      legend: {data: protSeries.map(x => x.name), textStyle: {color: "#a78bfa"}},
+      xAxis: {type: "category", data: s.ticks, axisLabel: {color: "#7c6ba8"}},
+      yAxis: {type: "value", axisLabel: {color: "#7c6ba8"},
+              splitLine: {lineStyle: {color: "#2a1f4a"}}},
+      series: protSeries
+    });
+  } else {
+    setChart("chart-proteins", {
+      title: {text: "No protein synthesis", textStyle: {color: "#7c6ba8"}, left: "center", top: "center"}
+    });
+  }
+}
+
+// ========== Render: GRN ==========
+function renderGRN(data) {
+  const grn = data.grn;
+  if (!grn || !grn.nodes.length) {
+    setChart("chart-grn", {
+      title: {text: "No GRN data", textStyle: {color: "#7c6ba8"}, left: "center", top: "center"}
+    });
+    return;
+  }
+  const nodes = grn.nodes.map(n => ({
+    id: n.id, name: n.name,
+    symbolSize: 20 + n.level * 40,
+    value: n.level,
+    itemStyle: {
+      color: new echarts.graphic.RadialGradient(0.4, 0.3, 1, [
+        {offset: 0, color: "#c084fc"},
+        {offset: 1, color: "#6b21a8"}
+      ]),
+      shadowBlur: 20, shadowColor: "rgba(168,85,247,0.6)"
+    },
+    label: {show: true, color: "#e9d5ff", fontSize: 11},
+    x: 300 + 200 * Math.cos(grn.nodes.indexOf(n) / grn.nodes.length * 2 * Math.PI),
+    y: 200 + 200 * Math.sin(grn.nodes.indexOf(n) / grn.nodes.length * 2 * Math.PI)
+  }));
+  const edges = grn.edges.map(e => ({
+    source: e.source, target: e.target,
+    lineStyle: {
+      color: e.sign === "positive" ? "#4ade80" : "#f87171",
+      width: 1 + Math.abs(e.weight) * 3,
+      curveness: 0.2
+    },
+    label: {show: true, formatter: String(e.weight), color: "#a78bfa", fontSize: 10}
+  }));
+  setChart("chart-grn", {
+    tooltip: {formatter: p => p.dataType === "node"
+      ? `${p.data.name}<br/>level: ${p.data.value.toFixed(3)}`
+      : `${p.data.source} → ${p.data.target}`},
+    series: [{
+      type: "graph", layout: "force", roam: true,
+      force: {repulsion: 400, edgeLength: [80, 200], gravity: 0.1},
+      data: nodes, links: edges,
+      lineStyle: {opacity: 0.7}
+    }]
+  });
+}
+
+// ========== Render: L-system ==========
+function renderLSystem(data) {
+  const cv = $("canvas-lsystem");
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#0f0a1e";
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const m = data.morphology;
+  if (!m || !m.count) {
+    ctx.fillStyle = "#7c6ba8";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("No L-system morphology data (requires #lsystem + OP_GROW_LSYSTEM)", cv.width/2, cv.height/2);
+    return;
+  }
+  const pts = m.points;
+  let minx=Infinity, maxx=-Infinity, miny=Infinity, maxy=-Infinity;
+  for (const [x,y] of pts) {
+    if (x<minx) minx=x; if (x>maxx) maxx=x;
+    if (y<miny) miny=y; if (y>maxy) maxy=y;
+  }
+  const w = Math.max(maxx-minx, 1), h = Math.max(maxy-miny, 1);
+  const pad = 30;
+  const sx = (cv.width - 2*pad) / w;
+  const sy = (cv.height - 2*pad) / h;
+  const scale = Math.min(sx, sy);
+  const ox = pad - minx * scale;
+  const oy = pad - miny * scale;
+  // Gradient line
+  const grad = ctx.createLinearGradient(0, 0, cv.width, cv.height);
+  grad.addColorStop(0, "#a855f7");
+  grad.addColorStop(1, "#c084fc");
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i++) {
+    const x = pts[i][0]*scale + ox;
+    const y = pts[i][1]*scale + oy;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  // Start point
+  const s0 = pts[0];
+  ctx.fillStyle = "#4ade80";
+  ctx.beginPath();
+  ctx.arc(s0[0]*scale+ox, s0[1]*scale+oy, 4, 0, 2*Math.PI);
+  ctx.fill();
+  // Info
+  ctx.fillStyle = "#7c6ba8";
+  ctx.font = "12px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(`points: ${m.count}`, 10, 18);
+}
+
+// ========== Render: reaction-diffusion field ==========
+function renderField(data) {
+  const f = data.field;
+  const cvU = $("canvas-u"), cvV = $("canvas-v");
+  [cvU, cvV].forEach(cv => {
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#0f0a1e";
+    ctx.fillRect(0, 0, cv.width, cv.height);
+  });
+  if (!f) {
+    [cvU, cvV].forEach(cv => {
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#7c6ba8";
+      ctx.font = "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("No morphology field (requires #field)", cv.width/2, cv.height/2);
+    });
+    return;
+  }
+  drawHeatmap(cvU, f.u, f.n, "u");
+  drawHeatmap(cvV, f.v, f.n, "v");
+}
+function drawHeatmap(cv, mat, n, kind) {
+  const ctx = cv.getContext("2d");
+  const cell = cv.width / n;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const v = mat[i][j];
+      // U: purple shade; V: purple glow
+      let r, g, b;
+      if (kind === "u") {
+        r = Math.round(20 + v * 80);
+        g = Math.round(10 + v * 30);
+        b = Math.round(40 + v * 120);
+      } else {
+        r = Math.round(60 + v * 160);
+        g = Math.round(20 + v * 60);
+        b = Math.round(100 + v * 155);
+      }
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(j*cell, i*cell, Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+  ctx.fillStyle = "#a78bfa";
+  ctx.font = "11px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText(`${kind}: ${n}×${n}`, 6, 14);
+}
+
+// ========== Chart helper ==========
+function setChart(id, option) {
+  if (charts[id]) charts[id].dispose();
+  const el = $(id);
+  if (!el) return;
+  const c = echarts.init(el, null, {renderer: "canvas"});
+  c.setOption(option);
+  charts[id] = c;
+}
+const COLORS = ["#a855f7","#c084fc","#f0abfc","#d8b4fe","#e9d5ff",
+                "#7c3aed","#9333ea","#6b21a8","#581c87","#3b0764"];
+function pickColor(i) { return COLORS[i % COLORS.length]; }
+
+// ========== Tab switching ==========
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  document.querySelectorAll(".panel").forEach(p => {
+    p.classList.toggle("active", p.dataset.panel === name);
+    if (p.classList.contains("active")) {
+      // Redraw all charts (fixes zero-size issue when hidden)
+      setTimeout(() => {
+        Object.values(charts).forEach(c => c && c.resize());
+      }, 50);
+    }
+  });
+}
+
+// ========== Initialization ==========
+document.querySelectorAll(".tab").forEach(t => {
+  t.onclick = () => switchTab(t.dataset.tab);
+});
+$("btn-compile").onclick = compile;
+$("btn-run").onclick = run;
+$("editor").addEventListener("keydown", e => {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    const ta = e.target;
+    const s = ta.selectionStart, en = ta.selectionEnd;
+    ta.value = ta.value.slice(0, s) + "    " + ta.value.slice(en);
+    ta.selectionStart = ta.selectionEnd = s + 4;
+  }
+});
+window.addEventListener("resize", () => {
+  Object.values(charts).forEach(c => c && c.resize());
+});
+loadExamples();
+// Default: load example 01
+loadExample("01_hello_dna.helix");
+renderOverview({});
+</script>
+</body>
+</html>

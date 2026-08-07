@@ -1,0 +1,13 @@
+target-version = "py311"
+line-length = 100
+
+exclude = [
+    "*.egg-info",
+    "build",
+    "dist",
+    "__pycache__",
+]
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "E741", "B008"]

@@ -1,0 +1,11 @@
+# Example 5: Variable translation table - TGA is Stop in the standard table, Trp(pigment) in the mito table
+# The same DNA expresses differently under different tables
+#
+# Standard table:  ATG START, TGA HALT -> ORF terminates immediately
+# Mito table:      ATG START, TGA BUILD_PIGMENT -> continues until TAA, producing pigment
+
+#gene name=morpheus
+ATG TGA GCT TAA
+#end
+
+#config ticks=1 output=stdout

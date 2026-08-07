@@ -1,0 +1,60 @@
+# Example 9: Central dogma pipeline - coupled transcription-translation
+# Shows protein concentration accumulating per tick under GRN regulation of multiple genes
+#
+# p_housekeeping constitutive expression (strength<0 means always active)
+#   -> rnap (RNA polymerase) synthesis -> activates p_target
+#   -> ribosome synthesis -> increases translation efficiency
+#   -> target_protein concentration accumulates each tick
+#
+# This .helix file explicitly declares central dogma steps via the #transcribe / #translate bio-instruction annotations,
+# and enables use_central_dogma=true in #config so the VM performs transcription-translation in the tick loop;
+# the #type annotation marks target_protein as a Protein type.
+# True "coupled transcription-translation" (where the ribosome follows the RNA polymerase in prokaryotes) is described via the Python API below:
+
+#promoter name=p_housekeeping strength=-0.5
+#promoter name=p_target strength=0.4
+
+#gene name=rnap promoter=p_housekeeping
+ATG GCT GCT GCT TAA
+#end
+
+#gene name=ribosome promoter=p_housekeeping
+ATG GGT GGT GGT TAA
+#end
+
+#gene name=target_protein promoter=p_target
+ATG GCT GGT GCT GGT TAA
+#end
+
+#regulate p_housekeeping -> rnap strength=+0.7
+#regulate p_housekeeping -> ribosome strength=+0.7
+#regulate rnap -> p_target strength=+0.6
+#regulate ribosome -> p_target strength=+0.5
+#regulate p_target -> target_protein strength=+0.9
+
+# Central dogma instructions: explicitly declare transcription of rnap and translation of ribosome
+# The parser records them as BioInstructions (kind=transcribe / translate, target=...)
+#transcribe target=rnap
+#translate target=ribosome
+
+# Type annotation (P0-1.3): marks target_protein as Protein
+# The parser records it in prog.type_annotations = {"target_protein": "Protein"}
+#type target_protein=Protein
+
+# Note: the following is a Python API example for coupled transcription-translation (equivalent to the #transcribe/#translate annotations above)
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.central_dogma import coupled_transcription_translation
+#
+# # DNA -> mRNA -> protein, with transcription-translation coupling (prokaryotic mode)
+# result = coupled_transcription_translation(
+#     dna="ATGGCTGCTGCTGGTGGTTAA",
+#     coupling=True,            # ribosome starts translating before transcription completes
+#     ribosome_speed=15,        # aa/s
+#     rnap_speed=45,            # nt/s
+# )
+# print(f"mRNA length:   {len(result.mrna)} nt")
+# print(f"Protein:       {result.protein}")
+# print(f"Folded:        {result.folded_structure}")
+
+#config ticks=20 output=csv use_central_dogma=true
