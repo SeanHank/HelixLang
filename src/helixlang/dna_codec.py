@@ -5,9 +5,13 @@ Implements two real schemes (coexisting with the existing virtual
 opcode/codon mapping):
 
 1. **Goldman 2013 rotating-key encoding** - Nature 494:77-80
-   - bytes -> base-3 trits, 6 trits per byte (3^6=729 > 256)
-     *Note: the original paper uses a Huffman code to reach 5.05
-     trits/byte; this implementation simplifies to 6 trits/byte*
+   - bytes -> base-3 trits using the paper's published Huffman code
+     (256 codewords of 5-6 trits, average 5.07 trits/byte; the table
+     is taken verbatim from the corrected specification file
+     `View_huff3.cd.new.correct` at
+     https://www.ebi.ac.uk/goldman-srv/DNA-storage/orig_files/)
+   - the message ends with the published EXTRA symbol (codeword
+     `222020`) and the trit stream is zero-padded to a multiple of 25
    - each trit -> 1 nt, looked up in the rotating-key table as
      "previous base + trit" (mathematically guarantees no
      homopolymers)
@@ -15,7 +19,7 @@ opcode/codon mapping):
    - 17 nt index header (base-3 rotating-key-encoded segment number +
      parity check)
    - adjacent segments alternate forward / reverse-complement
-   - measured capacity ~0.25 bit/nt (incl. index overhead; the paper
+   - measured capacity ~0.28 bit/nt (incl. index overhead; the paper
      measures 0.29 bit/nt)
 
 2. **Erlich-Zielinski 2017 DNA Fountain** - Science 355:950-954
@@ -111,6 +115,99 @@ from helixlang.seq_utils import reverse_complement as _reverse_complement  # noq
 _BASES = "ACGT"
 _BASE_IDX = {b: i for i, b in enumerate(_BASES)}
 
+# ============================================================================
+# Goldman 2013 base-3 Huffman code (verbatim from the paper's corrected
+# specification file)
+# ============================================================================
+# Source: View_huff3.cd.new.correct, published by the authors at
+# https://www.ebi.ac.uk/goldman-srv/DNA-storage/orig_files/
+# (Nature 494:77-80, 2013, doi:10.1038/nature11875).
+# Each of the 256 byte values maps to a prefix-free codeword of 5 or 6
+# trits; the average codeword length is 5.07 trits/byte (the paper
+# quotes ~5.05; the exact average depends on the byte distribution).
+# The code was validated by re-decoding the author-supplied encoded
+# DNA (View_huff3.cd.new.dna) back to the specification file, which
+# matches byte-for-byte up to the two known corruption errors in the
+# published data.
+_GOLDMAN_HUFFMAN_CODE: dict[int, str] = {
+    0: '22201', 1: '00100', 2: '11220', 3: '00211', 4: '20222',
+    5: '00222', 6: '02211', 7: '222110', 8: '22002', 9: '02100',
+    10: '22001', 11: '222122', 12: '12001', 13: '02021', 14: '10100',
+    15: '02010', 16: '20101', 17: '12211', 18: '12120', 19: '11111',
+    20: '21211', 21: '21221', 22: '20220', 23: '00122', 24: '20022',
+    25: '12121', 26: '21111', 27: '00221', 28: '00202', 29: '222202',
+    30: '222102', 31: '00010', 32: '02212', 33: '10011', 34: '22011',
+    35: '02221', 36: '21212', 37: '21021', 38: '11211', 39: '10111',
+    40: '12220', 41: '22110', 42: '22101', 43: '11122', 44: '22022',
+    45: '01210', 46: '00210', 47: '02122', 48: '10122', 49: '01011',
+    50: '11101', 51: '01102', 52: '22112', 53: '12122', 54: '11012',
+    55: '222112', 56: '02201', 57: '02011', 58: '20021', 59: '222021',
+    60: '00022', 61: '222200', 62: '222120', 63: '21010', 64: '00121',
+    65: '02022', 66: '20100', 67: '10211', 68: '21001', 69: '21210',
+    70: '10212', 71: '222212', 72: '20110', 73: '20010', 74: '21220',
+    75: '21022', 76: '21000', 77: '01211', 78: '10220', 79: '12002',
+    80: '12011', 81: '11212', 82: '21100', 83: '12210', 84: '20112',
+    85: '22200', 86: '22102', 87: '21222', 88: '21012', 89: '12101',
+    90: '10120', 91: '01202', 92: '10200', 93: '02210', 94: '222211',
+    95: '11201', 96: '00102', 97: '01112', 98: '22010', 99: '00012',
+    100: '22100', 101: '20001', 102: '20202', 103: '02102', 104: '20200',
+    105: '20210', 106: '20012', 107: '11100', 108: '02101', 109: '11021',
+    110: '00021', 111: '02110', 112: '12102', 113: '01012', 114: '10101',
+    115: '10222', 116: '10221', 117: '10002', 118: '01120', 119: '00201',
+    120: '10020', 121: '222111', 122: '222220', 123: '02111', 124: '222222',
+    125: '00000', 126: '10112', 127: '22121', 128: '02000', 129: '10000',
+    130: '20111', 131: '00212', 132: '22021', 133: '21112', 134: '11022',
+    135: '01220', 136: '11102', 137: '20011', 138: '22111', 139: '10021',
+    140: '12212', 141: '11202', 142: '10201', 143: '02200', 144: '02002',
+    145: '11120', 146: '20102', 147: '11110', 148: '11002', 149: '22000',
+    150: '21002', 151: '21102', 152: '222221', 153: '11020', 154: '20221',
+    155: '01002', 156: '11001', 157: '00120', 158: '02202', 159: '10202',
+    160: '10012', 161: '22012', 162: '20211', 163: '21201', 164: '00220',
+    165: '11222', 166: '21011', 167: '10110', 168: '20002', 169: '20122',
+    170: '22122', 171: '20201', 172: '10022', 173: '21101', 174: '12110',
+    175: '12222', 176: '00200', 177: '21202', 178: '10210', 179: '10010',
+    180: '02012', 181: '12221', 182: '12022', 183: '02222', 184: '01100',
+    185: '02121', 186: '01122', 187: '00112', 188: '01020', 189: '222100',
+    190: '01222', 191: '21020', 192: '01201', 193: '00001', 194: '12021',
+    195: '12010', 196: '20121', 197: '21120', 198: '00002', 199: '222201',
+    200: '00011', 201: '01010', 202: '12112', 203: '11112', 204: '02120',
+    205: '11010', 206: '01110', 207: '01212', 208: '20120', 209: '12000',
+    210: '12100', 211: '11210', 212: '11011', 213: '21200', 214: '12200',
+    215: '01111', 216: '01200', 217: '12012', 218: '10121', 219: '10102',
+    220: '222210', 221: '00020', 222: '01000', 223: '20020', 224: '11121',
+    225: '10001', 226: '02001', 227: '01101', 228: '222121', 229: '21121',
+    230: '02220', 231: '01001', 232: '222101', 233: '01022', 234: '20212',
+    235: '00101', 236: '222022', 237: '01021', 238: '00111', 239: '11200',
+    240: '12201', 241: '11000', 242: '02112', 243: '01221', 244: '00110',
+    245: '11221', 246: '01121', 247: '12111', 248: '12020', 249: '02020',
+    250: '22020', 251: '20000', 252: '21110', 253: '22120', 254: '12202',
+    255: '21122',
+}
+
+# End-of-message symbol (the 257th Huffman leaf in the published tree;
+# never emitted for real bytes, marks the boundary between the message
+# and the zero padding).
+_GOLDMAN_EXTRA_CODE = "222020"
+
+
+def _build_goldman_trie() -> dict:
+    """Prefix-free trie over the Goldman Huffman codewords."""
+    trie: dict = {}
+    for _byte_val, code in _GOLDMAN_HUFFMAN_CODE.items():
+        node = trie
+        for t in code:
+            node = node.setdefault(t, {})
+        node["#"] = _byte_val
+    # the EXTRA leaf terminates decoding
+    node = trie
+    for t in _GOLDMAN_EXTRA_CODE:
+        node = node.setdefault(t, {})
+    node["#"] = "EXTRA"
+    return trie
+
+
+_GOLDMAN_TRIE = _build_goldman_trie()
+
 
 def _trit_to_base(prev: str, trit: int) -> str:
     """Rotating key: previous base + trit -> next base. Guaranteed !=
@@ -124,60 +221,89 @@ def _base_to_trit(prev: str, curr: str) -> int:
     return diff
 
 
-# byte -> 6 trits (base-3 representation, 3^6=729 > 256)
-# Note: the original Goldman paper uses a Huffman code to reach 5.05
-# trits/byte; here it is simplified to 6 trits/byte
+# byte -> 5/6 trits (Goldman Huffman code, average 5.07 trits/byte)
 def _byte_to_trits(b: int) -> str:
-    """Byte -> 6-trit string (base-3, most significant first)."""
-    t = []
-    for _ in range(6):
-        t.append(str(b % 3))
-        b //= 3
-    return "".join(reversed(t))
+    """Byte -> Goldman Huffman codeword (5-6 trits)."""
+    try:
+        return _GOLDMAN_HUFFMAN_CODE[b]
+    except KeyError:
+        raise ValueError(f"byte {b} has no Goldman Huffman codeword") from None
 
 
 def _trits_to_byte(trits: str) -> int:
-    """6-trit string -> byte."""
-    val = 0
-    for t in trits:
-        val = val * 3 + int(t)
-    return val
+    """Greedy Huffman decode of the next codeword -> byte.
+
+    Returns the byte value, or -1 for the EXTRA end-of-message symbol,
+    or raises ValueError if `trits` does not begin with a complete,
+    valid codeword.
+    """
+    node: dict = _GOLDMAN_TRIE
+    for i, t in enumerate(trits):
+        child = node.get(t)
+        if child is None:
+            raise ValueError(f"invalid Goldman trit {t!r} at position {i}")
+        node = child
+        val = node.get("#")
+        if val is not None:
+            if val == "EXTRA":
+                return -1
+            return int(val)
+    raise ValueError("incomplete Goldman Huffman codeword")
 
 
-def _bytes_to_dna_goldman(data: bytes, start_base: str = "T") -> str:
-    """Byte stream -> DNA (rotating key, no homopolymers).
+def _bytes_to_dna_goldman(data: bytes, start_base: str = "A") -> str:
+    """Byte stream -> DNA (Huffman trits + rotating key, no
+    homopolymers).
+
+    The byte stream is encoded with the published Goldman Huffman
+    code, terminated by the EXTRA symbol, and the trit stream is
+    zero-padded to a multiple of 25 before rotating-key conversion
+    (mirroring the author-supplied intermediate DNA files).
 
     start_base: the "previous base" context of the first base (default
-    T, Goldman standard).
+    A, matching the author-supplied DNA files).
     """
+    trits = "".join(_GOLDMAN_HUFFMAN_CODE[b] for b in data)
+    trits += _GOLDMAN_EXTRA_CODE
+    pad = (25 - len(trits) % 25) % 25
+    trits += "0" * pad
     prev = start_base
     out = []
-    for byte_val in data:
-        trits = _byte_to_trits(byte_val)
-        for t in trits:
-            nb = _trit_to_base(prev, int(t))
-            out.append(nb)
-            prev = nb
+    for t in trits:
+        nb = _trit_to_base(prev, int(t))
+        out.append(nb)
+        prev = nb
     return "".join(out)
 
 
-def _dna_to_bytes_goldman(dna: str, start_base: str = "T") -> bytes:
-    """DNA -> byte stream (reverse rotating key).
+def _dna_to_bytes_goldman(dna: str, start_base: str = "A") -> bytes:
+    """DNA -> byte stream (reverse rotating key + Huffman decode).
 
-    Fault tolerance: if a 6-trit combination is > 255 (due to PCR
-    errors), take mod 256.
+    Decoding stops at the EXTRA end-of-message symbol; trailing
+    padding is discarded. Fault tolerance: if a trit sequence does not
+    form a valid codeword (e.g. after PCR/sequencing errors), the
+    offending trit is skipped and decoding re-synchronises at the next
+    trit.
     """
     prev = start_base
-    trits = []
-    for curr in dna:
-        trits.append(str(_base_to_trit(prev, curr)))
-        prev = curr
-    # every 6 trits is one byte
     out = bytearray()
-    for i in range(0, len(trits) - len(trits) % 6, 6):
-        val = _trits_to_byte("".join(trits[i:i + 6]))
-        out.append(val % 256)  # fault tolerance: PCR errors can make
-                               # val > 255
+    window: list[str] = []
+    for curr in dna:
+        window.append(str(_base_to_trit(prev, curr)))
+        prev = curr
+        # try to close a codeword as soon as one is complete
+        while True:
+            try:
+                val = _trits_to_byte("".join(window))
+            except ValueError:
+                break
+            if val == -1:
+                return bytes(out)
+            out.append(val)
+            window.clear()
+        # drop the first trit of a window that cannot close (re-sync)
+        if len(window) > 6:
+            window.pop(0)
     return bytes(out)
 
 
@@ -269,12 +395,217 @@ class GoldmanOligo:
                           # sequence, possibly RC)
 
 
+def _align_payload(payload: str, consensus: str, nominal: int) -> list[int | None]:
+    """Per-base consensus-column mapping of `payload` (indel-tolerant).
+
+    Banded Smith-Waterman local alignment of `payload` against a
+    window of `consensus` around the nominal offset (`index * 25`).
+    Returns a list parallel to `payload` giving the consensus index
+    each base maps to (None for payload bases that are insertions
+    relative to the consensus, i.e. that align to a gap). This
+    tolerates the insertions/deletions introduced by synthesis, PCR and
+    sequencing, which would otherwise shift a position-based majority
+    vote. Falls back to the nominal mapping when no confident alignment
+    is found.
+    """
+    lo = max(0, nominal - SEGMENT_NT)
+    hi = min(len(consensus), nominal + SEGMENT_NT)
+    if hi <= lo:
+        # no overlap with the consensus: append at its end
+        return list(range(len(consensus), len(consensus) + len(payload)))
+    window = consensus[lo:hi]
+    length, mlen = len(payload), len(window)
+    nominal_map: list[int | None] = list(range(nominal, nominal + length))
+    if length == 0:
+        return []
+    # fast path: if the payload matches the consensus at its nominal
+    # offset (allowing <= 1 substitution and no indels), no alignment
+    # is needed. A real indel shifts every downstream base, so a clean
+    # match implies the nominal offset is correct.
+    overlap = min(hi - nominal, length)
+    if overlap >= 60:
+        mismatches = 0
+        for k in range(overlap):
+            if payload[k] != consensus[nominal + k]:
+                mismatches += 1
+                if mismatches > 1:
+                    break
+        if mismatches <= 1:
+            return nominal_map
+    # Semi-global alignment: every payload base must map onto a
+    # consensus column (indels are placed as gaps), but the consensus
+    # window may extend beyond the payload's true coverage in both
+    # directions (the window is padded only with real consensus, never
+    # with unknown 'N' columns). Padding the reference with 'N' would
+    # let the aligner silently absorb an internal deletion as a
+    # trailing truncation; requiring the full payload to be consumed
+    # forces the deletion to be placed where the payload actually
+    # disagrees with the consensus.
+    mapping: list[int | None] = [None] * length
+    match, mismatch, gap = 2, -3, -4
+    band = 25
+    diag = nominal - lo  # expected j - i for the true alignment
+    score = [[0] * (mlen + 1) for _ in range(length + 1)]
+    tb = [[0] * (mlen + 1) for _ in range(length + 1)]
+    for i in range(1, length + 1):
+        jmin = max(1, i + diag - band)
+        jmax = min(mlen, i + diag + band)
+        for j in range(jmin, jmax + 1):
+            a, b = payload[i - 1], window[j - 1]
+            s_diag = score[i - 1][j - 1] + (match if a == b else mismatch)
+            s_up = score[i - 1][j] + gap      # gap in the window
+            s_left = score[i][j - 1] + gap    # gap in the payload
+            s = max(s_diag, s_up, s_left)
+            score[i][j] = s
+            if s == s_diag:
+                tb[i][j] = 1
+            elif s == s_up:
+                tb[i][j] = 2
+            else:
+                tb[i][j] = 3
+    # best end: payload fully consumed (row `length`), any column
+    best = -10**9
+    best_j = mlen
+    for j in range(mlen + 1):
+        if score[length][j] > best:
+            best = score[length][j]
+            best_j = j
+    if best < match * 30:  # not a confident alignment
+        return nominal_map
+    i, j = length, best_j
+    while i > 0 and j > 0:
+        if tb[i][j] == 1:   # diagonal: payload[i-1] <-> window[j-1]
+            mapping[i - 1] = lo + (j - 1)
+            i -= 1
+            j -= 1
+        elif tb[i][j] == 2:  # payload[i-1] aligns to a gap in the window
+            i -= 1
+        else:                # window[j-1] aligns to a gap in the payload
+            j -= 1
+    if i > 0:
+        # payload longer than the window's coverage: append the
+        # remainder after the last mapped column
+        next_col = lo + j
+        for k in range(i, 0, -1):
+            mapping[length - k] = next_col
+            next_col += 1
+    return mapping
+
+
+def _columns_to_dna(columns: list[dict[str, int]]) -> str:
+    """Consensus sequence from per-column base votes.
+
+    Maximizes the total vote count subject to the Goldman rotating-key
+    constraint (base[i] != base[i-1] along the whole stream). The
+    constraint is a hard one - a homopolymer pair is invalid DNA for this
+    codec - so a column's most-voted base is only chosen when it is
+    compatible with the column before it. A column with no votes lets the
+    state machine continue the key without penalty. A dynamic program over
+    the 4 states (one per base) makes the choice globally optimal and
+    immune to the error cascade a greedy left-to-right tie break suffers.
+    """
+    if not columns:
+        return ""
+    bases = ("A", "C", "G", "T")
+    prev = [columns[0].get(b, 0) for b in bases]
+    parent = []
+    for col in columns[1:]:
+        votes = [col.get(b, 0) for b in bases]
+        cur: list[int] = []
+        par: list[int] = []
+        for x in range(4):
+            best_val, best_y = max(
+                (prev[y], y) for y in range(4) if y != x)
+            cur.append(best_val + votes[x])
+            par.append(best_y)
+        parent.append(par)
+        prev = cur
+    last = max(range(4), key=lambda x: (prev[x], -x))
+    out = [bases[last]]
+    for c in range(len(columns) - 1, 0, -1):
+        last = parent[c - 1][last]
+        out.append(bases[last])
+    out.reverse()
+    return "".join(out)
+
+
+def _merge_maps(seg_payloads: dict[int, str],
+                maps: dict[int, list[int | None]]) -> list[dict[str, int]]:
+    """Column-wise base counts using per-base consensus mappings."""
+    columns: list[dict[str, int]] = []
+    for seg_idx, payload in seg_payloads.items():
+        for j, base in enumerate(payload):
+            col = maps[seg_idx][j]
+            if col is None or col < 0:
+                continue
+            while len(columns) <= col:
+                columns.append({})
+            columns[col][base] = columns[col].get(base, 0) + 1
+    return columns
+
+
+def _assemble_dna(seg_payloads: dict[int, str],
+                  total_len: int | None = None) -> str:
+    """Reassemble the long DNA stream from the overlapping segments.
+
+    Segments are 100 nt payloads with a 25 nt step (75 nt overlap,
+    4x redundancy). A naive per-position majority vote is fragile to
+    insertions/deletions (one indel shifts every downstream vote), so
+    the sequence is rebuilt the way the paper's decoder does it: by
+    overlap assembly, i.e. aligning each segment (indel-tolerant
+    Smith-Waterman) against the consensus assembled so far and merging
+    it column-wise, followed by two refinement passes that re-align
+    every segment against the full consensus.
+
+    Returns the reconstructed DNA through the end of the last segment
+    (or min(total_len * 6, ...) when total_len is given). The EXTRA
+    end-of-message codeword truncates it during byte decoding.
+    """
+    if not seg_payloads:
+        return ""
+    # Nominal placement: each segment i covers stream columns
+    # [25*i, 25*i + len(payload)) - the Goldman scheme encodes the
+    # whole message as one continuous stream and every segment is a
+    # 100 nt window of it at a 25 nt step, so the offsets are known a
+    # priori. Indels shift a segment's *own* downstream votes, but the
+    # 4x overlap means each column is voted by ~4 segments, and a
+    # segment is only trusted where the vote is consistent.
+    columns: list[dict[str, int]] = []
+    for seg_idx, payload in seg_payloads.items():
+        start = seg_idx * SEGMENT_STEP_NT
+        for j, base in enumerate(payload):
+            col = start + j
+            while len(columns) <= col:
+                columns.append({})
+            columns[col][base] = columns[col].get(base, 0) + 1
+    consensus = _columns_to_dna(columns)
+    # refinement: re-align every segment against the global consensus
+    # (semi-global, so indels are placed as internal gaps) and re-vote.
+    # This relocates a segment's shifted votes to their true columns and
+    # is what lets the vote win even where an indel made a majority
+    # disagree with the true base. The rotating-key dynamic program in
+    # _columns_to_dna keeps every refinement step globally consistent.
+    for _ in range(2):
+        maps = {
+            i: _align_payload(p, consensus, i * SEGMENT_STEP_NT)
+            for i, p in seg_payloads.items()
+        }
+        columns = _merge_maps(seg_payloads, maps)
+        refined = _columns_to_dna(columns)
+        if refined == consensus:
+            break
+        consensus = refined
+    if total_len is not None:
+        columns = columns[:total_len * 6]
+    return _columns_to_dna(columns)
+
+
 def goldman_encode(data: bytes) -> list[GoldmanOligo]:
     """Goldman 2013 encoding: binary -> list of DNA oligos.
 
     Steps (paper Methods + Fig.1):
-    1. byte stream -> DNA (6 trits/byte + rotating key, no
-       homopolymers)
+    1. byte stream -> Huffman-coded trits + EXTRA marker, padded to a
+       multiple of 25, then -> DNA (rotating key, no homopolymers)
     2. split DNA into 100 nt segments with a 25 nt step (4x overlapping
        redundancy)
     3. add a 17 nt index header to each segment (segment number + parity
@@ -282,12 +613,13 @@ def goldman_encode(data: bytes) -> list[GoldmanOligo]:
     4. adjacent segments alternate reverse complement
     Total oligo length = 117 nt (informational part)
     """
-    # 1. bytes -> DNA
+    # 1. bytes -> DNA (Huffman + EXTRA + pad to multiple of 25)
     dna = _bytes_to_dna_goldman(data)
     # 2. segment (25 nt step, 100 nt segments)
-    # pad to a multiple of 25 + ensure the last segment is a full 100 nt
-    # use rotating-key continuation padding (trit=0 cycle) to guarantee
-    # no homopolymers + ~50% GC
+    # pad the last segment to a full 100 nt using rotating-key
+    # continuation (trit=0 cycle), which guarantees no homopolymers and
+    # ~50% GC. Because dna length is a multiple of 25, this adds
+    # exactly 75 nt to complete the final segment.
     n_segments = max(1, math.ceil(len(dna) / SEGMENT_STEP_NT))
     min_len = (n_segments - 1) * SEGMENT_STEP_NT + SEGMENT_NT
     pad_total = max(0, min_len - len(dna))
@@ -335,8 +667,15 @@ def goldman_decode(oligos: Iterable[GoldmanOligo],
     4. DNA -> bytes
     """
     # 1. collect each segment's payload
+    # The encoder emits exactly one oligo per segment (indices
+    # 0..n-1), so a decoded segment number outside that range cannot be
+    # part of the message. This rejects the rare spurious checksum
+    # passes (~1/81 chance per 17 nt index) that would otherwise
+    # produce a bogus reconstruction length.
+    oligo_list = list(oligos)
+    n_segments = len(oligo_list)
     seg_payloads: dict[int, str] = {}
-    for oligo in oligos:
+    for oligo in oligo_list:
         full = oligo.full
         # try decoding the index in forward orientation
         seg_idx = None
@@ -344,7 +683,7 @@ def goldman_decode(oligos: Iterable[GoldmanOligo],
         try:
             idx = _decode_index(full[:INDEX_NT])
             # verify: even segments should be forward
-            if idx % 2 == 0:
+            if idx % 2 == 0 and 0 <= idx < n_segments:
                 seg_idx = idx
                 payload = full[INDEX_NT:INDEX_NT + SEGMENT_NT]
         except (ValueError, KeyError):
@@ -354,7 +693,7 @@ def goldman_decode(oligos: Iterable[GoldmanOligo],
             try:
                 rc = _reverse_complement(full)
                 idx = _decode_index(rc[:INDEX_NT])
-                if idx % 2 == 1:
+                if idx % 2 == 1 and 0 <= idx < n_segments:
                     seg_idx = idx
                     payload = rc[INDEX_NT:INDEX_NT + SEGMENT_NT]
             except (ValueError, KeyError):
@@ -372,34 +711,9 @@ def goldman_decode(oligos: Iterable[GoldmanOligo],
     if not seg_payloads:
         raise ValueError("no valid oligos decoded")
 
-    max_seg = max(seg_payloads.keys())
-    # 2. compute the DNA length to restore
-    if total_len is not None:
-        dna_len_needed = total_len * 6
-    else:
-        # default: the end of the last segment
-        last_payload = seg_payloads.get(max_seg, "")
-        dna_len_needed = max_seg * SEGMENT_STEP_NT + len(last_payload)
-
-    # 3. restore the long DNA string by 4x overlapping vote
-    #    segment i covers [i*25, i*25+100)
-    #    position pos is covered by segments
-    #    max(0, pos-99//25)..min(max_seg, pos//25)
-    voted: list[str] = []
-    for pos in range(dna_len_needed):
-        votes: dict[str, int] = {}
-        for seg_idx, payload in seg_payloads.items():
-            start = seg_idx * SEGMENT_STEP_NT
-            offset = pos - start
-            if 0 <= offset < len(payload):
-                base = payload[offset]
-                votes[base] = votes.get(base, 0) + 1
-        if votes:
-            voted.append(max(votes, key=lambda b: votes[b]))
-        else:
-            voted.append("A")  # missing positions default to A (safe
-                               # under the rotating key)
-    dna = "".join(voted)
+    # 3. restore the long DNA string by overlap-based reassembly
+    #    (indel-tolerant; see _assemble_dna)
+    dna = _assemble_dna(seg_payloads, total_len=total_len)
 
     # 4. DNA -> bytes
     data = _dna_to_bytes_goldman(dna)
@@ -1084,8 +1398,9 @@ def helix_to_dna(helix_source: str, scheme: str = "goldman") -> dict:
     data = helix_source.encode("utf-8")
     if scheme == "goldman":
         oligos = goldman_encode(data)
-        # num_segments = ceil(len(dna) / 25), dna length = 6 * len(data)
-        num_segments = max(1, math.ceil(len(data) * 6 / SEGMENT_STEP_NT))
+        # num_segments = number of 100 nt payload oligos produced (the
+        # byte stream is Huffman-coded, so it is not simply 6/byte)
+        num_segments = len(oligos)
         total_bp = sum(len(o.full) for o in oligos)
         return {
             "scheme": "goldman",

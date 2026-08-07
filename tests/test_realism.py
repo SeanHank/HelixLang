@@ -331,20 +331,27 @@ class TestStorageDensity:
         assert bench["num_files"] == 35
         assert bench["density_bit_per_nt"] == 0.83
 
-    def test_goldman_actual_density_below_paper(self):
-        """This implementation's Goldman actual density ≤ paper's 0.29 bit/nt (includes indexing overhead).
+    def test_goldman_actual_density_matches_scheme(self):
+        """This implementation's Goldman raw-byte density ≈ 0.34 bit/nt.
 
-        This implementation uses 6 trits/byte (the paper uses Huffman 5.05 trits/byte),
-        so the density is lower. Verify the density is in a reasonable range.
+        Goldman 2013 reported 0.29 bit/nt, but that is the *Shannon
+        information* of the compressed 5.27 Mbit archive over the 17.9 Mnt
+        synthesized (153,335 oligos x 117 nt), not a raw-byte rate. This
+        codec reproduces the paper's scheme: per-byte Huffman codes
+        (average 5.078 trits/byte, verified verbatim against the authors'
+        View_huff3.cd.new.correct), a 17 nt index per 100 nt payload, and
+        the 4x overlapping segmentation (25 nt step). The raw-byte density
+        is therefore 8 / 5.078 / (117/25) = 0.337 bit/nt; frequent bytes
+        with short codes raise it slightly above the all-256-byte average.
         """
         data = b"Hello, DNA storage world! " * 20  # ~520 bytes
         oligos = goldman_encode(data)
         total_bp = sum(len(o.full) for o in oligos)
         density = len(data) * 8 / total_bp
-        # Goldman rotating key 6 trits/byte → 0.125 byte/nt = 1.0 bit/nt theoretical
-        # actual with 17 nt index + 4× redundancy → capacity drops to ~0.15-0.25 bit/nt
-        assert 0.10 < density < 0.30, \
-            f"Goldman actual density {density:.3f} not in [0.10, 0.30] bit/nt"
+        # Huffman scheme raw rate ~0.34 (the paper's 0.29 is the Shannon
+        # rate of the compressed file, not comparable to raw bytes)
+        assert 0.28 < density < 0.42, \
+            f"Goldman raw density {density:.3f} bit/nt outside [0.28, 0.42]"
 
     def test_erlich_actual_density_near_paper(self):
         """This implementation's Erlich actual density is close to the paper's 1.57 bit/nt.
