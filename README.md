@@ -311,6 +311,8 @@ Contributions are welcomed! This project follows a standard fork-and-PR workflow
 5. **Commit** with clear messages
 6. **Open a Pull Request**
 
+---
+
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0** (AGPLv3).  
