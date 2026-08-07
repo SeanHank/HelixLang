@@ -2,10 +2,21 @@
 
 Based on real biology:
 - E. coli doubling time ~20 min (grown in rich medium, 37°C)
-- Quorum sensing: AI-2 signal molecule threshold ~10 μM (Xavier 2003)
-- Cell division requires an energy threshold of ~200 units (corresponding to sufficient nutrients)
-- Intercellular signal diffusion coefficient ~1e-6 cm²/s
+- Quorum sensing: AI-2 signal molecule threshold ~10 uM (Xavier 2003)
+- Cell division requires a sufficient energy budget (see UNITS: the
+  ~200-unit threshold is a dimensionless gameplay budget, not an
+  experimentally measured quantity)
+- Intercellular signal diffusion coefficient ~1e-6 cm^2/s (order of
+  magnitude; the on-lattice diffusion constant below is dimensionless)
 - Biofilm formation requires a sufficiently high cell density (O'Toole 2000)
+
+.. note::
+   **Units disclaimer.** Division/death energy thresholds, the signal
+   diffusion constant, and the quorum threshold are *gameplay units*
+   (dimensionless lattice budget), except where a physical value is
+   cited (Xavier 2003: 10 uM AI-2).  All such magic numbers are
+   registered as named constants below so future calibration is a
+   one-line edit.
 """
 from __future__ import annotations
 
@@ -23,22 +34,61 @@ except ImportError:
 
 
 # ============================================================================
+# Gameplay-unit constant registry
+# ============================================================================
+# Defaults are preserved exactly; the values are dimensionless gameplay
+# units unless a physical citation is given (see module docstring).
+
+#: maximum population size
+DEFAULT_MAX_POPULATION_SIZE = 10000
+#: simulation lattice dimensions
+DEFAULT_GRID_WIDTH = 100
+DEFAULT_GRID_HEIGHT = 100
+#: energy budget required for division (gameplay units)
+DIVISION_ENERGY_THRESHOLD = 200.0
+#: energy below which a cell dies (gameplay units)
+DEATH_ENERGY_THRESHOLD = 0.0
+#: on-lattice signal diffusion coefficient (dimensionless; physical
+#: intercellular diffusion is ~1e-6 cm^2/s)
+SIGNAL_DIFFUSION_COEFFICIENT = 0.1
+#: quorum-sensing signal threshold (gameplay units; the cited physical
+#: value is ~10 uM AI-2, Xavier 2003)
+QUORUM_SIGNAL_THRESHOLD = 5.0
+#: metabolic energy cost per time step (gameplay units)
+METABOLIC_COST_PER_STEP = 1.0
+#: nutrient intake per time step, rich medium (gameplay units)
+ENERGY_INTAKE_PER_STEP = 5.0
+#: newborn cell energy (gameplay units)
+POPULATION_CELL_INITIAL_ENERGY = 100.0
+
+#: gameplay-unit axis summary (see module docstring)
+UNITS: dict[str, str] = {
+    "energy": "gameplay units (not Joules); thresholds are one-line edits "
+              "via DIVISION_ENERGY_THRESHOLD / DEATH_ENERGY_THRESHOLD",
+    "signal": "dimensionless lattice units; the physically cited AI-2 "
+              "threshold is ~10 uM (Xavier 2003)",
+    "diffusion": "dimensionless on-lattice constant; physical "
+                 "intercellular diffusion ~1e-6 cm^2/s",
+}
+
+
+# ============================================================================
 # Config and data classes
 # ============================================================================
 @dataclass(slots=True)
 class PopulationConfig:
     """Population simulation config."""
 
-    max_size: int = 10000
-    grid_width: int = 100
-    grid_height: int = 100
-    division_threshold: float = 200.0       # energy threshold for division
-    death_threshold: float = 0.0            # energy threshold for death
+    max_size: int = DEFAULT_MAX_POPULATION_SIZE
+    grid_width: int = DEFAULT_GRID_WIDTH
+    grid_height: int = DEFAULT_GRID_HEIGHT
+    division_threshold: float = DIVISION_ENERGY_THRESHOLD
+    death_threshold: float = DEATH_ENERGY_THRESHOLD
     signaling_enabled: bool = True
-    signal_diffusion: float = 0.1           # signal diffusion coefficient
-    signal_threshold: float = 5.0           # quorum sensing threshold
-    metabolic_cost: float = 1.0             # metabolic energy cost per step
-    energy_intake: float = 5.0              # nutrient intake per step (rich medium)
+    signal_diffusion: float = SIGNAL_DIFFUSION_COEFFICIENT
+    signal_threshold: float = QUORUM_SIGNAL_THRESHOLD
+    metabolic_cost: float = METABOLIC_COST_PER_STEP
+    energy_intake: float = ENERGY_INTAKE_PER_STEP
 
 
 @dataclass(slots=True)
@@ -47,7 +97,7 @@ class PopulationCell:
 
     id: int = 0
     parent_id: int | None = None
-    energy: float = 100.0
+    energy: float = POPULATION_CELL_INITIAL_ENERGY
     x: int = 0
     y: int = 0
     proteins: dict[str, float] = field(default_factory=dict)

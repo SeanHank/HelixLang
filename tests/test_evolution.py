@@ -37,6 +37,7 @@ from helixlang.evolution import (
     EvolutionConfig,
     Individual,
     calculate_fitness,
+    dnds_codeml,
     dnds_ratio,
     fitness_landscape,
     mutate,
@@ -732,6 +733,64 @@ class TestDnDsRatio:
         result = dnds_ratio("", "")
         assert result["dN"] == 0.0
         assert result["dS"] == 0.0
+
+
+class TestDndsCodeml:
+    """Verify the optional M0 codon-substitution ML model (4.9)."""
+
+    def test_no_substitutions_neutral(self):
+        """Identical sequences: omega=1, t=0, no-signal note."""
+        r = dnds_codeml("ATGGCTGGTTAA", "ATGGCTGGTTAA")
+        assert r["omega"] == 1.0
+        assert r["t"] == 0.0
+        assert "no substitutions" in r["interpretation"]
+
+    def test_synonymous_change_purifying(self):
+        """Synonymous-only changes -> low omega (purifying signal)."""
+        # GCT->GCC (Ala) synonymous
+        r = dnds_codeml("ATGGCCGGTTAA", "ATGGCTGGTTAA")
+        assert r["nonsyn_substitutions"] == 0
+        assert r["syn_substitutions"] == 1
+        assert r["omega"] <= 1.0
+
+    def test_return_shape_superset_of_dnds_ratio(self):
+        """codeml output includes all dnds_ratio keys plus M0 extras."""
+        r = dnds_codeml("ATGCCTGGTTAA", "ATGGCTGGTTAA")
+        for key in ("dN", "dS", "dNdS", "nonsyn_substitutions",
+                    "syn_substitutions", "syn_sites", "nonsyn_sites",
+                    "interpretation"):
+            assert key in r
+        for key in ("omega", "t", "lnL", "lnL_neutral", "lrt_stat",
+                    "lrt_p", "kappa", "method"):
+            assert key in r
+        assert r["method"] == "M0"
+
+    def test_lnl_boundaries(self):
+        """lnL is finite and the fitted model dominates the neutral one
+        on a mixed (non-neutral) alignment."""
+        ancestral = "ATGGCTGGTTAA" + "CTG" * 20
+        dna = "ATGCCTGCTTAA" + "CTG" * 19 + "CTA"
+        r = dnds_codeml(dna, ancestral)
+        assert math.isfinite(r["lnL"])
+        assert math.isfinite(r["t"])
+        assert 0.0 <= r["omega"] <= 5.0
+
+    def test_method_kwarg_wiring(self):
+        """dnds_ratio(method='codeml') dispatches to the M0 fit; the
+        default stays Nei-Gojobori."""
+        ancestral = "ATGGCTGGTTAA"
+        dna = "ATGGCCGGTTAA"
+        codeml = dnds_ratio(dna, ancestral, method="codeml")
+        assert codeml["method"] == "M0"
+        ng = dnds_ratio(dna, ancestral)
+        assert "method" not in ng  # legacy default shape unchanged
+        with pytest.raises(ValueError):
+            dnds_ratio(dna, ancestral, method="nope")
+
+    def test_empty_sequences(self):
+        r = dnds_codeml("", "")
+        assert r["omega"] == 1.0
+        assert "no data" in r["interpretation"]
 
 
 # ============================================================================

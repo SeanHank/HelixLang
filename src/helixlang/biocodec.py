@@ -41,12 +41,12 @@ References:
 """
 from __future__ import annotations
 
-import math
 import random
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from helixlang import bio_data
 from helixlang.bio_data import ECOLI_CODON_USAGE
 from helixlang.codon_table import (
     STANDARD_TABLE,
@@ -369,24 +369,10 @@ def codon_adaptation_index_full(dna: str) -> float:
     CAI = exp(mean(ln(frac_i / max_frac_aa_i)))
     where frac_i is the fraction of codon i and max_frac_aa_i is the
     maximum fraction of its amino acid.
+
+    Delegates to :func:`helixlang.bio_data.cai` (E. coli K-12 table).
     """
-    # max fraction per amino acid
-    max_frac: dict[str, float] = {}
-    for _codon, (aa, _, frac) in ECOLI_CODON_USAGE.items():
-        if aa not in max_frac or frac > max_frac[aa]:
-            max_frac[aa] = frac
-    log_ratios = []
-    for i in range(0, len(dna) - len(dna) % 3, 3):
-        codon = dna[i:i + 3].upper()
-        if codon not in ECOLI_CODON_USAGE:
-            continue
-        aa, _, frac = ECOLI_CODON_USAGE[codon]
-        if aa == "*" or frac == 0:
-            continue
-        log_ratios.append(math.log(frac / max_frac[aa]))
-    if not log_ratios:
-        return 0.0
-    return math.exp(sum(log_ratios) / len(log_ratios))
+    return bio_data.cai(dna, species="ecoli")
 
 
 # ============================================================================

@@ -1,7 +1,7 @@
 """GRN unit tests."""
 import pytest
 
-from helixlang.grn import GRN, sigmoid
+from helixlang.grn import GRN, decay_from_half_life_ticks, hill, sigmoid
 
 
 def test_sigmoid_basic():
@@ -78,3 +78,64 @@ def test_level_clamped():
     for _ in range(100):
         grn.step()
     assert 0.0 <= grn.nodes["g"].level <= 1.0
+
+
+def test_hill_activation():
+    """Hill kinetics: half-max at x = kd, 0 below, saturation above."""
+    assert hill(0.0, 2, 1.0) == 0.0
+    assert hill(-1.0, 2, 1.0) == 0.0
+    assert hill(1.0, 2, 1.0) == pytest.approx(0.5)
+    assert hill(3.0, 2, 1.0) == pytest.approx(9.0 / 10.0)
+    assert hill(10.0, 2, 1.0) > 0.99
+
+
+def test_hill_half_max_at_kd():
+    """Hill activation is 0.5 when input == kd."""
+    assert hill(5.0, 4, 5.0) == pytest.approx(0.5)
+    assert hill(0.1, 1, 0.1) == pytest.approx(0.5)
+
+
+def test_decay_from_half_life():
+    """decay_from_half_life_ticks halves the level at its half-life."""
+    decay = decay_from_half_life_ticks(10.0)
+    assert decay == pytest.approx(0.5 ** 0.1)
+    # after half_life_ticks ticks, level * decay**n == level/2
+    level = 0.8
+    for _ in range(10):
+        level *= decay
+    assert level == pytest.approx(0.4)
+    # 1 tick half-life -> decay 0.5
+    assert decay_from_half_life_ticks(1.0) == pytest.approx(0.5)
+    # long half-life -> decay close to 1 (slow degradation)
+    assert decay_from_half_life_ticks(110.0) == pytest.approx(0.9937, abs=1e-3)
+    with pytest.raises(ValueError):
+        decay_from_half_life_ticks(0.0)
+
+
+def test_per_gene_decay_used():
+    """Per-gene decay overrides the universal DECAY."""
+    grn = GRN()
+    # gene with per-gene decay 0.5 (fast decay) vs default 0.7
+    grn.add_gene("fast", threshold=-1.0, initial_level=1.0, decay=0.5)
+    grn.add_gene("slow", threshold=-1.0, initial_level=1.0)
+    for _ in range(3):
+        grn.step()
+    assert grn.nodes["fast"].level < grn.nodes["slow"].level
+
+
+def test_hill_gene_kinetics_steady_state():
+    """Hill path: steady-state expression matches Hill prediction."""
+    grn = GRN()
+    # constitutive source held at level 1 (no decay)
+    grn.add_gene("src", threshold=-1.0, initial_level=1.0, decay=1.0)
+    # target with Hill kinetics: kd=0.5, n=3
+    grn.add_gene("tgt", threshold=0.0, initial_level=0.0, hill_n=3, kd=0.5)
+    grn.add_edge("src", "tgt", 1.0)
+    for _ in range(50):
+        grn.step()
+    # input = 1.0 -> activation = 1^3/(0.5^3 + 1^3) = 0.8889
+    act = hill(1.0, 3, 0.5)
+    assert act == pytest.approx(1.0 / (0.125 + 1.0))
+    # steady state level = activation (decay absorbs)
+    assert grn.nodes["tgt"].level == pytest.approx(act, abs=0.02)
+    assert grn.nodes["tgt"].level > 0.5

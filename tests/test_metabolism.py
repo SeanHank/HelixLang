@@ -30,7 +30,7 @@ from helixlang.metabolism import (
     MetabolicModel,
     # data classes
     Reaction,
-    # simplex
+    load_model,
     simplex,
 )
 
@@ -660,3 +660,33 @@ class TestFBAConditions:
         fba2.set_uptake("GLC", 10.0)
         fluxes_min = fba2.solve(maximize=False)
         assert fluxes_max["BIOMASS"] > fluxes_min["BIOMASS"]
+
+
+class TestLoadModel:
+    """Verify the optional model loader (4.6)."""
+
+    def test_load_model_none_returns_core(self):
+        """load_model(None) returns the curated 37-reaction core model."""
+        m = load_model()
+        assert m is ECOLI_CORE_MODEL
+        assert len(m.reactions) == 37
+
+    def test_load_model_json_path(self):
+        """load_model() accepts a JSON path."""
+        from pathlib import Path
+        p = Path(__file__).resolve().parents[1] / "src" / "helixlang" \
+            / "data" / "ecoli_core_model.json"
+        m = load_model(p)
+        assert len(m.reactions) == 37
+        assert m.biomass_reaction is not None
+
+    def test_load_model_unknown_identifier_without_cobra(self):
+        """Without cobrapy, a BiGG identifier raises BioError."""
+        from helixlang.errors import BioError
+        try:
+            import cobra  # noqa: F401
+        except ImportError:
+            with pytest.raises(BioError):
+                load_model("iJO1366")
+        else:
+            pytest.skip("cobrapy installed; identifier path tested live")

@@ -26,6 +26,7 @@ import math
 import pytest
 
 from helixlang.central_dogma import (
+    CODON_ELONGATION_RATE_AA_PER_S,
     COUPLING_OFFSET_NT,
     E_COLI_POLY_A_TAIL_LENGTH,
     MAX_INITIATION_FREQUENCY_PER_MIN,
@@ -107,6 +108,40 @@ class TestTranscription:
         transcript = transcribe("ATGTAA")
         assert transcript.half_life_minutes == MRNA_HALF_LIFE_MEDIAN_MIN
         assert MRNA_HALF_LIFE_MEDIAN_MIN == 5.0
+
+    def test_half_life_short_sequence_defaults_to_median(self):
+        """Sequences too short to carry a 5' feature window keep the
+        5 min median (continuous with the flat model)."""
+        transcript = transcribe("ATG" + "CTG" * 5 + "TAA")  # 18 nt CDS
+        assert transcript.half_life_minutes == MRNA_HALF_LIFE_MEDIAN_MIN
+
+    def test_half_life_au_rich_shorter_than_gc_rich(self):
+        """RNase-E model (Bernstein 2002): A/U-rich 5' CDS degrades
+        faster than G/C-rich 5' CDS."""
+        au_cds = ("AAT" * 40) + ("CTG" * 100)  # AU-rich 5' window
+        gc_cds = ("GCC" * 40) + ("CTG" * 100)  # GC-rich 5' window
+        au_dna = "ATG" + au_cds + "TAA"
+        gc_dna = "ATG" + gc_cds + "TAA"
+        au_t = transcribe(au_dna)
+        gc_t = transcribe(gc_dna)
+        assert au_t.half_life_minutes < gc_t.half_life_minutes
+        # both within the measured 2-20 min range
+        assert 2.0 <= au_t.half_life_minutes <= 20.0
+        assert 2.0 <= gc_t.half_life_minutes <= 20.0
+
+    def test_half_life_flat_model_constant(self):
+        """half_life_model="flat" keeps the constant 5 min median."""
+        gc_dna = "ATG" + ("GCC" * 40) + ("CTG" * 100) + "TAA"
+        flat = transcribe(gc_dna, half_life_model="flat")
+        assert flat.half_life_minutes == MRNA_HALF_LIFE_MEDIAN_MIN
+        # same sequence estimated per-sequence deviates (or stays within
+        # range)
+        estimated = transcribe(gc_dna)
+        assert 2.0 <= estimated.half_life_minutes <= 20.0
+
+    def test_half_life_unknown_model_raises(self):
+        with pytest.raises(ValueError):
+            transcribe("ATGTAA", half_life_model="nope")
 
     def test_transcribe_promoter_strength_affects_initiation(self):
         """Promoter strength determines transcription initiation frequency (Salgado 2013)."""
@@ -213,6 +248,51 @@ class TestTranslation:
         # tRNA abundance verification
         assert TRNA_ABUNDANCE["CTG"] == 3500
         assert TRNA_ABUNDANCE["CTA"] == 200
+
+    def test_codon_rate_table_lookup(self):
+        """The precomputed codon elongation-rate table matches the
+        tRNA-abundance model exactly (Dong 1996)."""
+        # CTG: 20 x 3500/3500 = 20 aa/s; CTA: 20 x 200/3500 ≈ 1.14 aa/s
+        assert CODON_ELONGATION_RATE_AA_PER_S["CTG"] == pytest.approx(20.0)
+        assert CODON_ELONGATION_RATE_AA_PER_S["CTA"] == pytest.approx(
+            20.0 * 200 / 3500)
+        assert CODON_ELONGATION_RATE_AA_PER_S["ATG"] == pytest.approx(
+            20.0 * 2000 / 3500)
+
+    def test_mean_rate_normalization_300_codons(self):
+        """A 300-codon typical E. coli CDS averages near the base rate
+        (Ingolia 2009).
+
+        Codon-specific rates are distributed around the base elongation
+        rate; a CDS dominated by abundant codons (high tRNA copy number)
+        approaches the measured ~20 aa/s mean.
+        """
+        # the 10 most abundant sense codons by tRNA copy number (Dong
+        # 1996), representative of a typical E. coli gene
+        common = ["CTG", "GGT", "GGC", "AAA", "GAA",
+                  "TTT", "TTC", "CAG", "GCA", "GCG"]
+        codons = common * 30  # 300 sense codons
+        dna = "ATG" + "".join(codons) + "TAA"
+        transcript = transcribe(dna)
+        result = translate(transcript)
+        mean_rate = len(result.codon_rates) / result.elongation_time
+        assert 10.0 <= mean_rate <= 20.0
+
+    def test_custom_trna_abundance_no_zero_floor(self):
+        """A caller-supplied tRNA table is honored; the floor is the
+        single-copy rate, not the old arbitrary 0.5 aa/s."""
+        custom = dict(TRNA_ABUNDANCE)
+        custom["GCT"] = 1  # near-depleted cognate tRNA
+        transcript = transcribe("ATGGCTTAA")
+        result = translate(transcript, trna_abundance=custom)
+        # GCT rate = 20 x 1/3500 (single-copy floor), not clamped to 0.5
+        assert result.codon_rates[1] == pytest.approx(20.0 / 3500)
+
+    def test_unknown_tables_kwarg_raises(self):
+        """tables= validates the flavor (ecoli today)."""
+        transcript = transcribe("ATGTAA")
+        with pytest.raises(ValueError):
+            translate(transcript, tables="yeast")
 
     def test_translate_rbs_detection(self):
         """Translation initiation detects RBS (Shine-Dalgarno) sequences."""

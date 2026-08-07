@@ -618,9 +618,9 @@ def _aa_of_codon(codon: str) -> str:
     return "X"
 
 
-def dnds_ratio(dna: str, ancestral: str) -> dict:
-    """Compute dN/dS (nonsynonymous/synonymous substitution ratio,
-    Nei-Gojobori 1986 simplified).
+def dnds_ratio(dna: str, ancestral: str,
+               method: str = "nei_gojobori") -> dict:
+    """Compute dN/dS (nonsynonymous/synonymous substitution ratio).
 
     Steps:
     1. Align dna and ancestral by codon
@@ -642,11 +642,21 @@ def dnds_ratio(dna: str, ancestral: str) -> dict:
     Args:
         dna:       derived sequence
         ancestral: ancestral sequence
+        method:    "nei_gojobori" (default; Nei-Gojobori 1986 site
+                   counting) or "codeml" / "m0" (M0 one-ratio
+                   codon-substitution maximum-likelihood fit,
+                   :func:`dnds_codeml`)
 
     Returns:
         dict containing dN, dS, dNdS, substitution counts, site counts,
         and interpretation
     """
+    if method in ("codeml", "m0"):
+        return dnds_codeml(dna, ancestral)
+    if method != "nei_gojobori":
+        raise ValueError(
+            f"unknown method {method!r}; available: nei_gojobori, codeml, m0"
+        )
     if not dna or not ancestral:
         return {
             "dN": 0.0, "dS": 0.0, "dNdS": 0.0,
@@ -731,6 +741,241 @@ def dnds_ratio(dna: str, ancestral: str) -> dict:
         "syn_substitutions": Sd,
         "syn_sites": S_total,
         "nonsyn_sites": N_total,
+        "interpretation": interpretation,
+    }
+
+
+# ============================================================================
+# M0 one-ratio codon-substitution model (Goldman & Yang 1994)
+# ============================================================================
+# Optional maximum-likelihood dN/dS estimate for a two-sequence
+# comparison.  The codon-substitution process is the classical M0 model
+# with equal codon frequencies and a transition/transversion rate ratio
+# kappa; the nonsynonymous/synonymous rate ratio omega is fitted by ML
+# jointly with the branch length t.  A first-hit (Poisson) approximation
+# gives each site's probability from the competing single-step rates out
+# of the ancestral codon, avoiding a 61x61 matrix exponentiation in pure
+# Python.
+
+_TS_TRANSITIONS = {
+    ("A", "G"), ("G", "A"), ("C", "T"), ("T", "C"),
+}
+
+
+def _codon_mutation_table() -> dict[str, list[tuple[str, bool, bool]]]:
+    """Per sense-codon single-step mutations.
+
+    Returns ``{codon: [(target_codon, is_transition, is_synonymous)]}``
+    for every sense codon and each of its 3x3 single-base changes that
+    lands on a sense codon.
+    """
+    table: dict[str, list[tuple[str, bool, bool]]] = {}
+    for i in range(64):
+        a = "TCAG"[i // 16]
+        b = "TCAG"[(i // 4) % 4]
+        c = "TCAG"[i % 4]
+        codon = a + b + c
+        aa_i = _aa_of_codon(codon)
+        if aa_i == "X":
+            continue
+        out: list[tuple[str, bool, bool]] = []
+        for pos in range(3):
+            for nb in "TCAG":
+                if nb == codon[pos]:
+                    continue
+                mut = codon[:pos] + nb + codon[pos + 1:]
+                aa_j = _aa_of_codon(mut)
+                if aa_j == "X":
+                    continue
+                is_ts = (codon[pos], nb) in _TS_TRANSITIONS
+                out.append((mut, is_ts, aa_j == aa_i))
+        table[codon] = out
+    return table
+
+
+_CODON_MUTATIONS = _codon_mutation_table()
+
+
+def dnds_codeml(dna: str, ancestral: str,
+                kappa: float = 3.0) -> dict:
+    """M0 one-ratio codon-substitution dN/dS (Goldman & Yang 1994
+    Mol Biol Evol 11:725-736).
+
+    Fits the nonsynonymous/synonymous rate ratio ``omega`` and the
+    branch length ``t`` (expected substitutions per codon) by maximum
+    likelihood under the M0 codon-substitution process (equal codon
+    frequencies, transition/transversion ratio ``kappa``; default 3, the
+    mammalian ts/tv ratio).  A first-hit Poisson approximation per site
+    keeps the fit dependency-free:
+
+    - identical site:      P = exp(-L_i(omega) * t)
+    - single-step change:  P = q_ij(omega) * t * exp(-L_i(omega) * t)
+
+    where ``L_i(omega)`` is the total rate out of the ancestral codon
+    and ``q_ij(omega)`` the ancestral->derived rate (kappa for
+    transitions, x1 for transversions, x1 synonymous / x omega
+    nonsynonymous).
+
+    Args:
+        dna:       derived sequence
+        ancestral: ancestral sequence
+        kappa:     transition/transversion rate ratio
+
+    Returns:
+        dict with M0 ``omega`` (= dN/dS), branch length ``t``, lnL,
+        likelihood-ratio test vs the neutral (omega=1) model, and the
+        same count-based keys/interpretation as :func:`dnds_ratio`
+    """
+    n = min(len(dna), len(ancestral)) // 3 * 3
+    sites: list[tuple[str, str]] = []
+    for i in range(n // 3):
+        c1 = ancestral[i * 3:i * 3 + 3].upper()
+        c2 = dna[i * 3:i * 3 + 3].upper()
+        if c1 in _CODON_MUTATIONS and c2 in _CODON_MUTATIONS:
+            sites.append((c1, c2))
+
+    empty = {
+        "method": "M0", "omega": 1.0, "t": 0.0,
+        "dN": 0.0, "dS": 0.0, "dNdS": 0.0,
+        "nonsyn_substitutions": 0, "syn_substitutions": 0,
+        "syn_sites": 0.0, "nonsyn_sites": 0.0,
+        "lnL": 0.0, "lnL_neutral": 0.0,
+        "lrt_stat": 0.0, "lrt_p": 1.0,
+        "interpretation": "no data (empty sequence)",
+    }
+    if not sites:
+        return empty
+
+    # per-codon rate summary at omega and kappa
+    def total_rate(c1: str, omega: float) -> float:
+        total = 0.0
+        for _target, is_ts, is_syn in _CODON_MUTATIONS[c1]:
+            q = kappa if is_ts else 1.0
+            if not is_syn:
+                q *= omega
+            total += q
+        return total
+
+    # precompute the pair rates for the observed sites
+    pair_q: dict[tuple[str, str], float] = {}
+    pair_nonsyn: dict[tuple[str, str], bool] = {}
+    for c1, c2 in sites:
+        if c1 == c2:
+            continue
+        found = False
+        for target, is_ts, is_syn in _CODON_MUTATIONS[c1]:
+            if target == c2:
+                pair_q[(c1, c2)] = kappa if is_ts else 1.0
+                pair_nonsyn[(c1, c2)] = not is_syn
+                found = True
+                break
+        if not found:
+            # differs at >= 2 positions: model as one nonsynonymous
+            # transversion-equivalent step (conservative fallback)
+            pair_q[(c1, c2)] = 1.0
+            pair_nonsyn[(c1, c2)] = True
+
+    def log_likelihood(omega: float, t: float) -> float:
+        ll = 0.0
+        for c1, c2 in sites:
+            if c1 == c2:
+                ll -= total_rate(c1, omega) * t
+            else:
+                q = pair_q.get((c1, c2), 1.0)
+                if pair_nonsyn.get((c1, c2), True):
+                    q *= omega
+                ll += math.log(q) + math.log(t) - total_rate(c1, omega) * t
+        return ll
+
+    # bounded golden-section maximization (stdlib)
+    def _maximize(func: Callable[[float], float], lo: float, hi: float,
+                  tol: float = 1e-7, max_iter: int = 200) -> tuple[float, float]:
+        gr = (math.sqrt(5.0) - 1.0) / 2.0
+        a, b = lo, hi
+        c = b - gr * (b - a)
+        d = a + gr * (b - a)
+        fc, fd = func(c), func(d)
+        best_x, best_f = (c, fc) if fc >= fd else (d, fd)
+        for _ in range(max_iter):
+            if fc > fd:
+                b, d = d, c
+                c = b - gr * (b - a)
+                fd, fc = fc, func(c)
+            else:
+                a, c = c, d
+                d = a + gr * (b - a)
+                fc, fd = fd, func(d)
+            if fc >= fd:
+                if fc > best_f:
+                    best_x, best_f = c, fc
+            elif fd > best_f:
+                best_x, best_f = d, fd
+            if b - a < tol:
+                break
+        return best_x, best_f
+
+    # nested fit: outer omega in [0, 5], inner t in [0, 10]
+    def fit_for_omega(omega: float) -> float:
+        t_best, ll = _maximize(lambda t: log_likelihood(omega, t), 0.0, 10.0)
+        return ll
+
+    omega_best, _ = _maximize(fit_for_omega, 0.0, 5.0)
+    t_best, _ = _maximize(lambda t: log_likelihood(omega_best, t), 0.0, 10.0)
+    # one coordinate ascent round
+    omega_best, _ = _maximize(lambda w: log_likelihood(w, t_best), 0.0, 5.0)
+    t_best, _ = _maximize(lambda t: log_likelihood(omega_best, t), 0.0, 10.0)
+    ll_alt = log_likelihood(omega_best, t_best)
+
+    # no-substitution case: likelihood maximized at t=0, omega
+    # unidentifiable -> report the neutral M0 and note no signal
+    if not any(c1 != c2 for c1, c2 in sites):
+        empty.update({
+            "interpretation": "no substitutions observed (M0)",
+            "omega": 1.0,
+            "t": 0.0,
+            "dS": 0.0,
+        })
+        return empty
+
+    # neutral model (omega = 1)
+    t_neutral, ll_neutral = _maximize(
+        lambda t: log_likelihood(1.0, t), 0.0, 10.0)
+
+    # likelihood-ratio test, df = 1 (chi-square survival via erfc)
+    lrt = 2.0 * max(0.0, ll_alt - ll_neutral)
+    p_value = math.erfc(math.sqrt(lrt / 2.0)) if lrt > 0 else 1.0
+
+    # count-based site/substitution summary (Nei-Gojobori counts) so the
+    # return shape matches dnds_ratio()
+    count = dnds_ratio(dna, ancestral, method="nei_gojobori")
+
+    if omega_best < 0.5:
+        interpretation = "strong purifying selection (M0 omega<0.5)"
+    elif omega_best < 1.0:
+        interpretation = "weak purifying selection (M0 omega<1)"
+    elif omega_best <= 1.5:
+        interpretation = "neutral evolution (M0 omega≈1)"
+    else:
+        interpretation = "positive selection (M0 omega>1.5)"
+    if p_value < 0.05 and omega_best > 1.0:
+        interpretation += "; LRT significant vs neutral model"
+
+    return {
+        "method": "M0",
+        "omega": omega_best,
+        "t": t_best,
+        "dN": omega_best * count["dS"],
+        "dS": count["dS"],
+        "dNdS": omega_best,
+        "nonsyn_substitutions": count["nonsyn_substitutions"],
+        "syn_substitutions": count["syn_substitutions"],
+        "syn_sites": count["syn_sites"],
+        "nonsyn_sites": count["nonsyn_sites"],
+        "lnL": ll_alt,
+        "lnL_neutral": ll_neutral,
+        "lrt_stat": lrt,
+        "lrt_p": p_value,
+        "kappa": kappa,
         "interpretation": interpretation,
     }
 

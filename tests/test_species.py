@@ -16,6 +16,8 @@ References:
 """
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from helixlang.bio_data import (
@@ -27,6 +29,7 @@ from helixlang.bio_data import (
     SPECIES_TRNA_ABUNDANCE,
     YEAST_CODON_USAGE,
     YEAST_TRNA_ABUNDANCE,
+    cai,
     codon_adaptation_index,
     get_codon_usage,
     get_species_display_name,
@@ -220,6 +223,56 @@ class TestMultiSpeciesCAI:
         """Unknown species raises an exception."""
         with pytest.raises(ValueError):
             codon_adaptation_index("ATG", "mouse")
+
+
+class TestGeneLevelCAI:
+    """Verify the true Sharp & Li 1987 geometric-mean gene-level CAI."""
+
+    def test_cai_optimal_family_codon_is_one(self):
+        """The most frequent codon of a family gives w = 1.0 (Sharp-Li)."""
+        # E. coli: CTG is the most abundant Leu codon → CAI of pure CTG = 1.0
+        assert cai("CTG" * 20) == pytest.approx(1.0)
+        # ATG (single-codon family) also w = 1.0
+        assert cai("ATG" * 5) == pytest.approx(1.0)
+
+    def test_cai_geometric_vs_arithmetic(self):
+        """True CAI is the geometric mean of relative adaptiveness
+        (fraction / family max); the legacy simplified value is the
+        arithmetic mean of the fractions."""
+        # CTG (0.47, Leu family max) + CTA (0.04): relative adaptiveness
+        # w = frac / family_max → geometric mean = sqrt(1 * 0.04/0.47)
+        seq = "CTGCTA"
+        assert cai(seq) == pytest.approx(
+            math.sqrt(ECOLI_CODON_USAGE["CTA"][2] / ECOLI_CODON_USAGE["CTG"][2]))
+        assert cai(seq, simplified=True) == pytest.approx(
+            (ECOLI_CODON_USAGE["CTG"][2] + ECOLI_CODON_USAGE["CTA"][2]) / 2)
+
+    def test_cai_species_specificity(self):
+        """Same sequence scores differently across species tables."""
+        seq = "TTACTG" * 5
+        yeast = cai(seq, species="yeast")  # yeast prefers TTA
+        ecoli = cai(seq, species="ecoli")  # ecoli prefers CTG
+        assert yeast > ecoli
+
+    def test_cai_stops_and_unknown_skipped(self):
+        """Stop codons and unknown codons do not contribute."""
+        assert cai("TAATGA") == 0.0
+        assert cai("CTGCTG" + "TAA") == cai("CTGCTG")
+        assert cai("CTGXXX") == cai("CTG")
+
+    def test_cai_empty_and_noncoding(self):
+        """Empty or all-stop sequences return 0.0."""
+        assert cai("") == 0.0
+        assert cai("TAG") == 0.0
+
+    def test_cai_range(self):
+        """CAI is always within [0, 1] for valid sequences."""
+        for seq in ("CTG" * 10, "TTACTA" * 10, "ATG" + "CTG" * 30 + "TAA"):
+            assert 0.0 <= cai(seq) <= 1.0
+
+    def test_cai_unknown_species_raises(self):
+        with pytest.raises(ValueError):
+            cai("CTG" * 3, species="mouse")
 
 
 class TestMultiSpeciesOptimalCodon:

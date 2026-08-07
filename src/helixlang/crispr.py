@@ -209,28 +209,59 @@ def find_pam_sites(dna: str, cas_variant: str = "SpCas9",
 # ============================================================================
 
 def design_guide(target_dna: str, cas_variant: str = "SpCas9",
-                 position: int = 0) -> GuideRNA:
+                 position: int = 0, mode: str = "nearest") -> GuideRNA:
     """Design an sgRNA: extract spacer + PAM near the given position.
 
-    position: desired cut position (near the PAM). The function finds the
-    nearest PAM around that position.
+    Args:
+        target_dna: target DNA sequence
+        cas_variant: Cas variant ("SpCas9" / "SaCas9" / "Cas12a")
+        position: desired cut position (near the PAM). Used by
+                  ``mode="nearest"`` to find the closest PAM.
+        mode: guide selection strategy:
+              - "nearest": pick the PAM site closest to ``position``
+                (legacy default, deterministic, O(n) in PAM count).
+              - "best": pick the PAM site with the maximum
+                ``on_target_score`` (Doench 2016 Rule Set 2) over all
+                PAM sites; ``position`` is ignored. Ties resolve to the
+                5'-most site (first encountered in genomic order).
+
+    Returns:
+        the designed guide
+
+    Raises:
+        BioError: for an unknown Cas variant or when no PAM site exists
+        ValueError: for an unknown ``mode``
     """
+    if mode not in ("nearest", "best"):
+        raise ValueError(
+            f"unknown design_guide mode {mode!r}; expected "
+            '"nearest" or "best"'
+        )
     if cas_variant not in CAS_VARIANTS:
         raise BioError(f"unknown Cas variant: {cas_variant}")
     cfg = CAS_VARIANTS[cas_variant]
     sites = find_pam_sites(target_dna, cas_variant, both_strands=False)
     if not sites:
         raise BioError(f"no PAM site found for {cas_variant} in target DNA")
+
+    def _to_guide(site: dict) -> GuideRNA:
+        return GuideRNA(
+            spacer=site["spacer"],
+            pam=site["pam"],
+            pam_position=cfg["pam_position"],
+            cas_variant=cas_variant,
+            target_position=site["position"],
+            strand=site["strand"],
+        )
+
+    if mode == "best":
+        # select the guide with the maximum Rule Set 2 on-target score
+        # over all PAM sites (5'-most site wins ties)
+        return max((_to_guide(s) for s in sites), key=on_target_score)
+
     # find the PAM closest to position
     best = min(sites, key=lambda s: abs(s["position"] - position))
-    return GuideRNA(
-        spacer=best["spacer"],
-        pam=best["pam"],
-        pam_position=cfg["pam_position"],
-        cas_variant=cas_variant,
-        target_position=best["position"],
-        strand=best["strand"],
-    )
+    return _to_guide(best)
 
 
 # ============================================================================
@@ -351,16 +382,19 @@ _DOENCH_POLYT_PENALTY = 0.30  # penalty per TTTT run
 _DOENCH_INTERCEPT = 0.05
 
 
-def on_target_score(guide: GuideRNA, model: str = "doench2016") -> float:
+def on_target_score(guide: GuideRNA,
+                    model: str = "doench2016",
+                    method: str | None = None) -> float:
     """Doench 2016 Rule Set 2 on-target scoring.
 
     The coefficients are calibrated to the **directions and magnitudes** of
     Doench 2016 Nat Biotechnol 34:184-191 Fig 2 and
     Supplementary Table 19, but are not a verbatim transcription of the full
-    model. The real Rule Set 2 is a logistic regression whose features
+    model. The real Rule Set 2 is a gradient-boosted regression tree model
+    whose features
     include a 30-mer context (30 positions x 4 nt + 400 dinucleotides) plus
     thermodynamic terms and an intercept;
-    this implementation is a **reduced version**: a 20 position x 4 nt PWM
+    this implementation is a **reduced linear version**: a 20 position x 4 nt PWM
     + 16 dinucleotides + a GC quadratic
     penalty + a poly-T penalty + sigmoid normalization.
 
@@ -390,19 +424,36 @@ def on_target_score(guide: GuideRNA, model: str = "doench2016") -> float:
     Args:
         guide: guide RNA
         model: scoring model ("doench2016" full version /
-               "simplified" reduced version)
+               "simplified" reduced version). Back-compat alias of
+               ``method``; ignored when ``method`` is given.
+        method: scoring method ("doench_2016" = Doench 2016 Rule Set 2
+                tables, the default; "legacy" = the previous home-grown
+                simplified scoring, alias of ``model="simplified"``).
+                Takes precedence over ``model`` when provided.
 
     Returns:
         a 0-1 score (higher = higher on-target cleavage efficiency)
+
+    Raises:
+        ValueError: if neither ``model`` nor ``method`` names a known
+                    scoring model
     """
     spacer = guide.spacer.upper()
     n = len(spacer)
     if n == 0:
         return 0.0
 
+    if method is not None:
+        model = method
+
     # reduced version (backward compatible)
-    if model == "simplified":
+    if model in ("simplified", "legacy"):
         return _on_target_score_simplified(guide)
+    if model not in ("doench2016", "doench_2016"):
+        raise ValueError(
+            f"unknown on-target scoring model {model!r}; expected "
+            "'doench_2016' (Rule Set 2) or 'legacy' (simplified)"
+        )
 
     # === Doench 2016 Rule Set 2 ===
 

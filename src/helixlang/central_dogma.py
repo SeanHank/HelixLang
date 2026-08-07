@@ -108,6 +108,56 @@ COUPLING_OFFSET_NT = 30
 
 
 # ============================================================================
+# Codon-specific translation elongation rate table
+# ============================================================================
+# Each codon's decoding rate follows its effective tRNA copy number
+# (Dong 1996 J Mol Biol 260:649-663): rate = base_rate x (abundance /
+# max_abundance). Elongation dwell time is inversely proportional to the
+# cognate tRNA concentration (Rudorf & Lipowsky 2015 PLoS Comput Biol
+# 11:e1004630), so rare codons (low tRNA copy number) elongate slowly.
+#
+# The floor is the rate of a single cognate tRNA copy (one AGG codon,
+# abundance 100, decodes at ~0.57 aa/s); stop codons have abundance 0
+# and are never decoded by the elongation cycle.
+
+#: minimum elongation rate (aa/s): a single cognate tRNA copy
+MIN_CODON_ELONGATION_RATE_AA_PER_S = (
+    TRANSLATION_ELONGATION_RATE_AA_PER_S / MAX_TRNA_ABUNDANCE
+)
+
+#: codon -> decoding rate (aa/s), derived from Dong 1996 tRNA copy
+#: numbers (E. coli K-12)
+CODON_ELONGATION_RATE_AA_PER_S: dict[str, float] = {
+    codon: max(
+        MIN_CODON_ELONGATION_RATE_AA_PER_S,
+        TRANSLATION_ELONGATION_RATE_AA_PER_S * abundance / MAX_TRNA_ABUNDANCE,
+    )
+    for codon, abundance in TRNA_ABUNDANCE.items()
+}
+
+
+# ============================================================================
+# Per-sequence mRNA half-life model
+# ============================================================================
+# E. coli mRNA half-lives are ~2-20 min with a 5 min median (Bernstein
+# 2002 J Bacteriol 184:6477-6486). RNase E, the major E. coli
+# endoribonuclease, enters at the 5' end and prefers A/U-rich sequences;
+# 5' secondary structure (G/C-rich) is protective (Mackie 2013 Annu Rev
+# Microbiol 67:83-98).
+
+#: observed E. coli mRNA half-life range (Bernstein 2002)
+MRNA_HALF_LIFE_MIN_MIN = 2.0
+MRNA_HALF_LIFE_MAX_MIN = 20.0
+#: 5' feature window (nt) used to score degradation signals
+MRNA_HALF_LIFE_FEATURE_WINDOW_NT = 60
+#: sequences shorter than this carry no measurable 5' feature window and
+#: default to the 5 min median
+MRNA_HALF_LIFE_MIN_FEATURE_SEQUENCE_NT = 30
+#: neutral AU/GC balance reference for the feature ratio
+MRNA_HALF_LIFE_FEATURE_BASE = 0.5
+
+
+# ============================================================================
 # Dataclasses
 # ============================================================================
 
@@ -216,9 +266,37 @@ class TimeCoursePoint:
 # Transcription: DNA -> mRNA
 # ============================================================================
 
+def _estimate_mrna_half_life(cds_dna: str) -> float:
+    """Estimate an E. coli mRNA half-life (minutes) from the CDS.
+
+    RNase E enters mRNA at the 5' end and preferentially cleaves
+    A/U-rich sequence; G/C-rich 5' structure is protective (Bernstein
+    2002; Mackie 2013).  Sequences too short to carry a measurable 5'
+    feature window return the 5 min median (no features present).
+
+    Args:
+        cds_dna: coding DNA (5'->3', ACGT) of the transcript
+
+    Returns:
+        half-life in minutes, clamped to [2, 20]
+    """
+    if len(cds_dna) < MRNA_HALF_LIFE_MIN_FEATURE_SEQUENCE_NT:
+        return MRNA_HALF_LIFE_MEDIAN_MIN
+    window = cds_dna[:MRNA_HALF_LIFE_FEATURE_WINDOW_NT]
+    au = sum(1 for b in window if b in "AU") / len(window)
+    gc = 1.0 - au
+    ratio = (MRNA_HALF_LIFE_FEATURE_BASE + gc) / (
+        MRNA_HALF_LIFE_FEATURE_BASE + au
+    )
+    half_life = MRNA_HALF_LIFE_MEDIAN_MIN * ratio
+    return min(MRNA_HALF_LIFE_MAX_MIN,
+               max(MRNA_HALF_LIFE_MIN_MIN, half_life))
+
+
 def transcribe(dna: str,
                promoter_strength: float = 1.0,
-               transcription_factors: dict[str, float] | None = None
+               transcription_factors: dict[str, float] | None = None,
+               half_life_model: str = "bernstein_2002"
                ) -> Transcript:
     """DNA -> mRNA transcription.
 
@@ -242,6 +320,10 @@ def transcribe(dna: str,
         transcription_factors: transcription factor effects,
             {tf_name: fold_change}, >1 = activation, <1 = repression,
             None or empty = no TF effects
+        half_life_model: mRNA half-life model:
+            "bernstein_2002" (default) = per-sequence estimate from the
+            5' AU/GC content (RNase E dependence, Bernstein 2002),
+            "flat" = constant 5 min median for all sequences
 
     Returns:
         a Transcript object (with 5'UTR / CDS / 3'UTR / poly-A tail /
@@ -278,8 +360,17 @@ def transcribe(dna: str,
     #    (Proshkin 2010)
     elongation_time = len(transcribed_dna) / TRANSCRIPTION_ELONGATION_RATE_NT_PER_S
 
-    # 6. mRNA half-life (E. coli median ~5 min)
-    half_life = MRNA_HALF_LIFE_MEDIAN_MIN
+    # 6. mRNA half-life: per-sequence RNase-E estimate (default) or the
+    #    flat 5 min median
+    if half_life_model == "bernstein_2002":
+        half_life = _estimate_mrna_half_life(cds_dna)
+    elif half_life_model == "flat":
+        half_life = MRNA_HALF_LIFE_MEDIAN_MIN
+    else:
+        raise ValueError(
+            f"unknown half_life_model {half_life_model!r}; "
+            "available: bernstein_2002, flat"
+        )
 
     # 7. build the mRNA sequence (T -> U substitution)
     utr5 = utr5_dna.replace("T", "U")
@@ -399,7 +490,8 @@ def _split_orf_regions(dna: str) -> tuple[str, str, str]:
 
 def translate(transcript: Transcript,
               trna_abundance: dict[str, int] | None = None,
-              ribosome_density: float = 1.0
+              ribosome_density: float = 1.0,
+              tables: str = "ecoli"
               ) -> TranslationResult:
     """mRNA -> protein translation.
 
@@ -407,7 +499,7 @@ def translate(transcript: Transcript,
     - Base translation elongation rate ~20 aa/s (Ingolia 2009 Science
       324:218-223)
     - Codon-specific rates: determined by tRNA abundance, rare codons
-      are slow (Dong 1996)
+      are slow (Dong 1996; Rudorf & Lipowsky 2015)
       rate = base_rate x (tRNA_abundance / max_tRNA_abundance)
     - Translation initiation requires the RBS (Shine-Dalgarno) sequence
       (Steitz & Jakes 1975)
@@ -420,14 +512,23 @@ def translate(transcript: Transcript,
                         default TRNA_ABUNDANCE
         ribosome_density: ribosome density (ribosomes/100 nt mRNA,
                           affects yield)
+        tables: translation tables flavor ("ecoli" only today; reserved
+                for future multi-species elongation tables)
 
     Returns:
         a TranslationResult object (with protein sequence, elongation
         time, codon rates, RBS information)
     """
+    if tables != "ecoli":
+        raise ValueError(
+            f"unknown tables {tables!r}; available: ecoli"
+        )
     if trna_abundance is None:
-        trna_abundance = TRNA_ABUNDANCE
-    max_trna = max(trna_abundance.values()) if trna_abundance else 1
+        rate_source: dict[str, int] | None = None
+        max_trna = MAX_TRNA_ABUNDANCE
+    else:
+        rate_source = trna_abundance
+        max_trna = max(trna_abundance.values()) if trna_abundance else 1
 
     # convert the mRNA CDS back to DNA form for tRNA table lookup
     cds_dna = transcript.cds.replace("U", "T").upper()
@@ -462,12 +563,16 @@ def translate(transcript: Transcript,
         else:
             aa = "X"  # unknown codon
         protein_chars.append(aa)
-        # this codon's tRNA abundance -> codon-specific rate
-        abundance = trna_abundance.get(codon, 0)
-        relative_rate = abundance / max_trna if max_trna > 0 else 0.0
-        # actual rate = base rate x relative rate (minimum 0.5 aa/s to
-        # avoid 0, simulating near-complete depletion)
-        rate = max(0.5, TRANSLATION_ELONGATION_RATE_AA_PER_S * relative_rate)
+        # codon-specific decoding rate from the table (default) or from
+        # a caller-supplied tRNA abundance dict
+        if rate_source is None:
+            rate = CODON_ELONGATION_RATE_AA_PER_S.get(
+                codon, MIN_CODON_ELONGATION_RATE_AA_PER_S)
+        else:
+            abundance = rate_source.get(codon, 0)
+            relative_rate = abundance / max_trna if max_trna > 0 else 0.0
+            rate = max(MIN_CODON_ELONGATION_RATE_AA_PER_S,
+                       TRANSLATION_ELONGATION_RATE_AA_PER_S * relative_rate)
         codon_rates.append(rate)
         # time per codon = 1 / rate (seconds)
         total_time += 1.0 / rate

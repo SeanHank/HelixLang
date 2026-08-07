@@ -20,6 +20,8 @@ Data sources:
 - DNA storage density: Goldman 2013, Erlich 2017, Organick 2018
 - DNA decay: Allentoft 2012 Proc R Soc B 279:4724-4733, Grass 2015
   Angew Chem 54:2552-2555
+- Codon adaptation index: Sharp & Li 1987 Nucleic Acids Res
+  15:1281-1295
 """
 from __future__ import annotations
 
@@ -304,6 +306,79 @@ def is_rare_codon(codon: str, species: str = "ecoli") -> bool:
         species: species name ("ecoli" / "yeast" / "human")
     """
     return codon_adaptation_index(codon, species) < 0.15
+
+
+def _codon_family_max_fraction(
+    table: dict[str, tuple[str, float, float]],
+) -> dict[str, float]:
+    """Maximal synonymous-codon fraction per amino acid.
+
+    Each amino-acid family's reference (Sharp & Li 1987) weight is the
+    fraction of its most abundant codon.
+    """
+    family_max: dict[str, float] = {}
+    for aa, _per_thousand, fraction in table.values():
+        family_max[aa] = max(family_max.get(aa, 0.0), fraction)
+    return family_max
+
+
+def cai(sequence: str, species: str = "ecoli", simplified: bool = False) -> float:
+    """Codon adaptation index (Sharp & Li 1987 Nucleic Acids Res
+    15:1281-1295).
+
+    For every sense codon ``c`` the relative adaptiveness is the ratio
+    of its synonymous-codon fraction to the maximum fraction within its
+    amino-acid family::
+
+        w(c) = f_c / max_{j in family(c)} f_j
+
+    ``simplified=False`` (default) returns the true Sharp-Li CAI, the
+    geometric mean of ``w(c)`` over all sense codons::
+
+        CAI = exp(mean(log w(c)))
+
+    ``simplified=True`` returns the legacy per-codon-fraction arithmetic
+    mean (the "proportion of preferred codons" approximation) for
+    backward compatibility.
+
+    Stop codons and unknown codons are skipped. A sequence containing a
+    codon whose family maximum is undefined (or a non-coding empty
+    sequence) returns 0.0. The most abundant codon of each family always
+    contributes ``w = 1.0``.
+
+    Args:
+        sequence:  coding DNA sequence (multiples of 3 nt)
+        species:   species name ("ecoli" / "yeast" / "human")
+        simplified: use the legacy arithmetic-mean approximation
+    """
+    table = get_codon_usage(species)
+    family_max = _codon_family_max_fraction(table)
+    cds = sequence.upper()
+    n_codons = len(cds) // 3
+    if n_codons == 0:
+        return 0.0
+    log_sum = 0.0
+    frac_sum = 0.0
+    n_sense = 0
+    for i in range(n_codons):
+        codon = cds[i * 3 : i * 3 + 3]
+        entry = table.get(codon)
+        if entry is None or entry[0] == "*":
+            continue
+        frac = entry[2]
+        w = frac / family_max[entry[0]] if family_max[entry[0]] > 0 else 0.0
+        if simplified:
+            frac_sum += frac
+        elif w > 0:
+            log_sum += math.log(w)
+        else:
+            return 0.0
+        n_sense += 1
+    if n_sense == 0:
+        return 0.0
+    if simplified:
+        return frac_sum / n_sense
+    return math.exp(log_sum / n_sense)
 
 
 # ============================================================================

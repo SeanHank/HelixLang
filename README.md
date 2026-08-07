@@ -35,8 +35,8 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - ⚙️ **Full compiler pipeline** — Lexer → Parser → AST → Semantic → Compiler → Bytecode → VM, with disassembly and debugging support.
 - 🎲 **Degeneracy as aliasing** — 64 codons map to ~30 opcodes; the third wobble position acts as an operand modifier, mirroring real biological degeneracy.
 - 🌱 **Executable life** — bytecode drives a cell simulator that emits morphology (L-system / reaction-diffusion), behavior (move / signal), and state (concentration / energy).
-- 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, and tRNA abundances are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996).
-- 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
+- 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
+- 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding (true base-3 Huffman, ~5.05 trits/byte) and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
 - 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
 
 ---
@@ -236,16 +236,16 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [codon_table](src/helixlang/codon_table.py) / [compiler](src/helixlang/compiler.py) | Codon table + bytecode generation |
 | [bytecode](src/helixlang/bytecode.py) / [disassembler](src/helixlang/disassembler.py) | Chunk data structure + disassembler |
 | [vm](src/helixlang/vm.py) / [cell](src/helixlang/cell.py) | Stack VM + cell runtime |
-| [grn](src/helixlang/grn.py) | Gene regulatory network (sigmoid scheduling) |
+| [grn](src/helixlang/grn.py) | Gene regulatory network (sigmoid / Hill kinetics, half-life decay) |
 | [lsystem](src/helixlang/lsystem.py) / [reaction_diffusion](src/helixlang/reaction_diffusion.py) | L-system morphology + Gray-Scott field |
-| [central_dogma](src/helixlang/central_dogma.py) | Transcription / translation / coupling (central dogma) |
-| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + cell population |
-| [crispr](src/helixlang/crispr.py) | Cas variants / sgRNA design / off-target prediction |
+| [central_dogma](src/helixlang/central_dogma.py) | Transcription / translation / coupling — codon-specific elongation rates, per-gene mRNA half-lives |
+| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + dN/dS codon-substitution models + cell population |
+| [crispr](src/helixlang/crispr.py) | Cas variants / sgRNA design (nearest-PAM or max-score) / Doench 2016 on-target scoring / off-target prediction |
 | [epigenetics](src/helixlang/epigenetics.py) | CpG islands / methylation / histone modification |
-| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis |
-| [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR secondary structure prediction |
+| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG `load_model`) |
+| [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
-| [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / Gray-Scott presets) |
+| [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
 | [type_system](src/helixlang/type_system.py) | Type checker + symbol table |
 | [debugger](src/helixlang/debugger.py) | Bytecode-level debugger (breakpoints / stepping / state inspection) |
 | [server](src/helixlang/server.py) / [web/](src/helixlang/web/) | Flask REST API + visualization frontend |
@@ -293,7 +293,7 @@ ruff check src tests
 mypy
 ```
 
-- **1382+ test cases**
+- **1447+ test cases**
 - CI matrix: Python 3.11 / 3.13
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 16 `examples/*.helix` covered

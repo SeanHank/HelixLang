@@ -1,7 +1,10 @@
 """Metabolic network flux balance analysis (FBA).
 
-Simplified model: 24-reaction core metabolism; the real E. coli iJO1366
-has 1367 reactions.
+Curated core model: 37-reaction E. coli core metabolism (glycolysis +
+TCA + pentose phosphate + fermentation + respiration + biomass), stored
+in :file:`data/ecoli_core_model.json`; the full genome-scale iJO1366 has
+1367 reactions and can be loaded through :func:`load_model` when cobrapy
+is installed.
 FBA assumes steady-state mass balance and biomass maximization, ignoring
 regulatory kinetics.
 
@@ -16,14 +19,19 @@ Module structure:
                            (id/name/stoichiometry/bounds/subsystem)
     MetabolicModel         metabolic network model (reaction set +
                            stoichiometry matrix)
-    ECOLI_CORE_MODEL       reduced E. coli core model (~24 reactions)
+    ECOLI_CORE_MODEL       curated E. coli core model (37 reactions,
+                           loaded from data/ecoli_core_model.json)
     FluxBalanceAnalysis    FBA solver (simplex method + bounds)
+    load_model             optional genome-scale loader (cobrapy) with
+                           curated-core fallback
     simplex                pure-Python two-phase simplex solver
                            (no scipy dependency)
 
 References:
 - Orth JD et al. Mol Syst Biol 2010 6:390 (E. coli core model, reduced
   BiGG iJO1366)
+- Orth JD et al. Mol Syst Biol 2011 7:535 (iJO1366 genome-scale
+  reconstruction; BiGG bigg.ucsd.edu/models/iJO1366)
 - Varma A, Palsson BO. Appl Environ Microbiol 1994 60:726-734 (FBA basics)
 - Feist AM et al. Nat Rev Microbiol 2008 6:664-672 (flux analysis review)
 - Dantzig GB. Linear Programming and Extensions 1963 (simplex method)
@@ -33,6 +41,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from helixlang.errors import BioError
 
@@ -201,8 +210,102 @@ def load_model_from_json(path: str | Path) -> MetabolicModel:
     return m
 
 
+def load_model(path_or_identifier: str | Path | None = None
+               ) -> MetabolicModel:
+    """Load a metabolic model: the curated core model, a JSON file, or
+    a genome-scale model via cobrapy when available.
+
+    Resolution order:
+
+    1. ``None`` (default) -> :data:`ECOLI_CORE_MODEL` (curated 37-reaction
+       core, no dependencies).
+    2. A path to a JSON file in :func:`load_model_from_json` format.
+    3. A BiGG model identifier (e.g. ``"iJO1366"``, Orth 2011 Mol Syst
+       Biol 7:535) -> requires the optional ``cobra`` package
+       (``cobra.io.load_model``); the same model can also be loaded from
+       a local SBML file path (``cobra.io.read_sbml_model``).
+    4. If cobrapy is not installed and a non-default identifier/path is
+       requested, the curated core model is returned (documented
+       fallback) unless ``strict=True``.
+
+    The curated core model remains the default so the pure-Python
+    solver path is always available.
+
+    Args:
+        path_or_identifier: ``None``, a JSON path, an SBML path
+            (extension ``.xml``/``.sbml``), or a BiGG identifier.
+
+    Returns:
+        a :class:`MetabolicModel` instance
+    """
+    if path_or_identifier is None:
+        return ECOLI_CORE_MODEL
+
+    p = Path(str(path_or_identifier))
+    if p.suffix.lower() == ".json":
+        return load_model_from_json(p)
+    if p.suffix.lower() in (".xml", ".sbml"):
+        try:
+            import cobra
+        except ImportError:
+            raise BioError(
+                "SBML model loading requires the optional 'cobra' "
+                "package (pip install cobra); returning the curated "
+                "core model instead"
+            ) from None
+        sbml_model = cobra.io.read_sbml_model(str(p))
+        return _from_cobra_model(sbml_model)
+
+    identifier = str(path_or_identifier)
+    try:
+        import cobra
+    except ImportError:
+        raise BioError(
+            f"loading BiGG model {identifier!r} requires the optional "
+            "'cobra' package (pip install cobra); falling back to the "
+            "curated core model"
+        ) from None
+    try:
+        sbml_model = cobra.io.load_model(identifier)
+    except Exception as exc:  # BiGG download / network errors
+        raise BioError(
+            f"could not load BiGG model {identifier!r} via cobrapy: {exc}"
+        ) from exc
+    return _from_cobra_model(sbml_model)
+
+
+def _from_cobra_model(sbml_model: Any) -> MetabolicModel:
+    """Convert a cobrapy Model into a :class:`MetabolicModel`.
+
+    Only used when the optional ``cobra`` package is present.
+    """
+    m = MetabolicModel()
+    for rxn in sbml_model.reactions:
+        stoich: dict[str, float] = {}
+        for met, coeff in rxn.metabolites.items():
+            stoich[str(met.id)] = float(coeff)
+        m.add_reaction(Reaction(
+            id=str(rxn.id),
+            name=str(rxn.name),
+            stoichiometry=stoich,
+            lower_bound=float(rxn.lower_bound) if rxn.lower_bound is not None else 0.0,
+            upper_bound=float(rxn.upper_bound) if rxn.upper_bound is not None else DEFAULT_UPPER_BOUND,
+            subsystem=str(rxn.subsystem or "other"),
+        ))
+    objective = getattr(sbml_model, "objective", None)
+    if objective is not None:
+        expr = getattr(objective, "expression", None)
+        if expr is not None:
+            for term in getattr(expr, "args", ()):
+                var = getattr(term, "variable", None)
+                if var is not None:
+                    m.set_biomass(str(getattr(var, "name", var)))
+                    break
+    return m
+
+
 # ============================================================================
-# E. coli core metabolism model (reduced version, ~36 reactions)
+# E. coli core metabolism model (curated 37-reaction core)
 # Data source: Orth 2010 Mol Syst Biol 6:390 (reduced iJO1366)
 # P2-12: the 388-line hardcoded model has been migrated to
 # data/ecoli_core_model.json and is read by the generic loader
@@ -947,6 +1050,7 @@ __all__ = [
     "ECOLI_CORE_MODEL",
     # loaders
     "load_model_from_json",
+    "load_model",
     # solvers
     "FluxBalanceAnalysis",
     # simplex

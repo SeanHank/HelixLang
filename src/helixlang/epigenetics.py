@@ -20,8 +20,38 @@ import random
 from dataclasses import dataclass, field
 
 # ============================================================================
+# Heuristic coefficient registry
+# ============================================================================
+# The accessibility/expression weights below are dimensionless heuristic
+# coefficients, NOT measured kinetic constants. They are registered as
+# named constants so future calibration against ChIP-seq occupancy /
+# expression data is a one-line edit. Suggested primary sources for a
+# future quantitative retune:
+#   - DNMT processivity & TET oxidation kinetics: Jeltsch 2001
+#     Biochemistry 40:4186-4198; Ito 2011 Science 333:1300-1303
+#   - H3K27me3 / H3K4me3 occupancy-to-expression mapping: Young 2011
+#     Nat Rev Genet 12:59-69; ENCODE ChIP-seq (Consortium 2012)
+#   - DNA methylation repression strength (~70% reduction in promoter):
+#     Bird 2002 Cell 109:1-8; Watt 1988 Mol Cell Biol 8:2770-2776
+
+#: methylation weight on chromatin accessibility (0.4 = heuristic)
+METHYLATION_ACCESSIBILITY_WEIGHT = 0.4
+#: promoter-methylation expression repression (0.7 = heuristic ~70%,
+#: Bird 2002)
+PROMOTER_METHYLATION_REPRESSION = 0.7
+#: gene-body-methylation expression repression (0.2 = heuristic)
+GENE_BODY_METHYLATION_REPRESSION = 0.2
+#: neutral chromatin base accessibility
+BASE_ACCESSIBILITY = 0.5
+
+# ============================================================================
 # Histone modification type data
 # ============================================================================
+# The scores are relative expression/accessibility weights (heuristic,
+# uncited linear mappings, see HEURISTIC_COEFFICIENT registry above);
+# the mark->location->effect assignments follow the literature
+# (H3K4me3 active promoters, H3K27me3 Polycomb repression, H3K36me3
+# elongation, H3K9me3 heterochromatin, H3K27ac enhancers).
 
 HISTONE_MARK_TYPES: dict[str, dict] = {
     "H3K4me3":  {"effect": "activating",      "location": "promoter",   "score": +0.5},
@@ -369,11 +399,11 @@ def calculate_accessibility(chromatin: ChromatinState) -> dict[int, float]:
 
     for pos in all_positions:
         # base accessibility 0.5
-        acc = 0.5
+        acc = BASE_ACCESSIBILITY
         # methylation decreases accessibility
         if pos in chromatin.methylation.positions:
             meth_prob = chromatin.methylation.positions[pos]
-            acc -= 0.4 * meth_prob
+            acc -= METHYLATION_ACCESSIBILITY_WEIGHT * meth_prob
         # histone modifications
         for mark in chromatin.histone_marks:
             if mark.position == pos:
@@ -425,11 +455,11 @@ def calculate_expression_modifier(chromatin: ChromatinState,
             if in_promoter:
                 # promoter methylation -> strong repression ~70%
                 # (Bird 2002)
-                meth_reduction += 0.7 * prob
+                meth_reduction += PROMOTER_METHYLATION_REPRESSION * prob
                 meth_count += 1
             elif in_gene:
                 # gene body methylation -> mild repression
-                meth_reduction += 0.2 * prob
+                meth_reduction += GENE_BODY_METHYLATION_REPRESSION * prob
                 meth_count += 1
         if meth_count > 0:
             meth_reduction /= meth_count

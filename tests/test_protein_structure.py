@@ -18,9 +18,17 @@ from __future__ import annotations
 import pytest
 
 from helixlang.protein_structure import (
+    _GOR_IV_DSSP_PAIR,
+    _GOR_IV_DSSP_SINGLET,
+    _GOR_PAIR_INFO,
+    _GOR_SINGLET_INFO,
     # data tables
     CHOU_FASMAN_TABLE,
     GOR_COIL_THRESHOLD,
+    GOR_IV_DSSP_PAIR_WEIGHT,
+    GOR_IV_DSSP_SINGLET_WEIGHT,
+    GOR_IV_DSSP_STATES,
+    GOR_PAIR_OFFSETS,
     GOR_STATES,
     GOR_WINDOW_RADIUS,
     HELIX_BREAKERS,
@@ -33,6 +41,7 @@ from helixlang.protein_structure import (
     SecondaryStructureSegment,
     gravy,
     hydropathy_profile,
+    iupred_scores,
     predict_disorder,
     # functions
     predict_secondary,
@@ -349,6 +358,131 @@ class TestSecondaryStructureGOR:
 
 
 # ============================================================================
+# GOR IV real DSSP-trained tables
+# ============================================================================
+
+class TestGorIvDsspTables:
+    """Verify the real DSSP-trained GOR IV singlet/pair information tables."""
+
+    def test_states_are_hec(self):
+        """The real GOR IV prediction states are H/E/C."""
+        assert GOR_IV_DSSP_STATES == ("H", "E", "C")
+
+    def test_singlet_table_completeness(self):
+        """Singlet table has 20 AAs x 17 offsets x 3 states = 1020 entries."""
+        valid_aas = set("ACDEFGHIKLMNPQRSTVWY")
+        assert len(_GOR_IV_DSSP_SINGLET) == 1020
+        for aa in valid_aas:
+            for d in range(-GOR_WINDOW_RADIUS, GOR_WINDOW_RADIUS + 1):
+                for s in GOR_IV_DSSP_STATES:
+                    assert (aa, d, s) in _GOR_IV_DSSP_SINGLET, (aa, d, s)
+
+    def test_pair_table_completeness(self):
+        """Pair table has 20 x 20 AAs x 4 offsets x 3 states = 4800 entries."""
+        valid_aas = set("ACDEFGHIKLMNPQRSTVWY")
+        assert len(_GOR_IV_DSSP_PAIR) == 4800
+        for aa1 in valid_aas:
+            for aa2 in valid_aas:
+                for d in GOR_PAIR_OFFSETS:
+                    for s in GOR_IV_DSSP_STATES:
+                        assert (aa1, aa2, d, s) in _GOR_IV_DSSP_PAIR, (aa1, aa2, d, s)
+
+    def test_weights_match_decipher(self):
+        """f1 = 15/17 singlet fraction; f2 = 60/17 scaled pair weight."""
+        assert GOR_IV_DSSP_SINGLET_WEIGHT == 15.0 / 17.0
+        assert GOR_IV_DSSP_PAIR_WEIGHT == 60.0 / 17.0
+
+    def test_table_provenance_not_chou_fasman(self):
+        """GOR IV tables are DSSP-trained, NOT derived from Chou-Fasman."""
+        aa_diffs = sum(
+            1
+            for (aa, d, s), v in _GOR_IV_DSSP_SINGLET.items()
+            if s in ("H", "E") and abs(v - _GOR_SINGLET_INFO[(aa, d, s)]) > 1e-9
+        )
+        assert aa_diffs == 680  # all 20 x 17 x 2 shared singlet entries differ
+        pair_diffs = sum(
+            1
+            for (aa1, aa2, d, s), v in _GOR_IV_DSSP_PAIR.items()
+            if s in ("H", "E") and abs(v - _GOR_PAIR_INFO[(aa1 + aa2, d, s)]) > 1e-9
+        )
+        assert pair_diffs == 3200  # all 20 x 20 x 4 x 2 shared pair entries differ
+
+
+class TestGorIvDsspPredictions:
+    """Verify predictions with the real DSSP-trained GOR IV tables."""
+
+    def test_default_method_is_gor_iv_dssp(self):
+        """predict_secondary_gor defaults to the real DSSP-trained tables."""
+        ss, _ = predict_secondary_gor("A" * 12)
+        assert set(ss) <= set("HEC")
+
+    def test_poly_ala_all_helix(self):
+        """Poly-Ala is predicted as all helix (real GOR IV tables)."""
+        ss, _ = predict_secondary_gor("A" * 24)
+        assert ss == "H" * 24
+
+    def test_poly_val_all_sheet(self):
+        """Poly-Val is predicted as all sheet (real GOR IV tables)."""
+        ss, _ = predict_secondary_gor("V" * 24)
+        assert ss == "E" * 24
+
+    def test_poly_ile_all_sheet(self):
+        """Poly-Ile is predicted as all sheet (real GOR IV tables)."""
+        ss, _ = predict_secondary_gor("I" * 24)
+        assert ss == "E" * 24
+
+    def test_helix_former_peptide_helix(self):
+        """M/A/E/L/K enriched peptide is predicted as helix."""
+        ss, _ = predict_secondary_gor("MAEELKKLAA")
+        assert ss.count("H") >= 7
+
+    def test_ae_repeat_all_helix(self):
+        """A/E helix-helix synergy repeat is all helix."""
+        ss, _ = predict_secondary_gor("AE" * 8)
+        assert ss == "H" * 16
+
+    def test_ag_repeat_alternates_hc(self):
+        """A/G helix-breaker repeat alternates H/C (half helix)."""
+        ss, _ = predict_secondary_gor("AG" * 8)
+        assert set(ss) == {"H", "C"}
+        assert ss.count("H") == ss.count("C") == 8
+
+    def test_vi_repeat_all_sheet(self):
+        """V/I sheet-sheet synergy repeat is all sheet."""
+        ss, _ = predict_secondary_gor("VI" * 8)
+        assert ss == "E" * 16
+
+    def test_al_repeat_less_sheet_than_vi(self):
+        """A/L (no sheet synergy) has fewer sheet residues than V/I."""
+        al_ss, _ = predict_secondary_gor("AL" * 8)
+        vi_ss, _ = predict_secondary_gor("VI" * 8)
+        assert al_ss.count("E") < vi_ss.count("E")
+
+    def test_pp_insertion_breaks_helix(self):
+        """Pro-Pro insertion breaks the poly-Ala helix."""
+        ss, _ = predict_secondary_gor("A" * 10 + "PP" + "A" * 12)
+        assert ss.count("H") >= 18
+        assert ss[10] != "H" and ss[11] != "H"  # the Pro-Pro positions
+
+    def test_helix_formers_more_helix_than_sheet_formers(self):
+        """Helix-former repeat has more H; sheet-former repeat more E."""
+        h_ss, _ = predict_secondary_gor("ALEK" * 6)
+        s_ss, _ = predict_secondary_gor("VIYF" * 6)
+        assert h_ss.count("H") == len(h_ss)
+        assert s_ss.count("E") == len(s_ss)
+
+    def test_legacy_chou_fasman_method_still_reachable(self):
+        """The legacy Chou-Fasman-derived tables remain callable."""
+        ss, _ = predict_secondary_gor("ACDEFGHIKLMNPQRSTVWY", method="chou_fasman")
+        assert set(ss) <= set("HETC")
+
+    def test_unknown_method_raises(self):
+        """Unknown GOR method raises ValueError."""
+        with pytest.raises(ValueError):
+            predict_secondary_gor("A" * 8, method="bogus")
+
+
+# ============================================================================
 # Kyte-Doolittle hydropathy profile
 # ============================================================================
 
@@ -533,6 +667,99 @@ class TestDisorder:
     def test_empty_sequence_no_disorder(self):
         """Empty sequence has no disorder regions."""
         assert predict_disorder("") == []
+
+
+# ============================================================================
+# IUPred-style disorder scores
+# ============================================================================
+
+#: Human p53 (UniProt P04637, P53_HUMAN): a well-characterized partly
+#: disordered protein with experimentally mapped IDRs; reference scores
+#: computed with the official IUPred2A server algorithm.
+P53_HUMAN = (
+    "MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGP"
+    "DEAPRMPEAAPPVAPAPAAPTPAAPAPAPSWPLSSSVPSQKTYQGSYGFRLGFLHSGTAK"
+    "SVTCTYSPALNKMFCQLAKTCPVQLWVDSTPPPGTRVRAMAIYKQSQHMTEVVRRCPHHE"
+    "RCSDSDGLAPPQHLIRVEGNLRVEYLDDRNTFRHSVVVPYEPPEVGSDCTTIHYNYMCNS"
+    "SCMGGMNRRPILTIITLEDSSGNLLGRNSFEVRVCACPGRDRRTEEENLRKKGEPHHELP"
+    "PGSTKRALPNNTSSSPQPKKKPLDGEYFTLQIRGRERFEMFRELNEALELKDAQAGKEPG"
+    "GSRAHSSHLKSKKGQSTSRHKKLMFKTEGPDSD"
+)
+
+class TestIupredScores:
+    """Verify the IUPred-style per-residue disorder scores."""
+
+    def test_scores_in_unit_interval(self):
+        """All scores are in [0, 1]."""
+        scores = iupred_scores(P53_HUMAN, mode="long")
+        assert len(scores) == len(P53_HUMAN)
+        assert all(0.0 <= s <= 1.0 for s in scores)
+
+    def test_p53_long_disorder_fraction(self):
+        """P53 long-mode disorder fraction matches the official IUPred2A output."""
+        scores = iupred_scores(P53_HUMAN, mode="long")
+        frac = sum(1 for s in scores if s > 0.5) / len(scores)
+        assert 0.45 <= frac <= 0.55, f"long disorder fraction {frac:.3f}"
+
+    def test_p53_short_disorder_fraction(self):
+        """P53 short-mode disorder fraction matches the official IUPred2A output."""
+        scores = iupred_scores(P53_HUMAN, mode="short")
+        frac = sum(1 for s in scores if s > 0.5) / len(scores)
+        assert 0.40 <= frac <= 0.48, f"short disorder fraction {frac:.3f}"
+
+    def test_p53_terminal_scores_high(self):
+        """The N-terminal IDR of p53 has high disorder scores."""
+        scores = iupred_scores(P53_HUMAN, mode="long")
+        assert all(s > 0.5 for s in scores[:8])
+
+    def test_hydrophobic_control_not_disordered(self):
+        """A purely hydrophobic sequence scores ~0 disordered."""
+        scores = iupred_scores("I" * 50 + "V" * 50, mode="long")
+        assert sum(1 for s in scores if s > 0.5) == 0
+
+    def test_long_vs_short_mode_differ(self):
+        """Long and short parameter sets give different scores."""
+        long_scores = iupred_scores(P53_HUMAN, mode="long")
+        short_scores = iupred_scores(P53_HUMAN, mode="short")
+        assert long_scores != short_scores
+
+    def test_empty_sequence_raises(self):
+        """Empty sequence raises ValueError."""
+        with pytest.raises(ValueError):
+            iupred_scores("")
+
+    def test_unknown_mode_raises(self):
+        """Unknown mode raises ValueError."""
+        with pytest.raises(ValueError):
+            iupred_scores(P53_HUMAN, mode="bogus")
+
+
+class TestPredictDisorderIupred:
+    """Verify predict_disorder with method='iupred'."""
+
+    def test_p53_long_regions(self):
+        """P53 long-mode disorder regions match the official output."""
+        regions = predict_disorder(P53_HUMAN, method="iupred")
+        assert len(regions) == 4
+        assert regions[0].start == 1
+        assert sum(r.length for r in regions) == 188
+
+    def test_p53_short_regions(self):
+        """P53 short-mode disorder regions match the official output."""
+        regions = predict_disorder(P53_HUMAN, method="iupred", iupred_mode="short")
+        assert len(regions) == 4
+        assert sum(r.length for r in regions) == 149
+
+    def test_legacy_chou_dunker_still_default(self):
+        """The default disorder method remains the legacy Chou-Dunker heuristic."""
+        regions = predict_disorder("E" * 20 + "K" * 20)
+        assert len(regions) >= 1
+        assert regions[0].length >= 10
+
+    def test_unknown_method_raises(self):
+        """Unknown disorder method raises ValueError."""
+        with pytest.raises(ValueError):
+            predict_disorder(P53_HUMAN, method="bogus")
 
 
 # ============================================================================

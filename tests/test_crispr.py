@@ -179,6 +179,26 @@ class TestGuideDesign:
         guide = design_guide(dna, "SpCas9", position=0)
         assert guide.pam in ("AGG", "TGG")
 
+    def test_design_guide_best_mode(self):
+        """mode="best" picks the max Rule Set 2 score over all PAM sites."""
+        low = "A" * 20                    # GC 0% -> heavily penalized
+        high = "GCGTAGCTGACGGATCCGGA"     # GC ~50% -> near-optimal
+        dna = low + "TGG" + "A" * 50 + high + "TGG" + "A" * 20
+        near = design_guide(dna, "SpCas9", position=0, mode="nearest")
+        assert near.spacer == low         # nearest PAM wins by default
+        best = design_guide(dna, "SpCas9", position=0, mode="best")
+        assert best.spacer == high        # score wins over position
+        assert best.pam == "TGG"
+        assert best.cas_variant == "SpCas9"
+        assert best.pam_position == "3prime"
+        assert on_target_score(best) > on_target_score(near)
+
+    def test_design_guide_unknown_mode(self):
+        """Unknown design_guide mode raises ValueError."""
+        dna = "A" * 20 + "TGG" + "A" * 10
+        with pytest.raises(ValueError):
+            design_guide(dna, "SpCas9", mode="greedy")
+
 
 # ============================================================================
 # On-target scoring
@@ -312,6 +332,38 @@ class TestDoenchPositionSpecific:
         typical = self._guide("ACGTACGTACGTACGTACGT")  # GC 50%, no polyT
         s = on_target_score(typical)
         assert 0.4 <= s <= 0.6, f"typical spacer score {s} not in [0.4, 0.6]"
+
+    def test_method_doench_2016_matches_default(self):
+        """method='doench_2016' is equivalent to the default model path."""
+        guide = self._guide("ACGTACGTACGTACGTACGT")
+        assert on_target_score(guide) == on_target_score(
+            guide, method="doench_2016"
+        )
+        assert on_target_score(guide, model="doench2016") == on_target_score(
+            guide, method="doench_2016"
+        )
+
+    def test_method_legacy_matches_simplified(self):
+        """method='legacy' is an alias for model='simplified'."""
+        guide = self._guide("ACGTACGTACGTACGTACGT")
+        assert on_target_score(
+            guide, method="legacy"
+        ) == on_target_score(guide, model="simplified")
+
+    def test_method_unknown_raises(self):
+        """An unknown scoring method/model raises ValueError."""
+        guide = self._guide("ACGTACGTACGTACGTACGT")
+        with pytest.raises(ValueError):
+            on_target_score(guide, method="bogus")
+        with pytest.raises(ValueError):
+            on_target_score(guide, model="bogus")
+
+    def test_empty_spacer_zero_for_all_models(self):
+        """An empty spacer scores 0.0 under every model."""
+        guide = GuideRNA("", "AGG", "3prime", "SpCas9", 0, "+")
+        assert on_target_score(guide) == 0.0
+        assert on_target_score(guide, method="doench_2016") == 0.0
+        assert on_target_score(guide, method="legacy") == 0.0
 
 
 # ============================================================================
