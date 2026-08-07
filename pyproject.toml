@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixlang"
-version = "0.1.0"
+version = "1.0.0"
 description = "A bio-genetic DSL that compiles DNA codons to bytecode and simulates biological behavior/morphology."
 requires-python = ">=3.11"
-authors = [{name = "HelixLang Project"}]
-license = {text = "MIT"}
+authors = [{name = "Sean Hank"}]
+license = {text = "AGPLv3"}
 keywords = ["DSL", "DNA", "compiler", "artificial-life", "biological-simulation"]
 classifiers = [
     "Programming Language :: Python :: 3",
