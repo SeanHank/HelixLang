@@ -44,8 +44,8 @@ class Compiler:
         # First pass: emit ORFs
         for gene in program.genes:
             chunk.gene_offsets[gene.name] = len(chunk.code)
-            self._compile_orf(chunk, gene.orf, gene.name)
-            if not self._ends_with_halt(chunk):
+            last_op_ip = self._compile_orf(chunk, gene.orf, gene.name)
+            if not self._last_op_is_halt(chunk, last_op_ip):
                 chunk.emit(Op.OP_HALT, line=0, codon_index=-1)
             # Inter-gene barrier: emit OP_JUMP to the end of the chunk to prevent fall-through after the quota is exhausted
             if gene is not program.genes[-1]:
@@ -59,7 +59,10 @@ class Compiler:
         return chunk
 
     # -------- ORF compilation --------
-    def _compile_orf(self, chunk: Chunk, orf: list[Codon], gene_name: str) -> None:
+    def _compile_orf(self, chunk: Chunk, orf: list[Codon],
+                     gene_name: str) -> int:
+        """Emit one ORF, returning the ip of its last instruction (or -1 if empty)."""
+        last_op_ip = -1
         for c in orf:
             if c.seq not in self.table:
                 raise CompileError(
@@ -70,32 +73,35 @@ class Compiler:
             nbytes = OP_OPERAND_BYTES[op]
             if op == Op.OP_CALL_GENE:
                 # Placeholder: offset back-patched in the second pass; record wobble and owning gene (for call_target)
-                start = chunk.emit(op, 0, 0, line=c.line, codon_index=c.index)
-                self._call_sites.append((start + 1, arg, gene_name))
+                last_op_ip = chunk.emit(op, 0, 0, line=c.line,
+                                        codon_index=c.index)
+                self._call_sites.append((last_op_ip + 1, arg, gene_name))
             elif op == Op.OP_PUSH_CONST:
                 # P0-1: wobble value added to the constant pool, emit the constant pool index (consistent with VM semantics)
                 const_idx = chunk.add_constant(arg)
-                chunk.emit(op, const_idx, line=c.line, codon_index=c.index)
+                last_op_ip = chunk.emit(op, const_idx, line=c.line,
+                                        codon_index=c.index)
             elif nbytes == 1:
-                chunk.emit(op, arg, line=c.line, codon_index=c.index)
+                last_op_ip = chunk.emit(op, arg, line=c.line,
+                                        codon_index=c.index)
             elif nbytes == 0:
-                chunk.emit(op, line=c.line, codon_index=c.index)
+                last_op_ip = chunk.emit(op, line=c.line, codon_index=c.index)
             else:
                 # Should not happen
-                chunk.emit(op, *([0] * nbytes),
-                           line=c.line, codon_index=c.index)
+                last_op_ip = chunk.emit(op, *([0] * nbytes),
+                                        line=c.line, codon_index=c.index)
+        return last_op_ip
 
-    def _ends_with_halt(self, chunk: Chunk) -> bool:
-        if not chunk.code:
-            return False
-        # Skip operands to inspect the last instruction
-        ip = 0
-        last_op_ip = 0
-        while ip < len(chunk.code):
-            op = Op(chunk.code[ip])
-            last_op_ip = ip
-            ip += 1 + OP_OPERAND_BYTES[op]
-        return chunk.code[last_op_ip] == int(Op.OP_HALT)
+    @staticmethod
+    def _last_op_is_halt(chunk: Chunk, last_op_ip: int) -> bool:
+        """O(1) check: did the gene's ORF end with an explicit OP_HALT?
+
+        Previously this rescanned the entire emitted chunk for every gene
+        (``_ends_with_halt``), making compile time O(genes × chunk size).
+        ``_compile_orf`` now reports the ip of the last instruction it
+        emitted, so this is a single byte comparison.
+        """
+        return last_op_ip >= 0 and chunk.code[last_op_ip] == int(Op.OP_HALT)
 
     # -------- Back-patching CALL_GENE --------
     def _patch_calls(self, chunk: Chunk, genes: list[Gene]) -> None:

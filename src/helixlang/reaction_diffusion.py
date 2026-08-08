@@ -4,10 +4,24 @@ U' = U + (Du*∇²U - U*V² + F*(1-U))
 V' = V + (Dv*∇²V + U*V² - (F+k)*V)
 
 The default parameters F=0.035, k=0.065 generate Pearson 1993 spots (mitosis) patterns.
+
+Performance: ``step()`` previously allocated two full-field copies every tick and
+looped over every cell in pure Python. It now uses a scratch double-buffer (border
+cells only are copied, O(n) instead of O(n²)) and, when ``numpy`` is installed
+(the optional ``fast`` extra), a fully vectorized backend. Both paths produce
+bit-identical results.
 """
 from __future__ import annotations
 
 import random
+from typing import Any
+
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:  # pragma: no cover - numpy is an optional dependency
+    np = None  # type: ignore[assignment]
+    _HAS_NUMPY = False
 
 
 class GrayScott:
@@ -20,8 +34,17 @@ class GrayScott:
         self.k = k
         self.Du = Du
         self.Dv = Dv
-        self.u: list[list[float]] = [[1.0] * n for _ in range(n)]
-        self.v: list[list[float]] = [[0.0] * n for _ in range(n)]
+        if _HAS_NUMPY:
+            self.u: Any = np.full((n, n), 1.0)
+            self.v: Any = np.zeros((n, n))
+            self._scratch_u = None
+            self._scratch_v = None
+        else:
+            self.u = [[1.0] * n for _ in range(n)]
+            self.v = [[0.0] * n for _ in range(n)]
+            # Scratch double-buffers (same shape); avoid the per-step O(n²) copy.
+            self._scratch_u = [[0.0] * n for _ in range(n)]
+            self._scratch_v = [[0.0] * n for _ in range(n)]
         self._seed(seed)
 
     @classmethod
@@ -63,32 +86,94 @@ class GrayScott:
                 - 4.0 * f[i][j]) * 0.25
 
     def step(self) -> None:
-        """Advance one step."""
+        """Advance one step.
+
+        The backend (vectorized numpy vs pure-Python scratch double-buffer) is
+        fixed at construction time by the field's storage type.
+        """
+        if _HAS_NUMPY and isinstance(self.u, np.ndarray):
+            self._step_numpy()
+        else:
+            self._step_py()
+
+    def _step_py(self) -> None:
+        """Pure-Python step using scratch double-buffers (no O(n²) copies)."""
         n = self.n
-        nu = [row[:] for row in self.u]
-        nv = [row[:] for row in self.v]
+        u, v = self.u, self.v
+        if self._scratch_u is None or self._scratch_v is None:
+            self._scratch_u = [[0.0] * n for _ in range(n)]
+            self._scratch_v = [[0.0] * n for _ in range(n)]
+        nu, nv = self._scratch_u, self._scratch_v
+        F, k, Du, Dv = self.F, self.k, self.Du, self.Dv
+        # Borders are untouched by the interior update; copy them into the
+        # scratch buffers so the swap yields a complete field.
+        nu[0] = u[0][:]
+        nu[n - 1] = u[n - 1][:]
+        nv[0] = v[0][:]
+        nv[n - 1] = v[n - 1][:]
         for i in range(1, n - 1):
+            nui = nu[i]
+            nvi = nv[i]
+            ui = u[i]
+            vi = v[i]
+            nui[0] = ui[0]
+            nui[n - 1] = ui[n - 1]
+            nvi[0] = vi[0]
+            nvi[n - 1] = vi[n - 1]
+            um = u[i - 1]
+            up = u[i + 1]
+            vm = v[i - 1]
+            vp = v[i + 1]
             for j in range(1, n - 1):
-                lu = self._lap(self.u, i, j)
-                lv = self._lap(self.v, i, j)
-                uij = self.u[i][j]
-                vij = self.v[i][j]
+                lu = (um[j] + up[j] + ui[j - 1] + ui[j + 1]
+                      - 4.0 * ui[j]) * 0.25
+                lv = (vm[j] + vp[j] + vi[j - 1] + vi[j + 1]
+                      - 4.0 * vi[j]) * 0.25
+                uij = ui[j]
+                vij = vi[j]
                 uvv = uij * vij * vij
-                nu[i][j] = uij + (self.Du * lu - uvv + self.F * (1 - uij))
-                nv[i][j] = vij + (self.Dv * lv + uvv - (self.F + self.k) * vij)
-        # Clamp to [0, 1] to prevent numerical blow-up
-        for i in range(n):
-            for j in range(n):
-                if nu[i][j] < 0.0:
-                    nu[i][j] = 0.0
-                elif nu[i][j] > 1.0:
-                    nu[i][j] = 1.0
-                if nv[i][j] < 0.0:
-                    nv[i][j] = 0.0
-                elif nv[i][j] > 1.0:
-                    nv[i][j] = 1.0
-        self.u = nu
-        self.v = nv
+                nui[j] = uij + (Du * lu - uvv + F * (1.0 - uij))
+                nvi[j] = vij + (Dv * lv + uvv - (F + k) * vij)
+                # Clamp to [0, 1] to prevent numerical blow-up
+                if nui[j] < 0.0:
+                    nui[j] = 0.0
+                elif nui[j] > 1.0:
+                    nui[j] = 1.0
+                if nvi[j] < 0.0:
+                    nvi[j] = 0.0
+                elif nvi[j] > 1.0:
+                    nvi[j] = 1.0
+        self.u, self._scratch_u = nu, u
+        self.v, self._scratch_v = nv, v
+
+    def _step_numpy(self) -> None:
+        """Vectorized step (``numpy`` backend). Identical results to ``_step_py``."""
+        u = self.u
+        v = self.v
+        # Discrete 5-point Laplacian (interior only; borders stay zero here and
+        # are restored below, matching the pure-Python "borders unchanged" rule).
+        lap_u = np.zeros_like(u)
+        lap_v = np.zeros_like(v)
+        lap_u[1:-1, 1:-1] = (
+            u[:-2, 1:-1] + u[2:, 1:-1] + u[1:-1, :-2] + u[1:-1, 2:]
+            - 4.0 * u[1:-1, 1:-1]) * 0.25
+        lap_v[1:-1, 1:-1] = (
+            v[:-2, 1:-1] + v[2:, 1:-1] + v[1:-1, :-2] + v[1:-1, 2:]
+            - 4.0 * v[1:-1, 1:-1]) * 0.25
+        uvv = u * v * v
+        self.u = np.clip(
+            u + (self.Du * lap_u - uvv + self.F * (1.0 - u)), 0.0, 1.0)
+        self.v = np.clip(
+            v + (self.Dv * lap_v + uvv - (self.F + self.k) * v), 0.0, 1.0)
+        # Preserve border cells exactly (they are never updated by the Laplacian).
+        self.u[0, :] = u[0, :]
+        self.u[-1, :] = u[-1, :]
+        self.u[:, 0] = u[:, 0]
+        self.u[:, -1] = u[:, -1]
+        self.v[0, :] = v[0, :]
+        self.v[-1, :] = v[-1, :]
+        self.v[:, 0] = v[:, 0]
+        self.v[:, -1] = v[:, -1]
 
     def emit(self, i: int, j: int, amount: float = 1.0) -> None:
         """Inject morphogen V at (i, j)."""
@@ -96,4 +181,4 @@ class GrayScott:
             self.v[i][j] = min(1.0, self.v[i][j] + amount)
 
     def total_v(self) -> float:
-        return sum(sum(row) for row in self.v)
+        return float(sum(sum(row) for row in self.v))

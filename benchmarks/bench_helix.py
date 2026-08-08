@@ -265,6 +265,26 @@ def bench_grn_scaling(fast: bool) -> list[dict]:
     return rows
 
 
+def bench_gray_scott() -> list[dict]:
+    """Gray-Scott per-cell cost at increasing grid sizes (20 steps)."""
+    from helixlang.reaction_diffusion import GrayScott
+    rows = []
+    for n in (16, 32, 64, 128):
+        gs = GrayScott(n=n, seed=42)
+
+        def run(_gs: GrayScott = gs) -> None:
+            for _ in range(20):
+                _gs.step()
+
+        dt = best_time(run, number=1, repeat=5) / 20
+        rows.append({
+            "grid": f"{n}x{n}",
+            "step_s": dt,
+            "cell_s": dt / (n * n),
+        })
+    return rows
+
+
 def bench_memory() -> dict:
     """Peak memory of a full compile+run for a mid-size program."""
     src = gen_program(16, 64, ticks=200)
@@ -371,7 +391,16 @@ def emit_markdown(results: dict) -> str:
             f"| {r['step_s']*1e6:.1f} μs |"
         )
     add("")
-    add("## 4. Full compile+run of the 16 shipped examples")
+    add("## 4. Gray-Scott `step()` per-cell cost (20 steps)")
+    add("")
+    add("| Grid | μs/step | μs/cell |")
+    add("|---|---|---|")
+    for r in results["gray_scott"]:
+        add(
+            f"| {r['grid']} | {r['step_s']*1e6:.1f} | {r['cell_s']*1e6:.4f} |"
+        )
+    add("")
+    add("## 5. Full compile+run of the 16 shipped examples")
     add("")
     add("| Example | ticks | wall |")
     add("|---|---|---|")
@@ -379,7 +408,7 @@ def emit_markdown(results: dict) -> str:
         add(f"| `{r['example']}` | {r['ticks']} | {r['wall_s']*1e3:.2f} ms |")
     add("")
     mem = results["memory"]
-    add("## 5. Memory footprint")
+    add("## 6. Memory footprint")
     add("")
     add("| Workload | Peak |")
     add("|---|---|")
@@ -411,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
         "compile_matrix": bench_compile_matrix(args.fast),
         "vm": bench_vm_throughput(args.fast),
         "grn": bench_grn_scaling(args.fast),
+        "gray_scott": bench_gray_scott(),
         "examples": bench_examples(),
         "memory": bench_memory(),
     }

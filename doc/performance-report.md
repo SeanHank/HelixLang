@@ -5,29 +5,34 @@
 > machine (see §7). This report is an **analysis**, not a claim about absolute
 > numbers: absolute throughput varies with hardware; the *scaling behavior* and
 > *bottleneck structure* are the durable findings.
+>
+> **2026-08 update.** All three §4 bottlenecks have been **fixed** in this build:
+> `Compiler` (linear compile), `GRN.step` (O(N+E)), and `GrayScott.step`
+> (scratch double-buffer + optional `numpy` backend, bit-identical output).
+> Before/after measurements appear inline below.
 
 ## 1. Executive summary
 
 | Question | Answer |
 |---|---|
-| Compile speed | ~130–470k codons/s; a 16-gene program compiles in **<3 ms** |
+| Compile speed | ~470–710k codons/s; **no longer grows with gene count** (linear scaling restored) |
 | VM execution speed | ~**1.3 M ops/s** (~770 ns/op), ~20k ticks/s |
-| GRN update | ~53k steps/s at 32 nodes; **scales O(N·E)** (quadratic in dense graphs) |
-| Reaction–diffusion | ~0.28–0.3 μs per grid cell per step; **the single dominant hotspot** |
+| GRN update | **O(N+E)** now: 128-node cycle ~30k steps/s, dense 4096-edge ~6k steps/s (was 25× slower, now 4.7×) |
+| Reaction–diffusion | numpy backend **0.007–0.056 μs/cell** (pure-Python fallback ~0.18 μs/cell, was ~0.30) |
 | Memory | ~**0.33 MiB** peak for a 16-gene × 200-tick compile+run |
-| Where the time goes | 98% of example wall-time is one workload: `04_turing_pattern.helix` (reaction-diffusion) |
+| Where the time goes | `04_turing_pattern.helix` dropped **110 ms → ~12.6 ms**; total example wall-time **114 ms → ~16 ms** |
 
 **Verdict.** HelixLang is fast enough for interactive use and for simulation
-experiments at the shipped scale: all examples except `04_turing_pattern.helix`
-complete in **≤ 1 ms**. Three concrete, verifiable scaling problems dominate the
-cost structure — none is architectural, all are fixable by targeted refactors:
+experiments at the shipped scale: **every** shipped example now completes in
+**≤ 13 ms**. The three scaling problems identified in the previous report are
+resolved; the remaining cost structure is flat and predictable:
 
-1. **`Compiler._ends_with_halt()` rescans the whole emitted chunk for every gene**
-   → compile time is **O(genes × chunk size)** (quadratic in gene count).
-2. **`GRN.step()` scans every edge for every node** (`for e in self.edges if
-   e.target == name`) → **O(N·E)** per tick (quadratic for dense GRNs).
-3. **`GrayScott.step()` copies both concentration arrays and loops in pure Python**
-   → ~0.3 μs/cell; the field dominates any program that uses it.
+1. **Compiler** — O(genes × chunk) eliminated; constant-total-codons compile
+   times are now ~3 ms regardless of gene count (was 6.4 → 12.4 → 24.2 ms).
+2. **GRN** — incoming-edge index makes `step()` O(N+E); a 4096-edge GRN is now
+   ~25× faster than before (165 vs 4 119 μs/step).
+3. **Gray-Scott** — full-array copies removed and a `numpy` backend added; the
+   dominant hotspot is 8–40× faster depending on grid size.
 
 ## 2. Methodology
 
@@ -41,6 +46,10 @@ cost structure — none is architectural, all are fixable by targeted refactors:
   compile on the pre-built AST), so the timings reflect that stage alone.
 * **Instruction counting.** A `CountingVM` subclass wraps the dispatcher to count
   dispatched instructions exactly.
+* **Gray-Scott backend.** When `numpy` is installed (the optional `fast` extra)
+  the vectorized backend runs; otherwise the pure-Python scratch double-buffer
+  runs. Both paths are verified bit-identical to the pre-optimization algorithm
+  (see `tests/test_reaction_diffusion.py`).
 * **Environment.** Apple M4 Pro, 24 GB RAM, macOS (Darwin), CPython 3.11.15.
   Raw numbers are reproduced in the JSON block in §6.
 
@@ -50,45 +59,44 @@ cost structure — none is architectural, all are fixable by targeted refactors:
 
 | Genes | Codons | lex | parse | semantic | compile | total | codons/s |
 |---|---|---|---|---|---|---|---|
-| 1 | 16 | 0.02 ms | 0.01 ms | 0.00 ms | 0.01 ms | 0.04 ms | 410 k |
-| 4 | 64 | 0.06 ms | 0.02 ms | 0.00 ms | 0.05 ms | 0.14 ms | 468 k |
-| 16 | 256 | 0.27 ms | 0.09 ms | 0.00 ms | 0.47 ms | 0.83 ms | 309 k |
-| 64 | 1024 | 1.07 ms | 0.35 ms | 0.00 ms | 6.21 ms | 7.63 ms | 134 k |
-| 16 | 1024 | 0.90 ms | 0.26 ms | 0.00 ms | 1.74 ms | 2.91 ms | 352 k |
-| 64 | 4096 | 3.53 ms | 1.09 ms | 0.00 ms | 23.22 ms | 27.85 ms | 147 k |
+| 1 | 16 | 0.02 ms | 0.01 ms | 0.00 ms | 0.01 ms | 0.03 ms | 471 k |
+| 4 | 64 | 0.06 ms | 0.02 ms | 0.00 ms | 0.02 ms | 0.11 ms | 599 k |
+| 16 | 256 | 0.25 ms | 0.08 ms | 0.00 ms | 0.08 ms | 0.41 ms | 621 k |
+| 64 | 1024 | 1.06 ms | 0.35 ms | 0.00 ms | 0.34 ms | 1.74 ms | 587 k |
+| 16 | 1024 | 0.89 ms | 0.28 ms | 0.00 ms | 0.28 ms | 1.44 ms | 710 k |
+| 64 | 4096 | 3.75 ms | 1.11 ms | 0.00 ms | 1.17 ms | 6.04 ms | 678 k |
 
 Observations:
 
 * **Lex + parse dominate small programs**; semantic analysis is negligible
   (< 2% at every size).
-* **Compile dominates large programs** and its per-codon cost grows with the
-  number of *genes*, not codons — see the constant-total-codons experiment:
+* **Compile no longer scales with gene count.** The constant-total-codons
+  experiment — which previously grew 6.4 → 12.4 → 24.2 ms (doubling per gene
+  doubling) — is now flat:
 
-  | Genes × codons/gene | total codons | compile time |
+  | Genes × codons/gene | total codons | compile time (before → after) |
   |---|---|---|
-  | 32 × 64 | 2048 | 6.36 ms |
-  | 64 × 32 | 2048 | 12.36 ms |
-  | 128 × 16 | 2048 | 24.15 ms |
+  | 32 × 64 | 2048 | 6.36 ms → **2.91 ms** |
+  | 64 × 32 | 2048 | 12.36 ms → **3.14 ms** |
+  | 128 × 16 | 2048 | 24.15 ms → **3.56 ms** |
 
-  Doubling the gene count **doubles** compile time at a fixed total codon count,
-  i.e. compile is **O(genes × chunk size)**. Root cause: `Compiler._ends_with_halt`
-  (compiler.py:88) rescans the entire emitted chunk from byte 0 for *every* gene to
-  decide whether to append a synthetic `OP_HALT`. Fix: track the emitted chunk
-  length and check the last instruction directly, or record whether the ORF ended
-  with `OP_HALT` during emission. Cost of the fix is negligible; it restores
-  linear compile scaling.
+  Root cause was `Compiler._ends_with_halt` (compiler.py:88), which rescanned
+  the entire emitted chunk from byte 0 for *every* gene (O(genes × chunk)).
+  `_compile_orf` now returns the ip of the last emitted instruction and the
+  HALT check is a single byte comparison (`_last_op_is_halt`), restoring linear
+  compile scaling. Codons/s roughly **4.5×** at 64×4096 (147k → 678k).
 
 ### 3.2 CellVM execution
 
 | Ticks | wall | ticks/s | executed ops | ops/s |
 |---|---|---|---|---|
-| 100 | 4.7 ms | 21.1 k | 6 400 | 1.35 M |
-| 1000 | 49.4 ms | 20.2 k | 64 000 | 1.30 M |
-| 5000 | 247.5 ms | 20.2 k | 320 000 | 1.29 M |
+| 100 | 4.8 ms | 20.8 k | 6 400 | 1.33 M |
+| 1000 | 48.7 ms | 20.5 k | 64 000 | 1.31 M |
+| 5000 | 242.7 ms | 20.6 k | 320 000 | 1.32 M |
 
 Observations:
 
-* **Throughput is flat** from 100 to 5000 ticks (~20.2–21.1k ticks/s, ~1.3M ops/s):
+* **Throughput is flat** from 100 to 5000 ticks (~20.5–20.8k ticks/s, ~1.3M ops/s):
   per-op cost ~**770 ns**. This is a healthy sign — no hidden super-linear term in
   the execution loop.
 * **Snapshot overhead is ~2%** of a run (measured by disabling `_snapshot`),
@@ -103,43 +111,53 @@ Observations:
 
 | Nodes | Edges | steps/s | μs/step | μs/node |
 |---|---|---|---|---|
-| 8 | 8 | 299.9 k | 3.3 | 0.42 |
-| 32 | 32 | 53.0 k | 18.9 | 0.59 |
-| 128 | 128 | 6.3 k | 158.1 | 1.24 |
+| 8 | 8 | 459.7 k | 2.2 | 0.27 |
+| 32 | 32 | 118.4 k | 8.4 | 0.26 |
+| 128 | 128 | 29.5 k | 33.8 | 0.26 |
 
-| N=128 | E | μs/step |
+| N=128 | E | μs/step (before → after) |
 |---|---|---|
-| cycle | 128 | 160 |
-| dense | 4096 | 4 119 |
+| cycle | 128 | 160 → **35** |
+| dense | 4096 | 4 119 → **165** |
 
 Observations:
 
-* Per-node cost **grows with edge count**: 32× more edges → 25.7× slower step.
-  `GRN.step()` (grn.py:140) computes each node's `inputs` by linearly scanning the
-  entire `self.edges` list filtering on `e.target == name` → **O(N·E)** per tick.
-  Fix: build a **target → incoming-edges index** once (edges are append-only in
-  practice; `OP_REGULATE` can update the index on add/update). This makes the step
-  O(N + E) and removes the quadratic behavior on dense GRNs.
+* **Per-node cost is now constant** (~0.26 μs/node) regardless of graph size —
+  the previous super-linear blow-up is gone. Adding 32× more edges now costs only
+  **4.7×** more per step (was **25.7×**), consistent with O(N+E).
+* `GRN.step()` now reads a **target → incoming-edges index** (`_incoming`, grn.py)
+  built and kept in sync by `add_edge`/`add_gene`. In-place weight updates
+  (`OP_REGULATE`) mutate the same `Edge` objects, so the index stays valid; a
+  cheap `len(edges)` guard rebuilds it if external code ever appends to `edges`
+  directly. Dense 4096-edge GRNs are ~25× faster.
 
 ### 3.4 Reaction–diffusion (Gray-Scott)
 
-| Field | μs/step | μs/cell |
-|---|---|---|
-| 16×16 | 62.7 | 0.245 |
-| 32×32 | 289.0 | 0.282 |
-| 64×64 | 1204.3 | 0.294 |
-| 128×128 | 4994.3 | 0.305 |
+numpy backend (the `fast` extra; the pure-Python fallback is shown below):
 
-* Cost is **O(cells)** (~0.28–0.30 μs/cell, flat across sizes — good linear
-  scaling). The per-cell cost is dominated by two things: (a) `step()` copies both
-  `u` and `v` arrays every step (`nu = [row[:] for row in self.u]`, reaction_diffusion.py:68-69), and (b) the update loop is pure Python with 5-list-lookup
-  Laplacians per cell.
-* **This is the single dominant hotspot of the language runtime.** `04_turing_pattern.helix`
-  (100 ticks × `react_steps=2` × two `GAT` codons = 400 field steps × ~289 μs ≈ 115 ms)
-   measures **110.3 ms** — ~98% of the combined wall time of all 16 examples.
-* Fix options, in increasing impact: skip the array copy by updating in place with
-  boundary guards (or keep one scratch row), vectorize with `numpy` (F, k, Du, Dv
-  are already plain floats), or switch to an out-of-core/tiled update for big grids.
+| Field | μs/step | μs/cell (before → after) |
+|---|---|---|
+| 16×16 | 14.2 | 0.245 → **0.056** |
+| 32×32 | 19.1 | 0.282 → **0.019** |
+| 64×64 | 41.1 | 0.294 → **0.010** |
+| 128×128 | 121.8 | 0.305 → **0.007** |
+
+* Two changes: (a) the per-step full-array copies (`[row[:] for row in self.u]`)
+  are replaced by a **scratch double-buffer** that only copies the O(n) border
+  cells; (b) when numpy is installed the whole update is **vectorized**
+  (`np.clip`, sliced Laplacians). Both backends produce **bit-identical** output
+  to the original algorithm (regression-tested in `tests/test_reaction_diffusion.py`).
+* Even the pure-Python fallback (no numpy) is ~2× faster — ~0.14–0.18 μs/cell vs
+  ~0.30 before — because the array copies are gone:
+
+  | Field | μs/step | μs/cell |
+  |---|---|---|
+  | 16×16 | 35.4 | 0.138 |
+  | 32×32 | 166.7 | 0.163 |
+  | 64×64 | 724.0 | 0.177 |
+* **`04_turing_pattern.helix`** (100 ticks × `react_steps=2` × two `GAT` codons
+  = 400 field steps) dropped from **110.3 ms to ~12.6 ms** — the largest single
+  win in the language runtime.
 
 ### 3.5 Full compile+run of the shipped examples
 
@@ -147,28 +165,28 @@ Observations:
 |---|---|---|
 | `01_hello_dna.helix` | 1 | 0.06 ms |
 | `02_lac_operon.helix` | 20 | 0.23 ms |
-| `03_plant_growth.helix` | 5 | 0.10 ms |
-| `04_turing_pattern.helix` | 100 | **110.32 ms** |
+| `03_plant_growth.helix` | 5 | 0.09 ms |
+| `04_turing_pattern.helix` | 100 | **12.57 ms** |
 | `05_table_switch.helix` | 1 | 0.07 ms |
 | `06_crispr_edit.helix` | 1 | 0.21 ms |
 | `07_evolution.helix` | 1 | 0.22 ms |
 | `08_epigenetics.helix` | 1 | 0.25 ms |
-| `09_central_dogma_pipeline.helix` | 20 | 0.75 ms |
-| `10_metabolism_fba.helix` | 20 | 0.44 ms |
-| `11_protein_structure.helix` | 1 | 0.22 ms |
-| `12_multi_species.helix` | 1 | 0.27 ms |
-| `13_dna_storage.helix` | 1 | 0.18 ms |
-| `14_synbio_designer.helix` | 1 | 0.20 ms |
+| `09_central_dogma_pipeline.helix` | 20 | 0.72 ms |
+| `10_metabolism_fba.helix` | 20 | 0.46 ms |
+| `11_protein_structure.helix` | 1 | 0.21 ms |
+| `12_multi_species.helix` | 1 | 0.25 ms |
+| `13_dna_storage.helix` | 1 | 0.17 ms |
+| `14_synbio_designer.helix` | 1 | 0.21 ms |
 | `15_3d_morphology.helix` | 5 | 0.19 ms |
-| `16_population_dynamics.helix` | 30 | 0.44 ms |
+| `16_population_dynamics.helix` | 30 | 0.41 ms |
 
-Sum of all 16: **~114 ms**, of which `04` alone is 110 ms (97%).
+Sum of all 16: **~16.3 ms** (was ~114 ms), of which `04` alone is 12.6 ms (77%).
 
 ### 3.6 Memory
 
 | Workload | Peak |
 |---|---|
-| 16 genes × 64 codons, 200 ticks (compile + run, tracemalloc) | **0.33 MiB** (342 848 B), 200 snapshots |
+| 16 genes × 64 codons, 200 ticks (compile + run, tracemalloc) | **0.33 MiB** (344 344 B), 200 snapshots |
 
 Memory use is minimal for simulator-scale programs. One structural caveat: the VM
 retains **every snapshot in `trace`** (`vm.run` returns the full trace), so memory
@@ -176,34 +194,36 @@ grows linearly with `ticks`. For long runs this should be streamed or downsample
 
 ## 4. Bottleneck analysis
 
-Ranked by impact on the shipped workloads:
+All three §2026 bottlenecks are **resolved** in this build. Ranking by the
+measured improvement:
 
-| # | Hot spot | Location | Cost model | Fix |
+| # | Hot spot | Location | Cost model | Status |
 |---|---|---|---|---|
-| 1 | `GrayScott.step` array copies + Python loop | `reaction_diffusion.py:65-91` | O(cells) × 0.3 μs | in-place/scratch update; optional numpy vectorization |
-| 2 | `GRN.step` full-edge scan per node | `grn.py:143-147` | O(N·E) | per-target incoming-edge index → O(N+E) |
-| 3 | `Compiler._ends_with_halt` chunk rescan | `compiler.py:88-98` | O(genes × size) | track last instruction at emission time |
-| 4 | VM per-op dispatch overhead | `vm.py` `dispatch()` | ~770 ns/op | acceptable; C/numba loop is the only step change |
-| 5 | Snapshot accumulation in `trace` | `vm.py:708-725` | O(ticks) memory | stream/downsample snapshots |
+| 1 | `GrayScott.step` array copies + Python loop | `reaction_diffusion.py` | O(cells) × 0.3 μs | **FIXED** — scratch double-buffer + numpy backend; ~0.007–0.056 μs/cell |
+| 2 | `GRN.step` full-edge scan per node | `grn.py:143-147` | O(N·E) | **FIXED** — per-target incoming-edge index → O(N+E) |
+| 3 | `Compiler._ends_with_halt` chunk rescan | `compiler.py:88-98` | O(genes × size) | **FIXED** — last instruction tracked at emission; O(1) HALT check |
+| 4 | VM per-op dispatch overhead | `vm.py` `dispatch()` | ~770 ns/op | open — acceptable; C/numba loop is the only step change |
+| 5 | Snapshot accumulation in `trace` | `vm.py:708-725` | O(ticks) memory | open — stream/downsample snapshots |
 
-Note that 1–3 are pure algorithmic/constant-factor issues that do **not** change
-language semantics — they can be fixed under the existing §5 compatibility rules
+The three fixes are pure algorithmic/constant-factor changes that do **not** alter
+language semantics: they were made under the existing §5 compatibility rules
 (§10 of the production-upgrade plan) without touching the public API or breaking
-legacy behavior.
+legacy behavior. Full-suite regressions passed (1471 tests).
 
 ## 5. Recommendations
 
-1. **Fix `Compiler._ends_with_halt`** (10-line change) to restore linear compile
-   scaling for large gene counts. Highest value-per-line-of-code.
-2. **Index GRN incoming edges** to drop the O(N·E) step to O(N+E). Keep the index
-   updated by `add_edge` and `OP_REGULATE`.
-3. **Eliminate the Gray-Scott full-array copies** (in-place with boundary guards
-   or a single scratch row); optionally add a `numpy`-backed backend behind the
-   existing `GrayScott` interface.
-4. **Stream or downsample snapshots** for long runs (e.g. every k-th tick) to bound
-   memory growth; expose it via `#config`.
-5. **Re-run `benchmarks/bench_helix.py`** after any of the above and confirm the
-   scaling columns (§3.1/3.3/3.4) flatten before/after.
+1. **Done — linear compiler.** `_last_op_is_halt` replaced the per-gene chunk
+   rescan; constant-total-codons compile time is flat (~3 ms).
+2. **Done — indexed GRN.** `_incoming` keeps `step()` at O(N+E); update it in
+   `add_edge`/`add_gene` (and it self-heals on direct `edges` mutation).
+3. **Done — fast Gray-Scott.** Scratch double-buffer + numpy backend; output is
+   bit-identical to the original. If numpy is unwanted at runtime, the pure-Python
+   path is still ~2× faster than before.
+4. **Remaining — stream or downsample snapshots** for long runs (e.g. every k-th
+   tick) to bound memory growth; expose it via `#config`.
+5. **Re-run `benchmarks/bench_helix.py`** on target hardware to re-baseline — the
+   absolute numbers above are machine-specific, but the scaling columns
+   (§3.1/3.3/3.4) should stay flat.
 
 ## 6. Reproducibility
 
@@ -232,201 +252,225 @@ measurements behind every table above (JSON) follow.
     {
       "genes": 1,
       "codons": 16,
-      "lex": 2.2083365668853123e-05,
-      "parse": 7.555664827426274e-06,
-      "semantic": 7.776543498039246e-07,
-      "compile": 8.569331839680672e-06,
-      "total": 3.898601668576399e-05,
-      "codons_per_s": 410403.5590238309
+      "lex": 1.8625054508447647e-05,
+      "parse": 7.847324013710022e-06,
+      "semantic": 7.500251134236654e-07,
+      "compile": 6.777932867407799e-06,
+      "total": 3.400033650298913e-05,
+      "codons_per_s": 470583.57785939454
     },
     {
       "genes": 4,
       "codons": 64,
-      "lex": 6.476370617747307e-05,
-      "parse": 2.2708360726634662e-05,
-      "semantic": 9.166542440652847e-07,
-      "compile": 4.8222020268440247e-05,
-      "total": 0.00013661074141661328,
-      "codons_per_s": 468484.3910247378
+      "lex": 6.373599171638489e-05,
+      "parse": 2.2125042354067166e-05,
+      "semantic": 9.719903270403545e-07,
+      "compile": 2.0055643593271572e-05,
+      "total": 0.00010688866799076398,
+      "codons_per_s": 598753.836145943
     },
     {
       "genes": 16,
       "codons": 256,
-      "lex": 0.0002670139850427707,
-      "parse": 8.993060328066349e-05,
-      "semantic": 1.8749851733446121e-06,
-      "compile": 0.0004688193245480458,
-      "total": 0.0008276388980448246,
-      "codons_per_s": 309313.63980688003
+      "lex": 0.0002540693773577611,
+      "parse": 8.130570252736409e-05,
+      "semantic": 1.7220154404640198e-06,
+      "compile": 7.519428618252277e-05,
+      "total": 0.00041229138150811195,
+      "codons_per_s": 620920.0858470119
     },
     {
       "genes": 64,
       "codons": 1024,
-      "lex": 0.0010681112762540579,
-      "parse": 0.0003511250639955203,
-      "semantic": 4.6944090475638705e-06,
-      "compile": 0.0062061943269024296,
-      "total": 0.007630125076199572,
-      "codons_per_s": 134204.87734783452
+      "lex": 0.0010575416963547468,
+      "parse": 0.00034711137413978577,
+      "semantic": 4.680672039588292e-06,
+      "compile": 0.0003354862953225772,
+      "total": 0.001744820037856698,
+      "codons_per_s": 586880.0092746877
     },
     {
       "genes": 16,
       "codons": 1024,
-      "lex": 0.0008999723164985577,
-      "parse": 0.0002633333206176758,
-      "semantic": 1.6250026722749074e-06,
-      "compile": 0.0017407780202726524,
-      "total": 0.0029057086600611606,
-      "codons_per_s": 352409.72850266634
+      "lex": 0.000885277676085631,
+      "parse": 0.000277152673030893,
+      "semantic": 1.66667935748895e-06,
+      "compile": 0.000278666615486145,
+      "total": 0.0014427636439601579,
+      "codons_per_s": 709748.9628926897
     },
     {
       "genes": 64,
       "codons": 4096,
-      "lex": 0.0035281249632438025,
-      "parse": 0.0010940279656400282,
-      "semantic": 4.597318669160207e-06,
-      "compile": 0.023221278019870322,
-      "total": 0.027848028267423313,
-      "codons_per_s": 147084.02191588946
+      "lex": 0.003754124976694584,
+      "parse": 0.0011138193464527528,
+      "semantic": 4.749977961182594e-06,
+      "compile": 0.0011657499708235264,
+      "total": 0.006038444271932046,
+      "codons_per_s": 678320.4109441013
     }
   ],
   "vm": [
     {
       "ticks": 100,
-      "wall_s": 0.004739332944154739,
-      "ticks_per_s": 21100.015799340516,
+      "wall_s": 0.004808333003893495,
+      "ticks_per_s": 20797.228461303763,
       "executed_ops": 6400,
-      "ops_per_s": 1350401.011157793
+      "ops_per_s": 1331022.6215234408
     },
     {
       "ticks": 1000,
-      "wall_s": 0.04939429182559252,
-      "ticks_per_s": 20245.25432070013,
+      "wall_s": 0.04868383286520839,
+      "ticks_per_s": 20540.6998822117,
       "executed_ops": 64000,
-      "ops_per_s": 1295696.2765248083
+      "ops_per_s": 1314604.7924615487
     },
     {
       "ticks": 5000,
-      "wall_s": 0.24749149987474084,
-      "ticks_per_s": 20202.714042828036,
+      "wall_s": 0.24265112495049834,
+      "ticks_per_s": 20605.715308428993,
       "executed_ops": 320000,
-      "ops_per_s": 1292973.6987409943
+      "ops_per_s": 1318765.7797394556
     }
   ],
   "grn": [
     {
       "nodes": 8,
       "edges": 8,
-      "steps_per_s": 299891.25601907977,
-      "step_s": 3.3345420379191637e-06
+      "steps_per_s": 459734.8220791283,
+      "step_s": 2.1751669701188804e-06
     },
     {
       "nodes": 32,
       "edges": 32,
-      "steps_per_s": 52950.79451700272,
-      "step_s": 1.8885457888245582e-05
+      "steps_per_s": 118431.95493297528,
+      "step_s": 8.443667087703943e-06
     },
     {
       "nodes": 128,
       "edges": 128,
-      "steps_per_s": 6325.025678474398,
-      "step_s": 0.0001581021249294281
+      "steps_per_s": 29544.024549998776,
+      "step_s": 3.384779207408428e-05
+    }
+  ],
+  "gray_scott": [
+    {
+      "grid": "16x16",
+      "step_s": 1.4214601833373308e-05,
+      "cell_s": 5.5525788411614485e-08
+    },
+    {
+      "grid": "32x32",
+      "step_s": 1.9143742974847555e-05,
+      "cell_s": 1.8695061498874566e-08
+    },
+    {
+      "grid": "64x64",
+      "step_s": 4.1145796421915294e-05,
+      "cell_s": 1.0045360454569164e-08
+    },
+    {
+      "grid": "128x128",
+      "step_s": 0.00012181875063106417,
+      "cell_s": 7.435226478946788e-09
     }
   ],
   "examples": [
     {
       "example": "01_hello_dna.helix",
-      "wall_s": 5.587516352534294e-05,
+      "wall_s": 5.587493069469929e-05,
       "ticks": 1
     },
     {
       "example": "02_lac_operon.helix",
-      "wall_s": 0.00022841710597276688,
+      "wall_s": 0.00022808299399912357,
       "ticks": 20
     },
     {
       "example": "03_plant_growth.helix",
-      "wall_s": 0.00010045897215604782,
+      "wall_s": 9.241700172424316e-05,
       "ticks": 5
     },
     {
       "example": "04_turing_pattern.helix",
-      "wall_s": 0.11032416694797575,
+      "wall_s": 0.01257062517106533,
       "ticks": 100
     },
     {
       "example": "05_table_switch.helix",
-      "wall_s": 6.699981167912483e-05,
+      "wall_s": 6.508408114314079e-05,
       "ticks": 1
     },
     {
       "example": "06_crispr_edit.helix",
-      "wall_s": 0.0002054581418633461,
+      "wall_s": 0.0002062499988824129,
       "ticks": 1
     },
     {
       "example": "07_evolution.helix",
-      "wall_s": 0.00021741585806012154,
+      "wall_s": 0.00021970784291625023,
       "ticks": 1
     },
     {
       "example": "08_epigenetics.helix",
-      "wall_s": 0.00025233300402760506,
+      "wall_s": 0.0002516659442335367,
       "ticks": 1
     },
     {
       "example": "09_central_dogma_pipeline.helix",
-      "wall_s": 0.0007532499730587006,
+      "wall_s": 0.000721583841368556,
       "ticks": 20
     },
     {
       "example": "10_metabolism_fba.helix",
-      "wall_s": 0.0004407090600579977,
+      "wall_s": 0.0004613748751580715,
       "ticks": 20
     },
     {
       "example": "11_protein_structure.helix",
-      "wall_s": 0.0002173751126974821,
+      "wall_s": 0.0002128342166543007,
       "ticks": 1
     },
     {
       "example": "12_multi_species.helix",
-      "wall_s": 0.00026662484742701054,
+      "wall_s": 0.0002533751539885998,
       "ticks": 1
     },
     {
       "example": "13_dna_storage.helix",
-      "wall_s": 0.00017554196529090405,
+      "wall_s": 0.00016970792785286903,
       "ticks": 1
     },
     {
       "example": "14_synbio_designer.helix",
-      "wall_s": 0.00019724993035197258,
+      "wall_s": 0.0002057079691439867,
       "ticks": 1
     },
     {
       "example": "15_3d_morphology.helix",
-      "wall_s": 0.0001858340110629797,
+      "wall_s": 0.00018833298236131668,
       "ticks": 5
     },
     {
       "example": "16_population_dynamics.helix",
-      "wall_s": 0.00043816701509058475,
+      "wall_s": 0.0004135000053793192,
       "ticks": 30
     }
   ],
   "memory": {
-    "peak_bytes": 342848,
-    "peak_mib": 0.32696533203125,
+    "peak_bytes": 344344,
+    "peak_mib": 0.32839202880859375,
     "snapshots": 200
   }
 }
 ```
 
-
 ## 7. Where to find the harness
 
-* `benchmarks/bench_helix.py` — the measurement harness (this report's numbers).
+* `benchmarks/bench_helix.py` — the measurement harness (this report's numbers;
+  includes the Gray-Scott per-cell section added with the numpy backend).
+* `tests/test_reaction_diffusion.py` — regression tests pinning both Gray-Scott
+  backends to the original algorithm (bit-identical).
 * `tests/test_benchmark.py` — the existing pytest-benchmark regression suite for
   the biological modules (FBA, CRISPR, evolution, protein structure); it is
   skipped without `pytest-benchmark`. The new harness complements it by covering

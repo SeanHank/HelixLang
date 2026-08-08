@@ -106,6 +106,10 @@ class GRN:
     def __init__(self) -> None:
         self.nodes: dict[str, GeneNode] = {}
         self.edges: list[Edge] = []
+        # Per-target incoming-edge index (target -> edges), so ``step()`` is
+        # O(N + E) instead of scanning all edges per node (O(N·E)).
+        self._incoming: dict[str, list[Edge]] = {}
+        self._edge_count = 0
 
     def add_gene(self, name: str, threshold: float,
                  initial_level: float = 0.0,
@@ -129,9 +133,19 @@ class GRN:
         """
         self.nodes[name] = GeneNode(name, threshold, initial_level,
                                     decay, hill_n, kd)
+        self._incoming.setdefault(name, [])
 
     def add_edge(self, source: str, target: str, weight: float) -> None:
         self.edges.append(Edge(source, target, weight))
+        self._incoming.setdefault(target, []).append(self.edges[-1])
+        self._edge_count += 1
+
+    def _rebuild_incoming(self) -> None:
+        """Rebuild the incoming-edge index after direct ``edges`` mutation."""
+        self._incoming = {}
+        for e in self.edges:
+            self._incoming.setdefault(e.target, []).append(e)
+        self._edge_count = len(self.edges)
 
     def set_level(self, name: str, level: float) -> None:
         if name in self.nodes:
@@ -139,12 +153,17 @@ class GRN:
 
     def step(self) -> list[str]:
         """Advance one tick, returning the names of the genes triggered this tick (level > 0.5)."""
+        # In-place weight updates (OP_REGULATE) reuse the same Edge objects, so
+        # the index stays valid; guard against external direct ``edges`` appends.
+        if self._edge_count != len(self.edges):
+            self._rebuild_incoming()
+        incoming = self._incoming
+        nodes = self.nodes
         new_levels: dict[str, float] = {}
-        for name, node in self.nodes.items():
-            inputs = sum(
-                e.weight * self.nodes[e.source].level
-                for e in self.edges if e.target == name
-            )
+        for name, node in nodes.items():
+            inputs: float = 0
+            for e in incoming.get(name, ()):
+                inputs += e.weight * nodes[e.source].level
             if node.hill_n is not None:
                 kd = node.kd if node.kd is not None else node.threshold
                 raw = hill(inputs, node.hill_n, kd)
