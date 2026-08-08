@@ -70,10 +70,10 @@ class Cell:
     divisions: int = 0
     membrane_permeability: int = DEFAULT_MEMBRANE_PERMEABILITY
 
-    def add_protein(self, kind: int, amount: float = 1.0) -> None:
+    def add_protein(self, kind: int | str, amount: float = 1.0) -> None:
         self.proteins[kind] = self.proteins.get(kind, 0.0) + amount
 
-    def consume_protein(self, kind: int, amount: float = 1.0) -> float:
+    def consume_protein(self, kind: int | str, amount: float = 1.0) -> float:
         """Consume a protein and return the amount actually consumed."""
         avail = self.proteins.get(kind, 0.0)
         consumed = min(avail, amount)

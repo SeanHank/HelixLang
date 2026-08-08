@@ -293,7 +293,7 @@ ruff check src tests
 mypy
 ```
 
-- **1447+ test cases**
+- **1467+ test cases**
 - CI matrix: Python 3.11 / 3.13
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 16 `examples/*.helix` covered

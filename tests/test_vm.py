@@ -334,11 +334,36 @@ class TestBehaviorOpcodes:
         vm = _run_chunk(c)
         assert vm.cell.y == -1
 
-    def test_signal_pushes_tuple(self):
+    def test_signal_releases_into_field(self):
+        """SIGNAL releases a quorum-sensing autoinducer into the field."""
         c = Chunk()
-        c.emit(Op.OP_SIGNAL, 7)
+        c.emit(Op.OP_SIGNAL, 0)
+        vm = _make_vm(c)
+        vm.field = GrayScott(n=8)
+        before = vm.field.v[0][0]
+        vm._execute_pending()
+        assert vm.field.v[0][0] > before
+        assert vm._signal_emissions == 1
+
+    def test_signal_channel_scales_amount(self):
+        """A larger signal channel releases a larger amount (capped at 1.0)."""
+        def v_after(ch):
+            c = Chunk()
+            c.emit(Op.OP_SIGNAL, ch)
+            vm = _make_vm(c)
+            vm.field = GrayScott(n=8)
+            vm._execute_pending()
+            return vm.field.v[0][0]
+        assert v_after(3) > v_after(0)
+
+    def test_signal_no_field_counts_emission(self):
+        """SIGNAL without a field still records the emission and leaves no stack residue."""
+        c = Chunk()
+        c.emit(Op.OP_SIGNAL, 2)
         vm = _run_chunk(c)
-        assert vm.stack == [("signal", 7)]
+        assert vm._signal_emissions == 1
+        assert vm.stack == []
+        assert vm.field is None
 
     def test_divide_halves_energy(self):
         c = Chunk()
@@ -512,21 +537,102 @@ class TestMemoryOpcodes:
         vm = _run_chunk(c)
         assert vm.cell.age == 2
 
+    def test_modify_state_two_sets_yellow(self):
+        c = Chunk()
+        c.emit(Op.OP_MODIFY_STATE, 2)
+        vm = _run_chunk(c)
+        assert vm.cell.color == (200, 200, 50)
+
+    def test_modify_state_three_sets_magenta(self):
+        c = Chunk()
+        c.emit(Op.OP_MODIFY_STATE, 3)
+        vm = _run_chunk(c)
+        assert vm.cell.color == (200, 50, 200)
+
 
 class TestRegulateBind:
-    """OP_REGULATE / OP_BIND are no-ops (they read a 1-byte operand)."""
+    """OP_REGULATE / OP_BIND: runtime regulatory rewiring and protein-DNA binding."""
 
-    def test_regulate_noop(self):
-        c = Chunk()
-        c.emit(Op.OP_REGULATE, 5)
-        vm = _run_chunk(c)
-        assert vm.stack == []
+    def _grn_vm(self, chunk):
+        vm = _make_vm(chunk)
+        vm.grn.add_gene("a", threshold=0.5, initial_level=1.0)
+        vm.grn.add_gene("b", threshold=0.5, initial_level=0.0)
+        vm.frames[-1].gene_name = "a"
+        return vm
 
-    def test_bind_noop(self):
+    def test_regulate_adds_activating_edge(self):
+        """REGULATE mode=1 adds a +1.0 edge from the current gene to gene b."""
         c = Chunk()
-        c.emit(Op.OP_BIND, 3)
+        c.emit(Op.OP_REGULATE, 1)
+        vm = self._grn_vm(c)
+        vm._execute_pending()
+        assert len(vm.grn.edges) == 1
+        e = vm.grn.edges[0]
+        assert e.source == "a" and e.target == "b"
+        assert e.weight == 1.0
+        assert vm._regulation_events[0]["weight"] == 1.0
+
+    def test_regulate_inhibit_negative_weight(self):
+        """REGULATE with bit 7 set adds an inhibiting edge (-1.0)."""
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 0x81)   # low nibble 1 -> target b, sign bit -> inhibit
+        vm = self._grn_vm(c)
+        vm._execute_pending()
+        assert len(vm.grn.edges) == 1
+        assert vm.grn.edges[0].weight == -1.0
+
+    def test_regulate_updates_existing_edge(self):
+        """Repeated REGULATE on the same (source, target) updates the weight in place."""
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 1)
+        c.emit(Op.OP_REGULATE, 0x81)
+        vm = self._grn_vm(c)
+        vm._execute_pending()
+        assert len(vm.grn.edges) == 1
+        assert vm.grn.edges[0].weight == -1.0
+
+    def test_regulate_wraps_target_index(self):
+        """The low nibble selects the target by index modulo the node count."""
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 0x0F)   # 15 % 2 == 1 -> gene b
+        vm = self._grn_vm(c)
+        vm._execute_pending()
+        assert vm.grn.edges[0].target == "b"
+
+    def test_regulate_empty_grn_safe(self):
+        """REGULATE with no GRN nodes is a safe no-op."""
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 1)
         vm = _run_chunk(c)
-        assert vm.stack == []
+        assert vm.grn.edges == []
+
+    def test_bind_consumes_protein_and_boosts(self):
+        """BIND consumes one TF unit and boosts the target gene's level."""
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)          # site 1 -> gene b
+        vm = self._grn_vm(c)
+        vm.cell.add_protein("a", 2.0)
+        vm._execute_pending()
+        assert vm.grn.nodes["b"].level == 0.5     # 0.0 + BIND_LEVEL_BOOST
+        assert vm.cell.proteins.get("a") == 1.0   # consumed one unit
+        assert len(vm._binding_events) == 1
+        assert vm._binding_events[0]["target"] == "b"
+
+    def test_bind_no_protein_no_binding(self):
+        """BIND is protein-limited: no transcription factor, no binding."""
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = self._grn_vm(c)
+        vm._execute_pending()
+        assert vm.grn.nodes["b"].level == 0.0
+        assert vm._binding_events == []
+
+    def test_bind_empty_grn_safe(self):
+        """BIND with no GRN nodes is a safe no-op."""
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = _run_chunk(c)
+        assert vm._binding_events == []
 
 
 class TestJumpOpcodes:
@@ -661,6 +767,17 @@ class TestFieldOpcodes:
         after = vm.field.v[0][0]
         assert after > before
 
+    def test_emit_morphogen_id_scales_amount(self):
+        """A higher morphogen ID injects a larger amount than ID 0."""
+        def v_after(m_id):
+            c = Chunk()
+            c.emit(Op.OP_EMIT_MORPHOGEN, m_id)
+            vm = self._make_vm_with_field(c, n=8)
+            vm._execute_pending()
+            return vm.field.v[0][0]
+        assert v_after(255) > v_after(0)
+        assert v_after(3) > v_after(0)
+
     def test_diffuse_no_field_safe(self):
         """DIFFUSE should not crash when there is no field."""
         c = Chunk()
@@ -774,7 +891,9 @@ class TestVmRunIntegration:
             for key in ("tick", "x", "y", "energy", "alive",
                         "proteins", "color", "gene_levels",
                         "morphology_points_count",
-                        "membrane_permeability", "field_total_v"):
+                        "membrane_permeability", "signal_emissions",
+                        "regulation_edges", "binding_events",
+                        "field_total_v"):
                 assert key in snap, f"snapshot missing key {key}"
 
     def test_run_trace_tick_increments(self):

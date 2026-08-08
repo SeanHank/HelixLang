@@ -29,6 +29,40 @@ from helixlang.grn import GRN
 from helixlang.lsystem import LSystem
 from helixlang.reaction_diffusion import GrayScott
 
+# ============================================================================
+# Runtime opcode semantics (gameplay-unit constant registry)
+# ============================================================================
+# Values are dimensionless gameplay units unless cited otherwise. The
+# behaviors these tune were wired in to replace documented no-op stubs;
+# sources are cited at each constant.
+
+#: regulatory-edge weight applied by the runtime ``OP_REGULATE`` opcode.
+#: Grounding: the Jacob & Monod (1961) operon model and Ptashne (2004)
+#: "Genetic Regulatory Networks" — a cell can dynamically rewire its
+#: regulatory graph (e.g. lacI repression) rather than fixing it at
+#: compile time. Sign is set by the operand's sign bit (0 = activate,
+#: 1 = inhibit).
+REGULATE_EDGE_WEIGHT = 1.0
+
+#: expression-level boost applied by one ``OP_BIND`` protein-DNA binding
+#: event (transcription-factor activator). Grounding: Berg & von Hippel
+#: (1987 PNAS) binding specificity and McClure (1985) — a bound activator
+#: raises the target promoter's effective output; binding is protein-limited
+#: (no transcription factor available => no binding).
+BIND_LEVEL_BOOST = 0.5
+
+#: ``OP_EMIT_MORPHOGEN`` injects ``(id + 1) / EMIT_MORPHOGEN_SCALE`` into the
+#: field's V channel (Turing 1952 reaction-diffusion morphogens; Pearson
+#: 1993 measured presets). id=0 keeps a non-zero legacy emission.
+EMIT_MORPHOGEN_SCALE = 256
+
+#: ``OP_SIGNAL`` releases ``SIGNAL_EMISSION_AMOUNT * (1 + ch)`` (capped at
+#: 1.0) of the V channel at the cell position — the quorum-sensing
+#: autoinducer pool read by ``#quorum``. Grounding: Miller & Bassler
+#: (2001), Xavier & Bassler (2003): AI-2 is secreted and sensed at uM
+#: concentrations.
+SIGNAL_EMISSION_AMOUNT = 0.25
+
 
 @dataclass(slots=True)
 class Frame:
@@ -102,8 +136,17 @@ class BioInstructionDispatcher:
                 d = vm._read_u8()
                 vm.cell.move(d)
             case Op.OP_SIGNAL:
+                # Release a signal molecule (quorum-sensing autoinducer)
+                # into the field at the cell position; count every emission
+                # so the event is observable even without a field.
                 ch = vm._read_u8()
-                vm.stack.append(("signal", ch))
+                vm._signal_emissions += 1
+                if vm.field:
+                    vm.field.emit(
+                        vm.cell.x % vm.field.n,
+                        vm.cell.y % vm.field.n,
+                        min(1.0, SIGNAL_EMISSION_AMOUNT * (1 + ch)),
+                    )
             case Op.OP_DIVIDE:
                 vm._read_u8()
                 vm.cell.divide()
@@ -129,12 +172,14 @@ class BioInstructionDispatcher:
                     for _ in range(vm.program.config.react_steps):
                         vm.field.step()
             case Op.OP_EMIT_MORPHOGEN:
-                _m = vm._read_u8()
+                # Morphogen ID scales the injected amount: (id+1)/256,
+                # id=0 keeps the legacy non-zero emission.
+                m_id = vm._read_u8()
                 if vm.field:
                     vm.field.emit(
                         vm.cell.x % vm.field.n,
                         vm.cell.y % vm.field.n,
-                        1.0,
+                        (m_id + 1) / EMIT_MORPHOGEN_SCALE,
                     )
             case Op.OP_READ_MEM:
                 slot = vm._read_u8()
@@ -149,8 +194,67 @@ class BioInstructionDispatcher:
                     vm.cell.color = (100, 200, 50)
                 elif f == 1:
                     vm.cell.age += 1
-            case Op.OP_REGULATE | Op.OP_BIND:
-                vm._read_u8()  # Regulation is driven by GRN data, no-op
+                elif f == 2:
+                    vm.cell.color = (200, 200, 50)
+                elif f == 3:
+                    vm.cell.color = (200, 50, 200)
+            case Op.OP_REGULATE:
+                # Runtime regulatory-edge (re)wiring (Jacob & Monod 1961):
+                # source = the currently-executing gene, target = gene
+                # selected by the low nibble of the operand, sign = bit 7
+                # (0 = activate, 1 = inhibit). The edge is added or, if it
+                # already exists, its weight is updated in place.
+                mode = vm._read_u8()
+                names = list(vm.grn.nodes)
+                if names:
+                    source = (vm.frames[-1].gene_name if vm.frames
+                              else names[0])
+                    if source not in vm.grn.nodes:
+                        source = names[0]
+                    target = names[(mode & 0x0F) % len(names)]
+                    weight = (REGULATE_EDGE_WEIGHT
+                              if not (mode & 0x80)
+                              else -REGULATE_EDGE_WEIGHT)
+                    existing = next(
+                        (e for e in vm.grn.edges
+                         if e.source == source and e.target == target),
+                        None,
+                    )
+                    if existing is not None:
+                        existing.weight = weight
+                    else:
+                        vm.grn.add_edge(source, target, weight)
+                    vm._regulation_events.append({
+                        "tick": vm.tick, "source": source,
+                        "target": target, "weight": weight,
+                    })
+            case Op.OP_BIND:
+                # Protein-DNA binding (Berg & von Hippel 1987): the current
+                # gene's transcription factor binds the target promoter,
+                # consuming one unit of protein and boosting the target's
+                # expression level (protein-limited: no TF, no binding).
+                site = vm._read_u8()
+                names = list(vm.grn.nodes)
+                if names:
+                    binder: str | None = (vm.frames[-1].gene_name
+                                          if vm.frames else None)
+                    tf_kind: str | int | None = None
+                    if binder in vm.cell.proteins:
+                        tf_kind = binder
+                    elif vm.cell.proteins:
+                        tf_kind = next(iter(vm.cell.proteins))
+                    if tf_kind is not None:
+                        consumed = vm.cell.consume_protein(tf_kind, 1.0)
+                        if consumed > 0:
+                            target = names[site % len(names)]
+                            lvl = vm.grn.nodes[target].level
+                            vm.grn.set_level(
+                                target, lvl + BIND_LEVEL_BOOST)
+                            vm._binding_events.append({
+                                "tick": vm.tick, "target": target,
+                                "protein": str(tf_kind),
+                                "boost": BIND_LEVEL_BOOST,
+                            })
             case Op.OP_CALL_GENE:
                 off = vm._read_u16()
                 vm.frames.append(Frame(return_ip=vm.ip, gene_name="<call>"))
@@ -363,6 +467,10 @@ class CellVM:
         self._crispr_edits: list[dict] = []          # CRISPR edit records
         self._epigenetic_marks: list[dict] = []      # epigenetic modification records
         self._evolution_history: list[dict] = []     # evolution event records
+        # Runtime regulation / binding / signal event records (opcode effects)
+        self._regulation_events: list[dict] = []     # OP_REGULATE edge changes
+        self._binding_events: list[dict] = []        # OP_BIND protein-DNA bindings
+        self._signal_emissions: int = 0              # OP_SIGNAL emission count
         self._rng = random.Random(0)
         self._init_subsystems()
         # P2 refactor: instruction dispatch delegated to BioInstructionDispatcher
@@ -609,6 +717,9 @@ class CellVM:
             "gene_levels": {n: nd.level for n, nd in self.grn.nodes.items()},
             "morphology_points_count": len(self.cell.morphology_points),
             "membrane_permeability": self.cell.membrane_permeability,
+            "signal_emissions": self._signal_emissions,
+            "regulation_edges": len(self.grn.edges),
+            "binding_events": len(self._binding_events),
             "field_total_v": self.field.total_v() if self.field else 0.0,
         }
         self.trace.append(snap)
