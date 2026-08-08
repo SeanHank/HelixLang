@@ -35,6 +35,12 @@ FEED_ENERGY_AMOUNT = 10
 MIN_DIVISION_ENERGY = 2
 #: default cell color (white, RGB)
 DEFAULT_CELL_COLOR: tuple[int, int, int] = (255, 255, 255)
+#: membrane permeability scale: 0 = impermeable, MAX = fully permeable
+MAX_MEMBRANE_PERMEABILITY = 255
+#: default membrane permeability. Fully permeable by default so the legacy
+#: unmodeled-membrane ``feed`` behavior is preserved exactly; the
+#: ``OP_BUILD_MEMBRANE`` opcode lowers it, which scales nutrient intake.
+DEFAULT_MEMBRANE_PERMEABILITY = MAX_MEMBRANE_PERMEABILITY
 
 #: gameplay-unit axis summary (see module docstring)
 UNITS: dict[str, str] = {
@@ -62,6 +68,7 @@ class Cell:
     color: tuple[int, int, int] = DEFAULT_CELL_COLOR
     age: int = 0
     divisions: int = 0
+    membrane_permeability: int = DEFAULT_MEMBRANE_PERMEABILITY
 
     def add_protein(self, kind: int, amount: float = 1.0) -> None:
         self.proteins[kind] = self.proteins.get(kind, 0.0) + amount
@@ -89,7 +96,26 @@ class Cell:
         return False
 
     def feed(self, amount: int = FEED_ENERGY_AMOUNT) -> None:
-        self.energy += amount
+        """Energy intake across the membrane, scaled by permeability.
+
+        ``energy += round(amount * permeability / MAX)``: a fully
+        permeable membrane (the default) gains the full ``amount``; an
+        impermeable one gains nothing. The scaling keeps the legacy
+        ``feed`` behavior identical for default cells.
+        """
+        self.energy += round(
+            amount * self.membrane_permeability / MAX_MEMBRANE_PERMEABILITY
+        )
+
+    def set_membrane_permeability(self, value: int) -> None:
+        """Set membrane permeability, clamped to ``[0, MAX_MEMBRANE_PERMEABILITY]``.
+
+        The value models how readily nutrients pass the cell membrane
+        (gameplay units; see the module note). 0 = impermeable,
+        ``MAX_MEMBRANE_PERMEABILITY`` = fully permeable.
+        """
+        self.membrane_permeability = max(
+            0, min(MAX_MEMBRANE_PERMEABILITY, int(value)))
 
     def divide(self) -> bool:
         """Symmetric division: halve the energy, return whether it succeeded."""
@@ -105,4 +131,5 @@ class Cell:
     def dump(self) -> str:
         return (f"Cell({self.name} pos=({self.x},{self.y}) "
                 f"energy={self.energy} alive={self.alive} "
+                f"permeability={self.membrane_permeability} "
                 f"proteins={self.proteins} color={self.color})")

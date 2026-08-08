@@ -287,13 +287,28 @@ class TestBuildOpcodes:
         assert vm.cell.proteins[1] == 2.0
         assert vm.cell.proteins[2] == 1.0
 
-    def test_build_membrane_no_crash(self):
-        """BUILD_MEMBRANE is a placeholder implementation and should not crash."""
+    def test_build_membrane_sets_permeability(self):
+        """BUILD_MEMBRANE sets the cell's membrane permeability from its operand."""
         c = Chunk()
-        c.emit(Op.OP_BUILD_MEMBRANE, 0)
+        c.emit(Op.OP_BUILD_MEMBRANE, 200)
         vm = _run_chunk(c)
-        # No side-effect assertions; only verifies it does not raise
+        assert vm.cell.membrane_permeability == 200
         assert vm.cell.alive is True
+
+    def test_build_membrane_scales_feed(self):
+        """A lowered membrane permeability reduces the energy gained by FEED."""
+        c = Chunk()
+        c.emit(Op.OP_BUILD_MEMBRANE, 0)   # impermeable
+        c.emit(Op.OP_FEED, 0)
+        vm = _run_chunk(c)
+        assert vm.cell.energy == 100      # 100 + round(10 * 0 / 255) == 100
+
+    def test_build_membrane_in_snapshot(self):
+        """The snapshot trace exposes the membrane permeability."""
+        src = "#gene name=mem\nATG GGT TAA\n#end\n#config ticks=1"
+        vm, trace = run_src(src, ticks=1)
+        # GGT = OP_BUILD_MEMBRANE with wobble T=3 -> permeability 3
+        assert trace[-1]["membrane_permeability"] == 3
 
     def test_build_pigment_sets_color(self):
         c = Chunk()
@@ -758,7 +773,8 @@ class TestVmRunIntegration:
         for snap in trace:
             for key in ("tick", "x", "y", "energy", "alive",
                         "proteins", "color", "gene_levels",
-                        "morphology_points_count", "field_total_v"):
+                        "morphology_points_count",
+                        "membrane_permeability", "field_total_v"):
                 assert key in snap, f"snapshot missing key {key}"
 
     def test_run_trace_tick_increments(self):

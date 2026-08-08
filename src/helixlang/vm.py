@@ -93,7 +93,9 @@ class BioInstructionDispatcher:
                 kind = vm._read_u8()
                 vm.cell.add_protein(kind)
             case Op.OP_BUILD_MEMBRANE:
-                vm._read_u8()  # Prototype: membrane permeability change (not yet implemented)
+                # Operand = target membrane permeability (0..255, clamped);
+                # scales nutrient intake via Cell.feed (see Cell.feed).
+                vm.cell.set_membrane_permeability(vm._read_u8())
             case Op.OP_BUILD_PIGMENT:
                 vm.cell.color = (200, 50, 50)
             case Op.OP_MOVE:
@@ -606,6 +608,7 @@ class CellVM:
             "color": self.cell.color,
             "gene_levels": {n: nd.level for n, nd in self.grn.nodes.items()},
             "morphology_points_count": len(self.cell.morphology_points),
+            "membrane_permeability": self.cell.membrane_permeability,
             "field_total_v": self.field.total_v() if self.field else 0.0,
         }
         self.trace.append(snap)

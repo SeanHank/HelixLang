@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.cell import DIRECTIONS, Cell
+from helixlang.cell import (
+    DEFAULT_MEMBRANE_PERMEABILITY,
+    DIRECTIONS,
+    MAX_MEMBRANE_PERMEABILITY,
+    Cell,
+)
 
 # ============================================================================
 # Construction and default values
@@ -28,6 +33,8 @@ class TestCellConstruction:
         assert c.age == 0
         assert c.divisions == 0
         assert c.morphology_points == [(0.0, 0.0)]
+        assert c.membrane_permeability == DEFAULT_MEMBRANE_PERMEABILITY
+        assert c.membrane_permeability == MAX_MEMBRANE_PERMEABILITY
 
     def test_default_slots_length(self):
         c = Cell()
@@ -218,6 +225,54 @@ class TestEnergyAndMove:
         c = Cell(energy=100)
         c.feed(50)
         assert c.energy == 150
+
+
+# ============================================================================
+# Membrane permeability
+# ============================================================================
+
+class TestMembranePermeability:
+    """Verify the membrane permeability model scales nutrient intake."""
+
+    def test_set_permeability(self):
+        c = Cell()
+        c.set_membrane_permeability(200)
+        assert c.membrane_permeability == 200
+
+    def test_set_permeability_clamps_low(self):
+        c = Cell()
+        c.set_membrane_permeability(-10)
+        assert c.membrane_permeability == 0
+
+    def test_set_permeability_clamps_high(self):
+        c = Cell()
+        c.set_membrane_permeability(999)
+        assert c.membrane_permeability == MAX_MEMBRANE_PERMEABILITY
+
+    def test_feed_impermeable_gains_nothing(self):
+        c = Cell(energy=50)
+        c.set_membrane_permeability(0)
+        c.feed(10)
+        assert c.energy == 50
+
+    def test_feed_fully_permeable_gains_full_amount(self):
+        c = Cell(energy=50)
+        c.feed(10)
+        assert c.energy == 60
+
+    def test_feed_half_permeable_gains_half(self):
+        c = Cell(energy=50)
+        c.set_membrane_permeability(128)
+        c.feed(10)
+        assert c.energy == 50 + round(10 * 128 / MAX_MEMBRANE_PERMEABILITY)
+
+    def test_feed_scales_with_permeability(self):
+        low, high = Cell(energy=0), Cell(energy=0)
+        low.set_membrane_permeability(64)
+        high.set_membrane_permeability(255)
+        low.feed(20)
+        high.feed(20)
+        assert low.energy < high.energy
 
 
 # ============================================================================
