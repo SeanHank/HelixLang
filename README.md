@@ -11,7 +11,8 @@ A domain-specific language where biological genetic material is the source, bina
 [Quick Start](#quick-start) ·
 [Examples](#language-examples) ·
 [Architecture](#architecture) ·
-[API](#api--web-visualization)
+[API](#api--web-visualization) ·
+[Documentation](#documentation)
 
 </div>
 
@@ -277,6 +278,39 @@ Main REST endpoints:
 | `POST /api/central-dogma/coupled` | Coupled transcription-translation |
 | `POST /api/evolution/run` | Evolution simulation |
 | `POST /api/debug/*` | Bytecode debugger (breakpoints / stepping / state) |
+
+---
+
+## 📚 Documentation
+
+The full technical documentation lives in [`doc/`](doc/). Reference by reader — all files are kept in sync with the implementation (when docs and code conflict, the code prevails).
+
+### Quick reference to `doc/`
+
+| Document | Audience | What it covers |
+|---|---|---|
+| [`overview.md`](doc/overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
+| [`language-spec.md`](doc/language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
+| [`api-reference.md`](doc/api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
+| [`bio-instructions.md`](doc/bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
+| [`bio-modules.md`](doc/bio-modules.md) | Bio module users | Deep dive on the six biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
+| [`simulation-model.md`](doc/simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
+| [`compiler-design.md`](doc/compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
+| [`engineering-design.md`](doc/engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
+| [`performance-report.md`](doc/performance-report.md) | Performance engineers | Measured bottleneck analysis + scaling behavior of the full pipeline (compile / VM / GRN / reaction-diffusion / memory) |
+| [`production-upgrade.md`](doc/production-upgrade.md) | Maintainers | Plan to replace education-oriented implementations with literature-backed engineering-grade ones, preserving the public API |
+| [`prototype-plan.md`](doc/prototype-plan.md) | Contributors | Prototype milestones, validation cases, test matrix, and future roadmap |
+| [`references.md`](doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
+
+### Suggested reading order
+
+1. **[`overview.md`](doc/overview.md)** — the big picture.
+2. **[`language-spec.md`](doc/language-spec.md)** — how to write programs (codons, genes, annotations, config).
+3. **[`simulation-model.md`](doc/simulation-model.md)** — what happens when a program *runs*.
+4. **[`bio-modules.md`](doc/bio-modules.md)** — the biological machinery, per domain.
+5. **[`api-reference.md`](doc/api-reference.md)** + **[`bio-instructions.md`](doc/bio-instructions.md)** — while you write code.
+6. **[`compiler-design.md`](doc/compiler-design.md)** — if you want to extend the toolchain.
+7. **[`engineering-design.md`](doc/engineering-design.md)** — before touching internals.
 
 ---
 
