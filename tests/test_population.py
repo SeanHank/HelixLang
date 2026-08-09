@@ -4,6 +4,10 @@ import random
 import pytest
 
 from helixlang.population import (
+    DIVISION_ENERGY_THRESHOLD,
+    METABOLIC_COST_PER_STEP,
+    QUORUM_SIGNAL_THRESHOLD,
+    SIGNAL_DIFFUSION_COEFFICIENT,
     CellPopulation,
     PopulationCell,
     PopulationConfig,
@@ -12,6 +16,7 @@ from helixlang.population import (
     quorum_sensing,
     signal_diffusion_step,
 )
+from helixlang.units import signal_to_um
 
 
 def _make_cell(id=0, energy=100.0, x=5, y=5, proteins=None,
@@ -343,3 +348,94 @@ def test_divide_cell_daughters_lineage():
     # division_count incremented
     assert a.division_count == 1
     assert b.division_count == 1
+
+
+# ------------------------------------------------------------------ #
+# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# ------------------------------------------------------------------ #
+def test_gameplay_config_defaults_unchanged():
+    """Compatibility rule: calibrated=False keeps every legacy default."""
+    cfg = PopulationConfig()
+    assert cfg.calibrated is False
+    assert cfg.division_threshold == DIVISION_ENERGY_THRESHOLD == 200.0
+    assert cfg.signal_diffusion == SIGNAL_DIFFUSION_COEFFICIENT == 0.1
+    assert cfg.signal_threshold == QUORUM_SIGNAL_THRESHOLD == 5.0
+    assert cfg.metabolic_cost == METABOLIC_COST_PER_STEP
+
+
+def test_calibrated_config_physical_defaults():
+    """calibrated=True swaps in the physical values for still-default fields."""
+    cfg = PopulationConfig(calibrated=True)
+    assert cfg.calibrated is True
+    assert cfg.division_threshold == pytest.approx(180.0)      # ~20 min rich-medium doubling
+    assert cfg.signal_diffusion == pytest.approx(60.0)         # D at 10 um lattice edge
+    assert cfg.signal_threshold == QUORUM_SIGNAL_THRESHOLD     # count unchanged (5.0 == 10 uM)
+
+
+def test_calibrated_explicit_overrides_win():
+    cfg = PopulationConfig(calibrated=True, division_threshold=123.0,
+                           signal_diffusion=0.25)
+    assert cfg.division_threshold == pytest.approx(123.0)
+    assert cfg.signal_diffusion == pytest.approx(0.25)
+
+
+def test_calibrated_doubling_time_20_ticks():
+    """Newborn cell (100) gains +4/tick; threshold 180 -> first division on tick 20."""
+    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
+                           signaling_enabled=False,
+                           metabolic_cost=0.0, energy_intake=4.0)
+    pop = CellPopulation([_make_cell(id=0, energy=100.0, x=2, y=2)], cfg, seed=3)
+    for _ in range(19):
+        pop.step()
+    assert len(pop.cells) == 1          # 100 + 4*19 = 176 < 180
+    pop.step()
+    assert len(pop.cells) == 2          # 100 + 4*20 = 180 -> divides
+    assert all(c.energy == pytest.approx(90.0) for c in pop.cells)
+
+
+def test_calibrated_cell_energy_stays_gameplay_counts():
+    """Calibrated mode keeps counts as the gameplay budget, not ATP numbers."""
+    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
+                           signaling_enabled=False, division_threshold=1e9,
+                           metabolic_cost=0.0, energy_intake=0.0)
+    pop = CellPopulation([_make_cell(id=0, energy=100.0, x=2, y=2)], cfg)
+    pop.step()
+    assert pop.cells[0].energy == pytest.approx(100.0)
+
+
+def test_calibrated_diffusion_gaussian_spread():
+    """A point source diffuses to the analytical Gaussian: E[r^2] = 4Dt."""
+    size = 101
+    cfg = PopulationConfig(grid_width=size, grid_height=size, calibrated=True)
+    pop = CellPopulation([], cfg)
+    field = [[0.0] * size for _ in range(size)]
+    field[size // 2][size // 2] = 1000.0
+    pop.signal_field = field
+    new = pop._diffuse(cfg)
+    mass = sum(sum(row) for row in new)
+    assert mass == pytest.approx(1000.0, rel=1e-9)             # conserved
+    cy = cx = size // 2
+    var = sum(
+        new[i][j] * ((i - cy) ** 2 + (j - cx) ** 2)
+        for i in range(size) for j in range(size)
+    ) / mass
+    assert var == pytest.approx(4.0 * 60.0, rel=1e-3)          # 4Dt, D=60, t=1
+
+
+def test_calibrated_quorum_cluster_vs_isolate():
+    """A 5-cell cluster accumulates 5.0 == 10 uM AI-2 and activates quorum;
+    an isolated cell stays below threshold."""
+    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
+                           signaling_enabled=True, signal_diffusion=0.0,
+                           division_threshold=1e9,
+                           metabolic_cost=0.0, energy_intake=0.0)
+    cells = [_make_cell(id=i, x=2, y=2, energy=100.0) for i in range(5)]
+    cells.append(_make_cell(id=9, x=8, y=8, energy=100.0))
+    pop = CellPopulation(cells, cfg)
+    pop.step()
+    cluster = [c for c in pop.cells if (c.x, c.y) == (2, 2)]
+    isolate = [c for c in pop.cells if (c.x, c.y) == (8, 8)]
+    assert all(c.proteins.get("quorum", 0.0) > 0.0 for c in cluster)
+    assert all(c.proteins.get("quorum", 0.0) == 0.0 for c in isolate)
+    assert pop.signal_field[2][2] == pytest.approx(5.0)
+    assert signal_to_um(pop.signal_field[2][2]) == pytest.approx(10.0)

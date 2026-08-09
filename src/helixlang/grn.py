@@ -17,11 +17,24 @@ Models:
 Per-gene decay follows measured protein half-lives via
 :func:`decay_from_half_life_ticks` (E. coli protein half-lives median
 ~110 min; Mosteller 1980 J Biol Chem, Helbig 2011 Proteomics 11).
+
+``GRN(calibrated=True)`` (opt-in, see ``doc/gameplay-units-upgrade.md``
+§5.4) defaults genes without an explicit ``decay=`` to
+``decay_from_half_life_ticks(110)`` (~0.994, one tick per minute)
+instead of the legacy universal ``DECAY = 0.7``.  The default
+``calibrated=False`` reproduces today's behavior exactly.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+
+from helixlang.units import (
+    PROTEIN_HALF_LIFE_MEDIAN_TICKS,
+)
+from helixlang.units import (
+    decay_from_half_life_ticks as units_decay_from_half_life_ticks,
+)
 
 
 def sigmoid(x: float) -> float:
@@ -56,23 +69,15 @@ def hill(x: float, n: float, kd: float) -> float:
 def decay_from_half_life_ticks(half_life_ticks: float) -> float:
     """Per-tick decay coefficient from a protein half-life.
 
-    ``decay = 0.5 ** (1 / half_life_ticks)`` is the fraction of protein
-    remaining after one tick given a half-life expressed in ticks
-    (first-order degradation: level halves every ``half_life_ticks``).
+    Re-exported from :mod:`helixlang.units` (the calibration registry);
+    see :func:`helixlang.units.decay_from_half_life_ticks` for the full
+    documentation.
 
     E. coli protein half-lives are ~60-600 min (median ~110 min;
     Mosteller 1980, Helbig 2011), so with one tick per minute a typical
     decay is ~0.994, far slower than the legacy universal 0.7.
-
-    Args:
-        half_life_ticks: protein half-life in simulation ticks
-
-    Returns:
-        decay coefficient in [0, 1)
     """
-    if half_life_ticks <= 0:
-        raise ValueError("half_life_ticks must be > 0")
-    return float(0.5 ** (1.0 / half_life_ticks))
+    return units_decay_from_half_life_ticks(half_life_ticks)
 
 
 @dataclass(slots=True)
@@ -99,17 +104,27 @@ class GRN:
     per-gene ``decay=``. It is a dimensionless heuristic (smaller values
     respond faster); per-gene decay should be derived from measured
     protein half-lives via :func:`decay_from_half_life_ticks`.
+    ``GRN(calibrated=True)`` replaces the universal default with the
+    measured median (110 min half-life => decay ~= 0.994).
     """
 
     DECAY = 0.7  # legacy universal decay (heuristic, not measured)
 
-    def __init__(self) -> None:
+    def __init__(self, calibrated: bool = False) -> None:
         self.nodes: dict[str, GeneNode] = {}
         self.edges: list[Edge] = []
         # Per-target incoming-edge index (target -> edges), so ``step()`` is
         # O(N + E) instead of scanning all edges per node (O(N·E)).
         self._incoming: dict[str, list[Edge]] = {}
         self._edge_count = 0
+        # Calibrated mode (opt-in): genes without an explicit ``decay=``
+        # default to the E. coli median protein half-life (Mosteller 1980,
+        # Helbig 2011) instead of the legacy universal 0.7.
+        self.calibrated = calibrated
+        self._calibrated_decay = (
+            units_decay_from_half_life_ticks(PROTEIN_HALF_LIFE_MEDIAN_TICKS)
+            if calibrated else self.DECAY
+        )
 
     def add_gene(self, name: str, threshold: float,
                  initial_level: float = 0.0,
@@ -169,7 +184,7 @@ class GRN:
                 raw = hill(inputs, node.hill_n, kd)
             else:
                 raw = sigmoid(inputs - node.threshold)
-            decay = node.decay if node.decay is not None else self.DECAY
+            decay = node.decay if node.decay is not None else self._calibrated_decay
             # Decay + new input (not doubled, to avoid self-excitation of genes without inputs)
             blended = decay * node.level + (1 - decay) * raw
             new_levels[name] = max(0.0, min(1.0, blended))

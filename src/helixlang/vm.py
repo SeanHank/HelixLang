@@ -23,10 +23,11 @@ from dataclasses import dataclass
 
 from helixlang.ast_nodes import BioInstruction, Program
 from helixlang.bytecode import Chunk
-from helixlang.cell import Cell
+from helixlang.cell import FEED_ENERGY_AMOUNT, Cell
 from helixlang.codon_table import OP_OPERAND_BYTES, Op
 from helixlang.grn import GRN
 from helixlang.lsystem import LSystem
+from helixlang.population import QUORUM_SIGNAL_THRESHOLD
 from helixlang.reaction_diffusion import GrayScott
 
 # ============================================================================
@@ -62,6 +63,26 @@ EMIT_MORPHOGEN_SCALE = 256
 #: (2001), Xavier & Bassler (2003): AI-2 is secreted and sensed at uM
 #: concentrations.
 SIGNAL_EMISSION_AMOUNT = 0.25
+
+#: ribosome density (ribosomes/100 nt mRNA) used by the central-dogma
+#: pipeline (P0-1.2). Grounding: Ingolia 2009 (in vivo ribosome
+#: profiling) — E. coli ribosomes load at ~1 per 100 nt; the value keeps
+#: the legacy coupling magnitude.  Registered in ``units.CALIBRATED``.
+RIBO_SOME_DENSITY_PER_100NT = 0.1
+
+#: protein-yield coupling gain: ``protein_amount = mrna_level * yield *
+#: aa_count``.  Grounding: Bernstein 2002 — one mRNA makes ~10^2-10^3
+#: proteins over its lifetime; 0.1 is the legacy normalized gain.
+PROTEIN_YIELD_PER_MRNA_AA = 0.1
+
+#: GRN feedback gain: protein abundance raises the gene's level.
+PROTEIN_TO_GRN_GAIN = 0.01
+
+#: morphogen field V concentration -> pigment-gene activation gain.
+MORPHOGEN_TO_GRN_GAIN = 0.1
+
+#: constitutive promoter reference strength (no explicit promoter).
+CONSTITUTIVE_PROMOTER_STRENGTH = 0.5
 
 
 @dataclass(slots=True)
@@ -155,7 +176,7 @@ class BioInstructionDispatcher:
                 vm.cell.die()
             case Op.OP_FEED:
                 vm._read_u8()
-                vm.cell.feed(10)
+                vm.cell.feed(FEED_ENERGY_AMOUNT)
             case Op.OP_GROW_LSYSTEM:
                 _k = vm._read_u8()
                 if vm.lsystems:
@@ -411,7 +432,8 @@ class BioInstructionDispatcher:
     def _handle_quorum(self, inst: BioInstruction) -> None:
         """Handle the #quorum instruction: quorum sensing activates the target gene."""
         vm = self._vm
-        threshold = float(inst.params.get("threshold", 5.0))
+        threshold = float(
+            inst.params.get("threshold", QUORUM_SIGNAL_THRESHOLD))
         activate = inst.params.get("activate", inst.target)
         # Signal field concentration
         if vm.field:
@@ -452,8 +474,11 @@ class CellVM:
         self.ip = 0
         self.stack: list = []
         self.frames: list[Frame] = []
-        self.cell = Cell()
-        self.grn = GRN()
+        # ``#config units=real`` (Tier 3) activates calibrated subsystems:
+        # physical-unit Cell and GRN while keeping all default counts.
+        self._real_units = self.program.config.units == "real"
+        self.cell = Cell(calibrated=self._real_units)
+        self.grn = GRN(calibrated=self._real_units)
         self.lsystems: dict[str, LSystem] = {}
         self.field: GrayScott | None = None
         self.tick = 0
@@ -583,28 +608,30 @@ class CellVM:
             result = translate(
                 transcript,
                 trna_abundance=trna_abundance,
-                ribosome_density=0.1,
+                ribosome_density=RIBO_SOME_DENSITY_PER_100NT,
             )
             # mRNA level (kinetic steady state)
             mrna_level = calculate_mrna_level(transcript, time=float(self.tick + 1))
             self._gene_mrna[gene.name] = mrna_level
             # Update cell proteins (protein molecule count ∝ mRNA × ribosome density)
             if result.protein:
-                protein_amount = mrna_level * 0.1 * len(result.protein)
+                protein_amount = (mrna_level * PROTEIN_YIELD_PER_MRNA_AA
+                                  * len(result.protein))
                 self.cell.proteins[gene.name] = protein_amount
                 # Feedback to GRN: protein abundance raises the gene level
                 if gene.name in self.grn.nodes:
                     self.grn.set_level(
                         gene.name,
                         min(1.0, self.grn.nodes[gene.name].level
-                            + protein_amount * 0.01),
+                            + protein_amount * PROTEIN_TO_GRN_GAIN),
                     )
 
     def _get_promoter_strength(self, promoter_name: str | None) -> float:
         """Get the effective promoter strength (0..1)."""
         if promoter_name is None:
-            return 0.5  # constitutive moderate expression
-        return self._promoter_strengths.get(promoter_name, 0.5)
+            return CONSTITUTIVE_PROMOTER_STRENGTH  # constitutive moderate expression
+        return self._promoter_strengths.get(
+            promoter_name, CONSTITUTIVE_PROMOTER_STRENGTH)
 
     def _get_transcription_factors(self, gene_name: str) -> dict[str, float]:
         """Get the transcription factor effects acting on the gene (from GRN regulatory edges).
@@ -701,7 +728,7 @@ class CellVM:
             v = self.field.v[i][j]
             self.grn.set_level(
                 "pigment",
-                self.grn.nodes["pigment"].level + v * 0.1,
+                self.grn.nodes["pigment"].level + v * MORPHOGEN_TO_GRN_GAIN,
             )
 
     # -------- snapshot --------
@@ -721,5 +748,6 @@ class CellVM:
             "regulation_edges": len(self.grn.edges),
             "binding_events": len(self._binding_events),
             "field_total_v": self.field.total_v() if self.field else 0.0,
+            "units": self.program.config.units,
         }
         self.trace.append(snap)

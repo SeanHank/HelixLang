@@ -14,8 +14,9 @@
 6. [epigenetics — epigenetics](#6-epigenetics--epigenetics)
 7. [evolution — evolution engine](#7-evolution--evolution-engine)
 8. [grn — gene regulatory network](#8-grn--gene-regulatory-network)
-9. [reaction_diffusion — reaction-diffusion](#9-reaction_diffusion--reaction-diffusion)
-10. [lsystem — L-system](#10-lsystem--l-system)
+9. [units — calibration registry](#9-units--calibration-registry)
+10. [reaction_diffusion — reaction-diffusion](#10-reaction_diffusion--reaction-diffusion)
+11. [lsystem — L-system](#11-lsystem--l-system)
 
 ---
 
@@ -74,8 +75,11 @@ transcribe(dna: str, promoter_strength: float = 1.0,
 translate(transcript: Transcript) -> TranslationResult
 
 calculate_mrna_level(transcript: Transcript, time_minutes: float,
-                     degradation_rate: float | None = None
-                     ) -> float
+                     degradation_rate: float | None = None,
+                     units: str = "gameplay") -> float
+    # units="gameplay" (default) returns the dimensionless concentration;
+    # units="real" scales by PROTEINS_PER_MRNA_LIFETIME (the number of
+    # proteins each mRNA is expected to produce over its lifetime).
 
 coupled_transcription_translation(dna: str,
                                   promoter_strength: float = 1.0
@@ -91,7 +95,8 @@ MRNA_HALF_LIFE_MEDIAN_MIN              = 5.0    # Bernstein 2002
 E_COLI_POLY_A_TAIL_LENGTH              = 15
 MAX_TRNA_ABUNDANCE                     = 3500   # CTG
 MAX_INITIATION_FREQUENCY_PER_MIN       = 10.0
-COUPLING_OFFSET_NT                     = 35     # transcription-translation offset
+COUPLING_OFFSET_NT                     = 30     # transcription-translation coupling offset (Miller 1972)
+PROTEINS_PER_MRNA_LIFETIME             = 100.0  # proteins per mRNA per lifetime (units="real")
 ```
 
 ---
@@ -494,20 +499,69 @@ ARABIDOPSIS_NE = 4e5
 ## 8. grn — Gene Regulatory Network
 
 ```python
-from helixlang.grn import GRN, RegulatoryLink
+from helixlang.grn import GRN, decay_from_half_life_ticks
 
 class GRN:
-    def add_gene(self, name: str, basal_rate: float = 0.1) -> None
-    def add_link(self, source: str, target: str,
-                 strength: float, k: float = 1.0) -> None
-    def step(self, dt: float = 0.1) -> dict[str, float]
-        # → {gene: concentration}
-    def get_state(self) -> dict[str, float]
+    DECAY = 0.7            # legacy universal decay (gameplay default)
+
+    def __init__(self, calibrated: bool = False):
+        # calibrated=True: genes without an explicit decay= default to
+        # decay_from_half_life_ticks(110) ~= 0.994 (E. coli median protein
+        # half-life ~110 min; Mosteller 1980, Helbig 2011).
+
+    def add_gene(self, name: str, threshold: float,
+                 initial_level: float = 0.0,
+                 decay: float | None = None,
+                 hill_n: float | None = None,
+                 kd: float | None = None) -> None
+    def add_edge(self, source: str, target: str, weight: float) -> None
+    def step(self) -> list[str]
+        # → names of genes triggered this tick (level > 0.5)
+    def set_level(self, name: str, level: float) -> None
+
+decay_from_half_life_ticks(half_life_ticks: float) -> float
+    # per-tick decay coefficient for a given protein half-life
 ```
 
 ---
 
-## 9. reaction_diffusion — Reaction-Diffusion
+## 9. units — Calibration Registry
+
+```python
+from helixlang.units import CALIBRATED, Calibration
+from helixlang.units import (
+    energy_to_atp, signal_to_um, ticks_to_min,
+    diffusion_to_lattice, diffusion_lattice_to_dx,
+    decay_from_half_life_ticks, decay_to_half_life_ticks,
+)
+
+class Calibration(NamedTuple):
+    physical_value: float    # value in physical units
+    unit: str                # physical unit / citation note
+    citation: str            # literature reference
+    conversion_fn: object | None  # gameplay count -> physical value
+    legacy_default: float    # today's gameplay default (never changed)
+
+CALIBRATED: dict[str, Calibration]
+    # keyed "<module>.<CONSTANT>", one row per gameplay-unit catalog entry
+    # (see doc/gameplay-units-upgrade.md §2). Data-only; no execution on import.
+
+energy_to_atp(energy_units: float) -> float   # 1 unit = 10^7 ATP (Orth 2010)
+signal_to_um(signal_units: float) -> float    # 1 lattice unit = 2 uM AI-2
+ticks_to_min(ticks: float) -> float           # 1 tick = 1 minute
+diffusion_to_lattice(D_um2_s, dt_s, dx_um) -> float
+diffusion_lattice_to_dx(D_um2_s, dt_s, D_lattice) -> float
+decay_from_half_life_ticks(half_life_ticks) -> float
+decay_to_half_life_ticks(decay) -> float
+```
+
+`units=real` (`#config units=real` / `Cell(calibrated=True)` /
+`PopulationConfig(calibrated=True)` / `GRN(calibrated=True)`) activates the
+calibrated values while keeping every gameplay *count* identical.
+
+---
+
+## 10. reaction_diffusion — Reaction-Diffusion
 
 ```python
 from helixlang.reaction_diffusion import (
@@ -527,7 +581,7 @@ PRESETS: dict[str, dict]   # 14 classic parameter sets (Pearson 1993)
 
 ---
 
-## 10. lsystem — L-System
+## 11. lsystem — L-System
 
 ```python
 from helixlang.lsystem import LSystem

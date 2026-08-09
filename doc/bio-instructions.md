@@ -46,6 +46,13 @@ ATG GCT GGT TAA
 #config ticks=<number of ticks> output=<output format>
 ```
 
+`#config` also accepts `units=<gameplay|real>` (default `gameplay`). Set
+`units=real` for physically-calibrated rates: protein half-life ~110 min
+(GRN decay ≈ 0.994/tick), quorum threshold 5.0 = 10 µM AI-2, division
+threshold reachable in ~20 rich-medium minutes, and diffusion recomputed at
+the declared 10 µm lattice edge. Energy counts stay the same either way;
+only the interpretation changes (see `doc/gameplay-units-upgrade.md`).
+
 ### DNA Triplet Rules
 
 - each codon is 3 bases (A/T/G/C)

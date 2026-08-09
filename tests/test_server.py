@@ -170,6 +170,23 @@ def test_run_hello(client):
     assert "alive" in cell
 
 
+def test_run_units_row_gameplay_default(client):
+    r = client.post("/api/run",
+                    json={"source": HELLO_SRC, "table": "standard"})
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["program"]["config"]["units"] == "gameplay"
+
+
+def test_run_units_real_serializes_and_calibrates(client):
+    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=2 units=real"
+    r = client.post("/api/run", json={"source": src, "table": "standard"})
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["program"]["config"]["units"] == "real"
+    assert all(s["units"] == "real" for s in data["trace"])
+
+
 def test_run_with_grn(client):
     r = client.post("/api/run",
                     json={"source": LAC_SRC, "table": "standard"})

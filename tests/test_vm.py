@@ -1,4 +1,6 @@
 """VM unit tests."""
+import pytest
+
 from helixlang.bytecode import Chunk
 from helixlang.cell import Cell
 from helixlang.codon_table import STANDARD_TABLE, Op
@@ -934,3 +936,39 @@ class TestVmRunIntegration:
         vm, _ = run_src(src, ticks=1)
         # abs(-0.7) normalized
         assert vm._promoter_strengths["p"] == 0.7
+
+
+# ------------------------------------------------------------------ #
+# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# ------------------------------------------------------------------ #
+def test_central_dogma_named_constants_match_legacy_literals():
+    """Hardcoded literals were lifted to named constants with identical defaults."""
+    import helixlang.vm as vm
+    assert vm.RIBO_SOME_DENSITY_PER_100NT == 0.1
+    assert vm.PROTEIN_YIELD_PER_MRNA_AA == 0.1
+    assert vm.PROTEIN_TO_GRN_GAIN == 0.01
+    assert vm.MORPHOGEN_TO_GRN_GAIN == 0.1
+    assert vm.CONSTITUTIVE_PROMOTER_STRENGTH == 0.5
+
+
+def test_op_feed_uses_named_constant(monkeypatch):
+    """OP_FEED must feed the module constant, not a hardcoded literal."""
+    import helixlang.vm as vm
+    monkeypatch.setattr(vm, "FEED_ENERGY_AMOUNT", 37.0)
+    src = "#gene name=feeder\nATG GAA TAA\n#end\n#config ticks=1"
+    vm_obj, trace = run_src(src, ticks=1)
+    assert trace[-1]["energy"] == pytest.approx(100.0 + 37.0)
+
+
+def test_snapshot_units_gameplay_default():
+    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=1"
+    vm_obj, trace = run_src(src, ticks=1)
+    assert trace[-1]["units"] == "gameplay"
+
+
+def test_units_real_wires_calibrated_subsystems():
+    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=1 units=real"
+    vm_obj, trace = run_src(src, ticks=1)
+    assert vm_obj.cell.calibrated is True
+    assert vm_obj.grn.calibrated is True
+    assert trace[-1]["units"] == "real"

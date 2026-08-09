@@ -189,7 +189,8 @@ value              := NUMBER | IDENT | STRING
 
 ```
 #config ticks=<n> output=<stdout|png|csv|none> table=<name> \
-        ops_per_tick=<n> react_steps=<n> use_central_dogma=<bool> species=<name>
+        ops_per_tick=<n> react_steps=<n> use_central_dogma=<bool> species=<name> \
+        units=<gameplay|real>
 ```
 
 | Field | Default | Meaning |
@@ -201,6 +202,27 @@ value              := NUMBER | IDENT | STRING
 | `react_steps` | `1` | field steps performed by one `OP_REACT` |
 | `use_central_dogma` | `false` | switch to the central-dogma pipeline (§6.6) |
 | `species` | `ecoli` | species context (`ecoli` / `yeast` / `human`) |
+| `units` | `gameplay` | simulation unit system. `gameplay` (default) preserves the legacy dimensionless counts; `real` opts into the physical calibration of §3.6.1 (110-min protein half-life decay, 10 µM AI-2 quorum, ~20-tick rich-medium doubling, D recomputed at the declared 10 µm lattice edge). Energy *counts* are unchanged; only the meaning/rates change. |
+
+### 3.6.1 Unit system (`units=`)
+
+`units=real` activates the calibration catalog in `helixlang.units.CALIBRATED`
+(documentation: `doc/gameplay-units-upgrade.md`). Every gameplay default is
+preserved — `units=real` only reinterprets them:
+
+| Gameplay quantity | Default | Calibrated meaning |
+|---|---|---|
+| 1 tick | — | 1 minute (Neidhardt 1996) |
+| 1 energy unit | — | 10⁷ ATP molecules (Orth 2010) |
+| cell energy budget | 100 | 10⁹ ATP (a newborn cell) |
+| division threshold | 200 | reachable in ~20 ticks in rich medium (180 with the calibrated +4/tick intake) |
+| quorum signal 5.0 | — | 10 µM AI-2 (Xavier & Bassler 2003) |
+| on-lattice diffusion 0.1 | — | 100 µm²/s at a 245 µm patch; `real` recomputes D ≈ 60 at the declared 10 µm lattice edge via stable sub-steps |
+| GRN decay 0.7 | — | median protein half-life 110 min ⇒ decay ≈ 0.994/tick (Mosteller 1980, Helbig 2011) |
+
+Counts never change (e.g. a calibrated cell still reports `energy=100`); the
+physical interpretation is exposed on traces as a `units: real` row and
+programmatically via `Cell.energy_atp`.
 
 ### 3.7 `#type` — type annotation
 

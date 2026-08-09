@@ -17,6 +17,14 @@ Based on real biology:
    cited (Xavier 2003: 10 uM AI-2).  All such magic numbers are
    registered as named constants below so future calibration is a
    one-line edit.
+
+   **Calibrated mode** (``PopulationConfig(calibrated=True)``, see
+   ``doc/gameplay-units-upgrade.md``): thresholds are derived from
+   :mod:`helixlang.units` — the division threshold is set so a newborn
+   cell reaches it in ~20 ticks rich medium (Neidhardt 1996), the quorum
+   threshold 5.0 is declared as 10 uM AI-2 (Xavier 2003), and the
+   on-lattice diffusion coefficient is recomputed at the declared 10 um
+   lattice edge (D_lattice ~= 60) via stable sub-steps.
 """
 from __future__ import annotations
 
@@ -24,6 +32,8 @@ import math
 import random
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+
+from helixlang.units import CALIBRATED
 
 # numpy is optional (falls back to pure Python if unavailable)
 try:
@@ -60,15 +70,21 @@ METABOLIC_COST_PER_STEP = 1.0
 ENERGY_INTAKE_PER_STEP = 5.0
 #: newborn cell energy (gameplay units)
 POPULATION_CELL_INITIAL_ENERGY = 100.0
+#: AI-2 signal emitted per cell per tick (gameplay units; 1 unit = 2 uM
+#: in calibrated mode, see :mod:`helixlang.units`)
+SIGNAL_EMISSION_PER_STEP = 1.0
 
 #: gameplay-unit axis summary (see module docstring)
 UNITS: dict[str, str] = {
     "energy": "gameplay units (not Joules); thresholds are one-line edits "
-              "via DIVISION_ENERGY_THRESHOLD / DEATH_ENERGY_THRESHOLD",
+              "via DIVISION_ENERGY_THRESHOLD / DEATH_ENERGY_THRESHOLD; "
+              "calibrated mode: 1 unit = 1e7 ATP (Orth 2010)",
     "signal": "dimensionless lattice units; the physically cited AI-2 "
-              "threshold is ~10 uM (Xavier 2003)",
+              "threshold is ~10 uM (Xavier 2003); calibrated mode: "
+              "1 lattice unit = 2 uM",
     "diffusion": "dimensionless on-lattice constant; physical "
-                 "intercellular diffusion ~1e-6 cm^2/s",
+                 "intercellular diffusion ~1e-6 cm^2/s; calibrated mode "
+                 "recomputes at the declared lattice edge (see units.py)",
 }
 
 
@@ -77,7 +93,15 @@ UNITS: dict[str, str] = {
 # ============================================================================
 @dataclass(slots=True)
 class PopulationConfig:
-    """Population simulation config."""
+    """Population simulation config.
+
+    Args:
+        calibrated: opt-in physical calibration (see module docstring).
+            Only fields still holding their gameplay default are replaced
+            by the calibrated values from :data:`helixlang.units.CALIBRATED`;
+            explicit overrides always win.  Default False reproduces the
+            legacy gameplay behavior exactly.
+    """
 
     max_size: int = DEFAULT_MAX_POPULATION_SIZE
     grid_width: int = DEFAULT_GRID_WIDTH
@@ -89,6 +113,21 @@ class PopulationConfig:
     signal_threshold: float = QUORUM_SIGNAL_THRESHOLD
     metabolic_cost: float = METABOLIC_COST_PER_STEP
     energy_intake: float = ENERGY_INTAKE_PER_STEP
+    calibrated: bool = False
+
+    def __post_init__(self) -> None:
+        """Apply calibrated defaults (opt-in, gameplay counts unchanged)."""
+        if not self.calibrated:
+            return
+        reg = CALIBRATED
+        if self.division_threshold == DIVISION_ENERGY_THRESHOLD:
+            self.division_threshold = reg[
+                "population.DIVISION_ENERGY_THRESHOLD"].physical_value
+        if self.signal_diffusion == SIGNAL_DIFFUSION_COEFFICIENT:
+            self.signal_diffusion = reg[
+                "population.SIGNAL_DIFFUSION_COEFFICIENT"].physical_value
+        # QUORUM_SIGNAL_THRESHOLD keeps its count (5.0) but is declared
+        # = 10 uM AI-2 via units.signal_to_um; nothing to reassign here.
 
 
 @dataclass(slots=True)
@@ -340,9 +379,7 @@ class CellPopulation:
         # 2) Signal diffusion
         config = self.config
         if config.signaling_enabled:
-            self.signal_field = signal_diffusion_step(
-                self.signal_field, config.signal_diffusion
-            )
+            self.signal_field = self._diffuse(config)
 
         # 3) quorum sensing + division
         # Each division increases the population by 1; at most (max_size - current alive) divisions are allowed
@@ -371,6 +408,26 @@ class CellPopulation:
         return self.get_statistics()
 
     # -- Metabolism phase (pure Python fallback) --
+    def _diffuse(self, config: PopulationConfig) -> list[list[float]]:
+        """Diffuse the signal field one tick.
+
+        Gameplay mode performs a single explicit 5-point-Laplacian step
+        (stable for ``D <= 0.25``, the legacy semantics).  Calibrated
+        mode realizes the physical D (~60 at the declared 10 um lattice
+        edge, see :data:`helixlang.units.CALIBRATED`) by splitting it
+        into stable sub-steps, so the analytical Gaussian spread matches
+        the calibrated diffusion coefficient without the explicit scheme
+        blowing up.
+        """
+        coeff = config.signal_diffusion
+        if config.calibrated and coeff > 0.25:
+            n = math.ceil(coeff / 0.25)
+            field = self.signal_field
+            for _ in range(n):
+                field = signal_diffusion_step(field, coeff / n)
+            return field
+        return signal_diffusion_step(self.signal_field, coeff)
+
     def _step_metabolism_python(self) -> tuple[list[PopulationCell], int]:
         """Per-cell metabolism + signal emission + death determination (pure Python)."""
         config = self.config
@@ -382,9 +439,9 @@ class CellPopulation:
             cell.age += 1
             cell.energy += config.energy_intake - config.metabolic_cost
             if config.signaling_enabled:
-                cell.signal_emitted += 1.0
+                cell.signal_emitted += SIGNAL_EMISSION_PER_STEP
                 if self._in_bounds(cell.x, cell.y):
-                    self.signal_field[cell.y][cell.x] += 1.0
+                    self.signal_field[cell.y][cell.x] += SIGNAL_EMISSION_PER_STEP
             if cell.energy <= config.death_threshold:
                 cell.alive = False
                 deaths += 1
@@ -431,7 +488,7 @@ class CellPopulation:
         energies += config.energy_intake - config.metabolic_cost
         ages += 1
         if config.signaling_enabled:
-            signals += 1.0
+            signals += SIGNAL_EMISSION_PER_STEP
 
         # 1b) Scatter-accumulate into the signal field (only for cells in bounds)
         if config.signaling_enabled:
@@ -444,7 +501,7 @@ class CellPopulation:
                 np.add.at(
                     sig_field,
                     (ys[in_bounds], xs[in_bounds]),
-                    1.0,
+                    SIGNAL_EMISSION_PER_STEP,
                 )
                 self.signal_field = sig_field.tolist()
 

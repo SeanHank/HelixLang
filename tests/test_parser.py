@@ -52,6 +52,16 @@ def test_config():
     assert prog.config.table == "mito_vertebrate"
 
 
+def test_config_units_default_gameplay():
+    prog = parse("#config ticks=5")
+    assert prog.config.units == "gameplay"
+
+
+def test_config_units_real():
+    prog = parse("#config ticks=5 units=real")
+    assert prog.config.units == "real"
+
+
 def test_lsystem():
     src = "#lsystem name=plant axiom=F rules=0:F->F[+F]F[-F]F angle=25 step=1.0"
     prog = parse(src)

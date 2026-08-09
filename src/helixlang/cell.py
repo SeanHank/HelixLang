@@ -9,10 +9,18 @@
    :mod:`helixlang.metabolism`) are cited at their points of use.  All
    magic numbers are registered as named constants below so future
    calibration against a quantitative model is a one-line edit.
+
+   **Calibrated mode** (``Cell(calibrated=True)``): the same counts are
+   reinterpreted against :mod:`helixlang.units` — 1 energy unit =
+   10^7 ATP molecules (Orth 2010), so a newborn cell holds 10^9 ATP and
+   ``Cell.energy_atp`` reports the ATP count.  Counts are unchanged;
+   only the physical meaning is added.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+from helixlang.units import energy_to_atp
 
 # Directions: 0=N, 1=E, 2=S, 3=W (4-neighborhood, von Neumann)
 DIRECTIONS = [(0, -1), (1, 0), (0, 1), (-1, 0)]
@@ -45,7 +53,8 @@ DEFAULT_MEMBRANE_PERMEABILITY = MAX_MEMBRANE_PERMEABILITY
 #: gameplay-unit axis summary (see module docstring)
 UNITS: dict[str, str] = {
     "energy": "gameplay units (not Joules); threshold calibration is a "
-              "one-line edit via INITIAL_CELL_ENERGY",
+              "one-line edit via INITIAL_CELL_ENERGY; calibrated mode "
+              "reports 1 unit = 1e7 ATP (Orth 2010)",
     "signals": "physical where cited (e.g. Xavier 2003: 10 uM AI-2 in "
                "helixlang.population); dimensionless elsewhere",
     "neighborhood": "4-connected von Neumann lattice",
@@ -54,7 +63,14 @@ UNITS: dict[str, str] = {
 
 @dataclass(slots=True)
 class Cell:
-    """Single-cell state."""
+    """Single-cell state.
+
+    Args:
+        calibrated: when True, energy is reinterpreted against
+            :mod:`helixlang.units` (1 unit = 10^7 ATP molecules, Orth
+            2010); counts are unchanged, ``energy_atp`` exposes the ATP
+            count.  Default False reproduces legacy gameplay units.
+    """
 
     name: str = "cell-0"
     x: int = 0
@@ -69,6 +85,19 @@ class Cell:
     age: int = 0
     divisions: int = 0
     membrane_permeability: int = DEFAULT_MEMBRANE_PERMEABILITY
+    calibrated: bool = False
+
+    @property
+    def energy_atp(self) -> float:
+        """Physical reinterpretation of the energy budget.
+
+        When ``calibrated=True``: the energy count as ATP molecules
+        (1 unit = 10^7 ATP, :data:`helixlang.units.ENERGY_UNIT_ATP`).
+        In gameplay mode the count itself is returned (no claim is made).
+        """
+        if not self.calibrated:
+            return float(self.energy)
+        return energy_to_atp(self.energy)
 
     def add_protein(self, kind: int | str, amount: float = 1.0) -> None:
         self.proteins[kind] = self.proteins.get(kind, 0.0) + amount

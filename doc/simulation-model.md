@@ -96,13 +96,20 @@ With initial `ci.level=0.6, cro.level=0.4`, the system stabilizes at ci ON / cro
 
 ### 2.5 Damping and Decay
 
-To avoid repeated triggering from noise, each tick multiplies all levels by a decay factor `γ = 0.95`:
+To avoid repeated triggering from noise, each tick multiplies all levels by a decay factor `γ = 0.7`:
 
 ```
 level_g = γ * level_g + (1 - γ) * new_input
 ```
 
 This models the balance of "protein degradation + synthesis".
+
+**Calibrated mode** (`units=real` / `GRN(calibrated=True)`, see
+`doc/gameplay-units-upgrade.md` §5.4): genes without an explicit `decay=`
+default to the E. coli median protein half-life of ~110 min (Mosteller 1980,
+Helbig 2011). With one tick per minute, `γ = decay_from_half_life_ticks(110)`
+≈ 0.994 — a calibrated gene still loses half its level after ~110 ticks, and
+an explicit per-gene `decay=` always overrides the universal default.
 
 ---
 
@@ -295,6 +302,28 @@ def run(self, max_ticks):
 ### 6.2 Multicellular Extension
 
 The prototype is single-celled. The multicellular extension creates daughter cells via `OP_DIVIDE`, and the VM maintains a `list[Cell]`; the GRN runs independently in each cell, while the signal field and morphogen field are shared.
+
+### 6.3 Unit System (`units=real`)
+
+By default the simulator runs in **gameplay units** — dimensionless counts
+(energy budget, lattice signal, quorum threshold 5.0). These defaults are
+unchanged by calibration. Setting `#config units=real` (or passing
+`calibrated=True` to `Cell` / `GRN` / `PopulationConfig`) reinterprets the
+same counts with physical meaning, catalogued in
+`helixlang.units.CALIBRATED` (`doc/gameplay-units-upgrade.md`):
+
+| Gameplay quantity | Default | Calibrated meaning |
+|---|---|---|
+| 1 tick | — | 1 minute (Neidhardt 1996) |
+| 1 energy unit | — | 10⁷ ATP molecules (Orth 2010) |
+| cell energy budget | 100 | 10⁹ ATP |
+| division threshold | 200 | ~20 rich-medium minutes (180 at the calibrated +4/tick intake) |
+| quorum threshold 5.0 | — | 10 µM AI-2 (Xavier & Bassler 2003) |
+| signal diffusion 0.1 | — | 100 µm²/s at dx≈245 µm; recomputed D≈60 at the declared 10 µm lattice edge, via stable sub-steps (§4.3) |
+| GRN decay 0.7 | — | 110-min half-life ⇒ ≈0.994/tick (§2.5) |
+
+Calibration never changes energy *counts*; the `energy_atp` property and the
+`units` field on trace snapshots expose the physical interpretation.
 
 ---
 

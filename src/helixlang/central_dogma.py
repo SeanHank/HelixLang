@@ -95,6 +95,12 @@ MAX_INITIATION_FREQUENCY_PER_MIN = 10.0
 # 30 nt / 50 nt/s = 0.6 s (classic Miller 1972 observation)
 COUPLING_OFFSET_NT = 30
 
+# proteins produced per mRNA over its lifetime (Bernstein 2002; E. coli
+# ~10^2-10^3).  Used by the optional ``units="real"`` mode of
+# :func:`calculate_mrna_level` to express yield in molecules (see
+# doc/gameplay-units-upgrade.md §5.5).
+PROTEINS_PER_MRNA_LIFETIME = 100.0
+
 
 # ============================================================================
 # E. coli tRNA abundance table
@@ -617,9 +623,24 @@ def _find_rbs(utr5_dna: str) -> tuple[bool, str, int]:
 # mRNA concentration dynamics
 # ============================================================================
 
+def _scale_mrna_level(level: float, units: str) -> float:
+    """Apply the optional physical-unit scale to an mRNA level.
+
+    - ``"gameplay"`` (default): dimensionless relative concentration
+    - ``"real"``: molecule count via
+      :data:`PROTEINS_PER_MRNA_LIFETIME` (Bernstein 2002)
+    """
+    if units == "gameplay":
+        return level
+    if units == "real":
+        return level * PROTEINS_PER_MRNA_LIFETIME
+    raise ValueError(f"unknown units {units!r}; available: gameplay, real")
+
+
 def calculate_mrna_level(transcript: Transcript,
                         time: float,
-                        degradation_rate: float | None = None
+                        degradation_rate: float | None = None,
+                        units: str = "gameplay"
                         ) -> float:
     """mRNA concentration over time (production + degradation balance).
 
@@ -636,26 +657,32 @@ def calculate_mrna_level(transcript: Transcript,
         degradation_rate: degradation rate (1/min), None computes it
                           from the half-life
             k_deg = ln(2) / t_half
+        units: "gameplay" (default, dimensionless relative concentration)
+            or "real" (molecule count via PROTEINS_PER_MRNA_LIFETIME,
+            Bernstein 2002)
 
     Returns:
         relative mRNA concentration (dimensionless, tending toward the
-        steady-state value)
+        steady-state value) — or molecule count when ``units="real"``
     """
     if degradation_rate is None:
         # derive from the half-life: t_1/2 = ln(2) / k_deg
         if transcript.half_life_minutes <= 0:
             # no degradation -> linear accumulation
-            return transcript.initiation_frequency_per_min * time
+            return _scale_mrna_level(
+                transcript.initiation_frequency_per_min * time, units)
         degradation_rate = math.log(2.0) / transcript.half_life_minutes
     if degradation_rate <= 0:
-        return transcript.initiation_frequency_per_min * time
+        return _scale_mrna_level(
+            transcript.initiation_frequency_per_min * time, units)
     # synthesis rate (mRNA/min)
     synthesis_rate = transcript.initiation_frequency_per_min
     # steady-state concentration
     mrna_ss = synthesis_rate / degradation_rate
     # time evolution (starting from 0, exponentially approaching steady
     # state)
-    return mrna_ss * (1.0 - math.exp(-degradation_rate * time))
+    level = mrna_ss * (1.0 - math.exp(-degradation_rate * time))
+    return _scale_mrna_level(level, units)
 
 
 # ============================================================================
@@ -785,6 +812,7 @@ __all__ = [
     "MAX_TRNA_ABUNDANCE",
     "MAX_INITIATION_FREQUENCY_PER_MIN",
     "COUPLING_OFFSET_NT",
+    "PROTEINS_PER_MRNA_LIFETIME",
     # functions
     "transcribe", "translate", "calculate_mrna_level",
     "coupled_transcription_translation",

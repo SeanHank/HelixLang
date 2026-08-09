@@ -32,6 +32,7 @@ from helixlang.central_dogma import (
     MAX_INITIATION_FREQUENCY_PER_MIN,
     MAX_TRNA_ABUNDANCE,
     MRNA_HALF_LIFE_MEDIAN_MIN,
+    PROTEINS_PER_MRNA_LIFETIME,
     RBS_CONSENSUS,
     RBS_VARIANTS,
     STOP_CODON_EFFICIENCY,
@@ -674,3 +675,30 @@ class TestConstants:
     def test_max_initiation_frequency(self):
         """Maximum initiation frequency 10 mRNA/min."""
         assert MAX_INITIATION_FREQUENCY_PER_MIN == 10.0
+
+
+# ============================================================================
+# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# ============================================================================
+
+class TestCalibratedUnits:
+    """Verifies the units=real mRNA-level scaling (PROTEINS_PER_MRNA_LIFETIME)."""
+
+    def test_constants_verification(self):
+        assert PROTEINS_PER_MRNA_LIFETIME == 100.0
+
+    def test_gameplay_default_unchanged(self):
+        transcript = transcribe("ATGTAA", promoter_strength=1.0)
+        assert calculate_mrna_level(transcript, 10.0) == pytest.approx(
+            calculate_mrna_level(transcript, 10.0, units="gameplay"))
+
+    def test_real_scales_by_protein_lifetime(self):
+        transcript = transcribe("ATGTAA", promoter_strength=1.0)
+        gameplay = calculate_mrna_level(transcript, 10.0)
+        real = calculate_mrna_level(transcript, 10.0, units="real")
+        assert real == pytest.approx(gameplay * PROTEINS_PER_MRNA_LIFETIME)
+
+    def test_unknown_units_raise(self):
+        transcript = transcribe("ATGTAA", promoter_strength=1.0)
+        with pytest.raises(ValueError):
+            calculate_mrna_level(transcript, 10.0, units="bogus")

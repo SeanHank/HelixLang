@@ -139,3 +139,54 @@ def test_hill_gene_kinetics_steady_state():
     # steady state level = activation (decay absorbs)
     assert grn.nodes["tgt"].level == pytest.approx(act, abs=0.02)
     assert grn.nodes["tgt"].level > 0.5
+
+
+# ------------------------------------------------------------------ #
+# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# ------------------------------------------------------------------ #
+def _pure_decay_grn(calibrated: bool):
+    """A GRN whose single gene never activates (pure exponential decay)."""
+    grn = GRN(calibrated=calibrated)
+    grn.add_gene("g", threshold=1e3, initial_level=1.0)
+    return grn
+
+
+def test_gameplay_default_uses_legacy_decay():
+    """calibrated=False keeps today's universal 0.7 decay exactly."""
+    grn = _pure_decay_grn(calibrated=False)
+    assert grn.DECAY == 0.7
+    for _ in range(3):
+        grn.step()
+    assert grn.nodes["g"].level == pytest.approx(0.7 ** 3)
+
+
+def test_calibrated_decay_default_halves_at_110_ticks():
+    """One tick = one minute; E. coli median half-life ~110 min (Mosteller 1980,
+    Helbig 2011) -> level halves after ~110 ticks."""
+    grn = _pure_decay_grn(calibrated=True)
+    for _ in range(110):
+        grn.step()
+    assert grn.nodes["g"].level == pytest.approx(0.5, abs=0.02)
+
+
+def test_calibrated_decay_slow_over_first_ticks():
+    """Calibrated decay is ~0.994/tick, so very little is lost in one tick."""
+    grn = _pure_decay_grn(calibrated=True)
+    grn.step()
+    assert grn.nodes["g"].level == pytest.approx(
+        decay_from_half_life_ticks(110.0), abs=1e-4)
+
+
+def test_calibrated_per_gene_decay_still_overrides():
+    """An explicit per-gene decay= wins over the calibrated universal default."""
+    grn = GRN(calibrated=True)
+    grn.add_gene("g", threshold=1e3, initial_level=1.0, decay=0.5)
+    for _ in range(3):
+        grn.step()
+    assert grn.nodes["g"].level == pytest.approx(0.5 ** 3)
+
+
+def test_calibrated_flag_exposed():
+    assert GRN(calibrated=False).calibrated is False
+    assert GRN(calibrated=True).calibrated is True
+    assert GRN().calibrated is False

@@ -10,9 +10,12 @@ import pytest
 from helixlang.cell import (
     DEFAULT_MEMBRANE_PERMEABILITY,
     DIRECTIONS,
+    INITIAL_CELL_ENERGY,
     MAX_MEMBRANE_PERMEABILITY,
+    MOVE_ENERGY_COST,
     Cell,
 )
+from helixlang.units import energy_to_atp
 
 # ============================================================================
 # Construction and default values
@@ -454,3 +457,35 @@ class TestDirectionsConstant:
         assert DIRECTIONS[1] == (1, 0)   # E
         assert DIRECTIONS[2] == (0, 1)   # S
         assert DIRECTIONS[3] == (-1, 0)  # W
+
+
+# ============================================================================
+# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# ============================================================================
+
+class TestCalibratedCell:
+    """Verify calibrated=True exposes physical-energy metadata."""
+
+    def test_calibrated_defaults_match_gameplay(self):
+        c = Cell(calibrated=True)
+        assert c.energy == INITIAL_CELL_ENERGY == 100.0
+        assert c.membrane_permeability == DEFAULT_MEMBRANE_PERMEABILITY
+
+    def test_energy_atp_gameplay_is_plain_float(self):
+        assert Cell().energy_atp == pytest.approx(INITIAL_CELL_ENERGY)
+
+    def test_energy_atp_calibrated_counts_atp(self):
+        # 100 energy units = 100 * 10^7 = 10^9 ATP
+        assert Cell(calibrated=True).energy_atp == pytest.approx(1e9)
+
+    def test_energy_atp_matches_conversion_fn(self):
+        c = Cell(calibrated=True, energy=42.0)
+        assert c.energy_atp == pytest.approx(energy_to_atp(42.0))
+
+    def test_starved_cell_runs_out_on_schedule(self):
+        c = Cell()
+        for _ in range(int(INITIAL_CELL_ENERGY / MOVE_ENERGY_COST)):
+            c.move(0)
+        assert c.energy == 0.0
+        c.move(0)
+        assert c.energy == 0.0
