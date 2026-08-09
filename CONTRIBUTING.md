@@ -1,0 +1,300 @@
+# Contributing to HelixLang
+
+Thanks for your interest in HelixLang! This project treats **DNA as source code**
+and ships a full compiler → bytecode → VM → simulator pipeline with real
+biological data. Whether you are fixing a typo in the docs, adding a codon-table
+opcode, or contributing a new biological module, your help is welcome.
+
+Please take a moment to read this guide before opening an issue or pull request.
+
+---
+
+## Table of Contents
+
+- [Code of Conduct](#code-of-conduct)
+- [Ground rules](#ground-rules)
+- [Getting started](#getting-started)
+  - [Environment](#environment)
+  - [Installation](#installation)
+- [Where things live](#where-things-live)
+- [Finding something to work on](#finding-something-to-work-on)
+- [Development workflow](#development-workflow)
+  - [Branches](#branches)
+  - [Commit messages](#commit-messages)
+  - [Open a pull request](#open-a-pull-request)
+- [Quality gates](#quality-gates)
+  - [Tests & coverage](#tests--coverage)
+  - [Lint](#lint)
+  - [Type checking](#type-checking)
+  - [Examples smoke test](#examples-smoke-test)
+  - [Continuous integration](#continuous-integration)
+- [Coding conventions](#coding-conventions)
+- [Biological constants & citations](#biological-constants--citations)
+- [Documentation policy](#documentation-policy)
+- [Reviewing and merging](#reviewing-and-merging)
+- [License & contribution terms](#license--contribution-terms)
+
+---
+
+## Code of Conduct
+
+Be respectful and constructive. This project welcomes contributors of all
+levels — from first-time PRs to compiler veterans. Reviewers give actionable,
+kind feedback; authors treat it as a learning opportunity. Harassment or
+abusive behavior is not tolerated.
+
+## Ground rules
+
+- **Preserve the public API.** External behavior (the `#config`/annotation
+  syntax, module-level function signatures, CLI flags, REST endpoints) is
+  stable. Behavior changes must be opt-in or additive.
+- **Never silently change defaults.** Legacy behavior is the compatibility
+  contract. New semantics belong behind new flags, `calibrated=`/`units=`
+  parameters, or clearly documented opt-ins (see the *gameplay-units* upgrade
+  for the pattern).
+- **Data is sourced, not invented.** Every magic number that stands for a
+  biological quantity must carry a citation — see
+  [Biological constants & citations](#biological-constants--citations).
+- **Docs travel with code.** If you change behavior, update the affected
+  `doc/*.md` files in the same pull request.
+
+## Getting started
+
+### Environment
+
+- Python **3.11+** (CI also runs 3.13).
+- A venv or conda environment — anything works, but keep it isolated.
+
+### Installation
+
+```bash
+git clone https://github.com/SeanHank/HelixLang.git
+cd HelixLang
+
+# Editable install with every optional extra
+pip install -e ".[dev,fast,web,bio]"
+```
+
+| Extra | What you get |
+|-------|--------------|
+| `dev` | pytest + pytest-cov (tests & coverage) |
+| `fast` | numpy vectorization (mutation batching, reaction-diffusion) |
+| `web` | Flask visualization frontend (`helixlang --serve`) |
+| `bio` | biopython + reedsolo (physical DNA codec, IUPAC validation) |
+
+The **core compiler/VM has zero hard dependencies** — the standard library
+only. Optional extras are genuinely optional; keep it that way.
+
+## Where things live
+
+```
+src/helixlang/     The package: lexer → parser → semantic → compiler → bytecode → vm
+tests/             pytest suite (37 modules, ~1500 tests) + shared conftest fixtures
+examples/          16 runnable .helix programs (must always compile & run)
+doc/               All technical documentation (kept in sync with the code)
+.github/workflows/ CI: lint / typecheck / test / examples-smoke
+```
+
+Key entry points for contributors:
+
+- `doc/compiler-design.md` — the compilation pipeline, AST, bytecode format.
+- `doc/engineering-design.md` — module interfaces, invariants, error matrix.
+- `doc/language-spec.md` — the authoritative language spec.
+- `doc/api-reference.md` — per-module Python API reference.
+- `tests/conftest.py` — shared fixtures (Flask client, example sources, paths).
+
+## Finding something to work on
+
+- **Issues**: look for `good first issue` / `help wanted` labels.
+- **TODO markers**: `grep -rn "TODO" src tests doc`.
+- **Coverage gaps**: `pytest --cov=helixlang --cov-report=term-missing` and
+  pick an uncovered branch.
+- **Docs drift**: the project prides itself on docs that track the code; a PR
+  that fixes stale docstrings or `doc/*.md` tables is always appreciated.
+
+Not sure where to start? Open an issue describing what you'd like to do before
+writing code — maintainers can point you at the right module and expected
+design.
+
+## Development workflow
+
+### Branches
+
+Fork the repository, then create a focused branch off `main`:
+
+```bash
+git checkout -b fix/quorum-threshold-doc     # fixes
+git checkout -b feat/hill-cooperativity      # features
+git checkout -b docs/update-overview         # documentation
+```
+
+Keep each PR to **one logical change**. Small PRs review faster and are less
+likely to bit-rot.
+
+### Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) — it's the
+style already used in this repo's history:
+
+```
+feat: add Hill-cooperativity regulation mode
+fix: correct diffusion variance in sub-stepped calibrated mode
+doc: document the units=real config option
+test: cover calibrated population doubling time
+```
+
+Include *what* and *why* in the body when it isn't obvious from the subject.
+
+### Open a pull request
+
+1. Push your branch to your fork.
+2. Open a PR against `main`.
+3. Fill in the PR template (what changed, why, how it was tested).
+4. Make sure all [quality gates](#quality-gates) pass locally before requesting
+   review.
+
+## Quality gates
+
+Every PR must pass all four gates. They are exactly what CI runs, so running
+them locally catches issues early.
+
+### Tests & coverage
+
+```bash
+pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80
+```
+
+- Coverage gate is **80%** (the config lives in `pyproject.toml`; current suite
+  measures ~90%+).
+- Run a single file: `pytest tests/test_grn.py`
+- Run a single test: `pytest tests/test_grn.py::test_calibrated_decay_default_halves_at_110_ticks`
+
+**When you add behavior, add tests.** New calibrated modes, opcodes, or bio
+modules must ship with a validation suite that asserts the *physical meaning*
+of the numbers, not just "it doesn't crash".
+
+### Lint
+
+```bash
+ruff check src tests
+```
+
+Rules: `E, F, W, I, UP, B` (see `ruff.toml`), line length 100, imports sorted.
+`E501`/`E741`/`B008` are intentionally disabled — don't re-enable them.
+
+### Type checking
+
+```bash
+mypy
+```
+
+Strict: `disallow_untyped_defs`, `check_untyped_defs`, `warn_return_any`
+(all in `setup.cfg`). Annotate every function you touch. The Flask view module
+(`server.py`) is the single exempted module — keep it that way.
+
+### Examples smoke test
+
+All 16 `examples/*.helix` must compile and run:
+
+```bash
+for f in examples/*.helix; do
+  python -m helixlang "$f" --disassemble >/dev/null || echo "FAIL: $f"
+done
+python -m helixlang examples/01_hello_dna.helix
+```
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs, on every PR:
+
+| Job | Python | Runs |
+|-----|--------|------|
+| `lint` | 3.11 | `ruff check src tests` |
+| `typecheck` | 3.11 | `mypy` |
+| `test` | 3.11 + 3.13 | `pytest --cov=helixlang --cov-fail-under=80` |
+| `examples-smoke` | 3.11 | compile + run all examples |
+
+Green CI is required before merge. If you can't reproduce a CI-only failure,
+mention it in the PR — the matrix runs both supported Python versions.
+
+## Coding conventions
+
+- **Follow the surrounding style.** Match the file you're editing: imports,
+  `"""docstrings"""`, section banners (`# ===...`), and data-driven table
+  layouts.
+- **Type annotations are mandatory** in `src/` (enforced by mypy).
+- **Named constants over magic literals.** Every hard-coded value that has a
+  meaning (energy costs, decay rates, diffusion coefficients, quorum
+  thresholds, coupling gains) belongs in a named module-level constant. The
+  gameplay-units upgrade (`src/helixlang/units.py` + `CALIBRATED`) is the
+  canonical pattern: define the constant, then register its physical meaning.
+- **Stdlib-first core.** `src/helixlang` core must import only the standard
+  library. numpy / biopython / flask are optional extras — gate imports
+  (`try: import numpy as np`), never a hard dependency.
+- **Performance matters.** The suite includes benchmarks (`tests/test_benchmark.py`)
+  and a documented performance report. Avoid O(n²) hot loops; vectorize the
+  big-field paths (`OP_REACT`/`OP_DIFFUSE`, population metabolism).
+- **No dead code.** Delete the code you're replacing; don't leave commented-out
+  alternatives.
+
+## Biological constants & citations
+
+This is the most important convention in HelixLang. The codebase models real
+biology, and every parameter that stands for a physical quantity must be
+**traceable to a published measurement**:
+
+```python
+#: energy required for one cell division (gameplay units; calibrated mode:
+#: 1 unit = 10^7 ATP, Orth 2010)
+DIVISION_ENERGY_THRESHOLD = 200.0
+```
+
+Rules of thumb:
+
+- Cite the *primary* source (first author + year) at the point of definition,
+  and add the full reference to `doc/references.md`.
+- If you can't find a published value, say so explicitly ("gameplay units,
+  not experimentally measured") rather than inventing one.
+- New constants that represent a gameplay quantity also belong in
+  `helixlang/units.py`'s `CALIBRATED` registry with its physical value,
+  unit, citation, and conversion function — see `doc/gameplay-units-upgrade.md`.
+- When you bump a calibrated value, update the calibration *and* its tests
+  together (e.g. a half-life change must be reflected in the
+  `test_calibrated_decay_default_halves_at_110_ticks`-style assertions).
+
+## Documentation policy
+
+The project states: *"docs and code are kept in sync; when they conflict, the
+code prevails."* Practically, that means:
+
+- **Docstrings** describe what a function does and why, with citations for
+  biological constants.
+- **`doc/*.md`** is user- and contributor-facing documentation. Behavior
+  changes must update the affected documents in the same PR:
+  - Language syntax → `doc/language-spec.md`
+  - Bio annotations / `.helix` authoring → `doc/bio-instructions.md`
+  - Simulation semantics → `doc/simulation-model.md`
+  - Python API signatures → `doc/api-reference.md`
+- If you notice stale docs while working on something else, fixing them in the
+  same PR is appreciated — but call it out in the description.
+
+## Reviewing and merging
+
+- PRs need **one approving review** from a maintainer.
+- The reviewer checks: gates green, public API preserved (or intentionally
+  changed with a release note), citations present for new constants, docs
+  updated, tests meaningful.
+- Maintainers follow the same standards as contributors — no rubber-stamping.
+
+## License & contribution terms
+
+HelixLang is licensed under the **GNU Affero General Public License v3.0**
+(`LICENSE`, full text of AGPL-3.0). Copyright © 2026 Sean Hank.
+
+By opening a pull request, you agree that your contribution is offered under
+the project's license (inbound = outbound). If your contribution incorporates
+third-party code or data, ensure its license is compatible with AGPL-3.0 and
+note the attribution in the PR.
+
+Questions about licensing, contributing, or anything else? Open an issue — we
+prefer public discussion so the whole community benefits.

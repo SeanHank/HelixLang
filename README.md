@@ -12,7 +12,9 @@ A domain-specific language where biological genetic material is the source, bina
 [Examples](#language-examples) ·
 [Architecture](#architecture) ·
 [API](#api--web-visualization) ·
-[Documentation](#documentation)
+[Documentation](#documentation) ·
+[Contributing](#contributing) ·
+[License](#license)
 
 </div>
 
@@ -327,7 +329,7 @@ ruff check src tests
 mypy
 ```
 
-- **1467+ test cases**
+- **1500+ test cases**
 - CI matrix: Python 3.11 / 3.13
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 16 `examples/*.helix` covered
@@ -336,14 +338,22 @@ mypy
 
 ## Contributing
 
-Contributions are welcomed! This project follows a standard fork-and-PR workflow.
+Contributions are welcomed! Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — it covers
+the development setup, quality gates (pytest + coverage, ruff, mypy), coding conventions, the
+citation rules for biological constants, and the documentation policy.
 
-1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/SeanHank/HelixLang.git`
-3. **Create a branch**: `git checkout -b feature/my-feature`
-4. **Make changes** 
-5. **Commit** with clear messages
-6. **Open a Pull Request**
+In short: fork the repo, create a branch off `main`, and open a pull request.
+
+```bash
+git clone https://github.com/SeanHank/HelixLang.git
+cd HelixLang
+pip install -e ".[dev,fast,web,bio]"
+pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests && mypy
+```
+
+Before opening a PR, check the [open issues](https://github.com/SeanHank/HelixLang/issues) to
+see if your idea is already being worked on, and make sure the docs are updated alongside any
+behavior change.
 
 ---
 
