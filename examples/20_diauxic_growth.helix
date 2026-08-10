@@ -1,0 +1,67 @@
+# Example 20: Diauxic growth - the lac operon and catabolite repression (Monod 1942; Jacob & Monod 1961)
+# E. coli grown on a mix of glucose and lactose grows in two exponential phases
+# separated by a lag: glucose (the preferred sugar) is consumed first, and the
+# lac operon stays off while glucose is present (catabolite repression); only
+# after glucose is depleted does beta-galactosidase synthesis begin.
+#
+# Molecular logic (Jacob & Monod, J Mol Biol 3:318-356, 1961,
+# DOI:10.1016/S0022-2836(61)80072-7; first described by Monod 1942):
+#   - glucose catabolism keeps cAMP low -> CRP (catabolite activator protein)
+#     cannot bind its DNA site -> the lac promoter is not activated
+#   - with glucose depleted, cAMP rises, CRP-cAMP binds upstream of the lac
+#     promoter and activates transcription of lacZ (beta-galactosidase)
+#   - simultaneously, allolactose (an inducer) inactivates the LacI repressor
+#     bound to the operator; both layers must be relieved for expression
+#   - uninduced lacZ is ~0.1% of fully induced (repression ~1000x, Oehler 1990,
+#     DOI:10.1002/j.1460-2075.1990.tb08199.x)
+#
+# HelixLang declares the two regulatory layers below (LacI repression + CRP-cAMP
+# activation on the same lac promoter). The static GRN cannot model the transient
+# glucose depletion, so the .helix run sits in the repressed steady state and the
+# two-phase expression switch is shown with the Python API below.
+
+#promoter name=p_lac strength=0.6           # lac promoter (CRP-cAMP site + lac operator)
+#promoter name=p_lacI strength=-0.5         # constitutive lacI (regulator gene)
+#promoter name=p_crp strength=-0.5          # constitutive crp (CRP gene)
+
+#gene name=lacI promoter=p_lacI
+ATG GCT GCT TAA
+#end
+
+#gene name=crp promoter=p_crp
+ATG GCT GCT TAA
+#end
+
+#gene name=lacZ promoter=p_lac
+ATG GCT GCT GCT TAA
+#end
+
+#regulate p_lacI -> lacI strength=+0.8
+#regulate p_crp -> crp strength=+0.8
+#regulate lacI -> p_lac strength=-0.9       # LacI repressor binds the operator
+#regulate crp -> p_lac strength=+0.9        # CRP-cAMP activates the lac promoter
+
+# Note: the following is a Python API example of the two-phase expression switch
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.central_dogma import transcribe, calculate_mrna_level
+#
+# lacz = "ATG" + "GCT" * 30 + "TAA"         # beta-galactosidase coding region
+#
+# # Phase 1: glucose present -> low cAMP -> CRP inactive -> lac promoter silent
+# t1 = transcribe(lacz, promoter_strength=0.05)
+# m1 = calculate_mrna_level(t1, time=30.0)
+# # Phase 2: glucose depleted -> CRP-cAMP activates the lac promoter
+# t2 = transcribe(lacz, promoter_strength=0.9)
+# m2 = calculate_mrna_level(t2, time=30.0)
+# # the two promoter strengths illustrate the phase switch; real LacI-mediated
+# # repression of the operator reaches ~1000-1300x via DNA-loop cooperativity
+# # (Oehler 1990, EMBO J 9:973-979)
+# print(f"beta-gal mRNA: glucose phase {m1:.3f} -> lactose phase {m2:.3f} "
+#       f"({m2 / m1:.0f}x induction)")
+#
+# # Population-level diauxic growth curve (two exponential phases with a lag):
+# # reproduce with helixlang.population by switching the energy feed from
+# # "glucose" to "lactose" once the first phase plateaus (Monod 1942).
+
+#config ticks=60 output=stdout

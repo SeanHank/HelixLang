@@ -1,0 +1,64 @@
+# Example 17: The repressilator - synthetic oscillatory network (Elowitz & Leibler 2000)
+# Three repressor genes in a cyclic negative-feedback loop:
+#
+#     LacI represses tetR transcription (PLlacO1 hybrid promoter)
+#     TetR represses cI   transcription (PLtetO1 hybrid promoter)
+#     cI   represses lacI transcription (l PR promoter)
+#
+# Measured parameters (Elowitz & Leibler, Nature 403:335-338, 2000, DOI:10.1038/35002125):
+#   - oscillation period ~150 min (peak-to-peak 160 +/- 40 min, n = 63 cells),
+#     about three times the 50-70 min cell-division time, so the clock state is
+#     transmitted from generation to generation
+#   - repressor stability reduced ~10x by C-terminal ssrA degradation tags
+#     (~60 min half-life untagged -> ~4 min tagged), favouring the oscillatory regime
+#   - the continuous model (Box 1) shows limit cycles for strong, tightly-repressible
+#     promoters with cooperative repression and comparable mRNA/protein decay;
+#     weaker repression relaxes to a stable steady state instead
+#
+# HelixLang maps the network onto a discrete GRN with 1 tick = 1 minute. The
+# #regulate cycle below declares the same negative-feedback topology. Because the
+# discrete, synchronous GRN has no time delays and no basal (leaky) synthesis, it
+# relaxes to the symmetric fixed point rather than oscillating; the sustained limit
+# cycle emerges in the continuous-time model (Elowitz & Leibler 2000, Box 1), so the
+# Python API below sets up the equivalent Hill-kinetics network for scripting.
+
+#promoter name=p_lac_repressed strength=0.9   # PLlacO1: strong, LacI-repressible
+#promoter name=p_tet_repressed strength=0.9   # PLtetO1: strong, TetR-repressible
+#promoter name=p_ci_repressed  strength=0.9   # PR: strong, cI-repressible
+
+#gene name=lacI promoter=p_ci_repressed
+ATG GCT GCT GCT TAA
+#end
+
+#gene name=tetR promoter=p_lac_repressed
+ATG GCT GCT GCT TAA
+#end
+
+#gene name=cI promoter=p_tet_repressed
+ATG GCT GCT GCT TAA
+#end
+
+#regulate lacI -> p_lac_repressed strength=-0.9
+#regulate tetR -> p_tet_repressed strength=-0.9
+#regulate cI -> p_ci_repressed strength=-0.9
+
+# Note: the following is a Python API example of the same network with measured half-lives
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.grn import GRN, decay_from_half_life_ticks
+#
+# grn = GRN(calibrated=True)              # 1 tick = 1 min
+# for name in ("lacI", "tetR", "cI"):
+#     grn.add_gene(name, threshold=0.5,
+#                  initial_level=1.0 if name == "lacI" else 0.0,  # asymmetric seed
+#                  decay=decay_from_half_life_ticks(4.0),         # ssrA-tagged ~4 min
+#                  hill_n=2.0)                                    # cooperative repression
+# grn.add_edge("lacI", "tetR", -0.9)
+# grn.add_edge("tetR", "cI",   -0.9)
+# grn.add_edge("cI",   "lacI", -0.9)
+# trace = [dict((n, nd.level) for n, nd in grn.nodes.items())
+#          for _ in range(300)]
+# # the seeded repressor decays to the fixed point while its targets stay silent;
+# # sustained limit cycles require the continuous-time model (Box 1, Elowitz 2000)
+
+#config ticks=300 output=stdout units=real

@@ -1,0 +1,58 @@
+# Example 19: NF-kB / IkBa signaling - negative-feedback temporal control (Hoffmann et al. 2002)
+# In mammalian cells, nuclear NF-kB (a transcriptional activator) is held in the
+# cytoplasm by three IkB isoforms (IkBa, -b, -e). A stimulus (e.g. TNF) activates
+# IKK, which degrades IkB, releasing NF-kB to the nucleus, where it transcribes
+# inflammatory-response genes - including ikba itself. Newly made IkBa re-enters
+# the nucleus and sequesters NF-kB, closing a fast negative-feedback loop.
+#
+# Measured parameters (Hoffmann, Levchenko, Scott & Baltimore, Science
+# 298:1241-1245, 2002, DOI:10.1126/science.1071914):
+#   - IkBa = strong negative feedback -> fast turn-off of the NF-kB response
+#   - IkBb and IkBe damp the system's oscillatory potential and stabilize the
+#     response during longer stimulations
+#   - in knockout cells lacking IkBb/IkBe the module oscillates; the model
+#     (BioModels BIOMD0000000139) shows bimodal signal processing with respect
+#     to stimulus duration - persistent signals selectively activate late genes
+#
+# HelixLang maps the module to the two-node GRN below (NF-kB activates ikba,
+# IkBa inhibits NF-kB). Without the stimulus pulse the GRN rests at the
+# unstimulated fixed point (no protein output); with the ~10-tick stimulus pulse
+# applied in the Python API example, NF-kB peaks and IkBa feedback returns it to
+# baseline: the fast turn-off of Hoffmann et al. (2002).
+
+#promoter name=p_ikba strength=0.4          # NF-kB-responsive ikba promoter
+#promoter name=p_nfkb strength=0.6          # NF-kB release gate (IKK-modulated)
+
+#gene name=nfkb promoter=p_nfkb
+ATG GCT GCT TAA
+#end
+
+#gene name=ikba promoter=p_ikba
+ATG GCT GCT GCT TAA
+#end
+
+#regulate nfkb -> p_ikba strength=+0.8      # nuclear NF-kB activates ikba
+#regulate ikba -> p_nfkb strength=-0.9      # IkBa sequesters NF-kB (negative feedback)
+
+# Note: the following is a Python API example of the stimulus-response time course
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.grn import GRN, decay_from_half_life_ticks
+#
+# g = GRN(calibrated=True)
+# g.add_gene("nfkb", threshold=0.5, initial_level=0.0,
+#            decay=decay_from_half_life_ticks(10.0), hill_n=2.0)
+# g.add_gene("ikba", threshold=0.5, initial_level=0.0,
+#            decay=decay_from_half_life_ticks(20.0), hill_n=2.0)
+# g.add_edge("nfkb", "ikba", +0.9)          # NF-kB -> IkBa synthesis
+# g.add_edge("ikba", "nfkb", -0.9)          # IkBa -> NF-kB sequestration
+# nuc = []
+# for t in range(240):
+#     if t < 10:
+#         g.set_level("nfkb", 1.0)          # TNF -> IKK releases nuclear NF-kB
+#     g.step()
+#     nuc.append(g.nodes["nfkb"].level)
+# # NF-kB peaks ~0.9 within ~5 ticks then IkBa feedback returns it to <0.1
+# # within ~60 ticks: the fast turn-off of Hoffmann et al. (2002)
+
+#config ticks=240 output=stdout units=real

@@ -1,0 +1,63 @@
+# Example 18: Genetic toggle switch - synthetic bistable memory (Gardner, Cantor & Collins 2000)
+# Two repressors arranged in a mutually inhibitory network form a synthetic,
+# bistable switch: an addressable cellular memory unit.
+#
+# The pIKE-class toggle uses:
+#   Ptrc-2  (LacI-repressible)  driving tetR
+#   PLtetO1 (TetR-repressible)  driving lacI
+# with a GFPmut3 reporter. The switch is flipped between stable states by a
+# transient pulse of IPTG (2 mM, inactivates LacI) or anhydrotetracycline
+# (aTc, 500 ng/ml, inactivates TetR), and then stays in that state for the
+# rest of the culture.
+#
+# Measured parameters (Gardner, Cantor & Collins, Nature 403:339-342, 2000,
+# DOI:10.1038/35002131):
+#   - bistable for 5 of 6 toggle plasmids tested; the monostable variant
+#     (pIKE105) had an unbalanced TetR/PLtetO1 ratio -> promoter balance
+#     determines bistability
+#   - nearly ideal switching threshold: the induction curve crosses the
+#     bifurcation at ~40 uM IPTG (pTAK117)
+#   - ranked promoter transcription efficiencies: PLs1con > Ptrc-2 > PLtetO1
+#   - hysteresis: a 6 h IPTG pulse holds the state for >= 22 h after removal
+#
+# HelixLang declares the mutually inhibitory topology below. Genuine bistability
+# requires the cooperative Hill repression and leaky basal synthesis of Gardner's
+# model equation (1); the discrete GRN without those terms relaxes to a single
+# fixed point from either initial state, so the Python API shows the topology.
+
+#promoter name=p_tet_repressed strength=0.7   # Ptrc-2: strong, LacI-repressible
+#promoter name=p_lac_repressed strength=0.9   # PLtetO1: strong, TetR-repressible
+
+#gene name=lacI promoter=p_tet_repressed
+ATG GCT GCT GCT TAA
+#end
+
+#gene name=tetR promoter=p_lac_repressed
+ATG GCT GCT GCT TAA
+#end
+
+#regulate lacI -> p_lac_repressed strength=-0.9
+#regulate tetR -> p_tet_repressed strength=-0.9
+
+# Note: the following is a Python API example of the toggle topology with inducer pulses
+# --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.grn import GRN, decay_from_half_life_ticks
+#
+# g = GRN(calibrated=True)
+# g.add_gene("lacI", threshold=0.5, initial_level=1.0,
+#            decay=decay_from_half_life_ticks(10.0), hill_n=2.0)
+# g.add_gene("tetR", threshold=0.5, initial_level=0.0,
+#            decay=decay_from_half_life_ticks(10.0), hill_n=2.0)
+# g.add_edge("lacI", "tetR", -0.9)
+# g.add_edge("tetR", "lacI", -0.9)
+# for t in range(120):
+#     if t == 10:      # transient IPTG pulse: inactivates LacI
+#         g.set_level("lacI", 0.0)
+#     if t == 60:      # transient aTc pulse: inactivates TetR
+#         g.set_level("tetR", 0.0)
+#     g.step()
+# # with no leaky basal-synthesis terms both states collapse to the same
+# # fixed point; bistability needs Gardner's equation (1) cooperativity
+
+#config ticks=120 output=stdout
