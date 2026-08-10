@@ -16,6 +16,8 @@ A domain-specific language where biological genetic material is the source, bina
 [Contributing](#contributing) ·
 [License](#license)
 
+![img.png](img.png)
+
 </div>
 
 ---
