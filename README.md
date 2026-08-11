@@ -19,6 +19,9 @@ A domain-specific language where biological genetic material is the source, bina
 
 ![img.png](img.png)
 
+[![PyPI - Version](https://img.shields.io/pypi/v/helixlang)](https://pypi.org/project/helixlang/)
+[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/helixlang)](https://pypi.org/project/helixlang/)
+
 </div>
 
 ---
@@ -51,20 +54,25 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 
 ### Install
 
+HelixLang is published on **PyPI** — install the released package:
+
 ```bash
 # Core (compiler + VM + CLI)
-pip install -e .
+pip install helixlang
 
 # Recommended: install all optional extras
-pip install -e ".[dev,fast,web,bio]"
+pip install "helixlang[fast,web,bio]"
 ```
+
+> The core installs with **zero runtime dependencies** — only the Python standard library.
+> Contributors working from a source checkout instead use `pip install -e ".[dev,fast,web,bio]"` (see [Contributing](#contributing)).
 
 | Extra | Capability | Dependencies |
 |-------|-----------|--------------|
-| `dev` | tests + coverage | pytest, pytest-cov |
 | `fast` | vectorized mutation / reaction-diffusion speedup | numpy |
 | `web` | Flask visualization frontend | flask |
 | `bio` | physical DNA codec + IUPAC validation | biopython, reedsolo |
+| `dev` | tests + coverage (source checkouts) | pytest, pytest-cov |
 
 ### Up and running in 30 seconds
 
@@ -113,7 +121,7 @@ disassembler, and a line debugger, all over Language Server Protocol.
 Install the language server (once, per Python interpreter):
 
 ```bash
-pip install "helixlang[lsp]"
+pip install helixlang-lsp
 ```
 
 Then grab the plugin zip from that repo's [Releases](https://github.com/SeanHank/HelixLang-LSP-Plugin/releases)
