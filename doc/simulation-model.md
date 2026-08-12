@@ -300,7 +300,37 @@ def run(self, max_ticks):
 
 ### 6.2 Multicellular Extension
 
-The prototype is single-celled. The multicellular extension creates daughter cells via `OP_DIVIDE`, and the VM maintains a `list[Cell]`; the GRN runs independently in each cell, while the signal field and morphogen field are shared.
+The population runtime (`population.py`) runs *programmable* cells — not
+just the single-celled prototype. Each `PopulationCell` carries a
+`program` (bytecode chunk), a per-cell `GRN` (deep-copied from the
+template so daughter state stays isolated), and an energy budget; the
+`CellVM`-style dispatch runs per cell under a shared ops budget. The
+shared tick loop is:
+
+```
+metabolism → field diffusion → per-cell GRN → per-cell dispatch
+→ quorum → division → mechanics → environment
+```
+
+1. **Metabolism** — Monod uptake `vmax·S/(Ks+S)` scaled by 38 ATP/glucose
+   depletes the local glucose field (optionally via `DynamicFluxBalance`
+   coupling, documented in `bio-modules.md` §2); `OP_DIVIDE` spawns a real
+   daughter (binary fission, energy split).
+2. **Diffusion** — AI-2 (quorum), glucose, and O₂ fields advance one
+   sub-stepped tick (`environment.py`, flux-conservative, D≤0.25/step;
+   CROMICS crowding reduces D with occupied-neighbor fraction).
+3. **Per-cell GRN + dispatch** — each cell steps its GRN, triggered genes
+   push bytecode frames, and `execute_cell` runs up to `ops_per_tick`
+   instructions (move/signal/feed/divide/die/build/bind/call/jump/stack).
+4. **Quorum** — AI-2 field concentration triggers the quorum behavior
+   (default 10 µM).
+5. **Division** — daughter cells require an empty/neighbor site;
+   mechanics (`shoving`/`force`) clears collisions.
+6. **Trace** — optional streaming of per-cell snapshots (id/x/y/alive/
+   energy/proteins/gene levels) for memory-bounded long runs.
+
+The signal field, morphogen field, and nutrient fields are shared; the
+GRN runs independently in each cell.
 
 ### 6.3 Unit System (always on)
 
@@ -316,6 +346,10 @@ coefficient, and one tick is one minute (`helixlang.units`):
 | division threshold | `1.8e9` | ~20 rich-medium minutes at the +4×10⁷ ATP/tick net intake |
 | quorum threshold | `10.0` | 10 µM AI-2 (Xavier & Bassler 2003) |
 | signal diffusion | `100.0` | 100 µm²/s; converted to D≈60 on the 10 µm lattice edge, via stable sub-steps (§4.3) |
+| glucose diffusion | `600.0` | glucose µm²/s in water (Stewart 2003; CRC Handbook) |
+| O₂ diffusion | `2500.0` | O₂ µm²/s in water (CRC Handbook) |
+| acetate diffusion | `1200.0` | acetate µm²/s (CRC Handbook) |
+| glucose Ks (Monod) | `0.1` | mM, Kovárová-Kovar & Egli 1998 |
 | GRN decay | `≈0.994` | 110-min half-life ⇒ ≈0.994/tick (§2.5) |
 
 ---

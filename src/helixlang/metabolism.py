@@ -39,11 +39,16 @@ References:
 from __future__ import annotations
 
 import json
+import random
 from dataclasses import dataclass
+from itertools import combinations_with_replacement
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from helixlang.errors import BioError
+
+if TYPE_CHECKING:  # pragma: no cover - import-time only
+    from helixlang.environment import Environment
 
 try:
     import numpy as np
@@ -1035,8 +1040,442 @@ class FluxBalanceAnalysis:
 
 
 # ============================================================================
+# Dynamic FBA (dFBA)
+# ============================================================================
+
+# name of the glucose exchange reaction in the curated core model
+_EX_GLC = "EX_glc"
+# exchange reaction that removes accumulated biomass from the medium
+_EX_BIOMASS = "EX_biomass"
+
+
+@dataclass(slots=True)
+class DynamicFBAConfig:
+    """Dynamic FBA batch-culture parameters (Mahadevan et al. 2002).
+
+    Args:
+        dt_h: integration time step (hours)
+        initial_biomass_gdw: starting biomass (gDW/L)
+        initial_glucose_mm: starting glucose concentration (mM)
+        initial_acetate_mm: starting acetate concentration (mM)
+        max_glucose_uptake: maximum glucose uptake rate
+            (mmol/gDW/h); applied as the LP upper bound on the glucose
+            exchange when glucose is saturating
+        glucose_half_saturation_mm: Michaelis-Menten half-saturation Ks
+            for glucose uptake (mM); the instantaneous uptake bound is
+            v_max * S / (Ks + S) after Mahadevan 2002
+        biomass_per_mmol: grams dry weight per mmol of biomass flux;
+            converts the LP biomass flux (mmol/gDW/h) into the specific
+            growth rate mu (1/h)
+        min_biomass: growth floor (gDW/L) used to detect batch
+            exhaustion / stagnation in :meth:`DynamicFluxBalance.run`
+    """
+
+    dt_h: float = 0.25
+    initial_biomass_gdw: float = 0.05
+    initial_glucose_mm: float = 10.0
+    initial_acetate_mm: float = 0.0
+    max_glucose_uptake: float = DEFAULT_GLC_UPTAKE
+    glucose_half_saturation_mm: float = 0.1
+    biomass_per_mmol: float = _BIOMASS_MW
+    min_biomass: float = 1e-9
+
+
+class DynamicFluxBalance:
+    """Dynamic flux balance analysis (Mahadevan et al. 2002).
+
+    Simulates a well-mixed batch culture with an instantaneous FBA LP per
+    time step ("static optimization approach"): the glucose-uptake bound
+    is set from the external substrate via Michaelis-Menten kinetics
+
+        v_glc(t) = v_max * S(t) / (Ks + S(t))
+
+    and the batch ODEs are integrated with forward Euler:
+
+        dX/dt =  mu * X         biomass (gDW/L)
+        dS/dt = -v_glc * X      glucose (mmol/L)
+        dP/dt =  v_secret * X   byproducts lactate/acetate/CO2 (mmol/L)
+
+    with mu = v_biomass / biomass_per_mmol.  As glucose depletes, the
+    uptake bound collapses, growth decelerates and finally stops: the
+    first, fermentative phase of the classic diauxic shift, with overflow
+    acetate accumulating in the medium.
+
+    The reduced 37-reaction core model has no glyoxylate shunt (iCL/MS),
+    so overflow acetate cannot be re-imported for the second growth phase;
+    a full model with the shunt consumes it automatically once glucose is
+    gone.
+
+    The batch pools can be coupled to a :class:`~helixlang.environment.
+    Environment`: :meth:`update_from_environment` reads the local glucose
+    concentration into the batch, :meth:`apply_to_environment` deposits
+    the accumulated acetate back into the medium field.
+    """
+
+    def __init__(
+        self,
+        model: MetabolicModel | None = None,
+        config: DynamicFBAConfig | None = None,
+        fba: FluxBalanceAnalysis | None = None,
+        bound_override: "callable | None" = None,
+    ) -> None:
+        self.config = config or DynamicFBAConfig()
+        self.fba = fba or FluxBalanceAnalysis(model or ECOLI_CORE_MODEL)
+        self._biomass_reaction = self.fba.model.biomass_reaction
+        # dynamic bound hook (T3.2): ``bound_override(time_h, self) ->
+        # dict[reaction_id, bound]`` applied before each LP solve, so the
+        # batch can react to e.g. transcriptomics-guided metabolic
+        # switching (MiMICS 2024) or fluctuating media without changing
+        # the integration loop.
+        self.bound_override = bound_override
+        # secreted byproduct exchange -> external pool name
+        self._byproduct_ex: dict[str, str] = {}
+        self._byproduct_pools: list[str] = []
+        pool_name = {"Lac": "lactate", "Ac": "acetate", "CO2": "co2"}
+        for rid, rxn in self.fba.model.reactions.items():
+            if (rxn.subsystem != "exchange"
+                    or rid in (_EX_GLC, _EX_BIOMASS)):
+                continue
+            for met, coef in rxn.stoichiometry.items():
+                if coef < 0:
+                    pool = pool_name.get(met, met)
+                    self._byproduct_ex[rid] = pool
+                    if pool not in self._byproduct_pools:
+                        self._byproduct_pools.append(pool)
+        self.reset()
+
+    # -------- state --------
+
+    def reset(self) -> None:
+        """Restore the initial batch state and clear the history."""
+        cfg = self.config
+        self.time_h: float = 0.0
+        self.biomass_gdw: float = cfg.initial_biomass_gdw
+        self.glucose_mm: float = cfg.initial_glucose_mm
+        self.byproducts_mm: dict[str, float] = {
+            pool: (cfg.initial_acetate_mm if pool == "acetate" else 0.0)
+            for pool in self._byproduct_pools}
+        self.history: list[dict[str, float]] = []
+        self.last_fluxes: dict[str, float] = {}
+
+    def set_state(self,
+                  biomass_gdw: float | None = None,
+                  glucose_mm: float | None = None,
+                  acetate_mm: float | None = None) -> None:
+        """Override the current batch state (None leaves a value intact)."""
+        if biomass_gdw is not None:
+            self.biomass_gdw = float(biomass_gdw)
+        if glucose_mm is not None:
+            self.glucose_mm = float(glucose_mm)
+        if acetate_mm is not None:
+            self.byproducts_mm["acetate"] = float(acetate_mm)
+
+    # -------- substrate availability --------
+
+    def uptake_bound(self, glucose_mm: float) -> float:
+        """Michaelis-Menten glucose-uptake bound (Mahadevan 2002)."""
+        cfg = self.config
+        if glucose_mm <= 0.0:
+            return 0.0
+        return (cfg.max_glucose_uptake * glucose_mm
+                / (cfg.glucose_half_saturation_mm + glucose_mm))
+
+    def _apply_bounds(self, bounds: dict[str, float]) -> None:
+        """Apply dynamic reaction-bound overrides for the next LP solve.
+
+        ``EX_glc`` overrides the Michaelis-Menten uptake bound; any other
+        reaction id sets that reaction's ``upper_bound`` directly.
+        """
+        for rid, bound in bounds.items():
+            if rid == _EX_GLC:
+                self.fba.set_uptake("GLC", float(bound))
+            elif rid in self.fba.model.reactions:
+                self.fba.model.reactions[rid].upper_bound = float(bound)
+
+    # -------- integration --------
+
+    def step(self, dt_h: float | None = None) -> dict[str, float]:
+        """Solve the instantaneous LP and integrate the batch by one step.
+
+        Returns the state entry appended to :attr:`history` with keys
+        ``time``, ``biomass``, ``glucose``, ``growth_rate``,
+        ``glucose_uptake`` and one key per secreted byproduct.
+        """
+        cfg = self.config
+        dt = cfg.dt_h if dt_h is None else dt_h
+        S = self.glucose_mm
+        self.fba.set_uptake("GLC", self.uptake_bound(S))
+        if self.bound_override is not None:
+            self._apply_bounds(self.bound_override(self.time_h, self))
+        sol = self.fba.solve()
+        self.last_fluxes = sol
+        v_bm = (sol.get(self._biomass_reaction, 0.0)
+                if self._biomass_reaction else 0.0)
+        v_glc = sol.get(_EX_GLC, 0.0)
+        mu = v_bm / cfg.biomass_per_mmol
+        X = self.biomass_gdw
+        removed = min(v_glc * X * dt, S)
+        self.biomass_gdw = X + mu * X * dt
+        self.glucose_mm = S - removed
+        for rid, pool in self._byproduct_ex.items():
+            v = sol.get(rid, 0.0)
+            if v > 0.0:
+                self.byproducts_mm[pool] = (self.byproducts_mm[pool]
+                                            + v * X * dt)
+        self.time_h += dt
+        entry: dict[str, float] = {
+            "time": self.time_h,
+            "biomass": self.biomass_gdw,
+            "glucose": self.glucose_mm,
+            "growth_rate": mu,
+            "glucose_uptake": v_glc,
+        }
+        for pool in self._byproduct_pools:
+            entry[pool] = self.byproducts_mm[pool]
+        self.history.append(entry)
+        return entry
+
+    def run(self,
+            duration_h: float | None = None,
+            max_steps: int = 100000) -> list[dict[str, float]]:
+        """Integrate until ``duration_h`` hours have passed (or, with
+        ``duration_h=None``, until growth stagnates and glucose is gone).
+
+        Returns :attr:`history`.
+        """
+        horizon = (self.time_h + duration_h
+                   if duration_h is not None else None)
+        stagnant = 0
+        steps = 0
+        while (horizon is None or self.time_h + 1e-9 < horizon):
+            if steps >= max_steps:
+                break
+            prev = self.biomass_gdw
+            self.step()
+            steps += 1
+            if self.biomass_gdw - prev < self.config.min_biomass:
+                stagnant += 1
+            else:
+                stagnant = 0
+            if self.glucose_mm < 1e-9 and stagnant >= 4:
+                break
+        return self.history
+
+    # -------- queries --------
+
+    @property
+    def growth_rate(self) -> float:
+        """Most recent specific growth rate (1/h)."""
+        if not self.history:
+            return 0.0
+        return self.history[-1]["growth_rate"]
+
+    def last(self) -> dict[str, float]:
+        """Latest history entry."""
+        return self.history[-1]
+
+    # -------- environment coupling --------
+
+    def update_from_environment(self,
+                                environment: Environment,
+                                x: int | None = None,
+                                y: int | None = None) -> None:
+        """Set the batch glucose from the environment field at (x, y)
+        (default: lattice centre), treating the site as a well-mixed
+        unit of the batch medium."""
+        cx = environment.config.width // 2 if x is None else x
+        cy = environment.config.height // 2 if y is None else y
+        self.glucose_mm = environment.substrate_at(cx, cy, "glucose")
+
+    def apply_to_environment(self,
+                             environment: Environment,
+                             x: int | None = None,
+                             y: int | None = None) -> None:
+        """Deposit the accumulated acetate into the environment's acetate
+        field at (x, y) (default: lattice centre), creating the field on
+        first use."""
+        cx = environment.config.width // 2 if x is None else x
+        cy = environment.config.height // 2 if y is None else y
+        try:
+            field = environment.get_field("acetate")
+        except KeyError:
+            from helixlang.environment import ACETATE_DIFFUSION_UM2_S, ConcentrationField
+            field = ConcentrationField(
+                "acetate", environment.config.width,
+                environment.config.height,
+                ACETATE_DIFFUSION_UM2_S, 0.0)
+            environment.add_field("acetate", field)
+        field.add(cx, cy, self.byproducts_mm.get("acetate", 0.0))
+
+
+# ============================================================================
 # Module exports
 # ============================================================================
+
+# ============================================================================
+# Metabolic proxy (dAMN-style surrogate)
+# ============================================================================
+
+def _poly_features(x: list[float], degree: int) -> list[float]:
+    """Polynomial feature expansion (all monomials up to ``degree``)."""
+    feats = [1.0]
+    for d in range(1, degree + 1):
+        for comb in combinations_with_replacement(range(len(x)), d):
+            v = 1.0
+            for i in comb:
+                v *= x[i]
+            feats.append(v)
+    return feats
+
+
+class MetabolicProxy:
+    """Per-agent metabolic surrogate (dAMN 2025).
+
+    A fitted polynomial proxy that predicts FBA flux outputs from a
+    vector of uptake bounds without re-solving the LP per agent per tick.
+    This is the "surrogate fluxes to stay fast" layer for genome-scale
+    dFBA in large populations (dAMN: dynamic artificial-neural-network
+    surrogate of FBA, iML1515, 2025): fit once on sampled FBA solutions,
+    then predict per agent.
+
+    Args:
+        model: a :class:`MetabolicModel` used to build the FBA solver
+            (default: :data:`ECOLI_CORE_MODEL`).
+        fba: an existing :class:`FluxBalanceAnalysis` (overrides
+            ``model``).
+        features: exchange metabolite names used as model inputs
+            (default: every exchange metabolite in the model).
+        outputs: flux ids predicted (default: biomass + byproduct
+            exchanges).
+        degree: polynomial degree of the fitted surrogate
+            (degree 1 = linear, degree 2 adds squares and interactions).
+        max_uptake: upper range for sampled uptake bounds (default
+            :data:`DEFAULT_GLC_UPTAKE`).
+    """
+
+    def __init__(self,
+                 model: "MetabolicModel | None" = None,
+                 fba: "FluxBalanceAnalysis | None" = None,
+                 features: "list[str] | None" = None,
+                 outputs: "list[str] | None" = None,
+                 degree: int = 2,
+                 max_uptake: float = DEFAULT_GLC_UPTAKE) -> None:
+        self.fba = fba or FluxBalanceAnalysis(model or ECOLI_CORE_MODEL)
+        model = self.fba.model
+        if features is None:
+            features = []
+            for rxn in model.reactions.values():
+                if rxn.subsystem == "exchange" and rxn.id.startswith("EX_"):
+                    mets = [m for m, c in rxn.stoichiometry.items() if c > 0]
+                    if mets:
+                        features.append(mets[0])
+            features = [f for f in features if f != "biomass"]
+        if outputs is None:
+            outputs = []
+            if model.biomass_reaction:
+                outputs.append(model.biomass_reaction)
+            for rid, rxn in model.reactions.items():
+                if (rxn.subsystem == "exchange"
+                        and rid not in (_EX_GLC, _EX_BIOMASS)):
+                    outputs.append(rid)
+            outputs = sorted(set(outputs))
+        if not features:
+            raise ValueError("no exchange features found in the model")
+        self.features = list(features)
+        self.outputs = list(outputs)
+        self.degree = degree
+        self.max_uptake = float(max_uptake)
+        # fitted coefficient vector per output (numpy lstsq path)
+        self.coeffs: dict[str, list[float]] = {}
+        # training samples kept for the nearest-neighbor fallback / QA
+        self._train_x: list[list[float]] = []
+        self._train_y: dict[str, list[float]] = {}
+
+    def _sample_inputs(self, n: int, seed: int) -> list[list[float]]:
+        rng = random.Random(seed)
+        return [[rng.uniform(0.0, self.max_uptake) for _ in self.features]
+                for _ in range(n)]
+
+    def _solve_fluxes(self, x: list[float]) -> dict[str, float]:
+        """Solve FBA with the uptake vector ``x`` (restoring state after)."""
+        saved = dict(self.fba.uptake_limits)
+        for f, v in zip(self.features, x):
+            self.fba.set_uptake(f, v)
+        try:
+            sol = self.fba.solve()
+        finally:
+            self.fba.uptake_limits.clear()
+            self.fba.uptake_limits.update(saved)
+            self.fba.last_solution = None
+        return {o: sol.get(o, 0.0) for o in self.outputs}
+
+    def fit(self, n_samples: int = 200, seed: int = 0) -> "MetabolicProxy":
+        """Fit the surrogate on ``n_samples`` sampled FBA solutions.
+
+        Uses least squares (numpy) with polynomial features when numpy is
+        available; falls back to nearest-neighbor lookup otherwise.
+        """
+        xs = self._sample_inputs(n_samples, seed)
+        ys = [self._solve_fluxes(x) for x in xs]
+        self._train_x = xs
+        self._train_y = {o: [y[o] for y in ys] for o in self.outputs}
+        if _HAS_NUMPY:
+            X = np.array([_poly_features(x, self.degree) for x in xs])
+            for o in self.outputs:
+                self.coeffs[o] = list(
+                    np.linalg.lstsq(X, np.array(self._train_y[o]),
+                                    rcond=None)[0])
+        else:  # pragma: no cover - numpy is a project dependency
+            self.coeffs = {}
+        return self
+
+    def predict(self, uptake: "dict[str, float] | Sequence[float]") -> dict[str, float]:
+        """Predict flux outputs for an uptake-bound vector.
+
+        Accepts either a dict ``{metabolite: bound}`` or a vector ordered
+        like :attr:`features`.
+        """
+        if isinstance(uptake, dict):
+            unknown = [k for k in uptake if k not in self.features]
+            if unknown:
+                raise ValueError(
+                    f"unknown uptake feature(s) {unknown!r}; expected "
+                    f"{self.features!r}")
+            x = [uptake.get(f, 0.0) for f in self.features]
+        else:
+            x = list(uptake)
+        if len(x) != len(self.features):
+            raise ValueError("uptake vector must match features length")
+        if self.coeffs:
+            feats = _poly_features(x, self.degree)
+            out: dict[str, float] = {}
+            for o in self.outputs:
+                v = sum(c * fv for c, fv in zip(self.coeffs[o], feats))
+                rxn = self.fba.model.reactions.get(o)
+                if rxn is not None and rxn.lower_bound >= 0.0:
+                    v = max(0.0, v)  # irreversible flux cannot go negative
+                out[o] = float(v)
+            return out
+        # nearest-neighbor fallback (no numpy)
+        if not self._train_x:
+            raise RuntimeError("MetabolicProxy.fit() must be called first")
+        best, best_d = 0, float("inf")
+        for i, xi in enumerate(self._train_x):
+            d = sum((a - b) ** 2 for a, b in zip(xi, x))
+            if d < best_d:
+                best, best_d = i, d
+        return {o: self._train_y[o][best] for o in self.outputs}
+
+    def rmse(self, n_holdout: int = 50, seed: int = 1) -> dict[str, float]:
+        """Root-mean-square error on ``n_holdout`` freshly sampled points."""
+        xs = self._sample_inputs(n_holdout, seed)
+        ys = [self._solve_fluxes(x) for x in xs]
+        out: dict[str, float] = {}
+        for o in self.outputs:
+            errs = [self.predict(x)[o] - y[o] for x, y in zip(xs, ys)]
+            out[o] = (sum(e * e for e in errs) / len(errs)) ** 0.5
+        return out
+
 
 __all__ = [
     # constants
@@ -1053,6 +1492,9 @@ __all__ = [
     "load_model",
     # solvers
     "FluxBalanceAnalysis",
+    "DynamicFBAConfig",
+    "DynamicFluxBalance",
+    "MetabolicProxy",
     # simplex
     "simplex",
 ]

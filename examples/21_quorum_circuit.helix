@@ -1,0 +1,85 @@
+# Example 21: Quorum circuit - programmable cell-cell communication
+# A population of programmable cells secretes a shared autoinducer and
+# switches on a reporter only once the extracellular signal crosses a
+# density-dependent threshold (quorum sensing; Miller & Bassler 2003,
+# DOI:10.1146/annurev.micro.57.030502.090913).
+#
+# Molecular logic:
+#   - every cell constitutively runs a "signal" gene whose OP_SIGNAL
+#     opcode (codon TCA) releases 0.5 uM of AI-2 into the shared field
+#   - the autoinducer diffuses over the lattice (population signal field)
+#   - once the local AI-2 concentration exceeds the configurable
+#     signal_threshold, the cell activates its reporter response
+#     (quorum_sensing marks cell.proteins["quorum"], the classic
+#     density-dependent switch)
+#   - at low density the field stays below threshold (no response);
+#     past the critical colony size the response turns on almost
+#     synchronously - bacterial communication as a collective decision
+#
+# HelixLang declares the intracellular program below; the multicellular
+# population (signal diffusion, division, death, mechanics) is driven by
+# the Python API shown at the end.
+
+#promoter name=p_signal strength=-0.4     # constitutive signaler
+#promoter name=p_reporter strength=0.7    # quorum-gated reporter
+
+#gene name=signal promoter=p_signal
+ATG TCA TAA
+#end
+
+#gene name=reporter promoter=p_reporter
+ATG GCT GCT TAA
+#end
+
+#regulate p_signal -> signal strength=+0.8
+#regulate p_reporter -> reporter strength=+0.9
+
+# Note: the following is a Python API example of the population-level
+# quorum circuit --- for use in scripts (not .helix annotations) ---
+#
+# from helixlang.compiler import Compiler
+# from helixlang.codon_table import STANDARD_TABLE
+# from helixlang.lexer import Lexer
+# from helixlang.parser import Parser
+# from helixlang.population import (CellPopulation, PopulationCell,
+#                                   PopulationConfig)
+# from helixlang.semantic import SemanticAnalyzer
+#
+# src = open("21_quorum_circuit.helix").read()
+# program = Parser(list(Lexer(src).tokens())).parse()
+# SemanticAnalyzer(program).check()
+# chunk = Compiler(STANDARD_TABLE).compile(program)
+#
+# config = PopulationConfig(
+#     program=program,
+#     chunk=chunk,
+#     grid_width=24,
+#     grid_height=24,
+#     signal_diffusion=0.3,       # AI-2 spreads across the lattice
+#     signal_threshold=20.0,      # quorum switch concentration (uM)
+#     division_threshold=1e9,     # no energy-driven division
+#     metabolic_cost=0.0,
+#     energy_intake=0.0,
+# )
+#
+# def build(density):
+#     n = int(density ** 0.5)               # pack a centered cluster
+#     off = 12 - n // 2
+#     cells = [PopulationCell(id=i, energy=100.0,
+#                             x=off + i % n, y=off + i // n)
+#              for i in range(density)]
+#     return CellPopulation(cells, config)
+#
+# sparse = build(2)     # below the quorum threshold
+# for _ in range(30):
+#     sparse.step()
+# dense = build(81)     # above the critical density
+# for _ in range(30):
+#     dense.step()
+#
+# # density-dependent switch: only the dense colony crosses the threshold
+# assert not sparse.cells[0].proteins.get("quorum", 0.0)
+# assert dense.cells[0].proteins.get("quorum", 0.0) == 1.0
+# print("quorum: 2 cells -> OFF, 81 cells -> ON")
+
+#config ticks=30 output=stdout

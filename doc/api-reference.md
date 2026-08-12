@@ -17,6 +17,8 @@
 9. [units — calibration registry](#9-units--calibration-registry)
 10. [reaction_diffusion — reaction-diffusion](#10-reaction_diffusion--reaction-diffusion)
 11. [lsystem — L-system](#11-lsystem--l-system)
+12. [stochastic — promoter noise & SSA](#12-stochastic--two-state-promoter-noise)
+13. [environment — diffusing nutrient fields](#13-environment--diffusing-nutrient-fields)
 
 ---
 
@@ -157,10 +159,69 @@ def simplex(c: list[float],            # objective coefficients
     #    "x": list[float], "objective": float}
 ```
 
+### Dynamic Flux Balance Analysis (dFBA)
+
+Dynamic batch-culture simulation (Mahadevan et al. 2002, static
+optimization approach). Each step sets the glucose-uptake LP bound from
+the external substrate via Michaelis-Menten kinetics, solves the
+instantaneous FBA, and integrates the batch ODEs with forward Euler:
+
+```
+v_glc(t) = v_max · S(t) / (Ks + S(t))
+dX/dt = μ·X        dS/dt = −v_glc·X        dP/dt = v_secret·X
+```
+
+```python
+@dataclass(slots=True)
+class DynamicFBAConfig:
+    dt_h: float = 0.25                       # integration step (h)
+    initial_biomass_gdw: float = 0.05
+    initial_glucose_mm: float = 10.0
+    initial_acetate_mm: float = 0.0
+    max_glucose_uptake: float = DEFAULT_GLC_UPTAKE
+    glucose_half_saturation_mm: float = 0.1 # Ks (mM)
+    biomass_per_mmol: float = _BIOMASS_MW    # gDW/mmol biomass flux
+    min_biomass: float = 1e-9                # growth floor for stop
+
+class DynamicFluxBalance:
+    def __init__(self,
+                 model: MetabolicModel | None = None,
+                 config: DynamicFBAConfig | None = None,
+                 fba: FluxBalanceAnalysis | None = None)
+    def reset(self) -> None
+    def set_state(self, biomass_gdw=None, glucose_mm=None,
+                  acetate_mm=None) -> None
+    def uptake_bound(self, glucose_mm: float) -> float
+    def step(self, dt_h: float | None = None) -> dict[str, float]
+        # → {"time", "biomass", "glucose", "growth_rate",
+        #    "glucose_uptake", <byproduct pools>}
+    def run(self, duration_h: float | None = None,
+            max_steps: int = 100000) -> list[dict[str, float]]
+    @property
+    def growth_rate(self) -> float
+    def last(self) -> dict[str, float]
+    def update_from_environment(self, environment, x=None, y=None) -> None
+        # → batch glucose from the environment field at (x, y)
+    def apply_to_environment(self, environment, x=None, y=None) -> None
+        # → deposit accumulated acetate into the environment field
+
+    # instance state
+    time_h: float; biomass_gdw: float; glucose_mm: float
+    byproducts_mm: dict[str, float]   # lactate/acetate/co2 pools
+    history: list[dict[str, float]]
+```
+
+Byproduct exchanges are discovered from the model (lactate/acetate/CO₂).
+The reduced 37-reaction core has no glyoxylate shunt, so overflow acetate
+is not re-consumed — the fermentative phase and glucose-exhaustion arrest
+of the classic diauxic shift are reproduced; a model with the shunt
+consumes acetate automatically. When glucose is exhausted, `run()` stops
+growth at the `min_biomass` floor.
+
 ### Prebuilt Model
 
 ```python
-ECOLI_CORE_MODEL: MetabolicModel   # ~24-reaction E. coli core metabolism
+ECOLI_CORE_MODEL: MetabolicModel   # 37-reaction E. coli core metabolism
 ```
 
 ### Constants
@@ -506,11 +567,18 @@ class GRN:
                             # Helbig 2011); genes without an explicit decay=
                             # default to this.
 
+    def __init__(self, noise_enabled: bool = False,
+                 noise_seed: int | None = None)
+        # noise_enabled: per-gene two-state (telegraph) intrinsic noise,
+        # zero-mean Fano-scaled; deterministic default keeps the mean
+        # trajectory unchanged
+
     def add_gene(self, name: str, threshold: float,
                  initial_level: float = 0.0,
                  decay: float | None = None,
                  hill_n: float | None = None,
-                 kd: float | None = None) -> None
+                 kd: float | None = None,
+                 noise: TelegraphPromoter | None = None) -> None
     def add_edge(self, source: str, target: str, weight: float) -> None
     def step(self) -> list[str]
         # → names of genes triggered this tick (level > 0.5)
@@ -519,6 +587,12 @@ class GRN:
 decay_from_half_life_ticks(half_life_ticks: float) -> float
     # per-tick decay coefficient for a given protein half-life
 ```
+
+Noise model (see §stochastic): `noise=` is a `TelegraphPromoter` whose
+stationary variance `Fano·mean/expression_scale` (normalized units) is
+applied as zero-mean additive noise, so the deterministic mean is
+preserved and existing tests stay green. With `noise_enabled=True` and
+no per-gene promoter, a default constitutive-noise promoter is used.
 
 ---
 
@@ -593,6 +667,124 @@ class LSystem:
     def render(self, n: int) -> list[tuple[float, float, float]]
         # → [(x, y, angle), ...] path points
 ```
+
+---
+
+## 12. stochastic — Two-State Promoter Noise
+
+```python
+from helixlang.stochastic import (
+    telegraph_fano_factor, TelegraphPromoter,
+    fano_to_noise_std, gillespie_telegraph,
+)
+
+telegraph_fano_factor(k_on, k_off, burst_size, degradation_rate) -> float
+    # steady-state Fano factor (variance/mean) of the two-state
+    # (telegraph) promoter; == 1 in the constitutive/Poisson limit
+    # (Jones 2014; Rijal 2025)
+
+@dataclass(frozen=True, slots=True)
+class TelegraphPromoter:
+    k_on: float          # OFF -> ON rate (1/min)
+    k_off: float         # ON -> OFF rate (1/min)
+    burst_size: float    # mean transcripts per ON interval
+    degradation_rate: float = 0.14   # 5-min mRNA half-life rate (Bernstein 2002)
+    expression_scale: float = 100.0  # copy number at level = 1.0
+
+    @property
+    def transcription_rate(self) -> float   # r = b * k_off
+    @property
+    def on_fraction(self) -> float           # k_on/(k_on+k_off)
+    def fano_factor(self) -> float
+
+fano_to_noise_std(fano, mean, decay, expression_scale=100.0) -> float
+    # zero-mean noise std that reproduces steady-state Fano factor in the
+    # discrete-time AR(1) GRN update (deterministic mean preserved)
+
+gillespie_telegraph(k_on, k_off, burst_size, degradation_rate,
+                    t_max, n_replicates=2000, seed=None) -> dict
+    # exact continuous-time Gillespie SSA; → {"mean", "variance", "fano"}
+    # of mRNA counts at t_max across independent runs
+```
+
+This module backs `grn.py`'s optional intrinsic noise and the
+`PopulationConfig.noise_enabled`/`noise_seed` toggle for per-cell GRNs
+in `population.py`; it is stdlib-only (no numpy).
+
+---
+
+## 13. environment — Diffusing Nutrient Fields
+
+Extracellular medium with physical diffusion coefficients and Monod
+uptake; the diffusion scheme is the same flux-conservative sub-stepped
+5-point Laplacian used for the AI-2 field (`units.py` conversion,
+`D_lattice ≤ 0.25` per sub-step, zero-flux boundaries).
+
+```python
+from helixlang.environment import (
+    GLUCOSE_DIFFUSION_UM2_S, OXYGEN_DIFFUSION_UM2_S, ACETATE_DIFFUSION_UM2_S,
+    GLUCOSE_HALF_SATURATION_MM, OXYGEN_HALF_SATURATION_MM,
+    BULK_GLUCOSE_MM, BULK_OXYGEN_MM, SITE_VOLUME_L,
+    monod_uptake, michaelis_menten_rate,
+    molecules_per_site, atp_yield,
+    ConcentrationField, EnvironmentConfig, Environment,
+)
+
+GLUCOSE_DIFFUSION_UM2_S = 600.0     # Stewart 2003; CRC Handbook
+OXYGEN_DIFFUSION_UM2_S  = 2500.0    # CRC Handbook
+ACETATE_DIFFUSION_UM2_S = 1200.0    # CRC Handbook (small organic acid)
+GLUCOSE_HALF_SATURATION_MM = 0.1    # Ks, Kovárová-Kovar & Egli 1998
+OXYGEN_HALF_SATURATION_MM  = 0.05
+BULK_GLUCOSE_MM = 1.0               # rich-medium glucose-equivalent
+BULK_OXYGEN_MM  = 0.21              # air-saturated water at 25 °C
+SITE_VOLUME_L   = 1e-12             # (10 µm)^3
+
+monod_uptake(v_max, substrate_concentration, half_saturation) -> float
+    # v_max·S/(Ks+S)   (Monod 1949; Kovárová-Kovar & Egli 1998)
+michaelis_menten_rate(v_max, substrate_concentration, km) -> float
+    # alias of monod_uptake (Michaelis & Menten 1913)
+molecules_per_site(concentration_mm) -> float
+    # ≈6.02e8 molecules at 1 mM in a (10 µm)^3 site
+atp_yield(glucose_molecules) -> float
+    # ×38 ATP/glucose (Alberts)
+
+class ConcentrationField:
+    def __init__(self, name, width, height,
+                 diffusion_um2_s, initial_concentration=0.0)
+    def get(self, x, y) -> float          # mM at (x, y)
+    def set(self, x, y, value) -> None
+    def add(self, x, y, amount) -> None
+    def deplete(self, x, y, amount) -> float   # returns actually removed
+    def snapshot(self) -> list[list[float]]    # grid [y][x]
+    def diffuse(self) -> None                  # one tick, sub-stepped
+    def total_mm(self) -> float                # mM × sites
+
+@dataclass(slots=True)
+class EnvironmentConfig:
+    width: int = 100
+    height: int = 100
+    flow_rate: float = 0.0              # chemostat per-tick volume fraction
+    bulk_glucose_mm: float = BULK_GLUCOSE_MM
+    bulk_oxygen_mm: float = BULK_OXYGEN_MM
+    glucose_diffusion_um2_s: float = GLUCOSE_DIFFUSION_UM2_S
+    oxygen_diffusion_um2_s: float = OXYGEN_DIFFUSION_UM2_S
+    glucose_initial_mm: float = BULK_GLUCOSE_MM
+    oxygen_initial_mm: float = BULK_OXYGEN_MM
+
+class Environment:
+    def __init__(self, config=EnvironmentConfig())
+    # fields: glucose, oxygen (ConcentrationField), fields: dict[str, ...]
+    def add_field(self, name, field) -> None
+    def get_field(self, name) -> ConcentrationField
+    def step(self) -> None               # diffuse + chemostat refresh
+    def substrate_at(self, x, y, name="glucose") -> float
+    def local_uptake(self, x, y, name="glucose",
+                     half_saturation=None, v_max=1.0) -> float
+```
+
+`DynamicFluxBalance` (see §3) couples to the environment through
+`update_from_environment`/`apply_to_environment`, depositing overflow
+acetate into a `"acetate"` field created on first use.
 
 ---
 

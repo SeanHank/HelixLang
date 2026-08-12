@@ -109,6 +109,7 @@ In one sentence: **DNA is the source, codons are the mnemonics, the ribosome is 
 | [07-bio-modules.md](./bio-modules.md) | Bio modules in detail: central dogma, metabolic FBA, protein structure, CRISPR, epigenetics, evolution |
 | [08-api-reference.md](./api-reference.md) | API reference: core data classes, function signatures, parameter docs |
 | [09-bio-instructions.md](./bio-instructions.md) | Bio instruction guide: .helix annotation syntax, bio operation usage |
+| [10-frontier-biology-analysis.md](./frontier-biology-analysis.md) | Frontier biology analysis + upgrade plan: capability mapping, SOTA benchmark, gap analysis, tiered roadmap |
 
 ---
 

@@ -61,7 +61,35 @@ ATG GCT GCT GCT TAA
 #       f"({m2 / m1:.0f}x induction)")
 #
 # # Population-level diauxic growth curve (two exponential phases with a lag):
-# # reproduce with helixlang.population by switching the energy feed from
-# # "glucose" to "lactose" once the first phase plateaus (Monod 1942).
+# # reproduce with the dynamic-FBA layer below (Mahadevan et al. 2002,
+# # DOI:10.1006/mben.2001.0208): each time step re-solves the FBA linear
+# # program with a glucose-uptake bound set by Michaelis-Menten substrate
+# # availability (v = v_max*S/(Ks+S)); biomass integrates as dX/dt = mu*X
+# # while glucose depletes.  The reduced core model (37 reactions, no
+# # glyoxylate shunt) reproduces the first fermentative phase faithfully:
+# # exponential growth on glucose, overflow CO2, then growth arrest once
+# # glucose is exhausted - the point where a shunt-carrying model would
+# # resume growth on acetate.
+# #
+# # from helixlang.metabolism import (DynamicFBAConfig, DynamicFluxBalance,
+# #                                   ECOLI_CORE_MODEL)
+# #
+# # batch = DynamicFluxBalance(
+# #     model=ECOLI_CORE_MODEL,
+# #     config=DynamicFBAConfig(
+# #         dt_h=0.25,
+# #         initial_biomass_gdw=0.05,
+# #         initial_glucose_mm=10.0,
+# #         max_glucose_uptake=10.0,     # mmol/gDW/h
+# #     ),
+# # )
+# # history = batch.run(duration_h=8.0)
+# #
+# # mu_max = max(e["growth_rate"] for e in history)
+# # last = history[-1]
+# # print(f"batch: mu_max={mu_max:.3f}/h  final_biomass={last['biomass']:.3f} "
+# #       f"gDW/L  glucose={last['glucose']:.4f} mM  co2={last['co2']:.2f} mM")
+# # # mu_max ~1.27/h while glucose is saturating; growth collapses once
+# # # glucose falls below Ks (the lac-induction lag Monod first mapped)
 
 #config ticks=60 output=stdout

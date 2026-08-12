@@ -47,6 +47,7 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
 - 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding (true base-3 Huffman, ~5.05 trits/byte) and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
 - 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
+- 🧪 **Frontier biology (literature-backed)** — the frontier tier turns the simulator into a quantitative model: **programmable cells** (per-cell GRN + bytecode in a multicellular population), **stochastic gene expression** (telegraph two-state promoter, SSA, Fano-factor noise; Peccoud & Ycart 1995), **environment-coupled Monod metabolism** (Monod 1949; Kovárová-Kovar & Egli 1998) with CROMICS cell-crowding diffusion (PLOS Comput Biol 2021 e1009140/e1009158), **dynamic FBA** batch/diauxic simulation (Mahadevan 2002), and spatial cell mechanics — all grounded in `units.py` (1 tick = 1 min, 10 µm lattice edge, µM signal, ATP per glucose).
 
 ---
 
@@ -271,13 +272,15 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [codon_table](src/helixlang/codon_table.py) / [compiler](src/helixlang/compiler.py) | Codon table + bytecode generation |
 | [bytecode](src/helixlang/bytecode.py) / [disassembler](src/helixlang/disassembler.py) | Chunk data structure + disassembler |
 | [vm](src/helixlang/vm.py) / [cell](src/helixlang/cell.py) | Stack VM + cell runtime |
-| [grn](src/helixlang/grn.py) | Gene regulatory network (sigmoid / Hill kinetics, half-life decay) |
+| [grn](src/helixlang/grn.py) | Gene regulatory network (sigmoid / Hill kinetics, half-life decay, optional telegraph-promoter intrinsic noise) |
+| [stochastic](src/helixlang/stochastic.py) | Two-state (telegraph) promoter Fano factor + Gillespie SSA of bursty gene expression (Peccoud & Ycart 1995) |
+| [environment](src/helixlang/environment.py) | Diffusing nutrient/O₂ fields (µm²/s Fick diffusion), Monod / Michaelis-Menten uptake, chemostat flow, CROMICS crowding factor |
 | [lsystem](src/helixlang/lsystem.py) / [reaction_diffusion](src/helixlang/reaction_diffusion.py) | L-system morphology + Gray-Scott field |
 | [central_dogma](src/helixlang/central_dogma.py) | Transcription / translation / coupling — codon-specific elongation rates, per-gene mRNA half-lives |
-| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + dN/dS codon-substitution models + cell population |
+| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + dN/dS codon-substitution models + programmable-cell population (per-cell GRN + bytecode, CROMICS diffusion, shoving/force mechanics, trace streaming) |
 | [crispr](src/helixlang/crispr.py) | Cas variants / sgRNA design (nearest-PAM or max-score) / Doench 2016 on-target scoring / off-target prediction |
 | [epigenetics](src/helixlang/epigenetics.py) | CpG islands / methylation / histone modification |
-| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG `load_model`) |
+| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG `load_model`) and dynamic FBA batch/diauxic simulation (Mahadevan 2002) |
 | [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
@@ -333,6 +336,7 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`engineering-design.md`](doc/engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
 | [`performance-report.md`](doc/performance-report.md) | Performance engineers | Measured bottleneck analysis + scaling behavior of the full pipeline (compile / VM / GRN / reaction-diffusion / memory) |
 | [`production-upgrade.md`](doc/production-upgrade.md) | Maintainers | Plan to replace education-oriented implementations with literature-backed engineering-grade ones, preserving the public API |
+| [`frontier-biology-analysis.md`](doc/frontier-biology-analysis.md) | Researchers | The tiered frontier upgrade plan — programmable cells, stochastic expression, CROMICS crowding, dFBA, mechanics, pattern synthesis — each tier literature-verified with explicit failure budgets |
 | [`prototype-plan.md`](doc/prototype-plan.md) | Contributors | Prototype milestones, validation cases, test matrix, and future roadmap |
 | [`references.md`](doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
 

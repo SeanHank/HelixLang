@@ -88,7 +88,7 @@ Full-file audit of all 31 modules in `src/helixlang/` (plus `protein_structure.p
 | `population.py` | L35–41, L50 | `division_threshold=200`, `death_threshold=0`, `signal_diffusion=0.1`, `signal_threshold=5`, `metabolic_cost=1`, `energy_intake=5`, initial energy 100 | Tier 3: same treatment; keep the real Xavier 2003 10 µM AI-2 citation but mark the dimensionless energy axis |
 | `epigenetics.py` | L376, L428, L432 | methylation/histone modifiers `acc -= 0.4·prob`, `+= 0.7·prob`, `+= 0.2·prob` — uncited linear heuristics | Tier 2: cite DNMT/TET/histone-reader kinetics or mark coefficients as heuristic with source; keep Gardiner-Garden CpG thresholds (real) |
 | `central_dogma.py` | L192 | `stop_efficiency = 1.0` hardcoded | Tier 2: use literature release-factor efficiency (codon-dependent, <1) |
-| `metabolism.py` | L3–4 (docstring) | **stale**: says "24-reaction core" but JSON model actually has **37 reactions** | Tier 2: fix docstring; migrate note already correct at L207–208 |
+| `metabolism.py` | L3–4 (docstring) | ✅ **resolved** — docstring now says "37-reaction core" (matches the JSON model); dFBA layer (`DynamicFluxBalance`) added on top | — |
 
 ### 2.4 Honest docstrings (no change needed, keep as documentation)
 

@@ -494,6 +494,7 @@ def calculate_fitness(dna: str,
                       target_dna: str | None = None,
                       method: str = "hamming",
                       custom_func: Callable[[str], float] | None = None,
+                      oracle: "object | str | None" = None,
                       ) -> float:
     """Fitness calculation.
 
@@ -506,17 +507,31 @@ def calculate_fitness(dna: str,
         "gc":      closeness of GC content to 0.5 (1.0 = 50% GC,
                    0.0 = 0% or 100%)
         "custom":  custom function custom_func(dna) -> float
+        "oracle":  ML-guided protein fitness oracle (T2.4, P8): the
+                   variant DNA is translated and scored against
+                   target_dna by a :class:`helixlang.protein_fitness.
+                   FitnessOracle` (BLOSUM62 baseline, or optional ESM-2
+                   pseudo-likelihood).  Requires target_dna (the wild
+                   type) and ``oracle`` (an instance, or the name
+                   ``"blosum62"`` / ``"esm2"``).
 
     Args:
         dna:         the DNA to evaluate
-        target_dna:  target sequence (required for the hamming method)
+        target_dna:  target sequence (required for the hamming and
+                     oracle methods)
         method:      fitness calculation method
         custom_func: custom fitness function (required when
                      method="custom")
+        oracle:      fitness oracle for method="oracle" (T2.4)
 
     Returns:
         fitness value (usually [0, 1])
     """
+    if method == "oracle":
+        if target_dna is None:
+            raise ValueError("oracle method requires target_dna")
+        from helixlang.protein_fitness import dna_fitness
+        return dna_fitness(dna, target_dna, oracle)
     if method == "hamming":
         if target_dna is None:
             raise ValueError("hamming method requires target_dna")
@@ -555,7 +570,7 @@ def calculate_fitness(dna: str,
         return float(custom_func(dna))
     else:
         raise ValueError(f"unknown method {method!r}; "
-                         f"available: hamming, cai, gc, custom")
+                         f"available: hamming, cai, gc, custom, oracle")
 
 
 # ============================================================================

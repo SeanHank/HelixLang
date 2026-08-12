@@ -79,8 +79,9 @@ Flux Balance Analysis: uses linear programming to solve for optimal metabolic fl
 ### Data Sources
 
 - E. coli core metabolic model: Orth 2010 Mol Syst Biol 6:390 (iJO1366 simplified)
-- ~24 reactions covering glycolysis, TCA, PPP, fermentation, biomass
+- 37 reactions covering glycolysis, TCA, PPP, fermentation, biomass
 - Pure-Python two-phase simplex method (no scipy dependency)
+- dFBA batch kinetics: Mahadevan 2002 Biophys J 83(3):1331–1340 (static optimization approach)
 
 ### Core Components
 
@@ -91,6 +92,8 @@ Flux Balance Analysis: uses linear programming to solve for optimal metabolic fl
 | `ECOLI_CORE_MODEL` | prebuilt E. coli core model |
 | `FluxBalanceAnalysis` | FBA solver |
 | `simplex()` | pure-Python simplex solver |
+| `DynamicFBAConfig` | batch-culture parameters (dt, initial biomass/glucose/acetate, Ks, μ conversion) |
+| `DynamicFluxBalance` | dynamic FBA: MM uptake bound per step + forward-Euler batch integration |
 
 ### Usage Example
 
@@ -106,6 +109,37 @@ print(f"Biomass: {report['biomass_yield']:.4f}")
 print(f"Glucose uptake: {report['glucose_uptake']:.2f}")
 print(f"CO2: {report['byproduct_secretion']['co2']:.2f}")
 ```
+
+### Dynamic Flux Balance Analysis (dFBA)
+
+Batch-culture simulation (Mahadevan 2002). Each step sets the glucose
+uptake bound from the external substrate via Monod/Michaelis-Menten,
+solves the instantaneous FBA LP, and integrates the batch ODEs with
+forward Euler:
+
+```
+v_glc(t) = v_max·S(t)/(Ks+S(t))     dX/dt = μ·X
+dS/dt = −v_glc·X                     dP/dt = v_secret·X
+```
+
+```python
+from helixlang.metabolism import DynamicFluxBalance, DynamicFBAConfig
+
+d = DynamicFluxBalance(config=DynamicFBAConfig(dt_h=0.25,
+                                               initial_glucose_mm=10.0))
+hist = d.run()                       # until glucose exhausted / growth stalls
+d.last()                             # → {time, biomass, glucose, growth_rate,
+                                     #    glucose_uptake, acetate, lactate, co2}
+d.growth_rate                        # latest specific growth rate (1/h)
+```
+
+`update_from_environment(env)`/`apply_to_environment(env)` couple the
+batch pools to `helixlang.environment` fields (glucose in, overflow
+acetate out — see §environment coupling under `population.py`). The
+reduced 37-reaction core has no glyoxylate shunt, so overflow acetate is
+not re-consumed: the fermentative phase and glucose-exhaustion arrest of
+the classic diauxic shift are reproduced; a full model with the shunt
+consumes acetate automatically once glucose is gone.
 
 ### Metabolic Network Structure
 
@@ -378,7 +412,13 @@ bio_data ←── central_dogma (codon frequency tables)
 
 central_dogma ←── cell (cellular simulation uses transcription/translation)
 
-metabolism (independent, includes its own simplex solver)
+metabolism ←── environment (dFBA: glucose bound from field, acetate back into field)
+metabolism (independent core, includes its own simplex solver)
+
+population ←── environment (Monod uptake, diffusion, CROMICS crowding D)
+           ←── grn (per-cell GRN) + vm (per-cell bytecode)
+           ←── stochastic (telegraph noise toggle)
+           ←── metabolism (DynamicFluxBalance coupling)
 
 protein_structure (independent, pure-algorithm module)
 
