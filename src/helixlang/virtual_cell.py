@@ -74,8 +74,13 @@ def encode_gene(protein: str, rbs: str = "AGGAGG") -> str:
     """
     if not protein:
         raise ValueError("protein sequence must be non-empty")
-    rest = protein[1:]
-    codons = "".join(_PREFERRED_CODON.get(aa, "GCT") for aa in rest)
+    # the leading residue is encoded by the ATG start codon when it is
+    # already a methionine; otherwise add the start codon explicitly
+    if protein[0] == "M":
+        codons = "".join(_PREFERRED_CODON.get(aa, "GCT")
+                         for aa in protein[1:])
+        return rbs + "GACC" + "ATG" + codons + "TAA"
+    codons = "".join(_PREFERRED_CODON.get(aa, "GCT") for aa in protein)
     return rbs + "GACC" + "ATG" + codons + "TAA"
 
 
@@ -224,8 +229,10 @@ def fit_parameters(predict, observed: list[float],
 
     ``predict(**params) -> list[float]`` is evaluated at randomized
     parameter points inside ``ranges``; the best point is then refined
-    by coordinate-wise scanning (grid of ``n_samples`` points per axis,
-    shrunk around the current best).
+    in two stages: a coordinate-wise pattern search (full-box scan per
+    axis with exponentially doubling resolution, which locates the
+    valley) followed by parabolic-interpolation polish (which slides
+    along narrow ridges such as ``a + b*x``).
 
     Args:
         predict: callable mapping parameters to a predicted vector.
@@ -233,10 +240,11 @@ def fit_parameters(predict, observed: list[float],
         ranges: parameter name -> (lower, upper) box.
         n_samples: random samples for the global search stage.
         seed: RNG seed (deterministic runs).
-        refine_rounds: coordinate-descent passes after the random search;
-            each pass scans a uniformly spaced grid on a window that
-            halves around the current best point.
-        n_grid: grid points per coordinate in the refinement passes.
+        refine_rounds: pattern-search passes after the random search;
+            each pass scans every axis over its full range at
+            ``2**(round+2)+1`` grid points.
+        n_grid: kept for compatibility (resolution doubling is fixed);
+            ignored by the current implementation.
 
     Returns:
         ``{"best": {param: value}, "sse": float, "n_samples": int}``.
@@ -249,7 +257,12 @@ def fit_parameters(predict, observed: list[float],
     names = list(ranges)
 
     def sse(params: dict) -> float:
-        pred = predict(**params)
+        try:
+            pred = predict(**params)
+        except TypeError as exc:
+            raise ValueError(
+                f"predict must accept the fitted parameters {names!r} "
+                f"as keyword arguments: {exc}") from exc
         if len(pred) != len(observed):
             raise ValueError(
                 "prediction length must match observed length")
@@ -264,21 +277,53 @@ def fit_parameters(predict, observed: list[float],
         s = sse(params)
         if s < best_sse:
             best, best_sse = params, s
-    # deterministic grid coordinate descent, window halving each round
+    # stage 1: coordinate-wise pattern search over the full box with
+    # exponentially doubling resolution per round. Finds the valley of a
+    # correlated objective without window-halving stalls.
     for rnd in range(refine_rounds):
         for n in names:
             lo, hi = ranges[n]
-            half = (hi - lo) * (0.5 ** (rnd + 1))
-            c = best[n]
-            gl, gh = max(lo, c - half), min(hi, c + half)
-            for i in range(n_grid):
-                v = gl + (gh - gl) * i / (n_grid - 1)
+            steps = 2 ** (rnd + 2)
+            cand, cand_s = None, best_sse
+            for i in range(steps + 1):
+                v = lo + (hi - lo) * i / steps
                 params = dict(best)
                 params[n] = v
                 total += 1
                 s = sse(params)
-                if s < best_sse:
-                    best, best_sse = params, s
+                if s < cand_s:
+                    cand_s, cand = s, v
+            if cand is not None:
+                best[n] = cand
+                best_sse = cand_s
+    # stage 2: parabolic-interpolation polish on each axis. The discrete
+    # grid cannot slide along a narrow ridge (e.g. a + b*x), so fit a
+    # parabola through three samples and jump to its vertex.
+    for _ in range(64):
+        improved = False
+        for n in names:
+            lo, hi = ranges[n]
+            delta = max((hi - lo) / 100.0, 1e-9)
+            params = dict(best)
+            f0 = best_sse
+            params[n] = min(hi, max(lo, best[n] - delta))
+            f1 = sse(params)
+            params[n] = min(hi, max(lo, best[n] + delta))
+            f2 = sse(params)
+            denom = f1 - 2.0 * f0 + f2
+            if abs(denom) < 1e-30:
+                continue
+            vertex = best[n] - delta * (f2 - f1) / (2.0 * denom)
+            vertex = min(hi, max(lo, vertex))
+            params = dict(best)
+            params[n] = vertex
+            total += 1
+            fv = sse(params)
+            if fv < best_sse:
+                best, best_sse = params, fv
+                improved = True
+        if not improved:
+            break
     return {"best": best, "sse": best_sse, "n_samples": total}
 
 

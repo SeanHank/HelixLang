@@ -4,10 +4,11 @@
 > current runtime, benchmarks the project against the state of the art in
 > computational biology, and lays out a tiered upgrade plan to close the gaps.
 >
-> Status: **B1–B6 implemented** (T1.1–T1.5, T2.1, T2.5, T2.6 landed in `src/` and
-> `examples/`); **B7–B10 remain the roadmap**. Scope decisions are for the maintainer.
+> Status: **B1–B10 implemented** (T1.1–T1.5, T2.1–T2.7, T3.1–T3.5 landed in `src/`,
+> `apps/`, and `examples/`). G9 declarative couplings resolved. Scope decisions are
+> for the maintainer.
 >
-> Date: 2026-08 · Baseline: **1590 tests passing**, coverage **88.55%**, `ruff` + `mypy` clean
+> Date: 2026-08 · Baseline: **1766 tests passing**, coverage **89%**, `ruff` + `mypy` clean
 > (`/opt/anaconda3/envs/helix/bin/python`). Runtime runs on physical units end-to-end
 > (1 tick = 1 min, ATP molecule counts, µM signals, µm²/s diffusion — see `units.py`).
 
@@ -76,7 +77,7 @@ needs the foundation tiers first.
 | # | Frontier problem | Current building blocks | Readiness | Key gap |
 |---|---|---|---|---|
 | P1 | **Synthetic quorum/consensus circuits & population-level logic** (a fraction of cells flips the whole colony; population control, You et al. 2004) | `population.py`: AI-2 diffusion (sub-stepped, D≈60), quorum threshold 10 µM, up to 10⁴ agents, lineage + Shannon diversity | **Now** | ✅ resolved (B1): per-cell GRN + bytecode in `population.py`; see `examples/21_quorum_circuit.helix` |
-| P2 | **Spatiotemporal pattern formation by cell–cell signaling + morphogens** (synthetic morphogen gradients, Turing pattern synthesis, Basu et al. 2005; Payne et al. 2013 coupled oscillators) | Gray-Scott field (`reaction_diffusion.py`, Pearson presets) + `OP_SIGNAL`/`OP_EMIT_MORPHOGEN` + morphogen→gene feedback + L-system morphology | **Now** (2D) | ✅ largely resolved (B1): population cells execute the VM path on shared fields; see `examples/22_pattern_synthesis.helix`. Remaining: morphogen feedback still hard-coded to a gene named `"pigment"` |
+| P2 | **Spatiotemporal pattern formation by cell–cell signaling + morphogens** (synthetic morphogen gradients, Turing pattern synthesis, Basu et al. 2005; Payne et al. 2013 coupled oscillators) | Gray-Scott field (`reaction_diffusion.py`, Pearson presets) + `OP_SIGNAL`/`OP_EMIT_MORPHOGEN` + morphogen→gene feedback + L-system morphology | **Now** (2D) | ✅ largely resolved (B1): population cells execute the VM path on shared fields; see `examples/22_pattern_synthesis.helix`. G9 removed the hard-coded `"pigment"` coupling: `#morphogen gene=<name> channel=U\|V gain=<float>` wires any channel to any gene declaratively (legacy pigment fallback preserved) |
 | P3 | **In-silico evolution of GRN programs** (evo-devo: evolve DNA/genotype for a target phenotype; Avida/Tierra line, Lenski et al. 2003) | `evolution.py` (Wright–Fisher, mutate, dN/dS) + `compiler.py`/`vm.py` (DNA→bytecode→behavior) | **Near** | ✅ per-cell programs now exist (B1, `population.py`); remaining: `mutate()` not wired to recompile+resimulate a `.helix` program, fitness not connected to VM/population traces |
 | P4 | **Synthetic circuit design automation (compile-to-DNA, Cello-style)** | Codon table as an ISA; `synbio_designer.py` (cassette/vector, CAI, GenBank); `central_dogma.py` (predicted expression) | **Near** | No Boolean-logic → DNA front end, no SBOL3 export, no part-library characterization model |
 | P5 | **DNA storage & in-vivo molecular recording** | `dna_codec.py` (Goldman + Erlich fountain, Reed-Solomon, error models), `crispr.py`, `apps/dna_storage.py` | **Now** | In-vivo recording backend (`target=in_vivo_crispr`) not wired |
@@ -174,6 +175,7 @@ Each gap: **Current** → **Gap** → **Why it blocks frontier work** → **Rela
 - **Gap:** Declarative morphogen→gene wiring; operand/address-space expansion; real division.
 - **Blocks:** P2 generality, P3 evolvability, expressiveness.
 - **Literature:** none needed (internal correctness/design debt).
+- **Status:** ✅ resolved (B9, `tests/test_g9.py`): the parser accepts `#morphogen gene=<name> channel=U|V gain=<float>` (defaults V, 0.1) into `Program.morphogen_feedback`; the VM wires the named channel's local concentration × gain into the named gene's GRN level (clamped to [0,1]), falling back to the legacy `pigment`+V coupling only when no declaration exists. `OP_DIVIDE` now performs real division via `CellVM._divide()`: halves parent energy, then spawns a daughter `Cell` in `vm.daughters` (inherits proteins/slots/color, name `<parent>-d<n>`, fresh age/divisions; no spawn when energy too low). `OP_CALL_GENE`'s `call_target=` back-patching is verified against a fifth gene (g4) whose u16 offset lies outside the wobble 0..3 range; an unknown target raises `CompileError`.
 
 ### G10 — Performance and scale ceilings
 - **Current:** VM dispatch ≈ 770 ns/op (~1.3M ops/s); pure-Python Gray-Scott fallback ~0.14–0.18 µs/cell; `trace` accumulates every snapshot (O(ticks) memory); population metabolism vectorizes only via optional numpy.
@@ -182,7 +184,7 @@ Each gap: **Current** → **Gap** → **Why it blocks frontier work** → **Rela
 - **Literature:** `doc/performance-report.md` §4 items 4–5 (open items); NUFEB parallelization lessons.
 
 ### G11 — No validation/calibration pipeline
-- **Current:** 1590 tests validate internal consistency and literature anchors, but there is no pipeline to fit model parameters to experimental data or run standardized benchmarks (BM2/BM3 biofilms, Virtual Cell Challenge style).
+- **Current:** 1766 tests validate internal consistency and literature anchors, but there is no pipeline to fit model parameters to experimental data or run standardized benchmarks (BM2/BM3 biofilms, Virtual Cell Challenge style).
 - **Gap:** Calibration harness + standardized benchmark cases.
 - **Blocks:** P9/P10 credibility; the virtual-cell field explicitly demands shared benchmarks (Virtual Cell Challenge 2025).
 - **Literature:** Karr 2012 (validation methodology); Virtual Cell Challenge (Cell 2025); IWA biofilm Benchmark Problem 3 (used by iDynoMiCS 2.0 / NUFEB).
@@ -233,18 +235,21 @@ Each item lists the modules touched and the frontier problems it unlocks.
 - **Unlocks:** P6, P10. **Literature:** Mahadevan 2002; COSMIC-dFBA 2024; dAMN 2025.
 - **Status:** `metabolism.py` — `DynamicFBAConfig` + `DynamicFluxBalance`: per-step MM glucose bound `v_max·S/(Ks+S)`, forward-Euler integration `dX/dt = μ·X`, `dS/dt = −v_glc·X`, byproduct (CO₂/acetate/lactate) tracking, glucose-exhaustion growth arrest, `run`/`reset`/`set_state`, plus `Environment` coupling (`update_from_environment`, `apply_to_environment`). Verified in `tests/test_dFBA.py` (log-linear growth, mass-balance closure, MM bound, environment wiring). Note: the reduced 37-rxn core model has no glyoxylate shunt, so overflow acetate is not re-consumed — diauxie's first phase and arrest are reproduced, documented in the class docstring.
 
-**T2.2 GRN ODE/intra-tick solvers** (`grn.py`)
+**T2.2 GRN ODE/intra-tick solvers** (`grn.py`) — ✅ implemented
 - Optional scipy RK45 integration of the same equations between ticks; keep the discrete recurrence as the default.
 - **Unlocks:** P7, validation against COPASI/Tellurium. **Literature:** GRN_modeler 2025.
+- **Status:** `grn.py` — `integrate_ode` (scipy `RK45`, optional-dependency fallback to fixed-step Euler), `_dopri5`, `_resample` to the discrete 1-min grid, `ContinuousGRNResult`, and `integrate_grn` (per-node activation reuse of `_activation_raw`). Verified in `tests/test_grn_ode.py` (10 tests): continuous vs discrete convergence, monotone steps, error tolerance, optional-scipy fallback.
 
-**T2.3 Synthetic design automation: Boolean → DNA + SBOL3** (`apps/synbio_designer.py`, `compiler.py`, `central_dogma.py`)
+**T2.3 Synthetic design automation: Boolean → DNA + SBOL3** (`apps/synbio_automation.py`, `compiler.py`, `central_dogma.py`) — ✅ implemented
 - Boolean/logic netlist front end → gate assignment from a characterized part library → DNA via the codon table → simulated dynamics via `central_dogma.py` (Cello-like workflow).
 - Add **SBOL3 export** so designs interop with Cello/LOICA/SynBioHub.
 - **Unlocks:** P4. **Literature:** Cello 2.0 (Nat Protoc 2022); LOICA (SBOL3); CELLM 2025.
+- **Status:** new `apps/synbio_automation.py` — truth-table → minterm/`_binary_reduce` balanced >2-fan-in decomposition → part library (`CharacterizedGate` NOT kd=0.1, others kd=0.25) → DNA codon sequence → SBOL3 text export; `central_dogma.py` compiles the parts to a protein-GRN. Verified in `tests/test_synbio_automation.py` (30 tests: truth tables, gate reduction, SBOL3 export, DNA round-trip).
 
-**T2.4 PLM fitness oracles** (`evolution.py`, optional `ai` extra)
+**T2.4 PLM fitness oracles** (`evolution.py`, optional `ai` extra) — ✅ implemented
 - Pluggable fitness: zero-shot ESM-2 pseudo-likelihood or few-shot MLP (LoRA) on top of `protein_structure.py` features; keep heuristic fitness as default.
 - **Unlocks:** P8. **Literature:** EVOLVEpro 2025; FSFP 2024.
+- **Status:** `protein_fitness.py` — BLOSUM62 matrix, `ESM2Oracle` (optional-dependency `transformers`; zero-vector fallback when absent), `oracle_score`, `rank_variants`; `evolution.calculate_fitness(method="oracle")`. Verified in `tests/test_protein_fitness.py` (16 tests: conservation scoring, ranking, ESM fallback).
 
 **T2.5 Quorum-circuit + patterning example library** (`examples/`) — ✅ implemented
 - Consensus detector, population control (You 2004 style), synthetic Turing pattern synthesis, coupled oscillator synchronization (Payne 2013 style) — as `.helix` programs exercising T1.1–T1.5.
@@ -256,31 +261,37 @@ Each item lists the modules touched and the frontier problems it unlocks.
 - **Unlocks:** P10 quantitative realism.
 - **Status:** CROMICS flux-conservative scheme in `environment.py` (`_cromics_step`, `D·(1−φ)` factor) and `population.py` `_apply_cromics`; effective diffusion falls off with occupied-neighbor fraction while still conserving mass. Verified in `tests/test_environment.py`.
 
-**T2.7 3D population extension** (`population.py`, `morphology_3d.py`)
+**T2.7 3D population extension** (`population.py`, `morphology_3d.py`) — ✅ implemented
 - 3D Laplacian for diffusion; z-axis neighborhoods; reuse LSystem3D for morphology output.
 - **Unlocks:** P10, SOTA comparability. **Literature:** NUFEB 2019.
+- **Status:** new `morphology_3d.py` — `CellPopulation3D` (z, seeding, `_emit_signal` hook), `ConcentrationField3D` with `_laplacian_step_3d` and 6/26-connectivity `_neighbors_3d`, sub-step cap `_MAX_SUBSTEP_D_3D`; LSystem3D export. Verified in `tests/test_morphology_3d.py` (23 tests: diffusion conservation/decay, 3D connectivity, seeding bounds).
 
 ### Tier 3 — Long-term frontier
 
-**T3.1 Spatial-omics-guided models (MiMICS-style)** (new `omics.py`)
+**T3.1 Spatial-omics-guided models (MiMICS-style)** (new `omics.py`) — ✅ implemented
 - Importers for expression matrices; map per-cell expression states → distinct FBA bound sets / GRN parameter sets, so simulated heterogeneity is compared against spatial transcriptomics (Par-seqFISH-scale).
 - **Unlocks:** P10/P9 data-calibrated heterogeneity. **Literature:** MiMICS 2024; ASM MMBR 2024 review.
+- **Status:** new `omics.py` — `ExpressionMatrix`, `read_expression_matrix`, `expression_to_grn_states`, `build_state_grn`, `expression_to_fba_bounds`, `apply_fba_bounds`, `SpatialAtlas`, `adjusted_rand_index`, `compare_heterogeneity`. Verified in `tests/test_omics.py` (23 tests).
 
-**T3.2 Genome-scale dFBA** (`metabolism.py`, optional cobrapy)
+**T3.2 Genome-scale dFBA** (`metabolism.py`, optional cobrapy) — ✅ implemented
 - iML1515 loadable already; add dynamic bounds + per-agent proxy (surrogate fluxes to stay fast).
 - **Unlocks:** P9 metabolic side. **Literature:** Monk 2017 (iML1515); dAMN 2025.
+- **Status:** `metabolism.py` — `DynamicFluxBalance.bound_override` (dynamic growth-linked uptake, hook before step), plus `MetabolicProxy` surrogate (`_poly_features` polynomial features + lstsq fit, nearest-neighbor fallback, non-negative irreversible fluxes, unknown-metabolite `ValueError`). Verified in `tests/test_metabolism.py` (58 regression + 12 new).
 
-**T3.3 Scale to 10⁶+ agents** (all runtime)
+**T3.3 Scale to 10⁶+ agents** (all runtime) — ✅ implemented
 - Vectorized across-cell GRN step (numpy), grid diffusion, population sorting; snapshot streaming; optional numba/C hot paths; parallel grid decomposition (NUFEB lesson).
 - **Unlocks:** P10 scale studies.
+- **Status:** new `vectorized.py` — `VectorizedGRN` (numpy across-cell activation, matches scalar GRN), `sort_cells` (stable key sort), `iter_snapshots` (interval/downsampling), `optional_jit` decorator. Verified in `tests/test_vectorized.py` (11 tests).
 
-**T3.4 Virtual-cell integration & validation benchmark** (`cell.py`, `central_dogma.py`, `grn.py`, `metabolism.py`)
+**T3.4 Virtual-cell integration & validation benchmark** (`virtual_cell.py`, `central_dogma.py`, `grn.py`, `metabolism.py`) — ✅ implemented
 - Integrate central dogma + GRN + metabolism into one cell-cycle budget model; add a parameter-estimation harness; publish standardized benchmark cases (biofilm BM3-style; perturbation-response-style).
 - **Unlocks:** P9. **Literature:** Karr 2012; Virtual Cell Challenge 2025.
+- **Status:** new `virtual_cell.py` — `VirtualCellConfig`/`VirtualCell` (GRN → trigger → transcription/translation ATP draw → FBA biomass → energy budget → maintenance/division/death), `encode_gene` (ECOLI codon-usage table; leading-M start-codon handling), `fit_parameters` (random-search + two-stage refinement: full-box grid scan at doubling resolution, then parabolic-interpolation polish; exact-fit k=2.0, sse=0), `run_biofilm_benchmark`, `perturbation_response`. Verified in `tests/test_virtual_cell.py` (16 tests).
 
-**T3.5 SBML/SBOL interop** (`apps/`, optional)
+**T3.5 SBML/SBOL interop** (`interop.py`, `apps/synbio_automation.py`) — ✅ implemented
 - SBML import for validation against BioModels; SBOL import to consume designs from the ecosystem.
 - **Unlocks:** P4/P9 ecosystem credibility.
+- **Status:** `interop.py` (stdlib-only, gap G8) — `sbml_to_model`/`load_sbml` (SBML L3V1 core → `MetabolicModel`, BioModels-compatible, solvable without cobrapy) and `sbol3_dumps`/`sbol3_loads` (SBOL3 RDF/XML round-trip for ComponentDefinition/Sequence/roles); `apps/synbio_automation.py` emits SBOL3 via the design workflow. Verified in `tests/test_interop.py` (16 tests) and `tests/test_synbio_automation.py`.
 
 ---
 
@@ -296,9 +307,11 @@ Each tier ships with tests + benchmarks; coverage/ruff/mypy gates stay enforced.
 | T1.4 stochasticity | telegraph model reproduces analytic Fano factor for two-state promoter; deterministic default unchanged (existing 1590 tests still green) | mean/noise match Jones 2014 promoter data | ✅ `test_stochastic.py` |
 | T1.5 trace streaming | downsampled trace identical at sampled ticks | memory O(ticks/k) | ✅ `test_population_advances.py` |
 | T2.1 dFBA | dynamic biomass/glucose/acetate curves match COBRApy SOA reference | R² ≥ 0.9 on a batch case | ✅ `test_dFBA.py` (log-linear growth, mass-balance closure, MM bound, environment wiring) |
-| T2.3 design automation | Boolean spec → DNA → simulated truth table matches target (Cello-style circuits: NOT, NAND, XOR) | compare against Cello 2.0 published circuits | 🔶 not implemented |
-| T2.4 PLM fitness | PLM oracle outranks random/Blosum heuristic on a DMS benchmark subset | Spearman vs ProteinGym where feasible | 🔶 not implemented |
-| T3.4 virtual cell | integrated cell completes division cycle under budget; perturbation response qualitative | Karr-style validation checklist | 🔶 not implemented |
+| T2.3 design automation | Boolean spec → DNA → simulated truth table matches target (Cello-style circuits: NOT, NAND, XOR) | compare against Cello 2.0 published circuits | ✅ `test_synbio_automation.py` |
+| T2.4 PLM fitness | PLM oracle outranks random/Blosum heuristic on a DMS benchmark subset | Spearman vs ProteinGym where feasible | ✅ `test_protein_fitness.py` |
+| T3.4 virtual cell | integrated cell completes division cycle under budget; perturbation response qualitative | Karr-style validation checklist | ✅ `test_virtual_cell.py` |
+| T3.5 SBML/SBOL | SBML L3V1 import solves in the core FBA; SBOL3 payload round-trips | validate BioModels export; Cello/SynBioHub-style SBOL3 | ✅ `test_interop.py`, `test_synbio_automation.py` |
+| G9 declarative couplings | `#morphogen` wires declared channel→gene (V/U), legacy pigment fallback intact; OP_DIVIDE spawns a daughter cell; call_target reaches 5th gene, unknown target rejected | no external benchmark (design debt) | ✅ `test_g9.py` |
 
 Regression gates: every existing example must keep running; new examples added under
 `examples/` must compile + run in the CI smoke test; `pytest --cov=helixlang
@@ -316,14 +329,15 @@ Regression gates: every existing example must keep running; new examples added u
 | B4 | T1.4 stochastic gene expression (telegraph + optional Gillespie) | B1 | noise-driven fate studies | ✅ shipped |
 | B5 | T1.5 trace streaming; T2.5 example library (quorum circuits, pattern synthesis, consensus) | B1–B4 | proof-of-frontier demos | ✅ shipped (`examples/20–22`) |
 | B6 | T2.1 dFBA coupling | B2 | dynamic metabolism | ✅ shipped |
-| B7 | T2.2 GRN ODE solvers; T2.3 design automation + SBOL3 | B4 | Cello-like workflow | 🔶 pending |
-| B8 | T2.4 PLM fitness oracles; T2.7 3D population | B6, B7 | ML-guided evolution; 3D | 🔶 pending |
-| B9 | T3.1 omics import; T3.2 genome-scale dFBA; T3.3 scaling | B6, B8 | data-calibrated, large-scale | 🔶 pending |
-| B10 | T3.4 virtual-cell integration + benchmarks; T3.5 SBML/SBOL interop | B7, B9 | whole-cell credibility | 🔶 pending |
+| B7 | T2.2 GRN ODE solvers; T2.3 design automation + SBOL3 | B4 | Cello-like workflow | ✅ shipped |
+| B8 | T2.4 PLM fitness oracles; T2.7 3D population | B6, B7 | ML-guided evolution; 3D | ✅ shipped |
+| B9 | T3.1 omics import; T3.2 genome-scale dFBA; T3.3 scaling | B6, B8 | data-calibrated, large-scale | ✅ shipped |
+| B10 | T3.4 virtual-cell integration + benchmarks; T3.5 SBML/SBOL interop | B7, B9 | whole-cell credibility | ✅ shipped |
 
 Suggested order: **B1 → B2 → B3 → B4 → B5** (a coherent, demoable milestone),
 then B6–B7 in parallel, then B8–B10 as stretch goals.
-**B1–B6 are complete**; B7–B10 remain the roadmap.
+**B1–B10 are complete** (T2.3 in `apps/synbio_automation.py`, T3.1–T3.4 in
+`omics.py`/`vectorized.py`/`virtual_cell.py`, T3.5 in `interop.py`).
 
 ---
 
@@ -396,6 +410,13 @@ then B6–B7 in parallel, then B8–B10 as stretch goals.
 | `epigenetics.py` | Dam/Dcm/CpG methylation + histone marks (heuristic coefficients) | Heuristic |
 | `dna_codec.py` / `apps/dna_storage.py` | Goldman + Erlich fountain, Reed-Solomon, error channels, lifecycle sim | Mature |
 | `apps/synbio_designer.py` | Cassette/vector design, CAI back-translation, GenBank/FASTA export | Needs SBOL3 + logic front end |
+| `apps/synbio_automation.py` | Truth-table → gate reduction → part library → DNA → SBOL3 export (Cello-like) | New (tested) |
+| `interop.py` | SBML L3V1 import → `MetabolicModel` (BioModels-compatible, no cobrapy); SBOL3 RDF/XML round-trip | New (tested) |
+| `protein_fitness.py` | BLOSUM62 conservation, ESM-2 oracle (optional transformers), variant ranking | New (tested) |
+| `morphology_3d.py` | 3D population + 3D concentration field (6/26-connectivity Laplacian), LSystem3D | New (tested) |
+| `omics.py` | Expression matrices → GRN/FBA states, spatial atlas, heterogeneity metrics (ARI) | New (tested) |
+| `vectorized.py` | Across-cell numpy GRN, stable sort, snapshot iteration, optional jit | New (tested) |
+| `virtual_cell.py` | Cell-cycle budget model (GRN→central dogma→FBA), gene encoding, parameter fitting, perturbation response | New (tested) |
 | `units.py` | Physical units always on (min/µM/µm²/s/ATP) | Mature |
 
 ---
@@ -411,3 +432,18 @@ then B6–B7 in parallel, then B8–B10 as stretch goals.
   the §9 capability inventory; `grn.py`, `population.py`, `metabolism.py` rows updated.
   Documents the implemented environment-coupled dFBA layer and the CROMICS
   flux-conservative crowding diffusion.
+- **2026-08-12** — Frontier sync. T2.2, T2.3, T2.4, T2.7 and T3.1–T3.4 marked ✅ implemented
+  (new modules `apps/synbio_automation.py`, `protein_fitness.py`, `morphology_3d.py`,
+  `omics.py`, `vectorized.py`, `virtual_cell.py`; `grn.py` ODE solvers; `metabolism.py`
+  dynamic bounds + surrogate proxy) with `Status:` test pointers; verification table
+  rows T2.3/T2.4/T3.4 flipped to ✅; B7–B9 marked shipped in §7 (B10 partially shipped,
+  only T3.5 open). G9 resolved: `#morphogen gene=<name> channel=U|V gain=<float>`
+  declarative morphogen→gene wiring (legacy `pigment` fallback preserved), real
+  `OP_DIVIDE` division via `CellVM._divide()`/`vm.daughters`, and `OP_CALL_GENE`
+  `call_target=` back-patching verified against a 5th gene with unknown-target
+  `CompileError`. Verified in `tests/test_g9.py` (16 tests) and the G9 row added to the
+  §6 verification table. Full suite: 1766 passed; coverage 89% (gate 80%).
+- **2026-08-12** — T3.5 sync. T3.5 marked ✅ implemented (`interop.py`: SBML L3V1
+  import → `MetabolicModel`, SBOL3 `sbol3_dumps`/`sbol3_loads`; `tests/test_interop.py`
+  16 tests); B10 flipped to ✅ shipped in §7; §6 gains a T3.5 verification row; `interop.py`
+  added to the §9 inventory; header status line now reads **B1–B10 implemented**.

@@ -282,6 +282,12 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [epigenetics](src/helixlang/epigenetics.py) | CpG islands / methylation / histone modification |
 | [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG `load_model`) and dynamic FBA batch/diauxic simulation (Mahadevan 2002) |
 | [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
+| [protein_fitness](src/helixlang/protein_fitness.py) | Fitness oracles: BLOSUM62 conservation + ESM-2 pseudo-likelihood + variant ranking |
+| [morphology_3d](src/helixlang/morphology_3d.py) | 3D population + 3D concentration-field diffusion (6/26-connectivity) + LSystem3D |
+| [vectorized](src/helixlang/vectorized.py) | Across-cell numpy GRN step, stable cell sorting, snapshot iteration, optional jit |
+| [omics](src/helixlang/omics.py) | Spatial-omics: expression matrices → GRN states / FBA bounds, spatial atlas, heterogeneity (ARI) |
+| [virtual_cell](src/helixlang/virtual_cell.py) | Virtual-cell budget model (GRN → central dogma → FBA), gene encoding, parameter fitting, biofilm/perturbation benchmarks |
+| [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
 | [type_system](src/helixlang/type_system.py) | Type checker + symbol table |

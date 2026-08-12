@@ -59,6 +59,20 @@ class FieldDecl:
 
 
 @dataclass(slots=True)
+class MorphogenFeedback:
+    """Declarative morphogen→gene feedback wiring (G9).
+
+    Binds a morphogen channel concentration at the cell position to a
+    gene's GRN expression level: ``level += concentration * gain``
+    (clamped to 1.0).  Replaces the legacy hard-coded ``"pigment"``
+    feedback so any gene can read any channel.
+    """
+    gene: str
+    channel: str = "V"     # "U" (substrate) or "V" (morphogen/signal)
+    gain: float = 0.1
+
+
+@dataclass(slots=True)
 class Config:
     """Runtime config."""
     ticks: int = 100
@@ -94,6 +108,7 @@ class Program:
     regulations: list[Regulation] = field(default_factory=list)
     lsystems: dict[str, LSystemDecl] = field(default_factory=dict)
     field_decl: FieldDecl | None = None
+    morphogen_feedback: list[MorphogenFeedback] = field(default_factory=list)
     config: Config = field(default_factory=Config)
     # Bio instruction list (P0-1.1 language extension)
     bio_instructions: list[BioInstruction] = field(default_factory=list)

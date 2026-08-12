@@ -170,7 +170,7 @@ class BioInstructionDispatcher:
                     )
             case Op.OP_DIVIDE:
                 vm._read_u8()
-                vm.cell.divide()
+                vm._divide()
             case Op.OP_DIE:
                 vm._read_u8()
                 vm.cell.die()
@@ -484,7 +484,10 @@ class CellVM:
         self.tick = 0
         self.debug = False
         self.trace: list[dict] = []
-        # P0-1.2 central dogma pipeline state
+        # G9: real division — OP_DIVIDE spawns a daughter cell (in addition
+        # to halving the parent's energy) appended to this list.
+        self.daughters: list[Cell] = []
+        self._daughter_counter: int = 0
         self._gene_dna: dict[str, str] = {}        # gene_name → DNA sequence
         self._gene_mrna: dict[str, float] = {}     # gene_name → mRNA concentration
         self._promoter_strengths: dict[str, float] = {}  # promoter_name → strength
@@ -538,6 +541,16 @@ class CellVM:
             f = self.program.field_decl
             self.field = GrayScott(
                 n=f.size, F=f.F, k=f.k, Du=f.Du, Dv=f.Dv)
+        # Declarative morphogen→gene feedback wiring (G9): gene -> (channel,
+        # gain). Falls back to the legacy hard-coded pigment wiring when no
+        # #morphogen declarations are present.
+        if self.program.morphogen_feedback:
+            self._morphogen_feedback = {
+                mf.gene: (mf.channel, mf.gain)
+                for mf in self.program.morphogen_feedback
+            }
+        else:
+            self._morphogen_feedback = {}
 
     # -------- main loop --------
     def run(self, max_ticks: int) -> list[dict]:
@@ -720,11 +733,60 @@ class CellVM:
         # Morphology updates are handled inline in _dispatch
         pass
 
+    def _divide(self) -> None:
+        """Real division (G9): halve the parent's energy and spawn a daughter.
+
+        The parent's energy is halved and its division counter bumped by
+        :meth:`Cell.divide` (existing semantics); in addition a daughter
+        cell — a copy of the parent's protein/slot state with the same
+        halved energy — is appended to :attr:`daughters` so multicellular
+        simulations observe an actual newborn cell rather than only an
+        energy change.
+        """
+        if not self.cell.divide():
+            return
+        parent = self.cell
+        daughter = Cell(
+            name=f"{parent.name}-d{self._daughter_counter}",
+            x=parent.x,
+            y=parent.y,
+            energy=parent.energy,
+            proteins=dict(parent.proteins),
+            slots=list(parent.slots),
+            color=parent.color,
+            age=0,
+            divisions=0,
+            membrane_permeability=parent.membrane_permeability,
+        )
+        self._daughter_counter += 1
+        self.daughters.append(daughter)
+
     def _feedback(self) -> None:
-        """Morphology field V concentration → extra activation of the pigment gene."""
-        if self.field and "pigment" in self.grn.nodes:
-            i = self.cell.x % self.field.n
-            j = self.cell.y % self.field.n
+        """Morphology field concentration → GRN gene activation (G9).
+
+        Applies every declarative morphogen→gene wiring
+        (``#morphogen gene=<name> channel=U|V gain=<float>``): the
+        channel concentration at the cell position raises the gene's
+        level by ``concentration * gain`` (clamped to 1.0). When no
+        wiring is declared, falls back to the legacy hard-coded
+        ``pigment`` gene on the V channel.
+        """
+        if not self.field:
+            return
+        i = self.cell.x % self.field.n
+        j = self.cell.y % self.field.n
+        if self._morphogen_feedback:
+            for gene, (channel, gain) in self._morphogen_feedback.items():
+                if gene not in self.grn.nodes:
+                    continue
+                conc = (self.field.u[i][j] if channel == "U"
+                        else self.field.v[i][j])
+                self.grn.set_level(
+                    gene,
+                    self.grn.nodes[gene].level + conc * gain,
+                )
+            return
+        if "pigment" in self.grn.nodes:
             v = self.field.v[i][j]
             self.grn.set_level(
                 "pigment",

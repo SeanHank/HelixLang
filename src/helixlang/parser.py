@@ -22,6 +22,7 @@ from helixlang.ast_nodes import (
     FieldDecl,
     Gene,
     LSystemDecl,
+    MorphogenFeedback,
     Program,
     Promoter,
     Regulation,
@@ -62,6 +63,7 @@ class Parser:
                     "regulate": self._parse_regulate,
                     "lsystem": self._parse_lsystem,
                     "field": self._parse_field,
+                    "morphogen": self._parse_morphogen,
                     "config": self._parse_config,
                     "type": self._parse_type_annotation,
                 }.get(t.value)
@@ -199,6 +201,30 @@ class Parser:
         Du = float(fields.get("Du", "0.16"))
         Dv = float(fields.get("Dv", "0.08"))
         prog.field_decl = FieldDecl(size=size, F=F, k=k, Du=Du, Dv=Dv)
+
+    def _parse_morphogen(self, prog: Program) -> None:
+        """Parse #morphogen gene=<name> channel=V|U gain=<float> (G9).
+
+        Declarative morphogen→gene feedback wiring, replacing the legacy
+        hard-coded ``pigment`` gene feedback.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        gene = fields.get("gene", "")
+        if not gene:
+            raise ParseError("#morphogen requires gene= field", line=t.line)
+        channel = fields.get("channel", "V").upper()
+        if channel not in ("U", "V"):
+            raise ParseError(
+                f"#morphogen channel must be 'U' or 'V', got {channel!r}",
+                line=t.line)
+        try:
+            gain = float(fields.get("gain", "0.1"))
+        except ValueError as e:
+            raise ParseError(f"invalid gain {fields['gain']!r}: {e}",
+                             line=t.line) from None
+        prog.morphogen_feedback.append(MorphogenFeedback(
+            gene=gene, channel=channel, gain=gain))
 
     def _parse_config(self, prog: Program) -> None:
         self._advance()

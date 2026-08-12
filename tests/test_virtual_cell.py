@@ -51,6 +51,9 @@ def _grn(active: tuple[str, ...] = ("lacZ",), levels=None) -> GRN:
     if levels:
         for name, lv in levels.items():
             g.nodes[name].level = lv
+    else:
+        for name in active:
+            g.nodes[name].level = 1.0
     return g
 
 
@@ -89,8 +92,8 @@ def test_virtual_cell_expresses_active_genes() -> None:
     vc = _vc()
     vc.run(3)
     assert vc.proteins.get("lacZ", 0.0) > 0.0
-    # tetR starts off and represses lacZ only weakly at these levels
-    assert "tetR" in vc.proteins or vc.proteins.get("tetR", 0.0) >= 0.0
+    # tetR starts off and stays below threshold, so it never expresses
+    assert vc.proteins.get("tetR", 0.0) == 0.0
     assert all(e["alive"] for e in vc.history)
 
 

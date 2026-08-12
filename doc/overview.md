@@ -157,35 +157,44 @@ HelixLang/
 │   ├── disassembler.py               # (7) Bytecode disassembly
 │   ├── vm.py                         # (8) Stack VM (ribosome)
 │   │
-│   │  ===== Simulation runtime (4 modules) =====
+│   │  ===== Simulation runtime =====
 │   ├── cell.py                       # (9) Cell state + tick loop
 │   ├── grn.py                        # (10) Gene regulatory network
 │   ├── lsystem.py                    # (11) L-system morphogenesis
 │   ├── reaction_diffusion.py         # (12) Gray-Scott reaction-diffusion
+│   ├── population.py                 # Population dynamics (2D/3D, mechanics, environments)
+│   ├── environment.py                # Nutrient/O₂/AI-2 fields, Monod uptake, CROMICS crowding
+│   ├── morphology_3d.py              # 3D population + 3D diffusion + LSystem3D
+│   ├── vectorized.py                 # Across-cell numpy GRN, sorting, snapshot iteration
+│   ├── stochastic.py                 # Telegraph-promoter noise + Gillespie SSA
 │   │
-│   │  ===== Bio function modules (4 core modules) =====
-│   ├── central_dogma.py              # (13) Central dogma: transcription + translation + degradation
-│   ├── metabolism.py                 # (14) Metabolic network FBA: flux balance analysis
-│   ├── protein_structure.py          # (15) Protein structure prediction: secondary structure + TM + disorder
-│   ├── crispr.py                     # (16) CRISPR-Cas gene editing model
+│   │  ===== Bio function modules =====
+│   ├── central_dogma.py              # Central dogma: transcription + translation + degradation
+│   ├── metabolism.py                 # Metabolic network FBA: flux balance analysis + dynamic FBA
+│   ├── protein_structure.py          # Protein structure prediction: secondary structure + TM + disorder
+│   ├── protein_fitness.py            # PLM fitness oracles (BLOSUM62, ESM-2) + variant ranking
+│   ├── crispr.py                     # CRISPR-Cas gene editing model
+│   ├── omics.py                      # Spatial-omics: expression matrices → GRN/FBA states, atlas, ARI
+│   ├── virtual_cell.py               # Virtual-cell budget model + parameter fitting + benchmarks
+│   ├── interop.py                    # SBML import + SBOL3 export/import
 │   │
 │   │  ===== Data / tools / entry points =====
 │   ├── bio_data.py                   # Real biological data (codon frequencies, mutation rates, etc.)
 │   ├── epigenetics.py                # Epigenetics: DNA methylation + histone modification
 │   ├── evolution.py                  # Evolution engine: mutation + selection + drift
-│   ├── population.py                 # Population dynamics
-│   ├── morphology_3d.py              # 3D morphogenesis
 │   ├── dna_codec.py                  # DNA codec (storage/watermark)
 │   ├── biocodec.py                   # Bio codec utilities
 │   ├── type_system.py                # Type system
 │   ├── semantic.py                   # Semantic analysis
+│   ├── units.py                      # Physical units (min/µM/µm²/s/ATP)
 │   ├── errors.py                     # Exception hierarchy
 │   ├── debugger.py                   # Debugger
 │   ├── server.py                     # HTTP API server
 │   ├── cli.py                        # CLI entry point
 │   ├── apps/                         # Application layer
 │   │   ├── dna_storage.py            # DNA storage app
-│   │   └── synbio_designer.py        # Synthetic biology designer
+│   │   ├── synbio_designer.py        # Synthetic biology designer
+│   │   └── synbio_automation.py      # Design automation: truth table → DNA → SBOL3
 │   └── web/                          # Web frontend
 │       ├── index.html
 │       └── labs.html
