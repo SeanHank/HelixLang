@@ -232,7 +232,7 @@ class ESM2Oracle:
     def _has_cuda() -> bool:  # pragma: no cover - optional extra
         try:
             import torch
-            return torch.cuda.is_available()
+            return bool(torch.cuda.is_available())
         except Exception:
             return False
 
