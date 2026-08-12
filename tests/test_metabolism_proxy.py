@@ -19,14 +19,12 @@ from __future__ import annotations
 import pytest
 
 from helixlang.metabolism import (
+    ECOLI_CORE_MODEL,
     DynamicFBAConfig,
     DynamicFluxBalance,
-    FluxBalanceAnalysis,
     MetabolicProxy,
     _poly_features,
 )
-
-from helixlang.metabolism import ECOLI_CORE_MODEL
 
 
 def _batch(**kw):

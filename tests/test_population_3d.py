@@ -77,7 +77,7 @@ def test_3d_diffusion_spreads_along_all_axes() -> None:
     for _ in range(3):
         f.diffuse()
     for axis in ((1, 0, 0), (0, 1, 0), (0, 0, 1)):
-        nx, ny, nz = [c + d for c, d in zip((4, 4, 4), axis)]
+        nx, ny, nz = [c + d for c, d in zip((4, 4, 4), axis, strict=True)]
         assert f.get(nx, ny, nz) > 0.0
     assert f.get(4, 4, 4) > f.get(5, 5, 5)  # center still highest
 

@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from itertools import combinations_with_replacement
 from pathlib import Path
@@ -1117,7 +1118,7 @@ class DynamicFluxBalance:
         model: MetabolicModel | None = None,
         config: DynamicFBAConfig | None = None,
         fba: FluxBalanceAnalysis | None = None,
-        bound_override: "callable | None" = None,
+        bound_override: Callable[[float, DynamicFluxBalance], dict[str, float]] | None = None,
     ) -> None:
         self.config = config or DynamicFBAConfig()
         self.fba = fba or FluxBalanceAnalysis(model or ECOLI_CORE_MODEL)
@@ -1354,10 +1355,10 @@ class MetabolicProxy:
     """
 
     def __init__(self,
-                 model: "MetabolicModel | None" = None,
-                 fba: "FluxBalanceAnalysis | None" = None,
-                 features: "list[str] | None" = None,
-                 outputs: "list[str] | None" = None,
+                 model: MetabolicModel | None = None,
+                 fba: FluxBalanceAnalysis | None = None,
+                 features: list[str] | None = None,
+                 outputs: list[str] | None = None,
                  degree: int = 2,
                  max_uptake: float = DEFAULT_GLC_UPTAKE) -> None:
         self.fba = fba or FluxBalanceAnalysis(model or ECOLI_CORE_MODEL)
@@ -1399,7 +1400,7 @@ class MetabolicProxy:
     def _solve_fluxes(self, x: list[float]) -> dict[str, float]:
         """Solve FBA with the uptake vector ``x`` (restoring state after)."""
         saved = dict(self.fba.uptake_limits)
-        for f, v in zip(self.features, x):
+        for f, v in zip(self.features, x, strict=True):
             self.fba.set_uptake(f, v)
         try:
             sol = self.fba.solve()
@@ -1409,7 +1410,7 @@ class MetabolicProxy:
             self.fba.last_solution = None
         return {o: sol.get(o, 0.0) for o in self.outputs}
 
-    def fit(self, n_samples: int = 200, seed: int = 0) -> "MetabolicProxy":
+    def fit(self, n_samples: int = 200, seed: int = 0) -> MetabolicProxy:
         """Fit the surrogate on ``n_samples`` sampled FBA solutions.
 
         Uses least squares (numpy) with polynomial features when numpy is
@@ -1429,7 +1430,7 @@ class MetabolicProxy:
             self.coeffs = {}
         return self
 
-    def predict(self, uptake: "dict[str, float] | Sequence[float]") -> dict[str, float]:
+    def predict(self, uptake: dict[str, float] | Sequence[float]) -> dict[str, float]:
         """Predict flux outputs for an uptake-bound vector.
 
         Accepts either a dict ``{metabolite: bound}`` or a vector ordered
@@ -1450,7 +1451,7 @@ class MetabolicProxy:
             feats = _poly_features(x, self.degree)
             out: dict[str, float] = {}
             for o in self.outputs:
-                v = sum(c * fv for c, fv in zip(self.coeffs[o], feats))
+                v = sum(c * fv for c, fv in zip(self.coeffs[o], feats, strict=True))
                 rxn = self.fba.model.reactions.get(o)
                 if rxn is not None and rxn.lower_bound >= 0.0:
                     v = max(0.0, v)  # irreversible flux cannot go negative
@@ -1461,7 +1462,7 @@ class MetabolicProxy:
             raise RuntimeError("MetabolicProxy.fit() must be called first")
         best, best_d = 0, float("inf")
         for i, xi in enumerate(self._train_x):
-            d = sum((a - b) ** 2 for a, b in zip(xi, x))
+            d = sum((a - b) ** 2 for a, b in zip(xi, x, strict=True))
             if d < best_d:
                 best, best_d = i, d
         return {o: self._train_y[o][best] for o in self.outputs}
@@ -1472,7 +1473,7 @@ class MetabolicProxy:
         ys = [self._solve_fluxes(x) for x in xs]
         out: dict[str, float] = {}
         for o in self.outputs:
-            errs = [self.predict(x)[o] - y[o] for x, y in zip(xs, ys)]
+            errs = [self.predict(x)[o] - y[o] for x, y in zip(xs, ys, strict=True)]
             out[o] = (sum(e * e for e in errs) / len(errs)) ** 0.5
         return out
 

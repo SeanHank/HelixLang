@@ -28,7 +28,8 @@ selection markers in :mod:`helixlang.apps.synbio_designer`).
 from __future__ import annotations
 
 import itertools
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from math import prod
 
 from helixlang.apps.synbio_designer import (
@@ -204,7 +205,7 @@ class TruthTable:
 
     @classmethod
     def from_function(cls, inputs: list[str], outputs: list[str],
-                      func: "callable") -> "TruthTable":
+                      func: Callable[[tuple[bool, ...]], bool | tuple[bool, ...]]) -> TruthTable:
         """Enumerate all 2^n input combinations of ``func``.
 
         ``func`` maps a tuple of input bools to a tuple of output bools
@@ -235,7 +236,7 @@ class TruthTable:
         for inv, outv in self.rows:
             if not outv[output_index]:
                 continue
-            terms.append({name: val for name, val in zip(self.inputs, inv)})
+            terms.append({name: val for name, val in zip(self.inputs, inv, strict=True)})
         return terms
 
 
@@ -289,6 +290,7 @@ class CharacterizedGate:
         """
         kd = self.kd
         n = self.n
+        act: float
         if self.logic in ("AND", "NAND"):
             base = prod(max(l, 1e-9) for l in input_levels) ** n
             act = base / (kd ** n + base)
@@ -374,7 +376,7 @@ class Netlist:
 
     def evaluate(self, input_values: tuple[bool, ...]) -> tuple[bool, ...]:
         """Evaluate the netlist for one input combination."""
-        values: dict[str, bool] = dict(zip(self.inputs, input_values))
+        values: dict[str, bool] = dict(zip(self.inputs, input_values, strict=True))
         for node in self.nodes:
             values[node.id] = node.evaluate(values)
         return tuple(values[o] for o in self.outputs)
@@ -383,8 +385,8 @@ class Netlist:
         return list(self.nodes)
 
 
-def _binary_reduce(nodes: list[NetlistNode], fresh, base: str,
-                   signals: list[str], logic: str) -> str | None:
+def _binary_reduce(nodes: list[NetlistNode], fresh: Callable[[str], str],
+                   base: str, signals: list[str], logic: str) -> str | None:
     """Reduce a fan-in of signals into a balanced binary tree of gates.
 
     The characterized library only provides 2-input AND/OR/NAND/NOR, so
@@ -475,7 +477,7 @@ def _gate_high_low(gate: CharacterizedGate) -> tuple[float, float]:
 def _node_boolean_function(node: NetlistNode,
                            input_combo: tuple[bool, ...]) -> bool:
     values: dict[str, bool] = {}
-    for name, val in zip(node.inputs, input_combo):
+    for name, val in zip(node.inputs, input_combo, strict=True):
         values[name] = val
     return node.evaluate(values)
 
@@ -496,7 +498,7 @@ def score_gate(gate: CharacterizedGate, node: NetlistNode,
     total = 0.0
     for combo in itertools.product((False, True), repeat=len(upstream_levels)):
         levels = [high if b else low
-                  for (low, high), b in zip(upstream_levels, combo)]
+                  for (low, high), b in zip(upstream_levels, combo, strict=True)]
         out = gate.transfer(levels)
         target = _node_boolean_function(node, combo)
         margin = (out - 0.5) if target else (0.5 - out)
@@ -524,8 +526,9 @@ def assign_gates(netlist: Netlist,
     }
     for node in netlist.nodes:
         if node.logic == _CONST:
-            assignment[node.id] = next(
-                (g for g in by_logic.get("BUFFER", [])), None)
+            buf = next((g for g in by_logic.get("BUFFER", [])), None)
+            if buf is not None:
+                assignment[node.id] = buf
             continue
         upstream = [levels[i] for i in node.inputs]
         candidates = by_logic.get(node.logic) or by_logic.get("BUFFER", [])
@@ -577,7 +580,7 @@ def simulate_netlist(netlist: Netlist,
     circuit input.
     """
     levels: dict[str, float] = {name: float(l)
-                                for name, l in zip(netlist.inputs, input_levels)}
+                                for name, l in zip(netlist.inputs, input_levels, strict=True)}
     for node in netlist.nodes:
         gate = assignment.get(node.id)
         if node.logic == _CONST:

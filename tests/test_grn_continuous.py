@@ -81,7 +81,7 @@ def test_rk4_matches_analytic_linear_ode() -> None:
     rhs = lambda t, y: [k * (0.8 - y[0])]  # noqa: E731
     times, ys = integrate_ode(rhs, [0.0], (0.0, 500.0), n_points=50,
                               method="rk4")
-    for t, y in zip(times, ys):
+    for t, y in zip(times, ys, strict=True):
         analytic = 0.8 - 0.8 * math.exp(-k * t)
         assert y[0] == pytest.approx(analytic, abs=1e-3)
 
@@ -91,7 +91,7 @@ def test_rk45_adaptive_matches_analytic() -> None:
     rhs = lambda t, y: [k * (0.8 - y[0])]  # noqa: E731
     times, ys = integrate_ode(rhs, [0.0], (0.0, 500.0), n_points=100,
                               method="rk45", atol=1e-9, rtol=1e-9)
-    for t, y in zip(times, ys):
+    for t, y in zip(times, ys, strict=True):
         analytic = 0.8 - 0.8 * math.exp(-k * t)
         assert y[0] == pytest.approx(analytic, abs=1e-6)
 
@@ -125,7 +125,7 @@ def test_repressilator_oscillates() -> None:
     # sigmoid model).  Symmetry-breaking initial conditions are needed.
     w = -30.0
     g = GRN()
-    for name, lvl in zip(("lacI", "tetR", "cI"), (0.6, 0.4, 0.5)):
+    for name, lvl in zip(("lacI", "tetR", "cI"), (0.6, 0.4, 0.5), strict=True):
         g.add_gene(name, threshold=0.0, initial_level=lvl)
     for a, b in (("lacI", "tetR"), ("tetR", "cI"), ("cI", "lacI")):
         g.add_edge(a, b, w)
@@ -162,7 +162,7 @@ def test_scipy_path_matches_pure_python_when_available() -> None:
     for name in ("a", "b"):
         pa = pure.trajectory(name)
         sa = sc.trajectory(name)
-        for p, s in zip(pa, sa):
+        for p, s in zip(pa, sa, strict=True):
             assert p == pytest.approx(s, abs=1e-6)
 
 

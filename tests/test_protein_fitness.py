@@ -116,6 +116,7 @@ def test_dna_fitness_translates_and_scores() -> None:
     assert dna_fitness(wt_dna, wt_dna, "blosum62") == 1.0
     # silent (synonymous) codon change -> same protein -> fitness 1.0
     syn_dna = protein_to_dna(WT)  # deterministic back-translation
+    assert syn_dna == wt_dna
     # a single amino-acid swap (WT[6]='L') scored below identity
     mut = WT[:6] + "W" + WT[7:]
     mut_dna = protein_to_dna(mut)

@@ -15,8 +15,6 @@ References:
 """
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from helixlang.grn import GRN

@@ -27,7 +27,8 @@ References:
 from __future__ import annotations
 
 import json
-from typing import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any, Protocol, TypeVar, cast
 
 try:
     import numpy as np
@@ -36,21 +37,23 @@ except ImportError:  # pragma: no cover - numpy is the standard env
     _HAS_NUMPY = False
 
 try:
-    import numba  # type: ignore
+    import numba
     _HAS_NUMBA = True
 except ImportError:  # pragma: no cover - optional extra
     _HAS_NUMBA = False
 
 from helixlang.grn import GRN
 
+_Fn = TypeVar("_Fn", bound=Callable[..., Any])
 
-def optional_jit(**kwargs):
+
+def optional_jit(**kwargs: Any) -> Callable[[_Fn], _Fn]:
     """JIT wrapper: returns a numba ``njit``-compiled function when numba
     is available, otherwise the plain Python function (no-op)."""
-    def deco(fn):
+    def deco(fn: _Fn) -> _Fn:
         if _HAS_NUMBA:
             try:
-                return numba.njit(**kwargs)(fn)
+                return cast(_Fn, numba.njit(**kwargs)(fn))
             except Exception:  # pragma: no cover - exotic numba errors
                 return fn
         return fn
@@ -58,10 +61,10 @@ def optional_jit(**kwargs):
 
 
 @optional_jit()
-def _sigmoid_array(x):
+def _sigmoid_array(x: np.ndarray) -> np.ndarray:
     """Numerically stable vectorized sigmoid (matches ``grn.sigmoid``)."""
     z = np.exp(-x)
-    return 1.0 / (1.0 + z)
+    return 1.0 / (1.0 + z)  # type: ignore[no-any-return]
 
 
 class VectorizedGRN:
@@ -102,31 +105,35 @@ class VectorizedGRN:
                 [grn.nodes[name].kd if grn.nodes[name].kd is not None
                  else grn.nodes[name].threshold for name in self.names],
                 dtype=float)
-            self._W = W
+            self._W: np.ndarray = W
             self._thresholds = thresholds
             self._decays = decays
             self._hill_n = hill_n
             self._kd = kd
             self._has_hill = bool((hill_n > 0).any())
         else:  # pragma: no cover - numpy is the standard env
-            self._W = [[0.0] * n for _ in range(n)]
+            W_list = [[0.0] * n for _ in range(n)]
             for e in grn.edges:
-                self._W[idx[e.target]][idx[e.source]] = e.weight
-            self._thresholds = [
-                grn.nodes[name].threshold for name in self.names]
-            self._decays = [
-                grn.nodes[name].decay if grn.nodes[name].decay is not None
-                else grn._default_decay for name in self.names]
-            self._hill_n = [grn.nodes[name].hill_n for name in self.names]
-            self._kd = [grn.nodes[name].kd for name in self.names]
-            self._has_hill = any(
-                h is not None and h > 0 for h in self._hill_n)
+                W_list[idx[e.target]][idx[e.source]] = e.weight
+            self._W = cast(np.ndarray, W_list)
+            self._thresholds = np.asarray(
+                [grn.nodes[name].threshold for name in self.names])
+            self._decays = np.asarray(
+                [grn.nodes[name].decay if grn.nodes[name].decay is not None
+                 else grn._default_decay for name in self.names])
+            self._hill_n = np.asarray(
+                [grn.nodes[name].hill_n if grn.nodes[name].hill_n is not None
+                 else 0.0 for name in self.names])
+            self._kd = np.asarray(
+                [grn.nodes[name].kd if grn.nodes[name].kd is not None
+                 else grn.nodes[name].threshold for name in self.names])
+            self._has_hill = bool((self._hill_n > 0).any())
 
     @property
     def n_genes(self) -> int:
         return len(self.names)
 
-    def activation(self, inputs) -> "np.ndarray":
+    def activation(self, inputs: np.ndarray) -> np.ndarray:
         """Vectorized per-gene activation ``(N, G)`` for inputs ``(N, G)``.
 
         Genes with ``hill_n > 0`` use Hill kinetics ``x^n/(kd^n + x^n)``;
@@ -134,7 +141,7 @@ class VectorizedGRN:
         ``grn._activation_raw``.
         """
         if not _HAS_NUMPY:  # pragma: no cover - numpy is the standard env
-            return self._activation_python(inputs)
+            return cast(np.ndarray, self._activation_python(inputs.tolist()))
         if self._has_hill:
             act = _sigmoid_array(inputs - self._thresholds[None, :])
             mask = self._hill_n > 0
@@ -146,10 +153,10 @@ class VectorizedGRN:
             return np.where(mask[None, :], hill, act)
         return _sigmoid_array(inputs - self._thresholds[None, :])
 
-    def _activation_python(self, inputs):  # pragma: no cover - fallback
-        out = []
+    def _activation_python(self, inputs: list[list[float]]) -> list[list[float]]:
+        out: list[list[float]] = []
         for row in inputs:
-            r = []
+            r: list[float] = []
             for g, x in enumerate(row):
                 if self._hill_n[g] and self._hill_n[g] > 0:
                     kd = self._kd[g] if self._kd[g] is not None \
@@ -164,7 +171,7 @@ class VectorizedGRN:
             out.append(r)
         return out
 
-    def step(self, levels: "np.ndarray") -> "np.ndarray":
+    def step(self, levels: np.ndarray) -> np.ndarray:
         """Advance one tick for every cell row of ``levels`` ``(N, G)``.
 
         Returns the updated level matrix (clipped to [0, 1]).
@@ -175,36 +182,49 @@ class VectorizedGRN:
                 inputs = [sum(self._W[g][s] * row[s]
                               for s in range(self.n_genes))
                           for g in range(self.n_genes)]
-                act = self.activation([inputs])[0]
+                act = self.activation(cast(np.ndarray, [inputs]))[0]
                 for g in range(self.n_genes):
                     out[c][g] = max(0.0, min(1.0,
                         self._decays[g] * row[g]
                         + (1 - self._decays[g]) * act[g]))
-            return out
+            return cast(np.ndarray, out)
         inputs = np.asarray(levels, dtype=float) @ self._W.T
         act = self.activation(inputs)
         new = self._decays[None, :] * np.asarray(levels, dtype=float) \
             + (1.0 - self._decays)[None, :] * act
-        return np.clip(new, 0.0, 1.0)
+        return cast(np.ndarray, np.clip(new, 0.0, 1.0))
 
-    def triggered(self, levels: "np.ndarray", threshold: float = 0.5) -> "np.ndarray":
+    def triggered(self, levels: np.ndarray, threshold: float = 0.5) -> np.ndarray:
         """Boolean ``(N, G)`` mask of genes above ``threshold``."""
         return np.asarray(levels) > threshold
 
 
-def sort_cells(cells: Sequence, keys: Sequence[str] = ("x", "y", "z")) -> list:
+class _CellLike(Protocol):
+    id: int
+    x: int
+    y: int
+    z: int
+    energy: float
+    alive: bool
+
+
+_CellT = TypeVar("_CellT", bound=_CellLike)
+
+
+def sort_cells(cells: Sequence[_CellT],
+               keys: Sequence[str] = ("x", "y", "z")) -> list[_CellT]:
     """Stable spatial ordering of a population (cache-friendly processing).
 
     Sorts by the given cell attributes in order, so neighboring agents
     are visited together (NUFEB-style spatial locality).
     """
-    def keyfn(c):
+    def keyfn(c: _CellT) -> tuple[Any, ...]:
         return tuple(getattr(c, k, 0.0) for k in keys)
     return sorted(cells, key=keyfn)
 
 
-def iter_snapshots(population, n_steps: int, interval: int = 1,
-                   path: str | None = None) -> Iterator[dict]:
+def iter_snapshots(population: Any, n_steps: int, interval: int = 1,
+                   path: str | None = None) -> Iterator[dict[str, Any]]:
     """Stream per-tick population snapshots.
 
     Yields a snapshot dict every ``interval`` steps while running
@@ -235,7 +255,7 @@ def iter_snapshots(population, n_steps: int, interval: int = 1,
             fh.close()
 
 
-def _make_snapshot(population, step: int) -> dict:
+def _make_snapshot(population: Any, step: int) -> dict[str, Any]:
     cells = population.cells
     return {
         "step": step,

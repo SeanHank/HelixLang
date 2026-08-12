@@ -21,7 +21,6 @@ from helixlang.grn import GRN
 from helixlang.population import PopulationCell, PopulationConfig
 from helixlang.vectorized import (
     VectorizedGRN,
-    _HAS_NUMBA,
     iter_snapshots,
     optional_jit,
     sort_cells,
@@ -52,7 +51,7 @@ def _scalar_rows(grn: GRN, init, n_steps: int) -> list[list[float]]:
                         hill_n=node.hill_n, kd=node.kd)
         for e in grn.edges:
             gg.add_edge(e.source, e.target, e.weight)
-        for name, lv in zip(list(grn.nodes), row):
+        for name, lv in zip(list(grn.nodes), row, strict=True):
             gg.nodes[name].level = lv
         for _ in range(n_steps):
             gg.step()

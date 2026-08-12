@@ -35,9 +35,8 @@ References:
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 #: canonical amino-acid ordering (alphabetical, matches BLOSUM62)
 AA20: tuple[str, ...] = tuple("ARNDCQEGHILKMFPSTWYV")
@@ -130,7 +129,7 @@ def blosum62_raw(reference: str, variant: str) -> float:
     _validate(reference, "reference")
     _validate(variant, "variant")
     return float(sum(BLOSUM62[r][v]
-                     for r, v in zip(reference, variant)))
+                     for r, v in zip(reference, variant, strict=True)))
 
 
 def blosum62_normalized(reference: str, variant: str) -> float:
@@ -147,7 +146,7 @@ def blosum62_normalized(reference: str, variant: str) -> float:
     raw = 0.0
     best = 0.0
     worst = 0.0
-    for r, v in zip(reference, variant):
+    for r, v in zip(reference, variant, strict=True):
         raw += BLOSUM62[r][v]
         best += BLOSUM62[r][r]
         worst += _BLOSUM_MIN[r]
@@ -183,7 +182,7 @@ class BLOSUMOracle:
         return True
 
 
-def _load_esm(model_name: str):
+def _load_esm(model_name: str) -> tuple[Any, Any]:
     """Lazily import torch + transformers and load the ESM-2 model.
 
     Returns ``(model, tokenizer)`` or raises ImportError.

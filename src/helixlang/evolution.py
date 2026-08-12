@@ -59,6 +59,7 @@ try:
 except ImportError:
     _HAS_NUMPY = False
 
+from helixlang.protein_fitness import FitnessOracle
 from helixlang.seq_utils import gc_content as _gc_content
 
 # ============================================================================
@@ -494,7 +495,7 @@ def calculate_fitness(dna: str,
                       target_dna: str | None = None,
                       method: str = "hamming",
                       custom_func: Callable[[str], float] | None = None,
-                      oracle: "object | str | None" = None,
+                      oracle: FitnessOracle | str | None = None,
                       ) -> float:
     """Fitness calculation.
 

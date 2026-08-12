@@ -37,8 +37,8 @@ from __future__ import annotations
 import csv
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 try:
     import numpy as np
@@ -47,6 +47,7 @@ except ImportError:  # pragma: no cover - numpy is the standard env
     _HAS_NUMPY = False
 
 from helixlang.grn import GRN
+from helixlang.metabolism import FluxBalanceAnalysis
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -54,7 +55,7 @@ def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
 
 
 def _euclidean(a: Sequence[float], b: Sequence[float]) -> float:
-    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b, strict=True)))
 
 
 # ============================================================================
@@ -109,7 +110,7 @@ class ExpressionMatrix:
         g = self.genes.index(gene)
         return [row[g] for row in self.values]
 
-    def normalized(self, method: str = "max") -> "ExpressionMatrix":
+    def normalized(self, method: str = "max") -> ExpressionMatrix:
         """Per-gene scaled copy with values in [0, 1].
 
         ``method="max"`` divides every gene by its maximum across cells;
@@ -129,7 +130,7 @@ class ExpressionMatrix:
                                 None if self.y is None else list(self.y),
                                 None if self.z is None else list(self.z))
 
-    def barcode(self, threshold: float = 0.5) -> "ExpressionMatrix":
+    def barcode(self, threshold: float = 0.5) -> ExpressionMatrix:
         """Binarized copy (``>= threshold`` -> 1, else 0)."""
         out = [[1.0 if v >= threshold else 0.0 for v in row]
                for row in self.values]
@@ -226,7 +227,7 @@ def read_expression_matrix(path: str, delimiter: str = "\t",
     (first column = gene names).  Blank lines and ``#`` comments are
     skipped.
     """
-    with open(path, "r", newline="") as fh:
+    with open(path, newline="") as fh:
         rows = [[c.strip() for c in line]
                 for line in csv.reader(fh, delimiter=delimiter)
                 if line and not line[0].startswith("#")]
@@ -379,7 +380,7 @@ def expression_to_fba_bounds(
     return out
 
 
-def apply_fba_bounds(fba, bounds: dict[str, float]) -> None:
+def apply_fba_bounds(fba: FluxBalanceAnalysis, bounds: dict[str, float]) -> None:
     """Apply a bound set to a :class:`FluxBalanceAnalysis` in place.
 
     ``EX_<metabolite>`` exchange reactions set the metabolite uptake

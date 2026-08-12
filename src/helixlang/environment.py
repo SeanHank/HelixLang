@@ -416,7 +416,7 @@ def _laplacian_step_3d(
                - 6.0 * a)
         new = a + d_lattice * lap
         _np.clip(new, 0.0, None, out=new)
-        return new.tolist()
+        return new.tolist()  # type: ignore[no-any-return]
     new_grid: list[list[list[float]]] = []
     for k in range(depth):
         plane = grid[k]

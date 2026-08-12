@@ -35,6 +35,7 @@ from helixlang.environment import (
     monod_uptake,
 )
 from helixlang.grn import GRN
+from helixlang.morphology_3d import LSystem3D
 from helixlang.units import (
     AI2_DIFFUSION_UM2_S,
     DIFFUSION_DT_S,
@@ -1233,7 +1234,7 @@ def _laplacian_step_3d(
                - 6.0 * a)
         new = a + d_lattice * lap
         np.clip(new, 0.0, None, out=new)
-        return new.tolist()
+        return new.tolist()  # type: ignore[no-any-return]
     new_grid: list[list[list[float]]] = []
     for k in range(depth):
         plane = grid[k]
@@ -1315,7 +1316,7 @@ class CellPopulation3D(CellPopulation):
         if config.grid_depth < 1:
             raise ValueError("grid_depth must be >= 1")
         super().__init__(initial_cells, config, seed)
-        self.signal_field: list[list[list[float]]] = [
+        self.signal_field: list[list[list[float]]] = [  # type: ignore[assignment]
             [[0.0] * config.grid_width for _ in range(config.grid_height)]
             for _ in range(config.grid_depth)
         ]
@@ -1347,7 +1348,7 @@ class CellPopulation3D(CellPopulation):
                              self.config.grid_height, self.config.grid_depth,
                              connectivity=connectivity)
 
-    def _diffuse(self, config: PopulationConfig) -> list[list[list[float]]]:
+    def _diffuse(self, config: PopulationConfig) -> list[list[list[float]]]:  # type: ignore[override]
         """3D signal diffusion (7-point Laplacian, stable sub-steps)."""
         d_lattice = diffusion_to_lattice(
             config.signal_diffusion, DIFFUSION_DT_S, LATTICE_SPACING_UM)
@@ -1442,12 +1443,12 @@ class CellPopulation3D(CellPopulation):
             self._append_trace()
         return self.get_statistics()
 
-    def get_signal_field(self) -> list[list[list[float]]]:
+    def get_signal_field(self) -> list[list[list[float]]]:  # type: ignore[override]
         """Return the 3D signal field (a copy), indexed [z][y][x]."""
         return [[row[:] for row in plane] for plane in self.signal_field]
 
     def to_lsystem3d(self, step: float = 1.0,
-                     ) -> "LSystem3D":
+                     ) -> LSystem3D:
         """Export the colony's 3D occupancy as an LSystem3D morphology.
 
         Builds an axiom that navigates the 3D turtle to every occupied

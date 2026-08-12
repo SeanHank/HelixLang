@@ -24,19 +24,20 @@ References:
 """
 from __future__ import annotations
 
-import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from helixlang.bio_data import ECOLI_CODON_USAGE
 from helixlang.cell import INITIAL_CELL_ENERGY
 from helixlang.central_dogma import (
     PROTEINS_PER_MRNA_LIFETIME,
-    translate,
     transcribe,
+    translate,
 )
 from helixlang.grn import GRN, integrate_grn
 from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+from helixlang.population import CellPopulation
 
 #: translation cost per amino acid (ATP; Karr et al. 2012)
 VIRTUAL_TRANSLATION_ATP_PER_AA = 4.0
@@ -221,7 +222,7 @@ class VirtualCell:
 # Parameter estimation harness
 # ============================================================================
 
-def fit_parameters(predict, observed: list[float],
+def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
                    ranges: dict[str, tuple[float, float]],
                  n_samples: int = 500, seed: int = 0,
                  refine_rounds: int = 5, n_grid: int = 50) -> dict:
@@ -266,7 +267,7 @@ def fit_parameters(predict, observed: list[float],
         if len(pred) != len(observed):
             raise ValueError(
                 "prediction length must match observed length")
-        return sum((p - o) ** 2 for p, o in zip(pred, observed))
+        return sum((p - o) ** 2 for p, o in zip(pred, observed, strict=True))
 
     best = {n: rng.uniform(*ranges[n]) for n in names}
     best_sse = sse(best)
@@ -331,7 +332,7 @@ def fit_parameters(predict, observed: list[float],
 # Standardized benchmarks
 # ============================================================================
 
-def run_biofilm_benchmark(population, n_steps: int = 120,
+def run_biofilm_benchmark(population: CellPopulation, n_steps: int = 120,
                           interval: int = 10) -> dict:
     """BM3-style uniform-biofilm growth benchmark.
 
@@ -420,7 +421,7 @@ def perturbation_response(grn: GRN, target: str,
             else float("inf"))
     settling = None
     tol = 0.05 * abs(perturbed_final)
-    for t, v in zip(result.times, perturbed):
+    for t, v in zip(result.times, perturbed, strict=True):
         if abs(v - perturbed_final) <= tol:
             settling = t
             break

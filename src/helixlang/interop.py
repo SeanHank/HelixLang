@@ -305,15 +305,18 @@ def sbol3_loads(xml_text: str) -> list[dict[str, Any]]:
         comp_children = _children(cd_el, "component")
         if not comp_children:
             continue  # nested part definitions (no direct components)
+        role_el = _child(cd_el, "role")
         entry: dict[str, Any] = {
             "display_id": did,
             "name": _text(_child(cd_el, "name")) or "",
-            "role": _child(cd_el, "role").get(f"{{{RDF_NS}}}resource")
-            if _child(cd_el, "role") is not None else SBOL_ROLE_ENGINEERED,
+            "role": role_el.get(f"{{{RDF_NS}}}resource")
+            if role_el is not None else SBOL_ROLE_ENGINEERED,
             "components": [],
         }
         for comp in comp_children:
             comp_obj = _child(comp, "Component")
+            if comp_obj is None:
+                continue
             fid = _text(_child(comp_obj, "displayId"))
             if not fid:
                 continue

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from helixlang.stochastic import (
@@ -101,7 +102,7 @@ def rate_constant_from_decay(decay: float) -> float:
     return -math.log(decay)
 
 
-def _activation_raw(node: "GeneNode", inputs: float) -> float:
+def _activation_raw(node: GeneNode, inputs: float) -> float:
     """Raw activation term of a gene given its summed regulatory input.
 
     Shared by the discrete recurrence (:meth:`GRN.step`) and the
@@ -115,8 +116,8 @@ def _activation_raw(node: "GeneNode", inputs: float) -> float:
     return sigmoid(inputs - node.threshold)
 
 
-def grn_derivatives(grn: "GRN",
-                    levels: list[float] | None = None) -> tuple[list[str], "callable", list[float]]:
+def grn_derivatives(grn: GRN,
+                    levels: list[float] | None = None) -> tuple[list[str], Callable[[float, list[float]], list[float]], list[float]]:
     """Continuous-time ODE form of a GRN (Alon 2007; GRN_modeler 2025).
 
     Builds the first-order mass-action model
@@ -324,7 +325,7 @@ _DOPRI5_B4 = (5179/57600, 0.0, 7571/16695, 393/640, -92097/339200,
               187/2100, 1/40)
 
 
-def integrate_ode(rhs: "callable", y0: list[float], t_span: tuple[float, float],
+def integrate_ode(rhs: Callable[[float, list[float]], list[float]], y0: list[float], t_span: tuple[float, float],
                   n_points: int = 1000, method: str = "rk45",
                   dt0: float = 0.01, atol: float = 1e-8, rtol: float = 1e-6,
                   max_steps: int = 1_000_000) -> tuple[list[float], list[list[float]]]:
@@ -378,7 +379,7 @@ def integrate_ode(rhs: "callable", y0: list[float], t_span: tuple[float, float],
     raise ValueError("method must be 'rk4', 'rk45' or 'scipy'")
 
 
-def _rk4_step(rhs: "callable", t: float, y: list[float],
+def _rk4_step(rhs: Callable[[float, list[float]], list[float]], t: float, y: list[float],
               dt: float) -> list[float]:
     n = len(y)
     k1 = rhs(t, y)
@@ -389,7 +390,7 @@ def _rk4_step(rhs: "callable", t: float, y: list[float],
             for i in range(n)]
 
 
-def _dopri5(rhs: "callable", t0: float, y0: list[float], t_end: float,
+def _dopri5(rhs: Callable[[float, list[float]], list[float]], t0: float, y0: list[float], t_end: float,
             dt0: float, atol: float, rtol: float,
             max_steps: int) -> tuple[list[float], list[list[float]], list[list[float]]]:
     """Adaptive Dormand-Prince RK5(4) integrator with step control.
@@ -541,7 +542,7 @@ class ContinuousGRNResult:
         return [row[i] for row in self.levels]
 
 
-def integrate_grn(grn: "GRN", t_span: tuple[float, float],
+def integrate_grn(grn: GRN, t_span: tuple[float, float],
                   n_points: int = 1000, method: str = "rk45",
                   atol: float = 1e-8, rtol: float = 1e-6,
                   levels: list[float] | None = None) -> ContinuousGRNResult:

@@ -48,7 +48,6 @@ from helixlang.interop import (
     sbol3_loads,
 )
 
-
 # ============================================================================
 # Boolean helpers + truth tables
 # ============================================================================
@@ -199,13 +198,9 @@ def test_assignment_reproducible() -> None:
 
 def test_score_gate_polarity() -> None:
     # a gate with wrong polarity scores worse than one with the right one
-    tt = TruthTable.from_function(["a"], ["y"], lambda v: (not v[0],))
-    net = synthesize_netlist(tt)
-    node = net.nodes[-1]
     not_g = next(g for g in GATE_LIBRARY if g.id == "NOT_lacI")
     buf_g = next(g for g in GATE_LIBRARY if g.id == "BUFFER_araC")
     assert not_g.transfer([0.0]) > not_g.transfer([1.0])
-    upstream = [(0.0, 1.0)]
     assert buf_g.transfer([1.0]) > 0.5  # BUFFER would output HIGH for HIGH in
 
 
