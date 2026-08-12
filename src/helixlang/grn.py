@@ -5,7 +5,7 @@ Each tick updates each gene's expression level; genes with level > 0.5
 are triggered to execute their ORF.
 
 Models:
-- Legacy sigmoid threshold model (default, unchanged)::
+- Sigmoid threshold model (default, unchanged)::
       activation = sigmoid(sum(w_i * level_i) - threshold)
       level' = decay * level + (1 - decay) * activation
 - Optional per-gene Hill kinetics (activator-saturating)::
@@ -14,15 +14,10 @@ Models:
   coefficient. Real measured Kd values (e.g. lacI repressor Kd ~ 0.1 nM,
   Oehler 1990 EMBO J) can be supplied per gene via ``kd=``.
 
-Per-gene decay follows measured protein half-lives via
-:func:`decay_from_half_life_ticks` (E. coli protein half-lives median
-~110 min; Mosteller 1980 J Biol Chem, Helbig 2011 Proteomics 11).
-
-``GRN(calibrated=True)`` (opt-in, see ``doc/gameplay-units-upgrade.md``
-§5.4) defaults genes without an explicit ``decay=`` to
-``decay_from_half_life_ticks(110)`` (~0.994, one tick per minute)
-instead of the legacy universal ``DECAY = 0.7``.  The default
-``calibrated=False`` reproduces today's behavior exactly.
+Genes without an explicit ``decay=`` default to
+``decay_from_half_life_ticks(110)`` (~0.994 per tick), the E. coli
+median protein half-life of ~110 min with one tick per minute
+(Mosteller 1980 J Biol Chem, Helbig 2011 Proteomics 11).
 """
 from __future__ import annotations
 
@@ -69,13 +64,13 @@ def hill(x: float, n: float, kd: float) -> float:
 def decay_from_half_life_ticks(half_life_ticks: float) -> float:
     """Per-tick decay coefficient from a protein half-life.
 
-    Re-exported from :mod:`helixlang.units` (the calibration registry);
+    Re-exported from :mod:`helixlang.units` (the physical unit system);
     see :func:`helixlang.units.decay_from_half_life_ticks` for the full
     documentation.
 
     E. coli protein half-lives are ~60-600 min (median ~110 min;
     Mosteller 1980, Helbig 2011), so with one tick per minute a typical
-    decay is ~0.994, far slower than the legacy universal 0.7.
+    decay is ~0.994.
     """
     return units_decay_from_half_life_ticks(half_life_ticks)
 
@@ -100,31 +95,25 @@ class Edge:
 class GRN:
     """Hybrid GRN model with discrete ticks + sigmoid/Hill thresholds.
 
-    ``DECAY`` is the universal legacy decay used when a gene has no
-    per-gene ``decay=``. It is a dimensionless heuristic (smaller values
-    respond faster); per-gene decay should be derived from measured
-    protein half-lives via :func:`decay_from_half_life_ticks`.
-    ``GRN(calibrated=True)`` replaces the universal default with the
-    measured median (110 min half-life => decay ~= 0.994).
+    ``DECAY`` is the default per-tick decay coefficient used when a gene
+    has no per-gene ``decay=``: derived from the E. coli median protein
+    half-life of ~110 min (Mosteller 1980, Helbig 2011), i.e. ~0.994 per
+    tick.  Per-gene decay should be derived from measured half-lives via
+    :func:`decay_from_half_life_ticks`.
     """
 
-    DECAY = 0.7  # legacy universal decay (heuristic, not measured)
+    DECAY = units_decay_from_half_life_ticks(PROTEIN_HALF_LIFE_MEDIAN_TICKS)
 
-    def __init__(self, calibrated: bool = False) -> None:
+    def __init__(self) -> None:
         self.nodes: dict[str, GeneNode] = {}
         self.edges: list[Edge] = []
         # Per-target incoming-edge index (target -> edges), so ``step()`` is
         # O(N + E) instead of scanning all edges per node (O(N·E)).
         self._incoming: dict[str, list[Edge]] = {}
         self._edge_count = 0
-        # Calibrated mode (opt-in): genes without an explicit ``decay=``
-        # default to the E. coli median protein half-life (Mosteller 1980,
-        # Helbig 2011) instead of the legacy universal 0.7.
-        self.calibrated = calibrated
-        self._calibrated_decay = (
-            units_decay_from_half_life_ticks(PROTEIN_HALF_LIFE_MEDIAN_TICKS)
-            if calibrated else self.DECAY
-        )
+        # Genes without an explicit ``decay=`` default to the E. coli
+        # median protein half-life (Mosteller 1980, Helbig 2011).
+        self._default_decay = self.DECAY
 
     def add_gene(self, name: str, threshold: float,
                  initial_level: float = 0.0,
@@ -135,7 +124,7 @@ class GRN:
 
         Args:
             name: gene name
-            threshold: activation threshold for the legacy sigmoid path
+            threshold: activation threshold for the sigmoid path
                 (ignored when ``hill_n`` is set and ``kd`` is given)
             initial_level: starting expression level in [0, 1]
             decay: per-gene decay coefficient (default: :attr:`DECAY`);
@@ -184,7 +173,7 @@ class GRN:
                 raw = hill(inputs, node.hill_n, kd)
             else:
                 raw = sigmoid(inputs - node.threshold)
-            decay = node.decay if node.decay is not None else self._calibrated_decay
+            decay = node.decay if node.decay is not None else self._default_decay
             # Decay + new input (not doubled, to avoid self-excitation of genes without inputs)
             blended = decay * node.level + (1 - decay) * raw
             new_levels[name] = max(0.0, min(1.0, blended))

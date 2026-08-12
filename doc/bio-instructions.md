@@ -46,12 +46,13 @@ ATG GCT GGT TAA
 #config ticks=<number of ticks> output=<output format>
 ```
 
-`#config` also accepts `units=<gameplay|real>` (default `gameplay`). Set
-`units=real` for physically-calibrated rates: protein half-life ~110 min
-(GRN decay ≈ 0.994/tick), quorum threshold 5.0 = 10 µM AI-2, division
-threshold reachable in ~20 rich-medium minutes, and diffusion recomputed at
-the declared 10 µm lattice edge. Energy counts stay the same either way;
-only the interpretation changes (see `doc/gameplay-units-upgrade.md`).
+`#config` keys are `ticks`, `output`, and the grid sizes `grid_width` /
+`grid_height` (see `doc/language-spec.md`). The runtime runs on **physical
+units** end-to-end (no `units=` key): energy counts are ATP molecules,
+signals are µM, diffusion is µm²/s, and one tick is one minute. GRN decay
+defaults to the 110-min protein half-life (≈ 0.994/tick), quorum fires at
+10 µM AI-2, and the division threshold is reachable in ~20 rich-medium
+minutes. See `doc/simulation-model.md` §6.3 and `doc/language-spec.md` §3.6.
 
 ### DNA Triplet Rules
 

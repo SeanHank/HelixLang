@@ -84,6 +84,3 @@ class SemanticAnalyzer:
             raise SemanticError("#config ops_per_tick must be > 0")
         if c.react_steps <= 0:
             raise SemanticError("#config react_steps must be > 0")
-        if c.units not in ("gameplay", "real"):
-            raise SemanticError(
-                f"#config units must be 'gameplay' or 'real', got {c.units!r}")

@@ -86,7 +86,6 @@ def _serialize_program_summary(program: Any) -> dict:
             "table": program.config.table,
             "ops_per_tick": program.config.ops_per_tick,
             "react_steps": program.config.react_steps,
-            "units": getattr(program.config, "units", "gameplay"),
         },
     }
 

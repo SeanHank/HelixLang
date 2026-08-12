@@ -1,5 +1,14 @@
 # Gameplay-Unit Calibration Plan — From Toy Design to Physical Biology
 
+> **SUPERSEDED (implemented).** This document is a historical plan. The runtime
+> now runs on **physical units end-to-end** — the `calibrated=`/`units=`
+> switches, the `CALIBRATED` registry, and the `energy_to_atp`/`signal_to_um`
+> conversion functions were **removed** in favor of direct physical magnitudes
+> (ATP molecule counts, µM concentrations, µm²/s diffusion, 1 tick = 1 minute).
+> The current design is documented in `doc/simulation-model.md` §6.3 and
+> `doc/language-spec.md` §3.6; the unit constants live in
+> `src/helixlang/units.py`. This file is kept for provenance only.
+
 > Goal: turn the remaining **gameplay units** (arbitrary, dimensionless energy / signal / threshold
 > constants that the previous upgrade rounds only *documented*) into **physically grounded,
 > literature-cited calibration targets**, without breaking the language, the VM semantics, the

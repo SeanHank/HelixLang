@@ -75,11 +75,10 @@ transcribe(dna: str, promoter_strength: float = 1.0,
 translate(transcript: Transcript) -> TranslationResult
 
 calculate_mrna_level(transcript: Transcript, time_minutes: float,
-                     degradation_rate: float | None = None,
-                     units: str = "gameplay") -> float
-    # units="gameplay" (default) returns the dimensionless concentration;
-    # units="real" scales by PROTEINS_PER_MRNA_LIFETIME (the number of
-    # proteins each mRNA is expected to produce over its lifetime).
+                     degradation_rate: float | None = None) -> float
+    # returns the mRNA level as a molecule count:
+    # level × PROTEINS_PER_MRNA_LIFETIME (the number of proteins each
+    # mRNA is expected to produce over its lifetime).
 
 coupled_transcription_translation(dna: str,
                                   promoter_strength: float = 1.0
@@ -96,7 +95,7 @@ E_COLI_POLY_A_TAIL_LENGTH              = 15
 MAX_TRNA_ABUNDANCE                     = 3500   # CTG
 MAX_INITIATION_FREQUENCY_PER_MIN       = 10.0
 COUPLING_OFFSET_NT                     = 30     # transcription-translation coupling offset (Miller 1972)
-PROTEINS_PER_MRNA_LIFETIME             = 100.0  # proteins per mRNA per lifetime (units="real")
+PROTEINS_PER_MRNA_LIFETIME             = 100.0  # proteins per mRNA per lifetime (molecule-count scaling)
 ```
 
 ---
@@ -502,12 +501,10 @@ ARABIDOPSIS_NE = 4e5
 from helixlang.grn import GRN, decay_from_half_life_ticks
 
 class GRN:
-    DECAY = 0.7            # legacy universal decay (gameplay default)
-
-    def __init__(self, calibrated: bool = False):
-        # calibrated=True: genes without an explicit decay= default to
-        # decay_from_half_life_ticks(110) ~= 0.994 (E. coli median protein
-        # half-life ~110 min; Mosteller 1980, Helbig 2011).
+    DECAY ≈ 0.994           # universal decay from the 110-min protein half-life
+                            # decay_from_half_life_ticks(110) (Mosteller 1980,
+                            # Helbig 2011); genes without an explicit decay=
+                            # default to this.
 
     def add_gene(self, name: str, threshold: float,
                  initial_level: float = 0.0,
@@ -525,39 +522,39 @@ decay_from_half_life_ticks(half_life_ticks: float) -> float
 
 ---
 
-## 9. units — Calibration Registry
+## 9. units — Physical Unit System
 
 ```python
-from helixlang.units import CALIBRATED, Calibration
 from helixlang.units import (
-    energy_to_atp, signal_to_um, ticks_to_min,
+    TIME_TICK_MIN, TIME_TICK_S, LATTICE_SPACING_UM,
+    ATP_PER_GLUCOSE, PROTEIN_HALF_LIFE_MEDIAN_TICKS,
+    AI2_DIFFUSION_UM2_S, DIFFUSION_DT_S,
+    ticks_to_min,
     diffusion_to_lattice, diffusion_lattice_to_dx,
     decay_from_half_life_ticks, decay_to_half_life_ticks,
 )
 
-class Calibration(NamedTuple):
-    physical_value: float    # value in physical units
-    unit: str                # physical unit / citation note
-    citation: str            # literature reference
-    conversion_fn: object | None  # gameplay count -> physical value
-    legacy_default: float    # today's gameplay default (never changed)
+TIME_TICK_MIN              = 1.0     # 1 tick = 1 minute (Neidhardt 1996)
+TIME_TICK_S                = 60.0
+LATTICE_SPACING_UM         = 10.0    # lattice site edge
+ATP_PER_GLUCOSE            = 38      # ATP per glucose (Alberts)
+PROTEIN_HALF_LIFE_MEDIAN_TICKS = 110.0   # E. coli median protein half-life
+AI2_DIFFUSION_UM2_S        = 100.0   # AI-2 diffusion coefficient (Miller & Bassler 2001)
+DIFFUSION_DT_S             = 60.0    # diffusion time step per tick
 
-CALIBRATED: dict[str, Calibration]
-    # keyed "<module>.<CONSTANT>", one row per gameplay-unit catalog entry
-    # (see doc/gameplay-units-upgrade.md §2). Data-only; no execution on import.
-
-energy_to_atp(energy_units: float) -> float   # 1 unit = 10^7 ATP (Orth 2010)
-signal_to_um(signal_units: float) -> float    # 1 lattice unit = 2 uM AI-2
-ticks_to_min(ticks: float) -> float           # 1 tick = 1 minute
+ticks_to_min(ticks: float) -> float
 diffusion_to_lattice(D_um2_s, dt_s, dx_um) -> float
 diffusion_lattice_to_dx(D_um2_s, dt_s, D_lattice) -> float
 decay_from_half_life_ticks(half_life_ticks) -> float
 decay_to_half_life_ticks(decay) -> float
 ```
 
-`units=real` (`#config units=real` / `Cell(calibrated=True)` /
-`PopulationConfig(calibrated=True)` / `GRN(calibrated=True)`) activates the
-calibrated values while keeping every gameplay *count* identical.
+Physical units are always on (no `units=` / `calibrated=` switch): energy counts
+are ATP molecules (cell defaults in `cell.py`: newborn `1e9`, division
+`1.8e9`; population defaults in `population.py`: quorum `10.0` µM AI-2,
+diffusion `100.0` µm²/s, emission `2.0` µM/tick), signals are µM, one tick is
+one minute. The legacy `CALIBRATED` registry and its conversion functions
+(`energy_to_atp`, `signal_to_um`) were removed.
 
 ---
 

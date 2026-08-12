@@ -3,28 +3,21 @@
 Based on real biology:
 - E. coli doubling time ~20 min (grown in rich medium, 37°C)
 - Quorum sensing: AI-2 signal molecule threshold ~10 uM (Xavier 2003)
-- Cell division requires a sufficient energy budget (see UNITS: the
-  ~200-unit threshold is a dimensionless gameplay budget, not an
-  experimentally measured quantity)
-- Intercellular signal diffusion coefficient ~1e-6 cm^2/s (order of
-  magnitude; the on-lattice diffusion constant below is dimensionless)
+- Cell division requires a sufficient energy budget (ATP molecules;
+  the 1.8e9 ATP threshold is reachable in ~20 rich-medium minutes at
+  the +4e7 ATP/tick net intake)
+- Intercellular signal diffusion coefficient ~1e-6 cm^2/s = 100 um^2/s
+  (order of magnitude; stored in um^2/s and converted to a stable
+  on-lattice form at the declared lattice edge)
 - Biofilm formation requires a sufficiently high cell density (O'Toole 2000)
 
 .. note::
-   **Units disclaimer.** Division/death energy thresholds, the signal
-   diffusion constant, and the quorum threshold are *gameplay units*
-   (dimensionless lattice budget), except where a physical value is
-   cited (Xavier 2003: 10 uM AI-2).  All such magic numbers are
-   registered as named constants below so future calibration is a
-   one-line edit.
-
-   **Calibrated mode** (``PopulationConfig(calibrated=True)``, see
-   ``doc/gameplay-units-upgrade.md``): thresholds are derived from
-   :mod:`helixlang.units` — the division threshold is set so a newborn
-   cell reaches it in ~20 ticks rich medium (Neidhardt 1996), the quorum
-   threshold 5.0 is declared as 10 uM AI-2 (Xavier 2003), and the
-   on-lattice diffusion coefficient is recomputed at the declared 10 um
-   lattice edge (D_lattice ~= 60) via stable sub-steps.
+   **Units.** Energy is in **ATP molecules**, the signal field is in
+   **µM concentrations**, the on-lattice diffusion input is a physical
+   **µm²/s** coefficient (converted internally via
+   :func:`helixlang.units.diffusion_to_lattice` at the declared 10 µm
+   lattice edge, D_lattice ~= 60), and one tick is one minute
+   (:mod:`helixlang.units`).
 """
 from __future__ import annotations
 
@@ -33,7 +26,12 @@ import random
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 
-from helixlang.units import CALIBRATED
+from helixlang.units import (
+    AI2_DIFFUSION_UM2_S,
+    DIFFUSION_DT_S,
+    LATTICE_SPACING_UM,
+    diffusion_to_lattice,
+)
 
 # numpy is optional (falls back to pure Python if unavailable)
 try:
@@ -44,47 +42,47 @@ except ImportError:
 
 
 # ============================================================================
-# Gameplay-unit constant registry
+# Physical constant registry
 # ============================================================================
-# Defaults are preserved exactly; the values are dimensionless gameplay
-# units unless a physical citation is given (see module docstring).
 
 #: maximum population size
 DEFAULT_MAX_POPULATION_SIZE = 10000
-#: simulation lattice dimensions
+#: simulation lattice dimensions (each site edge = LATTICE_SPACING_UM µm;
+#: a 100 x 100 grid = 1 mm biofilm patch)
 DEFAULT_GRID_WIDTH = 100
 DEFAULT_GRID_HEIGHT = 100
-#: energy budget required for division (gameplay units)
-DIVISION_ENERGY_THRESHOLD = 200.0
-#: energy below which a cell dies (gameplay units)
+#: energy budget required for division (ATP; newborn 1e9 + net 4e7/tick
+#: reaches this in ~20 ticks, Neidhardt 1996 rich-medium doubling)
+DIVISION_ENERGY_THRESHOLD = 1.8e9
+#: energy below which a cell dies (starvation death at 0 ATP)
 DEATH_ENERGY_THRESHOLD = 0.0
-#: on-lattice signal diffusion coefficient (dimensionless; physical
-#: intercellular diffusion is ~1e-6 cm^2/s)
-SIGNAL_DIFFUSION_COEFFICIENT = 0.1
-#: quorum-sensing signal threshold (gameplay units; the cited physical
-#: value is ~10 uM AI-2, Xavier 2003)
-QUORUM_SIGNAL_THRESHOLD = 5.0
-#: metabolic energy cost per time step (gameplay units)
-METABOLIC_COST_PER_STEP = 1.0
-#: nutrient intake per time step, rich medium (gameplay units)
-ENERGY_INTAKE_PER_STEP = 5.0
-#: newborn cell energy (gameplay units)
-POPULATION_CELL_INITIAL_ENERGY = 100.0
-#: AI-2 signal emitted per cell per tick (gameplay units; 1 unit = 2 uM
-#: in calibrated mode, see :mod:`helixlang.units`)
-SIGNAL_EMISSION_PER_STEP = 1.0
+#: AI-2 intercellular signal diffusion coefficient, µm^2/s
+#: (~1e-6 cm^2/s, Miller & Bassler 2001); on-lattice D at the declared
+#: 10 µm lattice edge is ~60 via diffusion_to_lattice
+SIGNAL_DIFFUSION_UM2_S = AI2_DIFFUSION_UM2_S
+#: quorum-sensing signal threshold (µM AI-2, Xavier 2003 ~10 µM)
+QUORUM_SIGNAL_THRESHOLD = 10.0
+#: metabolic energy cost per time step (ATP; maintenance flux ~2.5e7
+#: ATP/min, Orth 2010)
+METABOLIC_COST_PER_STEP = 1.0e7
+#: nutrient intake per time step, rich medium (ATP; glucose uptake
+#: -> ATP, Alberts)
+ENERGY_INTAKE_PER_STEP = 5.0e7
+#: newborn cell energy (ATP molecules)
+POPULATION_CELL_INITIAL_ENERGY = 1.0e9
+#: AI-2 signal emitted per cell per tick (µM; 1 lattice unit = 2 µM,
+#: Xavier & Bassler 2003)
+SIGNAL_EMISSION_PER_STEP = 2.0
 
-#: gameplay-unit axis summary (see module docstring)
+#: physical-unit axis summary (see module docstring)
 UNITS: dict[str, str] = {
-    "energy": "gameplay units (not Joules); thresholds are one-line edits "
-              "via DIVISION_ENERGY_THRESHOLD / DEATH_ENERGY_THRESHOLD; "
-              "calibrated mode: 1 unit = 1e7 ATP (Orth 2010)",
-    "signal": "dimensionless lattice units; the physically cited AI-2 "
-              "threshold is ~10 uM (Xavier 2003); calibrated mode: "
-              "1 lattice unit = 2 uM",
-    "diffusion": "dimensionless on-lattice constant; physical "
-                 "intercellular diffusion ~1e-6 cm^2/s; calibrated mode "
-                 "recomputes at the declared lattice edge (see units.py)",
+    "energy": "ATP molecules (newborn ~1e9; maintenance ~2.5e7 ATP/min, "
+              "Orth 2010)",
+    "signal": "µM concentrations; quorum threshold ~10 µM AI-2 "
+              "(Xavier 2003)",
+    "diffusion": "physical D in µm^2/s (~100 µm^2/s AI-2, Miller & "
+                 "Bassler 2001); converted to a stable on-lattice form "
+                 "at the declared lattice edge (see units.py)",
 }
 
 
@@ -96,11 +94,16 @@ class PopulationConfig:
     """Population simulation config.
 
     Args:
-        calibrated: opt-in physical calibration (see module docstring).
-            Only fields still holding their gameplay default are replaced
-            by the calibrated values from :data:`helixlang.units.CALIBRATED`;
-            explicit overrides always win.  Default False reproduces the
-            legacy gameplay behavior exactly.
+        max_size: maximum number of cells on the lattice
+        grid_width, grid_height: lattice dimensions (site edge =
+            LATTICE_SPACING_UM µm)
+        division_threshold: energy (ATP) required to divide
+        death_threshold: energy (ATP) below which a cell dies
+        signaling_enabled: whether cells emit and sense the AI-2 signal
+        signal_diffusion: AI-2 diffusion coefficient in µm^2/s
+        signal_threshold: quorum threshold in µM AI-2
+        metabolic_cost: maintenance ATP per tick
+        energy_intake: rich-medium ATP intake per tick
     """
 
     max_size: int = DEFAULT_MAX_POPULATION_SIZE
@@ -109,25 +112,10 @@ class PopulationConfig:
     division_threshold: float = DIVISION_ENERGY_THRESHOLD
     death_threshold: float = DEATH_ENERGY_THRESHOLD
     signaling_enabled: bool = True
-    signal_diffusion: float = SIGNAL_DIFFUSION_COEFFICIENT
+    signal_diffusion: float = SIGNAL_DIFFUSION_UM2_S
     signal_threshold: float = QUORUM_SIGNAL_THRESHOLD
     metabolic_cost: float = METABOLIC_COST_PER_STEP
     energy_intake: float = ENERGY_INTAKE_PER_STEP
-    calibrated: bool = False
-
-    def __post_init__(self) -> None:
-        """Apply calibrated defaults (opt-in, gameplay counts unchanged)."""
-        if not self.calibrated:
-            return
-        reg = CALIBRATED
-        if self.division_threshold == DIVISION_ENERGY_THRESHOLD:
-            self.division_threshold = reg[
-                "population.DIVISION_ENERGY_THRESHOLD"].physical_value
-        if self.signal_diffusion == SIGNAL_DIFFUSION_COEFFICIENT:
-            self.signal_diffusion = reg[
-                "population.SIGNAL_DIFFUSION_COEFFICIENT"].physical_value
-        # QUORUM_SIGNAL_THRESHOLD keeps its count (5.0) but is declared
-        # = 10 uM AI-2 via units.signal_to_um; nothing to reassign here.
 
 
 @dataclass(slots=True)
@@ -409,24 +397,24 @@ class CellPopulation:
 
     # -- Metabolism phase (pure Python fallback) --
     def _diffuse(self, config: PopulationConfig) -> list[list[float]]:
-        """Diffuse the signal field one tick.
+        """Diffuse the signal field one tick (physical µm²/s → on-lattice).
 
-        Gameplay mode performs a single explicit 5-point-Laplacian step
-        (stable for ``D <= 0.25``, the legacy semantics).  Calibrated
-        mode realizes the physical D (~60 at the declared 10 um lattice
-        edge, see :data:`helixlang.units.CALIBRATED`) by splitting it
-        into stable sub-steps, so the analytical Gaussian spread matches
-        the calibrated diffusion coefficient without the explicit scheme
-        blowing up.
+        The config's ``signal_diffusion`` is a physical diffusion
+        coefficient (µm^2/s).  It is converted to the dimensionless
+        on-lattice form via :func:`helixlang.units.diffusion_to_lattice`
+        at the declared lattice edge and tick length, then realized by
+        stable sub-steps so the explicit 5-point-Laplacian scheme never
+        blows up and the analytical Gaussian spread matches D_phys.
         """
-        coeff = config.signal_diffusion
-        if config.calibrated and coeff > 0.25:
-            n = math.ceil(coeff / 0.25)
-            field = self.signal_field
-            for _ in range(n):
-                field = signal_diffusion_step(field, coeff / n)
-            return field
-        return signal_diffusion_step(self.signal_field, coeff)
+        D_lattice = diffusion_to_lattice(
+            config.signal_diffusion, DIFFUSION_DT_S, LATTICE_SPACING_UM)
+        if D_lattice <= 0.0:
+            return self.signal_field
+        n = math.ceil(D_lattice / 0.25)
+        field = self.signal_field
+        for _ in range(n):
+            field = signal_diffusion_step(field, D_lattice / n)
+        return field
 
     def _step_metabolism_python(self) -> tuple[list[PopulationCell], int]:
         """Per-cell metabolism + signal emission + death determination (pure Python)."""

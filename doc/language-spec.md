@@ -189,8 +189,7 @@ value              := NUMBER | IDENT | STRING
 
 ```
 #config ticks=<n> output=<stdout|png|csv|none> table=<name> \
-        ops_per_tick=<n> react_steps=<n> use_central_dogma=<bool> species=<name> \
-        units=<gameplay|real>
+        ops_per_tick=<n> react_steps=<n> use_central_dogma=<bool> species=<name>
 ```
 
 | Field | Default | Meaning |
@@ -202,27 +201,23 @@ value              := NUMBER | IDENT | STRING
 | `react_steps` | `1` | field steps performed by one `OP_REACT` |
 | `use_central_dogma` | `false` | switch to the central-dogma pipeline (§6.6) |
 | `species` | `ecoli` | species context (`ecoli` / `yeast` / `human`) |
-| `units` | `gameplay` | simulation unit system. `gameplay` (default) preserves the legacy dimensionless counts; `real` opts into the physical calibration of §3.6.1 (110-min protein half-life decay, 10 µM AI-2 quorum, ~20-tick rich-medium doubling, D recomputed at the declared 10 µm lattice edge). Energy *counts* are unchanged; only the meaning/rates change. |
 
-### 3.6.1 Unit system (`units=`)
+### 3.6.1 Unit system (always on)
 
-`units=real` activates the calibration catalog in `helixlang.units.CALIBRATED`
-(documentation: `doc/gameplay-units-upgrade.md`). Every gameplay default is
-preserved — `units=real` only reinterprets them:
+HelixLang runs on physical units end-to-end (no `#config units=` switch; the
+legacy gameplay-unit catalog was removed). Energy counts are **ATP molecules**,
+the signal field is in **µM**, diffusion is a physical **µm²/s** coefficient,
+and one tick is **one minute** (`helixlang.units`; see `doc/simulation-model.md` §6.3).
 
-| Gameplay quantity | Default | Calibrated meaning |
+| Quantity | Default | Physical meaning |
 |---|---|---|
 | 1 tick | — | 1 minute (Neidhardt 1996) |
-| 1 energy unit | — | 10⁷ ATP molecules (Orth 2010) |
-| cell energy budget | 100 | 10⁹ ATP (a newborn cell) |
-| division threshold | 200 | reachable in ~20 ticks in rich medium (180 with the calibrated +4/tick intake) |
-| quorum signal 5.0 | — | 10 µM AI-2 (Xavier & Bassler 2003) |
-| on-lattice diffusion 0.1 | — | 100 µm²/s at a 245 µm patch; `real` recomputes D ≈ 60 at the declared 10 µm lattice edge via stable sub-steps |
-| GRN decay 0.7 | — | median protein half-life 110 min ⇒ decay ≈ 0.994/tick (Mosteller 1980, Helbig 2011) |
-
-Counts never change (e.g. a calibrated cell still reports `energy=100`); the
-physical interpretation is exposed on traces as a `units: real` row and
-programmatically via `Cell.energy_atp`.
+| cell energy budget | `1e9` | ~10⁹ ATP molecules in a newborn cell (Orth 2010) |
+| division threshold | `1.8e9` | reachable in ~20 rich-medium ticks at +4×10⁷ ATP/tick net intake |
+| metabolic cost / intake | `1e7` / `5e7` | maintenance flux ~2.5×10⁷ ATP/min (Orth 2010) |
+| quorum threshold | `10.0` | 10 µM AI-2 (Xavier & Bassler 2003) |
+| diffusion | `100.0` | 100 µm²/s (Miller & Bassler 2001); converted to the on-lattice form (D ≈ 60) at the declared 10 µm lattice edge via stable sub-steps |
+| GRN decay | `≈0.994` | median protein half-life 110 min ⇒ decay ≈ 0.994/tick (Mosteller 1980, Helbig 2011) |
 
 ### 3.7 `#type` — type annotation
 
@@ -248,7 +243,7 @@ by the VM (§6.5 / §6.6).
 | `#histone` | `target`, `mark` (`H3K4me3`) | Applies a histone mark; positive-score marks activate, negative repress (e.g. `H3K4me3` +0.5, `H3K27me3` −0.7) |
 | `#transcribe` | `target` | Forces transcription: sets the target gene's GRN level to 1.0 |
 | `#translate` | `target` | Forces translation: adds 1.0 unit of the target gene's protein |
-| `#quorum` | `target`, `threshold` (5.0), `activate` (= `target`) | Quorum sensing: if the local V-channel signal ≥ `threshold`, sets `activate`'s GRN level to 1.0 |
+| `#quorum` | `target`, `threshold` (10.0 µM), `activate` (= `target`) | Quorum sensing: if the local V-channel signal ≥ `threshold`, sets `activate`'s GRN level to 1.0 |
 
 ---
 
@@ -402,10 +397,11 @@ The runtime (`CellVM`) is a stack-based bytecode machine combined with a cell si
 | `lsystems` | `dict[str, LSystem]` | declared L-systems (rule set 0 active) |
 | `field` | `GrayScott \| None` | the reaction-diffusion field, if declared |
 
-**Cell state.** The `Cell` tracks `name`, position `(x, y)`, integer `energy` (initial 100),
+**Cell state.** The `Cell` tracks `name`, position `(x, y)`, float `energy` (ATP
+molecules, initial ~10⁹),
 `proteins: dict[int|str, float]`, 256 memory `slots`, `alive`, `color` (RGB), `age`,
 `divisions`, and `membrane_permeability` (0 = impermeable … 255 = fully permeable,
-default 255). Energy/slots/neighborhood are *gameplay units* (see `cell.py` module note).
+default 255). Energy is in physical ATP counts (see `cell.py` module note).
 
 **Frame depth.** Frames are capped at 256 to prevent unbounded accumulation from the GRN
 pushing frames across ticks; when the cap is exceeded pending frames are cleared and
@@ -441,8 +437,9 @@ trigger ⇔ level' > 0.5
 
 - `sigmoid(x) = 1/(1+e^(−x))` (numerically stable), `hill(x,n,kd) = x^n/(kd^n+x^n)`
   (0 for non-positive input, half-max at `x = kd`).
-- `decay` defaults to the legacy heuristic `0.7`, or is derived from a measured protein
-  half-life via `decay = 0.5^(1/half_life_ticks)` (E. coli median ≈ 110 min).
+- `decay` defaults to `GRN.DECAY = decay_from_half_life_ticks(110)` ≈ 0.994 (E. coli
+  median protein half-life ≈ 110 min), or is derived from a measured protein
+  half-life via `decay = 0.5^(1/half_life_ticks)`.
 - A gene with no promoter, or whose promoter has **negative strength**, is constitutive
   (initial level 1.0, threshold −1). A promoted gene starts at level 0.0 with
   `threshold = promoter.strength`.

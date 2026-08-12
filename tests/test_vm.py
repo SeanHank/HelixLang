@@ -2,7 +2,7 @@
 import pytest
 
 from helixlang.bytecode import Chunk
-from helixlang.cell import Cell
+from helixlang.cell import FEED_ENERGY_AMOUNT, INITIAL_CELL_ENERGY, MOVE_ENERGY_COST, Cell
 from helixlang.codon_table import STANDARD_TABLE, Op
 from helixlang.compiler import Compiler
 from helixlang.lexer import Lexer
@@ -59,11 +59,13 @@ def test_constitutive_gene_runs_every_tick():
 
 
 def test_lsystem_grows_morphology():
-    src = """#promoter name=p strength=-0.5
-#gene name=grow promoter=p
+    # Constitutive gene (no promoter): active from tick 0. Under the physical
+    # GRN decay (~0.994/tick, 110-min half-life) a regulated gene takes
+    # ~100+ ticks to trigger, so a constitutive growth gene is used here to
+    # observe morphology growth on a short run.
+    src = """#gene name=grow
 ATG CTC TAA
 #end
-#regulate p -> grow strength=+0.6
 #lsystem name=plant axiom=F rules=0:F->F[+F]F[-F]F angle=25
 #config ticks=10
 """
@@ -168,7 +170,7 @@ class TestNopOpcodes:
         c.emit(Op.OP_NOP)
         c.emit(Op.OP_NOP)
         vm = _run_chunk(c)
-        assert vm.cell.energy == 100
+        assert vm.cell.energy == INITIAL_CELL_ENERGY
         assert vm.cell.alive is True
         assert vm.cell.x == 0 and vm.cell.y == 0
 
@@ -303,7 +305,7 @@ class TestBuildOpcodes:
         c.emit(Op.OP_BUILD_MEMBRANE, 0)   # impermeable
         c.emit(Op.OP_FEED, 0)
         vm = _run_chunk(c)
-        assert vm.cell.energy == 100      # 100 + round(10 * 0 / 255) == 100
+        assert vm.cell.energy == INITIAL_CELL_ENERGY  # impermeable: no gain
 
     def test_build_membrane_in_snapshot(self):
         """The snapshot trace exposes the membrane permeability."""
@@ -328,7 +330,7 @@ class TestBehaviorOpcodes:
         vm = _run_chunk(c)
         assert vm.cell.x == 1
         assert vm.cell.y == 0
-        assert vm.cell.energy == 99
+        assert vm.cell.energy == INITIAL_CELL_ENERGY - MOVE_ENERGY_COST
 
     def test_move_north(self):
         c = Chunk()
@@ -371,7 +373,7 @@ class TestBehaviorOpcodes:
         c = Chunk()
         c.emit(Op.OP_DIVIDE, 0)
         vm = _run_chunk(c)
-        assert vm.cell.energy == 50  # 100 // 2
+        assert vm.cell.energy == INITIAL_CELL_ENERGY // 2  # 1e9 // 2
         assert vm.cell.divisions == 1
 
     def test_die_sets_alive_false(self):
@@ -381,11 +383,11 @@ class TestBehaviorOpcodes:
         assert vm.cell.alive is False
 
     def test_feed_increases_energy(self):
-        """FEED always adds 10 energy."""
+        """FEED always adds the nutrient amount (1e8 ATP)."""
         c = Chunk()
         c.emit(Op.OP_FEED, 0)
         vm = _run_chunk(c)
-        assert vm.cell.energy == 110
+        assert vm.cell.energy == INITIAL_CELL_ENERGY + FEED_ENERGY_AMOUNT
 
     def test_feed_from_low_energy(self):
         # First lower the energy to 5
@@ -400,7 +402,7 @@ class TestBehaviorOpcodes:
         vm.ip = 0
         vm.cell = vm0
         vm._execute_pending()
-        assert vm.cell.energy == 15
+        assert vm.cell.energy == 5 + FEED_ENERGY_AMOUNT
 
 
 class TestArithmeticOpcodes:
@@ -957,18 +959,5 @@ def test_op_feed_uses_named_constant(monkeypatch):
     monkeypatch.setattr(vm, "FEED_ENERGY_AMOUNT", 37.0)
     src = "#gene name=feeder\nATG GAA TAA\n#end\n#config ticks=1"
     vm_obj, trace = run_src(src, ticks=1)
-    assert trace[-1]["energy"] == pytest.approx(100.0 + 37.0)
+    assert trace[-1]["energy"] == pytest.approx(INITIAL_CELL_ENERGY + 37.0)
 
-
-def test_snapshot_units_gameplay_default():
-    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=1"
-    vm_obj, trace = run_src(src, ticks=1)
-    assert trace[-1]["units"] == "gameplay"
-
-
-def test_units_real_wires_calibrated_subsystems():
-    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=1 units=real"
-    vm_obj, trace = run_src(src, ticks=1)
-    assert vm_obj.cell.calibrated is True
-    assert vm_obj.grn.calibrated is True
-    assert trace[-1]["units"] == "real"

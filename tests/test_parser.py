@@ -52,14 +52,12 @@ def test_config():
     assert prog.config.table == "mito_vertebrate"
 
 
-def test_config_units_default_gameplay():
-    prog = parse("#config ticks=5")
-    assert prog.config.units == "gameplay"
-
-
-def test_config_units_real():
+def test_config_units_key_ignored():
+    """The legacy #config units= key is no longer parsed (physical units are
+    always on); unknown keys are ignored."""
     prog = parse("#config ticks=5 units=real")
-    assert prog.config.units == "real"
+    assert prog.config.ticks == 5
+    assert not hasattr(prog.config, "units")
 
 
 def test_lsystem():

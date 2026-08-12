@@ -42,7 +42,9 @@ def test_activated_gene_triggered():
     grn.add_gene("src", threshold=-1.0, initial_level=1.0)
     grn.add_gene("tgt", threshold=0.3, initial_level=0.0)
     grn.add_edge("src", "tgt", 0.9)
-    for _ in range(20):
+    # Physical decay (~0.994/tick) converges slowly; 500 ticks >> 110-min
+    # half-life, so tgt reaches its ~0.6 steady state.
+    for _ in range(500):
         grn.step()
     assert grn.nodes["tgt"].level > 0.5
 
@@ -131,7 +133,7 @@ def test_hill_gene_kinetics_steady_state():
     # target with Hill kinetics: kd=0.5, n=3
     grn.add_gene("tgt", threshold=0.0, initial_level=0.0, hill_n=3, kd=0.5)
     grn.add_edge("src", "tgt", 1.0)
-    for _ in range(50):
+    for _ in range(700):
         grn.step()
     # input = 1.0 -> activation = 1^3/(0.5^3 + 1^3) = 0.8889
     act = hill(1.0, 3, 0.5)
@@ -142,51 +144,41 @@ def test_hill_gene_kinetics_steady_state():
 
 
 # ------------------------------------------------------------------ #
-# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# Physical units (calibrated decay is now the universal default)
 # ------------------------------------------------------------------ #
-def _pure_decay_grn(calibrated: bool):
+def _pure_decay_grn():
     """A GRN whose single gene never activates (pure exponential decay)."""
-    grn = GRN(calibrated=calibrated)
+    grn = GRN()
     grn.add_gene("g", threshold=1e3, initial_level=1.0)
     return grn
 
 
-def test_gameplay_default_uses_legacy_decay():
-    """calibrated=False keeps today's universal 0.7 decay exactly."""
-    grn = _pure_decay_grn(calibrated=False)
-    assert grn.DECAY == 0.7
-    for _ in range(3):
-        grn.step()
-    assert grn.nodes["g"].level == pytest.approx(0.7 ** 3)
+def test_default_decay_comes_from_110_min_half_life():
+    """The universal DECAY is derived from the 110-min E. coli protein
+    half-life (Mosteller 1980, Helbig 2011)."""
+    assert GRN().DECAY == pytest.approx(decay_from_half_life_ticks(110.0))
 
 
-def test_calibrated_decay_default_halves_at_110_ticks():
-    """One tick = one minute; E. coli median half-life ~110 min (Mosteller 1980,
-    Helbig 2011) -> level halves after ~110 ticks."""
-    grn = _pure_decay_grn(calibrated=True)
+def test_default_decay_halves_at_110_ticks():
+    """One tick = one minute -> level halves after ~110 ticks."""
+    grn = _pure_decay_grn()
     for _ in range(110):
         grn.step()
     assert grn.nodes["g"].level == pytest.approx(0.5, abs=0.02)
 
 
-def test_calibrated_decay_slow_over_first_ticks():
+def test_default_decay_slow_over_first_ticks():
     """Calibrated decay is ~0.994/tick, so very little is lost in one tick."""
-    grn = _pure_decay_grn(calibrated=True)
+    grn = _pure_decay_grn()
     grn.step()
     assert grn.nodes["g"].level == pytest.approx(
         decay_from_half_life_ticks(110.0), abs=1e-4)
 
 
-def test_calibrated_per_gene_decay_still_overrides():
-    """An explicit per-gene decay= wins over the calibrated universal default."""
-    grn = GRN(calibrated=True)
+def test_per_gene_decay_overrides_universal_default():
+    """An explicit per-gene decay= wins over the universal default."""
+    grn = GRN()
     grn.add_gene("g", threshold=1e3, initial_level=1.0, decay=0.5)
     for _ in range(3):
         grn.step()
     assert grn.nodes["g"].level == pytest.approx(0.5 ** 3)
-
-
-def test_calibrated_flag_exposed():
-    assert GRN(calibrated=False).calibrated is False
-    assert GRN(calibrated=True).calibrated is True
-    assert GRN().calibrated is False

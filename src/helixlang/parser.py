@@ -218,8 +218,6 @@ class Parser:
             prog.config.use_central_dogma = fields["use_central_dogma"].lower() in ("true", "1", "yes")
         if "species" in fields:
             prog.config.species = fields["species"]
-        if "units" in fields:
-            prog.config.units = fields["units"]
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:

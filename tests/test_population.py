@@ -5,9 +5,12 @@ import pytest
 
 from helixlang.population import (
     DIVISION_ENERGY_THRESHOLD,
+    ENERGY_INTAKE_PER_STEP,
     METABOLIC_COST_PER_STEP,
+    POPULATION_CELL_INITIAL_ENERGY,
     QUORUM_SIGNAL_THRESHOLD,
-    SIGNAL_DIFFUSION_COEFFICIENT,
+    SIGNAL_DIFFUSION_UM2_S,
+    SIGNAL_EMISSION_PER_STEP,
     CellPopulation,
     PopulationCell,
     PopulationConfig,
@@ -16,7 +19,6 @@ from helixlang.population import (
     quorum_sensing,
     signal_diffusion_step,
 )
-from helixlang.units import signal_to_um
 
 
 def _make_cell(id=0, energy=100.0, x=5, y=5, proteins=None,
@@ -351,62 +353,57 @@ def test_divide_cell_daughters_lineage():
 
 
 # ------------------------------------------------------------------ #
-# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# Physical units (direct ATP + µM + µm²/s)
 # ------------------------------------------------------------------ #
-def test_gameplay_config_defaults_unchanged():
-    """Compatibility rule: calibrated=False keeps every legacy default."""
+def test_config_physical_defaults():
+    """PopulationConfig defaults are the physical values."""
     cfg = PopulationConfig()
-    assert cfg.calibrated is False
-    assert cfg.division_threshold == DIVISION_ENERGY_THRESHOLD == 200.0
-    assert cfg.signal_diffusion == SIGNAL_DIFFUSION_COEFFICIENT == 0.1
-    assert cfg.signal_threshold == QUORUM_SIGNAL_THRESHOLD == 5.0
-    assert cfg.metabolic_cost == METABOLIC_COST_PER_STEP
+    assert cfg.division_threshold == DIVISION_ENERGY_THRESHOLD == 1.8e9
+    assert cfg.signal_diffusion == SIGNAL_DIFFUSION_UM2_S == 100.0
+    assert cfg.signal_threshold == QUORUM_SIGNAL_THRESHOLD == 10.0
+    assert cfg.metabolic_cost == METABOLIC_COST_PER_STEP == 1e7
+    assert cfg.energy_intake == ENERGY_INTAKE_PER_STEP == 5e7
 
 
-def test_calibrated_config_physical_defaults():
-    """calibrated=True swaps in the physical values for still-default fields."""
-    cfg = PopulationConfig(calibrated=True)
-    assert cfg.calibrated is True
-    assert cfg.division_threshold == pytest.approx(180.0)      # ~20 min rich-medium doubling
-    assert cfg.signal_diffusion == pytest.approx(60.0)         # D at 10 um lattice edge
-    assert cfg.signal_threshold == QUORUM_SIGNAL_THRESHOLD     # count unchanged (5.0 == 10 uM)
+def test_default_cell_energy_is_atp_pool():
+    """A newborn PopulationCell carries ~10^9 ATP molecules."""
+    assert PopulationCell().energy == POPULATION_CELL_INITIAL_ENERGY == 1e9
 
 
-def test_calibrated_explicit_overrides_win():
-    cfg = PopulationConfig(calibrated=True, division_threshold=123.0,
-                           signal_diffusion=0.25)
+def test_explicit_overrides_win():
+    cfg = PopulationConfig(division_threshold=123.0, signal_diffusion=0.25)
     assert cfg.division_threshold == pytest.approx(123.0)
     assert cfg.signal_diffusion == pytest.approx(0.25)
 
 
-def test_calibrated_doubling_time_20_ticks():
-    """Newborn cell (100) gains +4/tick; threshold 180 -> first division on tick 20."""
-    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
-                           signaling_enabled=False,
-                           metabolic_cost=0.0, energy_intake=4.0)
-    pop = CellPopulation([_make_cell(id=0, energy=100.0, x=2, y=2)], cfg, seed=3)
+def test_doubling_time_20_ticks():
+    """Newborn cell (1e9) gains +4e7/tick net (5e7 intake - 1e7 cost);
+    threshold 1.8e9 -> first division on tick 20."""
+    cfg = PopulationConfig(grid_width=9, grid_height=9,
+                           signaling_enabled=False)
+    pop = CellPopulation([_make_cell(id=0, energy=1e9, x=2, y=2)], cfg, seed=3)
     for _ in range(19):
         pop.step()
-    assert len(pop.cells) == 1          # 100 + 4*19 = 176 < 180
+    assert len(pop.cells) == 1          # 1e9 + 19*4e7 = 1.76e9 < 1.8e9
     pop.step()
-    assert len(pop.cells) == 2          # 100 + 4*20 = 180 -> divides
-    assert all(c.energy == pytest.approx(90.0) for c in pop.cells)
+    assert len(pop.cells) == 2          # 1e9 + 20*4e7 = 1.8e9 -> divides
+    assert all(c.energy == pytest.approx(9e8) for c in pop.cells)
 
 
-def test_calibrated_cell_energy_stays_gameplay_counts():
-    """Calibrated mode keeps counts as the gameplay budget, not ATP numbers."""
-    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
+def test_cell_energy_is_atp_count_directly():
+    """Cell energy counts ATP molecules, no calibration indirection."""
+    cfg = PopulationConfig(grid_width=9, grid_height=9,
                            signaling_enabled=False, division_threshold=1e9,
                            metabolic_cost=0.0, energy_intake=0.0)
-    pop = CellPopulation([_make_cell(id=0, energy=100.0, x=2, y=2)], cfg)
+    pop = CellPopulation([_make_cell(id=0, energy=4.2e8, x=2, y=2)], cfg)
     pop.step()
-    assert pop.cells[0].energy == pytest.approx(100.0)
+    assert pop.cells[0].energy == pytest.approx(4.2e8)
 
 
-def test_calibrated_diffusion_gaussian_spread():
+def test_diffusion_gaussian_spread():
     """A point source diffuses to the analytical Gaussian: E[r^2] = 4Dt."""
     size = 101
-    cfg = PopulationConfig(grid_width=size, grid_height=size, calibrated=True)
+    cfg = PopulationConfig(grid_width=size, grid_height=size)
     pop = CellPopulation([], cfg)
     field = [[0.0] * size for _ in range(size)]
     field[size // 2][size // 2] = 1000.0
@@ -422,10 +419,10 @@ def test_calibrated_diffusion_gaussian_spread():
     assert var == pytest.approx(4.0 * 60.0, rel=1e-3)          # 4Dt, D=60, t=1
 
 
-def test_calibrated_quorum_cluster_vs_isolate():
-    """A 5-cell cluster accumulates 5.0 == 10 uM AI-2 and activates quorum;
-    an isolated cell stays below threshold."""
-    cfg = PopulationConfig(calibrated=True, grid_width=9, grid_height=9,
+def test_quorum_cluster_vs_isolate():
+    """A 5-cell cluster emits 10 µM AI-2 and activates quorum; an isolated
+    cell (2 µM) stays below the 10 µM threshold."""
+    cfg = PopulationConfig(grid_width=9, grid_height=9,
                            signaling_enabled=True, signal_diffusion=0.0,
                            division_threshold=1e9,
                            metabolic_cost=0.0, energy_intake=0.0)
@@ -437,5 +434,5 @@ def test_calibrated_quorum_cluster_vs_isolate():
     isolate = [c for c in pop.cells if (c.x, c.y) == (8, 8)]
     assert all(c.proteins.get("quorum", 0.0) > 0.0 for c in cluster)
     assert all(c.proteins.get("quorum", 0.0) == 0.0 for c in isolate)
-    assert pop.signal_field[2][2] == pytest.approx(5.0)
-    assert signal_to_um(pop.signal_field[2][2]) == pytest.approx(10.0)
+    assert pop.signal_field[2][2] == pytest.approx(
+        5 * SIGNAL_EMISSION_PER_STEP)   # 10 µM in physical units

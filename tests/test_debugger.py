@@ -1,4 +1,5 @@
 """HelixDebugger unit tests."""
+from helixlang.cell import FEED_ENERGY_AMOUNT, INITIAL_CELL_ENERGY
 from helixlang.codon_table import STANDARD_TABLE, Op
 from helixlang.compiler import Compiler
 from helixlang.debugger import (
@@ -195,16 +196,16 @@ def test_continue_run_disabled_breakpoint_ignored():
 # Variable watches
 # ------------------------------------------------------------------ #
 def test_watch_energy():
-    # GAA = OP_FEED arg=0 (wobble A=0); feed(10) brings energy from 100 -> 110
+    # GAA = OP_FEED arg=0 (wobble A=0); feed(1e8) brings energy 1e9 -> 1.1e9
     dbg = make_debugger("#gene name=g\nATG GAA TAA\n#end")
     dbg.start()
     dbg.add_watch("ene", "energy")
     dbg.step()  # OP_START
     watches = dbg.get_watches()
-    assert watches[0].last_value == 100
+    assert watches[0].last_value == INITIAL_CELL_ENERGY
     dbg.step()  # OP_FEED
     watches = dbg.get_watches()
-    assert watches[0].last_value == 110
+    assert watches[0].last_value == INITIAL_CELL_ENERGY + FEED_ENERGY_AMOUNT
 
 
 def test_watch_protein():
@@ -307,7 +308,7 @@ def test_state_snapshot_fields():
     assert state.op == "OP_START"
     assert state.gene == "g"
     assert "energy" in state.cell_state
-    assert state.cell_state["energy"] == 100
+    assert state.cell_state["energy"] == INITIAL_CELL_ENERGY
     assert isinstance(state.grn_state, dict)
 
 
@@ -326,7 +327,7 @@ def test_state_reflects_execution():
 def test_inspect_energy():
     dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
     dbg.start()
-    assert dbg.inspect("energy") == 100
+    assert dbg.inspect("energy") == INITIAL_CELL_ENERGY
 
 
 def test_inspect_protein():
@@ -362,7 +363,7 @@ def test_format_state():
     assert "ip=" in s
     assert "op=OP_START" in s
     assert "gene=g" in s
-    assert "energy=100" in s
+    assert f"energy={INITIAL_CELL_ENERGY}" in s
     assert "stack:" in s
     assert "grn:" in s
 

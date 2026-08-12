@@ -39,7 +39,7 @@ ATG GCT GCT GCT TAA
 #
 # from helixlang.grn import GRN, decay_from_half_life_ticks
 #
-# g = GRN(calibrated=True)
+# g = GRN()
 # g.add_gene("nfkb", threshold=0.5, initial_level=0.0,
 #            decay=decay_from_half_life_ticks(10.0), hill_n=2.0)
 # g.add_gene("ikba", threshold=0.5, initial_level=0.0,
@@ -55,4 +55,4 @@ ATG GCT GCT GCT TAA
 # # NF-kB peaks ~0.9 within ~5 ticks then IkBa feedback returns it to <0.1
 # # within ~60 ticks: the fast turn-off of Hoffmann et al. (2002)
 
-#config ticks=240 output=stdout units=real
+#config ticks=240 output=stdout

@@ -10,12 +10,13 @@ import pytest
 from helixlang.cell import (
     DEFAULT_MEMBRANE_PERMEABILITY,
     DIRECTIONS,
+    FEED_ENERGY_AMOUNT,
     INITIAL_CELL_ENERGY,
     MAX_MEMBRANE_PERMEABILITY,
+    MIN_DIVISION_ENERGY,
     MOVE_ENERGY_COST,
     Cell,
 )
-from helixlang.units import energy_to_atp
 
 # ============================================================================
 # Construction and default values
@@ -29,7 +30,7 @@ class TestCellConstruction:
         assert c.name == "cell-0"
         assert c.x == 0
         assert c.y == 0
-        assert c.energy == 100
+        assert c.energy == INITIAL_CELL_ENERGY
         assert c.proteins == {}
         assert c.alive is True
         assert c.color == (255, 255, 255)
@@ -149,28 +150,28 @@ class TestEnergyAndMove:
         c.move(0)  # N = (0, -1)
         assert c.x == 0
         assert c.y == -1
-        assert c.energy == 99
+        assert c.energy == INITIAL_CELL_ENERGY - MOVE_ENERGY_COST
 
     def test_move_east(self):
         c = Cell()
         c.move(1)  # E = (1, 0)
         assert c.x == 1
         assert c.y == 0
-        assert c.energy == 99
+        assert c.energy == INITIAL_CELL_ENERGY - MOVE_ENERGY_COST
 
     def test_move_south(self):
         c = Cell()
         c.move(2)  # S = (0, 1)
         assert c.x == 0
         assert c.y == 1
-        assert c.energy == 99
+        assert c.energy == INITIAL_CELL_ENERGY - MOVE_ENERGY_COST
 
     def test_move_west(self):
         c = Cell()
         c.move(3)  # W = (-1, 0)
         assert c.x == -1
         assert c.y == 0
-        assert c.energy == 99
+        assert c.energy == INITIAL_CELL_ENERGY - MOVE_ENERGY_COST
 
     def test_move_wraps_direction_modulo_4(self):
         c = Cell()
@@ -188,11 +189,11 @@ class TestEnergyAndMove:
         assert c.energy == 0  # no underflow
 
     def test_move_decrements_each_step(self):
-        c = Cell(energy=10)
+        c = Cell(energy=5 * MOVE_ENERGY_COST)
         for _ in range(5):
             c.move(1)
         assert c.x == 5
-        assert c.energy == 5
+        assert c.energy == 0
 
     def test_consume_energy_success(self):
         c = Cell(energy=100)
@@ -217,7 +218,7 @@ class TestEnergyAndMove:
     def test_feed_default_amount(self):
         c = Cell(energy=50)
         c.feed()
-        assert c.energy == 60
+        assert c.energy == 50 + FEED_ENERGY_AMOUNT
 
     def test_feed_custom_amount(self):
         c = Cell(energy=50)
@@ -286,27 +287,27 @@ class TestDivision:
     """Verify the divide threshold and behavior."""
 
     def test_divide_success_halves_energy(self):
-        c = Cell(energy=100)
+        c = Cell(energy=4 * MIN_DIVISION_ENERGY)
         assert c.divide() is True
-        assert c.energy == 50  # 100 // 2
+        assert c.energy == 2 * MIN_DIVISION_ENERGY  # energy // 2
         assert c.divisions == 1
 
     def test_divide_odd_energy_floors(self):
-        c = Cell(energy=99)
+        c = Cell(energy=2 * MIN_DIVISION_ENERGY + 1)
         assert c.divide() is True
-        assert c.energy == 49  # 99 // 2
+        assert c.energy == MIN_DIVISION_ENERGY  # (2e7 + 1) // 2 floors
         assert c.divisions == 1
 
-    def test_divide_threshold_energy_2(self):
-        c = Cell(energy=2)
+    def test_divide_threshold_energy(self):
+        c = Cell(energy=MIN_DIVISION_ENERGY)
         assert c.divide() is True
-        assert c.energy == 1
+        assert c.energy == MIN_DIVISION_ENERGY / 2
         assert c.divisions == 1
 
     def test_divide_fails_below_threshold(self):
-        c = Cell(energy=1)
+        c = Cell(energy=MIN_DIVISION_ENERGY - 1.0)
         assert c.divide() is False
-        assert c.energy == 1
+        assert c.energy == MIN_DIVISION_ENERGY - 1.0
         assert c.divisions == 0
 
     def test_divide_fails_at_zero(self):
@@ -316,22 +317,22 @@ class TestDivision:
         assert c.divisions == 0
 
     def test_multiple_divisions_increment_counter(self):
-        c = Cell(energy=100)
+        c = Cell(energy=4 * MIN_DIVISION_ENERGY)
         c.divide()
         c.divide()
         c.divide()
         assert c.divisions == 3
-        # 100 -> 50 -> 25 -> 12
-        assert c.energy == 12
+        # 8e7 -> 4e7 -> 2e7 -> 1e7
+        assert c.energy == MIN_DIVISION_ENERGY / 2
 
     def test_division_chain_until_below_threshold(self):
-        c = Cell(energy=100)
+        c = Cell(energy=INITIAL_CELL_ENERGY)
         count = 0
         while c.divide():
             count += 1
-        # 100->50->25->12->6->3->1(fail) -> 6 successes
+        # 1e9->5e8->2.5e8->1.25e8->6.25e7->3.125e7->1.5625e7(fail) -> 6 successes
         assert count == 6
-        assert c.energy == 1
+        assert c.energy == 1.5625e7
 
 
 # ============================================================================
@@ -363,7 +364,7 @@ class TestAliveDead:
         c.add_protein(1)
         c.feed(5)
         assert c.proteins[1] == 1.0
-        assert c.energy == 105
+        assert c.energy == INITIAL_CELL_ENERGY + 5
 
 
 # ============================================================================
@@ -422,7 +423,7 @@ class TestDump:
         assert isinstance(s, str)
         assert "Cell(" in s
         assert "cell-0" in s
-        assert "energy=100" in s
+        assert f"energy={INITIAL_CELL_ENERGY}" in s
         assert "alive=True" in s
 
     def test_dump_reflects_state(self):
@@ -460,27 +461,20 @@ class TestDirectionsConstant:
 
 
 # ============================================================================
-# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# Physical units (energy in ATP molecules)
 # ============================================================================
 
-class TestCalibratedCell:
-    """Verify calibrated=True exposes physical-energy metadata."""
+class TestPhysicalEnergy:
+    """Verify Cell energy is stored in ATP molecules (whole-cell convention)."""
 
-    def test_calibrated_defaults_match_gameplay(self):
-        c = Cell(calibrated=True)
-        assert c.energy == INITIAL_CELL_ENERGY == 100.0
-        assert c.membrane_permeability == DEFAULT_MEMBRANE_PERMEABILITY
+    def test_default_energy_is_newborn_atp_pool(self):
+        c = Cell()
+        assert c.energy == INITIAL_CELL_ENERGY
+        assert INITIAL_CELL_ENERGY == pytest.approx(1e9)  # ~10^9 ATP
 
-    def test_energy_atp_gameplay_is_plain_float(self):
-        assert Cell().energy_atp == pytest.approx(INITIAL_CELL_ENERGY)
-
-    def test_energy_atp_calibrated_counts_atp(self):
-        # 100 energy units = 100 * 10^7 = 10^9 ATP
-        assert Cell(calibrated=True).energy_atp == pytest.approx(1e9)
-
-    def test_energy_atp_matches_conversion_fn(self):
-        c = Cell(calibrated=True, energy=42.0)
-        assert c.energy_atp == pytest.approx(energy_to_atp(42.0))
+    def test_energy_is_atp_count_directly(self):
+        c = Cell(energy=4.2e7)
+        assert c.energy == pytest.approx(4.2e7)
 
     def test_starved_cell_runs_out_on_schedule(self):
         c = Cell()

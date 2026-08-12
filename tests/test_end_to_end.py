@@ -93,9 +93,9 @@ def test_all_examples_compile():
         assert rc == 0, f"{f.name} failed: {err}"
 
 
-def test_all_examples_run_with_units_real():
-    """#config units=real (doc/gameplay-units-upgrade.md §7 Tier 3) must compile
-    and run every example with physical-unit metadata and count-preserving energy."""
+def test_all_examples_run():
+    """Every example must compile and run under the physical-unit runtime
+    (ATP-molecule energies, µM signals)."""
     from helixlang.codon_table import STANDARD_TABLE
     from helixlang.compiler import Compiler
     from helixlang.lexer import Lexer
@@ -110,14 +110,11 @@ def test_all_examples_run_with_units_real():
             list(Lexer(src).tokens()),
             stop_codons=stop_codons_from_table(STANDARD_TABLE),
         ).parse()
-        prog.config.units = "real"
         SemanticAnalyzer(prog).check()
         chunk = Compiler(STANDARD_TABLE).compile(prog)
         vm = CellVM(chunk, prog)
         trace = vm.run(prog.config.ticks)
         assert trace, f"{f.name} produced no trace"
-        assert all(s.get("units") == "real" for s in trace), (
-            f"{f.name} trace missing units=real")
-        assert vm.cell.calibrated is True
-        assert vm.grn.calibrated is True
-        assert 0 < trace[0]["energy"] < 1e5  # counts kept, not ATP numbers (1e9)
+        assert "units" not in trace[0], f"{f.name} trace still carries units"
+        # energies are ATP molecule counts (~1e9 newborn), not gameplay 0-100
+        assert trace[0]["energy"] > 1e8, f"{f.name} energy not on ATP scale"

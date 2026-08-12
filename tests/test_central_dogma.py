@@ -369,11 +369,12 @@ class TestMRNADegradation:
         """mRNA approaches the steady-state concentration after a long time.
 
         Steady-state [mRNA]_ss = synthesis_rate / degradation_rate
+        (scaled to molecule counts by PROTEINS_PER_MRNA_LIFETIME)
         """
         transcript = transcribe("ATGTAA", promoter_strength=1.0)
         degradation_rate = math.log(2) / transcript.half_life_minutes
         mrna_ss = (transcript.initiation_frequency_per_min
-                   / degradation_rate)
+                   / degradation_rate) * PROTEINS_PER_MRNA_LIFETIME
         # After 1000 min should approach steady state (far > half-life 5 min)
         mrna_long = calculate_mrna_level(transcript, 1000.0, degradation_rate)
         assert mrna_long == pytest.approx(mrna_ss, rel=0.01)
@@ -388,7 +389,7 @@ class TestMRNADegradation:
         transcript = transcribe("ATGTAA", promoter_strength=1.0)
         degradation_rate = math.log(2) / transcript.half_life_minutes
         mrna_ss = (transcript.initiation_frequency_per_min
-                   / degradation_rate)
+                   / degradation_rate) * PROTEINS_PER_MRNA_LIFETIME
         mrna_at_half = calculate_mrna_level(
             transcript, transcript.half_life_minutes, degradation_rate)
         # Should be 50% of steady state
@@ -678,27 +679,31 @@ class TestConstants:
 
 
 # ============================================================================
-# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# Physical units (mRNA level is a molecule count)
 # ============================================================================
 
-class TestCalibratedUnits:
-    """Verifies the units=real mRNA-level scaling (PROTEINS_PER_MRNA_LIFETIME)."""
+class TestMoleculeCounts:
+    """Verifies calculate_mrna_level returns mRNA molecule counts
+    (PROTEINS_PER_MRNA_LIFETIME scaling, Bernstein 2002)."""
 
     def test_constants_verification(self):
         assert PROTEINS_PER_MRNA_LIFETIME == 100.0
 
-    def test_gameplay_default_unchanged(self):
+    def test_mrna_level_is_molecule_count(self):
+        """The returned level is the relative steady-state level scaled by
+        the protein-per-mRNA lifetime factor."""
         transcript = transcribe("ATGTAA", promoter_strength=1.0)
+        k = math.log(2) / transcript.half_life_minutes
+        relative = (transcript.initiation_frequency_per_min / k
+                    * (1.0 - math.exp(-k * 10.0)))
         assert calculate_mrna_level(transcript, 10.0) == pytest.approx(
-            calculate_mrna_level(transcript, 10.0, units="gameplay"))
+            relative * PROTEINS_PER_MRNA_LIFETIME)
 
-    def test_real_scales_by_protein_lifetime(self):
+    def test_steady_state_molecule_count(self):
         transcript = transcribe("ATGTAA", promoter_strength=1.0)
-        gameplay = calculate_mrna_level(transcript, 10.0)
-        real = calculate_mrna_level(transcript, 10.0, units="real")
-        assert real == pytest.approx(gameplay * PROTEINS_PER_MRNA_LIFETIME)
-
-    def test_unknown_units_raise(self):
-        transcript = transcribe("ATGTAA", promoter_strength=1.0)
-        with pytest.raises(ValueError):
-            calculate_mrna_level(transcript, 10.0, units="bogus")
+        k = math.log(2) / transcript.half_life_minutes
+        expected_ss = (transcript.initiation_frequency_per_min
+                       / k) * PROTEINS_PER_MRNA_LIFETIME
+        mrna_long = calculate_mrna_level(transcript, 1e4)
+        assert mrna_long == pytest.approx(expected_ss, rel=0.01)
+        assert mrna_long > 100.0  # molecule counts, not a 0-1 level

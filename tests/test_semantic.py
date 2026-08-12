@@ -418,31 +418,9 @@ class TestConfigValidation:
         assert "ticks" in ei.value.msg.lower()
 
 
-    def test_units_gameplay_ok(self):
-        prog = _program(
-            genes=[_gene("g", ["ATG", "TAA"])],
-            config=Config(units="gameplay"),
-        )
-        _check_ok(prog)
-
-    def test_units_real_ok(self):
-        prog = _program(
-            genes=[_gene("g", ["ATG", "TAA"])],
-            config=Config(units="real"),
-        )
-        _check_ok(prog)
-
-    def test_units_default_is_gameplay(self):
-        assert Config().units == "gameplay"
-
-    def test_units_unknown_raises(self):
-        prog = _program(
-            genes=[_gene("g", ["ATG", "TAA"])],
-            config=Config(units="imperial"),
-        )
-        with pytest.raises(SemanticError) as ei:
-            SemanticAnalyzer(prog).check()
-        assert "units" in ei.value.msg.lower()
+    def test_config_has_no_units_field(self):
+        """The legacy Config.units field is gone: physical units are always on."""
+        assert not hasattr(Config(), "units")
 
 
 # ============================================================================

@@ -70,10 +70,6 @@ class Config:
     use_central_dogma: bool = False
     # Species (affects codon usage, tRNA abundance)
     species: str = "ecoli"
-    # Unit mode: "gameplay" (default, legacy dimensionless budget) or
-    # "real" (opt-in physical calibration via helixlang.units — energy in
-    # ATP, signal in uM, GRN decay from the 110 min protein half-life).
-    units: str = "gameplay"
 
 
 @dataclass(slots=True)

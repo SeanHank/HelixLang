@@ -44,7 +44,7 @@ ATG GCT GCT GCT TAA
 #
 # from helixlang.grn import GRN, decay_from_half_life_ticks
 #
-# g = GRN(calibrated=True)
+# g = GRN()
 # g.add_gene("lacI", threshold=0.5, initial_level=1.0,
 #            decay=decay_from_half_life_ticks(10.0), hill_n=2.0)
 # g.add_gene("tetR", threshold=0.5, initial_level=0.0,

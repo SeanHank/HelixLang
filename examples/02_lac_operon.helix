@@ -22,4 +22,4 @@ ATG GCT GCT TAA
 #regulate p_lac -> lacZ strength=+0.9
 #regulate p_lac -> lacY strength=+0.9
 
-#config ticks=20 output=csv
+#config ticks=200 output=csv

@@ -47,7 +47,7 @@ ATG GCT GCT GCT TAA
 #
 # from helixlang.grn import GRN, decay_from_half_life_ticks
 #
-# grn = GRN(calibrated=True)              # 1 tick = 1 min
+# grn = GRN()                            # 1 tick = 1 min (physical units on by default)
 # for name in ("lacI", "tetR", "cI"):
 #     grn.add_gene(name, threshold=0.5,
 #                  initial_level=1.0 if name == "lacI" else 0.0,  # asymmetric seed
@@ -61,4 +61,4 @@ ATG GCT GCT GCT TAA
 # # the seeded repressor decays to the fixed point while its targets stay silent;
 # # sustained limit cycles require the continuous-time model (Box 1, Elowitz 2000)
 
-#config ticks=300 output=stdout units=real
+#config ticks=300 output=stdout

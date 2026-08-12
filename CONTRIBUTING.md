@@ -49,9 +49,9 @@ abusive behavior is not tolerated.
   syntax, module-level function signatures, CLI flags, REST endpoints) is
   stable. Behavior changes must be opt-in or additive.
 - **Never silently change defaults.** Legacy behavior is the compatibility
-  contract. New semantics belong behind new flags, `calibrated=`/`units=`
-  parameters, or clearly documented opt-ins (see the *gameplay-units* upgrade
-  for the pattern).
+  contract. New semantics belong behind new flags or clearly documented
+  opt-ins. The runtime now runs on **physical units** end-to-end (no
+  `calibrated=`/`units=` switch; see `doc/simulation-model.md` §6.3).
 - **Data is sourced, not invented.** Every magic number that stands for a
   biological quantity must carry a citation — see
   [Biological constants & citations](#biological-constants--citations).
@@ -138,9 +138,9 @@ style already used in this repo's history:
 
 ```
 feat: add Hill-cooperativity regulation mode
-fix: correct diffusion variance in sub-stepped calibrated mode
-doc: document the units=real config option
-test: cover calibrated population doubling time
+fix: correct diffusion variance in sub-stepped diffusion
+doc: document the physical unit system
+test: cover population doubling time under physical units
 ```
 
 Include *what* and *why* in the body when it isn't obvious from the subject.
@@ -167,10 +167,10 @@ pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80
 - Coverage gate is **80%** (the config lives in `pyproject.toml`; current suite
   measures ~90%+).
 - Run a single file: `pytest tests/test_grn.py`
-- Run a single test: `pytest tests/test_grn.py::test_calibrated_decay_default_halves_at_110_ticks`
+- Run a single test: `pytest tests/test_grn.py::test_decay_default_halves_at_110_ticks`
 
-**When you add behavior, add tests.** New calibrated modes, opcodes, or bio
-modules must ship with a validation suite that asserts the *physical meaning*
+**When you add behavior, add tests.** New opcodes, bio modules, or physical-unit
+constants must ship with a validation suite that asserts the *physical meaning*
 of the numbers, not just "it doesn't crash".
 
 ### Lint
@@ -225,9 +225,9 @@ mention it in the PR — the matrix runs both supported Python versions.
 - **Type annotations are mandatory** in `src/` (enforced by mypy).
 - **Named constants over magic literals.** Every hard-coded value that has a
   meaning (energy costs, decay rates, diffusion coefficients, quorum
-  thresholds, coupling gains) belongs in a named module-level constant. The
-  gameplay-units upgrade (`src/helixlang/units.py` + `CALIBRATED`) is the
-  canonical pattern: define the constant, then register its physical meaning.
+  thresholds, coupling gains) belongs in a named module-level constant. Values
+  are **physical** (ATP molecules, µM, µm²/s); constants live in
+  `src/helixlang/units.py` or their owning module with a `#:` citation.
 - **Stdlib-first core.** `src/helixlang` core must import only the standard
   library. numpy / biopython / flask are optional extras — gate imports
   (`try: import numpy as np`), never a hard dependency.
@@ -244,9 +244,9 @@ biology, and every parameter that stands for a physical quantity must be
 **traceable to a published measurement**:
 
 ```python
-#: energy required for one cell division (gameplay units; calibrated mode:
-#: 1 unit = 10^7 ATP, Orth 2010)
-DIVISION_ENERGY_THRESHOLD = 200.0
+#: energy required for one cell division, ATP molecules (Orth 2010:
+#: 1.8e9 ~= 20 min of maintenance flux ~2.5e7 ATP/min)
+DIVISION_ENERGY_THRESHOLD = 1.8e9
 ```
 
 Rules of thumb:
@@ -255,12 +255,14 @@ Rules of thumb:
   and add the full reference to `doc/references.md`.
 - If you can't find a published value, say so explicitly ("gameplay units,
   not experimentally measured") rather than inventing one.
-- New constants that represent a gameplay quantity also belong in
-  `helixlang/units.py`'s `CALIBRATED` registry with its physical value,
-  unit, citation, and conversion function — see `doc/gameplay-units-upgrade.md`.
-- When you bump a calibrated value, update the calibration *and* its tests
-  together (e.g. a half-life change must be reflected in the
-  `test_calibrated_decay_default_halves_at_110_ticks`-style assertions).
+- Constants are **directly physical** — no conversion functions or calibration
+  registry. To add one, define the named constant in its owning module and add
+  the unit + citation to the docstring (see `src/helixlang/units.py` for the
+  canonical example). The former `CALIBRATED` registry / `calibrated=` mode was
+  removed; `doc/gameplay-units-upgrade.md` documents that history.
+- When you change a physical value, update its tests together (e.g. a
+  half-life change must be reflected in the
+  `test_default_decay_halves_at_110_ticks`-style assertions).
 
 ## Documentation policy
 

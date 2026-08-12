@@ -31,11 +31,11 @@ from helixlang.population import QUORUM_SIGNAL_THRESHOLD
 from helixlang.reaction_diffusion import GrayScott
 
 # ============================================================================
-# Runtime opcode semantics (gameplay-unit constant registry)
+# Runtime opcode semantics (physical-unit constant registry)
 # ============================================================================
-# Values are dimensionless gameplay units unless cited otherwise. The
-# behaviors these tune were wired in to replace documented no-op stubs;
-# sources are cited at each constant.
+# Quantities are in physical units (µM signals, molecule-count energies)
+# unless cited otherwise. The behaviors these tune were wired in to
+# replace documented no-op stubs; sources are cited at each constant.
 
 #: regulatory-edge weight applied by the runtime ``OP_REGULATE`` opcode.
 #: Grounding: the Jacob & Monod (1961) operon model and Ptashne (2004)
@@ -54,25 +54,25 @@ BIND_LEVEL_BOOST = 0.5
 
 #: ``OP_EMIT_MORPHOGEN`` injects ``(id + 1) / EMIT_MORPHOGEN_SCALE`` into the
 #: field's V channel (Turing 1952 reaction-diffusion morphogens; Pearson
-#: 1993 measured presets). id=0 keeps a non-zero legacy emission.
+#: 1993 measured presets). id=0 keeps a non-zero emission.
 EMIT_MORPHOGEN_SCALE = 256
 
 #: ``OP_SIGNAL`` releases ``SIGNAL_EMISSION_AMOUNT * (1 + ch)`` (capped at
 #: 1.0) of the V channel at the cell position — the quorum-sensing
 #: autoinducer pool read by ``#quorum``. Grounding: Miller & Bassler
 #: (2001), Xavier & Bassler (2003): AI-2 is secreted and sensed at uM
-#: concentrations.
-SIGNAL_EMISSION_AMOUNT = 0.25
+#: concentrations. The V channel stores µM AI-2 (0.5 µM per event;
+#: ~5 adjacent emitters cross the 10 µM quorum threshold).
+SIGNAL_EMISSION_AMOUNT = 0.5
 
 #: ribosome density (ribosomes/100 nt mRNA) used by the central-dogma
 #: pipeline (P0-1.2). Grounding: Ingolia 2009 (in vivo ribosome
-#: profiling) — E. coli ribosomes load at ~1 per 100 nt; the value keeps
-#: the legacy coupling magnitude.  Registered in ``units.CALIBRATED``.
+#: profiling) — E. coli ribosomes load at ~1 per 100 nt.
 RIBO_SOME_DENSITY_PER_100NT = 0.1
 
 #: protein-yield coupling gain: ``protein_amount = mrna_level * yield *
 #: aa_count``.  Grounding: Bernstein 2002 — one mRNA makes ~10^2-10^3
-#: proteins over its lifetime; 0.1 is the legacy normalized gain.
+#: proteins over its lifetime; 0.1 is the normalized yield.
 PROTEIN_YIELD_PER_MRNA_AA = 0.1
 
 #: GRN feedback gain: protein abundance raises the gene's level.
@@ -194,7 +194,7 @@ class BioInstructionDispatcher:
                         vm.field.step()
             case Op.OP_EMIT_MORPHOGEN:
                 # Morphogen ID scales the injected amount: (id+1)/256,
-                # id=0 keeps the legacy non-zero emission.
+                # id=0 keeps a non-zero emission.
                 m_id = vm._read_u8()
                 if vm.field:
                     vm.field.emit(
@@ -474,11 +474,11 @@ class CellVM:
         self.ip = 0
         self.stack: list = []
         self.frames: list[Frame] = []
-        # ``#config units=real`` (Tier 3) activates calibrated subsystems:
-        # physical-unit Cell and GRN while keeping all default counts.
-        self._real_units = self.program.config.units == "real"
-        self.cell = Cell(calibrated=self._real_units)
-        self.grn = GRN(calibrated=self._real_units)
+        # All simulation quantities are in physical units (helixlang.units):
+        # Cell energy in ATP molecules, GRN decay from the 110 min protein
+        # half-life, signals in µM.
+        self.cell = Cell()
+        self.grn = GRN()
         self.lsystems: dict[str, LSystem] = {}
         self.field: GrayScott | None = None
         self.tick = 0
@@ -748,6 +748,5 @@ class CellVM:
             "regulation_edges": len(self.grn.edges),
             "binding_events": len(self._binding_events),
             "field_total_v": self.field.total_v() if self.field else 0.0,
-            "units": self.program.config.units,
         }
         self.trace.append(snap)
