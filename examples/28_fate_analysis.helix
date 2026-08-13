@@ -1,4 +1,5 @@
 # Example 28: cell-fate decision analysis (S7)
+# Python companion script: examples/fate_analysis_workflow.py
 # A two-gene mutual-repression toggle switch (Gardner, Cantor & Collins
 # 2000 Nature 403:339) is the canonical binary cell-fate decision: two
 # differentiated attractors (fate A / fate B) separated by an unstable
