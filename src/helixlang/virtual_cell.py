@@ -25,7 +25,7 @@ References:
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from helixlang.bio_data import ECOLI_CODON_USAGE
@@ -225,7 +225,8 @@ class VirtualCell:
 def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
                    ranges: dict[str, tuple[float, float]],
                  n_samples: int = 500, seed: int = 0,
-                 refine_rounds: int = 5, n_grid: int = 50) -> dict:
+                 refine_rounds: int = 5, n_grid: int = 50,
+                 weights: Sequence[float] | None = None) -> dict:
     """Fit model parameters to observed data.
 
     ``predict(**params) -> list[float]`` is evaluated at randomized
@@ -246,6 +247,14 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
             ``2**(round+2)+1`` grid points.
         n_grid: kept for compatibility (resolution doubling is fixed);
             ignored by the current implementation.
+        weights: optional per-observation weights (same length as
+            ``observed``) giving the objective ``sum(w_i (p_i - o_i)^2)``.
+            Supports multi-scale omics calibration: observations from
+            heterogeneous readouts (mRNA vs protein, high- vs low-count
+            perturb-seq conditions) are jointly fitted with inverse-
+            variance weights (DESeq2 2014 variance structure
+            ``Var = mu + dispersion*mu^2``; Karr et al. 2012 DREAM8
+            weighted fitting). ``None`` = unit weights.
 
     Returns:
         ``{"best": {param: value}, "sse": float, "n_samples": int}``.
@@ -254,6 +263,8 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
         raise ValueError("ranges must be non-empty")
     if not observed:
         raise ValueError("observed must be non-empty")
+    if weights is not None and len(weights) != len(observed):
+        raise ValueError("weights must have the same length as observed")
     rng = random.Random(seed)
     names = list(ranges)
 
@@ -267,6 +278,10 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
         if len(pred) != len(observed):
             raise ValueError(
                 "prediction length must match observed length")
+        if weights is not None:
+            return sum(w * (p - o) ** 2
+                       for w, p, o in zip(weights, pred, observed,
+                                          strict=True))
         return sum((p - o) ** 2 for p, o in zip(pred, observed, strict=True))
 
     best = {n: rng.uniform(*ranges[n]) for n in names}

@@ -296,6 +296,8 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [apps/fate_analysis](src/helixlang/apps/fate_analysis.py) | Cell-fate decision analysis — toggle-switch bistability scan + stochastic switching + critical slowing down |
 | [apps/protein_evolution](src/helixlang/apps/protein_evolution.py) | ML-guided directed evolution of GB1 — ESM-2/BLOSUM oracle, top-K screening vs random baseline, Spearman alignment |
 | [apps/virtual_cell_bench](src/helixlang/apps/virtual_cell_bench.py) | Whole-cell calibration → prediction benchmark (fit biomass-to-ATP constant, then predict an independent condition) |
+| [apps/omics_calibration](src/helixlang/apps/omics_calibration.py) | Omics-level parameter calibration — CRISPRi PerturbSeq with negative-binomial noise, VCC-style log fold-change vs WT, inverse-variance weighted `fit_parameters` |
+| [apps/whole_cell_scale](src/helixlang/apps/whole_cell_scale.py) | Whole-cell scale — FASTA genome loader (RBS + bare-ORF fallback), KO→FBA gene-essentiality screening (Feist 2007 / EcoCyc) |
 | [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
@@ -380,8 +382,8 @@ ruff check src tests
 mypy
 ```
 
-- **1800+ test cases** (1830 passing, 89% coverage)
-- CI matrix: Python 3.11 / 3.13
+- **1879 test cases** (1879 passing, 89% coverage)
+- CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 30 `examples/*.helix` covered + Python API companions
 

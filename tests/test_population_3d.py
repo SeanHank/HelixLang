@@ -8,23 +8,34 @@ Verification goals:
   [z][y][x] volume; emission lands at the correct 3D site; division
   offsets along z; z-neighborhoods (6- and 26-connectivity) are
   in-bounds and include the z axis.
+- Large-scale (biofilm-scale) path: the numpy batch metabolism of
+  CellPopulation3D reproduces the pure-Python 3D path exactly; the
+  per-cell cost scales near-linearly from 10^3 to 10^4 agents; a seeded
+  monolayer grows into a colony whose z-density is anchored at the
+  substratum (biomass stays near the surface); occupancy and spatial
+  mechanics dispatch into the 3D z-aware implementations.
 - to_lsystem3d exports the colony occupancy through morphology_3d
   (every occupied site appears in the derived point cloud).
 
 References:
 - NUFEB 2019 (Kick et al. Commun Comput Phys 27:1882-1908): 3D
   individual-based microbial simulation with 3D chemical fields
+- BM3 benchmark (Cockx et al. 2024): biofilm growth anchored at a
+  substratum with biomass concentrated at the surface
 - Fick's law; explicit finite-difference 3D Laplacian (Press et al.
   Numerical Recipes); Prusinkiewicz & Lindenmayer 1990 (3D L-systems)
 """
 from __future__ import annotations
 
 import math
+import random
+import time
 
 import pytest
 
 from helixlang.environment import ConcentrationField3D
 from helixlang.population import (
+    _HAS_NUMPY,
     CellPopulation3D,
     PopulationCell,
     PopulationConfig,
@@ -253,3 +264,117 @@ def test_to_lsystem3d_empty_colony() -> None:
     p = CellPopulation3D([], PopulationConfig(**GRID))
     ls = p.to_lsystem3d()
     assert ls.get_points(0)  # still a valid (empty) geometry
+
+
+# ============================================================================
+# Large-scale 3D path (biofilm scale, 10^4..10^5 agents)
+# ============================================================================
+
+@pytest.mark.skipif(not _HAS_NUMPY, reason="numpy batch path unavailable")
+def test_population3d_vectorized_matches_python() -> None:
+    """numpy batch metabolism must reproduce the pure-Python 3D path
+    exactly for identical initial state (energy, age, signal field and
+    death decisions)."""
+    cfg = PopulationConfig(**{**GRID, "signaling_enabled": True,
+                              "signal_diffusion": 0.0})
+
+    def build(seed: int) -> CellPopulation3D:
+        rng = random.Random(seed)
+        cells = [PopulationCell(id=i, energy=200.0, age=rng.randrange(3),
+                                x=rng.randrange(12), y=rng.randrange(12),
+                                z=rng.randrange(12))
+                 for i in range(300)]
+        return CellPopulation3D(cells, cfg, seed=seed)
+
+    a, b = build(0), build(0)
+    va, da = a._step_vectorized_metabolism()
+    pb, db = b._step_metabolism_python()
+    assert da == db
+    sa = sorted((c.id, c.energy, c.age, c.signal_emitted) for c in va)
+    sb = sorted((c.id, c.energy, c.age, c.signal_emitted) for c in pb)
+    assert sa == sb
+    assert a.signal_field == b.signal_field
+    alive = {c.id for c in va}
+    assert all(c.alive == (c.id in alive) for c in b.cells)
+
+
+@pytest.mark.skipif(not _HAS_NUMPY, reason="numpy batch path unavailable")
+def test_population3d_vectorized_scaling() -> None:
+    """Per-cell cost stays near-linear from 10^3 to 10^4 agents (the
+    vectorized path exists so colony growth is not O(N^2))."""
+    cfg = PopulationConfig(**{**GRID, "signaling_enabled": False,
+                              "division_threshold": 1e12})
+
+    def mk(n: int) -> CellPopulation3D:
+        rng = random.Random(0)
+        cells = [PopulationCell(id=i, energy=200.0, x=rng.randrange(12),
+                                y=rng.randrange(12), z=rng.randrange(12))
+                 for i in range(n)]
+        return CellPopulation3D(cells, cfg, seed=0)
+
+    def timeit(n: int) -> float:
+        p = mk(n)
+        p.step()  # warm-up
+        t0 = time.perf_counter()
+        for _ in range(3):
+            p.step()
+        return (time.perf_counter() - t0) / 3.0
+
+    small = timeit(2000)
+    large = timeit(10000)
+    # 5x the cells must not cost anywhere near the 25x an O(N^2) path
+    # would: the generous 8x cap tolerates timing noise while still
+    # catching superlinear blow-up.
+    assert large < 8.0 * small, f"scaling regressed: {large:.3f}s vs {small:.3f}s"
+
+
+def test_population3d_occupancy_3d_counts() -> None:
+    cfg = PopulationConfig(**GRID)
+    cells = [PopulationCell(id=i, energy=200.0, x=x, y=y, z=z)
+             for i, (x, y, z) in enumerate([(1, 1, 1), (1, 1, 1),
+                                            (2, 2, 2), (9, 9, 9)])]
+    p = CellPopulation3D(cells, cfg, seed=1)
+    occ = p.occupancy_3d()
+    assert occ[1][1][1] == 2
+    assert occ[2][2][2] == 1
+    assert occ[9][9][9] == 1
+    assert sum(sum(sum(layer) for layer in depth) for depth in occ) == 4
+
+
+def test_population3d_biofilm_grows_anchored_at_substratum() -> None:
+    """BM3-style growth: a z=0 monolayer expands and the resulting colony
+    keeps its biomass near the substratum (surface-anchored, not floating)."""
+    cfg = PopulationConfig(**{**GRID, "signal_diffusion": 2.0,
+                              "division_threshold": 100.0})
+    cells = [PopulationCell(id=i, energy=300.0,
+                            x=4 + (i % 4), y=4 + (i % 3), z=0)
+             for i in range(8)]
+    p = CellPopulation3D(cells, cfg, seed=11)
+    for _ in range(8):
+        p.step()
+    occ = p.occupancy_3d()
+    alive = [c for c in p.cells if c.alive]
+    assert len(alive) > len(cells)
+    assert sum(sum(sum(layer) for layer in depth) for depth in occ) == len(alive)
+    heights = [z for z in range(cfg.grid_depth)
+               for y in range(cfg.grid_height)
+               for x in range(cfg.grid_width) if occ[z][y][x]]
+    assert max(heights) > 0  # colony grew away from the substratum
+    mean_z = sum(c.z for c in alive) / len(alive)
+    assert mean_z < cfg.grid_depth / 3.0  # biomass anchored near z=0
+
+
+@pytest.mark.parametrize("mechanics", ["shoving", "force"])
+def test_population3d_mechanics_relieves_crowding_in_z(mechanics: str) -> None:
+    """3D mechanics dispatch must de-overlap crowded sites, moving cells
+    along the z axis as well as x/y."""
+    cfg = PopulationConfig(**{**GRID, "mechanics": mechanics,
+                              "division_threshold": 1e12})
+    cells = [PopulationCell(id=i, energy=200.0, x=5, y=5, z=5)
+             for i in range(6)]
+    p = CellPopulation3D(cells, cfg, seed=2)
+    p._apply_mechanics(p.cells)
+    occ = p.occupancy_3d()
+    assert max(occ[z][y][x] for z in range(12)
+               for y in range(12) for x in range(12)) < 6
+    assert len({c.z for c in p.cells}) > 1  # cells escaped along z

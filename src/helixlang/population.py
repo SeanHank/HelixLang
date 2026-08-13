@@ -1336,10 +1336,142 @@ class CellPopulation3D(CellPopulation):
             self.signal_field[cell.z][cell.y][cell.x] += SIGNAL_EMISSION_PER_STEP
 
     def _step_vectorized_metabolism(self) -> tuple[list[PopulationCell], int]:
-        """3D populations keep the pure-Python metabolism path (the 2D
-        numpy scatter path targets the ``[y][x]`` grid); scaling the 3D
-        path is a T3.3 concern."""
-        return self._step_metabolism_python()
+        """Batch metabolism + signal emission + death in 3D (numpy).
+
+        Mirrors the 2D scatter path (``_step_vectorized_metabolism``) but
+        scatters signal emission into the ``[z][y][x]`` volume and bounds
+        every axis.  Lets large 3D colonies (NUFEB 2019 / iDynoMiCS 2.0
+        scale, 10^4..10^5 agents) advance at near-linear cost instead of
+        the pure-Python per-cell loop.
+        """
+        config = self.config
+        cells = self.cells
+        alive_idx = [i for i, c in enumerate(cells) if c.alive]
+        m = len(alive_idx)
+        if m == 0:
+            return [], 0
+
+        energies = np.fromiter(
+            (cells[i].energy for i in alive_idx), dtype=float, count=m)
+        ages = np.fromiter(
+            (cells[i].age for i in alive_idx), dtype=np.int64, count=m)
+        xs = np.fromiter(
+            (cells[i].x for i in alive_idx), dtype=np.int64, count=m)
+        ys = np.fromiter(
+            (cells[i].y for i in alive_idx), dtype=np.int64, count=m)
+        zs = np.fromiter(
+            (cells[i].z for i in alive_idx), dtype=np.int64, count=m)
+        signals = np.fromiter(
+            (cells[i].signal_emitted for i in alive_idx), dtype=float, count=m)
+
+        energies += config.energy_intake - config.metabolic_cost
+        ages += 1
+        if config.signaling_enabled:
+            signals += SIGNAL_EMISSION_PER_STEP
+            in_bounds = ((xs >= 0) & (xs < config.grid_width)
+                         & (ys >= 0) & (ys < config.grid_height)
+                         & (zs >= 0) & (zs < config.grid_depth))
+            if in_bounds.any():
+                sig_field = np.asarray(self.signal_field, dtype=float)
+                np.add.at(
+                    sig_field,
+                    (zs[in_bounds], ys[in_bounds], xs[in_bounds]),
+                    SIGNAL_EMISSION_PER_STEP,
+                )
+                self.signal_field = sig_field.tolist()
+
+        death_mask = energies <= config.death_threshold
+        deaths = int(death_mask.sum())
+
+        metabolized: list[PopulationCell] = []
+        for k, i in enumerate(alive_idx):
+            cell = cells[i]
+            cell.age = int(ages[k])
+            cell.energy = float(energies[k])
+            cell.signal_emitted = float(signals[k])
+            if death_mask[k]:
+                cell.alive = False
+            else:
+                metabolized.append(cell)
+        return metabolized, deaths
+
+    def _occupancy_3d(self, cells: list[PopulationCell]
+                      ) -> list[list[list[int]]]:
+        """Alive-cell count per ``[z][y][x]`` site (numpy scatter)."""
+        w = self.config.grid_width
+        h = self.config.grid_height
+        d = self.config.grid_depth
+        zs: list[int] = []
+        ys: list[int] = []
+        xs: list[int] = []
+        for c in cells:
+            if c.alive and self._in_bounds_3d(c.x, c.y, c.z):
+                zs.append(c.z)
+                ys.append(c.y)
+                xs.append(c.x)
+        if not zs:
+            return [[[0] * w for _ in range(h)] for _ in range(d)]
+        if _HAS_NUMPY:
+            occ_arr = np.zeros((d, h, w), dtype=np.int64)
+            np.add.at(occ_arr, (zs, ys, xs), 1)
+            return occ_arr.tolist()
+        occ = [[[0] * w for _ in range(h)] for _ in range(d)]
+        for z, y, x in zip(zs, ys, xs, strict=True):
+            occ[z][y][x] += 1
+        return occ
+
+    def _apply_mechanics_3d(self, cells: list[PopulationCell]) -> None:
+        """3D relaxation of crowded cells (iDynoMiCS/CROMICS realization).
+
+        ``shoving`` shoves excess cells to the nearest empty face
+        neighbor; ``force`` displaces them toward the least-crowded site
+        in the full 26-neighborhood (force-balance mechanics, Lardon et
+        al. 2011 / Cockx et al. 2024), extended to the z axis.
+        """
+        config = self.config
+        occ = self._occupancy_3d(cells)
+        if config.mechanics == "shoving":
+            for c in cells:
+                if not c.alive or not self._in_bounds_3d(c.x, c.y, c.z):
+                    continue
+                if occ[c.z][c.y][c.x] <= 1:
+                    continue
+                for dx, dy, dz in ((-1, 0, 0), (1, 0, 0), (0, -1, 0),
+                                   (0, 1, 0), (0, 0, -1), (0, 0, 1)):
+                    nx, ny, nz = c.x + dx, c.y + dy, c.z + dz
+                    if (self._in_bounds_3d(nx, ny, nz)
+                            and occ[nz][ny][nx] == 0):
+                        occ[c.z][c.y][c.x] -= 1
+                        occ[nz][ny][nx] = 1
+                        c.x, c.y, c.z = nx, ny, nz
+                        break
+        elif config.mechanics == "force":
+            for c in cells:
+                if not c.alive or not self._in_bounds_3d(c.x, c.y, c.z):
+                    continue
+                occ_here = occ[c.z][c.y][c.x]
+                if occ_here <= 1:
+                    continue
+                best: tuple[int, int, int, int] | None = None
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        for dz in (-1, 0, 1):
+                            if dx == dy == dz == 0:
+                                continue
+                            nx, ny, nz = c.x + dx, c.y + dy, c.z + dz
+                            if not self._in_bounds_3d(nx, ny, nz):
+                                continue
+                            score = occ[nz][ny][nx]
+                            if best is None or score < best[0]:
+                                best = (score, nx, ny, nz)
+                if best is not None and best[0] < occ_here:
+                    occ[c.z][c.y][c.x] -= 1
+                    occ[best[3]][best[2]][best[1]] += 1
+                    c.x, c.y, c.z = best[1], best[2], best[3]
+
+    def _apply_mechanics(self, cells: list[PopulationCell]) -> None:
+        """3D dispatch for mechanics (shoving/force, 26-neighborhood)."""
+        self._apply_mechanics_3d(cells)
 
     def neighbors_3d(self, x: int, y: int, z: int,
                      connectivity: int = 6) -> list[tuple[int, int, int]]:
@@ -1349,30 +1481,41 @@ class CellPopulation3D(CellPopulation):
                              connectivity=connectivity)
 
     def _diffuse(self, config: PopulationConfig) -> list[list[list[float]]]:  # type: ignore[override]
-        """3D signal diffusion (7-point Laplacian, stable sub-steps)."""
+        """3D signal diffusion (7-point Laplacian, stable sub-steps).
+
+        With numpy the field stays a single array across the (potentially
+        hundreds of) stability-constrained sub-steps, so large volumes
+        (biofilm-scale lattices) diffuse without per-sub-step list<->array
+        round trips.
+        """
         d_lattice = diffusion_to_lattice(
             config.signal_diffusion, DIFFUSION_DT_S, LATTICE_SPACING_UM)
         if d_lattice <= 0.0:
             return self.signal_field
         n = math.ceil(d_lattice / _MAX_SUBSTEP_D_3D)
+        dt = d_lattice / n
+        w = config.grid_width
+        h = config.grid_height
+        depth = config.grid_depth
+        if _HAS_NUMPY:
+            a = np.asarray(self.signal_field, dtype=float)
+            for _ in range(n):
+                padded = np.pad(a, 1, mode="edge")
+                lap = (padded[2:, 1:-1, 1:-1] + padded[:-2, 1:-1, 1:-1]
+                       + padded[1:-1, 2:, 1:-1] + padded[1:-1, :-2, 1:-1]
+                       + padded[1:-1, 1:-1, 2:] + padded[1:-1, 1:-1, :-2]
+                       - 6.0 * a)
+                a = a + dt * lap
+                np.clip(a, 0.0, None, out=a)
+            return a.tolist()  # type: ignore[no-any-return]
         field = self.signal_field
         for _ in range(n):
-            field = _laplacian_step_3d(field, d_lattice / n,
-                                       config.grid_width,
-                                       config.grid_height,
-                                       config.grid_depth)
+            field = _laplacian_step_3d(field, dt, w, h, depth)
         return field
 
     def occupancy_3d(self) -> list[list[list[int]]]:
         """Alive-cell count per site, indexed [z][y][x]."""
-        w = self.config.grid_width
-        h = self.config.grid_height
-        d = self.config.grid_depth
-        grid = [[[0] * w for _ in range(h)] for _ in range(d)]
-        for c in self.cells:
-            if c.alive and self._in_bounds_3d(c.x, c.y, c.z):
-                grid[c.z][c.y][c.x] += 1
-        return grid
+        return self._occupancy_3d(self.cells)
 
     def _divide_3d(self, cell: PopulationCell, config: PopulationConfig,
                    rng: random.Random

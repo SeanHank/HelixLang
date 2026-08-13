@@ -62,7 +62,7 @@ abusive behavior is not tolerated.
 
 ### Environment
 
-- Python **3.11+** (CI also runs 3.13).
+- Python **3.11+**.
 - A venv or conda environment — anything works, but keep it isolated.
 
 ### Installation
@@ -211,7 +211,7 @@ python -m helixlang examples/01_hello_dna.helix
 |-----|--------|------|
 | `lint` | 3.11 | `ruff check src tests` |
 | `typecheck` | 3.11 | `mypy` |
-| `test` | 3.11 + 3.13 | `pytest --cov=helixlang --cov-fail-under=80` |
+| `test` | 3.11 | `pytest --cov=helixlang --cov-fail-under=80` |
 | `examples-smoke` | 3.11 | compile + run all examples |
 
 Green CI is required before merge. If you can't reproduce a CI-only failure,
