@@ -381,7 +381,7 @@ mypy
 ```
 
 - **1800+ test cases** (1830 passing, 89% coverage)
-- CI matrix: Python 3.11
+- CI matrix: Python 3.11 / 3.13
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 30 `examples/*.helix` covered + Python API companions
 
