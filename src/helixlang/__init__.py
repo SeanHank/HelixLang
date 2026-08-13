@@ -23,6 +23,7 @@ from helixlang.environment import (
     OXYGEN_HALF_SATURATION_MM,
     SITE_VOLUME_L,
     ConcentrationField,
+    ConcentrationField3D,
     Environment,
     EnvironmentConfig,
     atp_yield,
@@ -49,7 +50,8 @@ from helixlang.metabolism import (
     MetabolicModel,
     Reaction,
 )
-from helixlang.population import CellPopulation, PopulationConfig
+from helixlang.morphology_3d import LSystem3D, Point3D
+from helixlang.population import CellPopulation, CellPopulation3D, PopulationConfig
 from helixlang.stochastic import (
     TelegraphPromoter,
     fano_to_noise_std,
@@ -84,6 +86,7 @@ __all__ = [
     "decay_from_half_life_ticks", "decay_to_half_life_ticks",
     # environment
     "Environment", "EnvironmentConfig", "ConcentrationField",
+    "ConcentrationField3D",
     "GLUCOSE_DIFFUSION_UM2_S", "OXYGEN_DIFFUSION_UM2_S",
     "ACETATE_DIFFUSION_UM2_S",
     "GLUCOSE_HALF_SATURATION_MM", "OXYGEN_HALF_SATURATION_MM",
@@ -95,7 +98,10 @@ __all__ = [
     "TelegraphPromoter", "telegraph_fano_factor",
     "fano_to_noise_std", "gillespie_telegraph",
     # GRN + VM + population
-    "GRN", "CellVM", "Program", "CellPopulation", "PopulationConfig",
+    "GRN", "CellVM", "Program", "CellPopulation", "CellPopulation3D",
+    "PopulationConfig",
+    # 3D morphology
+    "LSystem3D", "Point3D",
     # flux balance analysis
     "MetabolicModel", "Reaction", "ECOLI_CORE_MODEL",
     "FluxBalanceAnalysis", "DynamicFBAConfig", "DynamicFluxBalance",

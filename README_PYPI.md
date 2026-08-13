@@ -10,7 +10,7 @@ A domain-specific language where biological genetic material is the source, bina
 |---|---|
 | 🐍 Requires | Python ≥ 3.11 |
 | 📦 Runtime deps | **none** (stdlib only) |
-| 🧪 Tested on | Python 3.11 · 3.13 |
+| 🧪 Tested on | Python 3.11 |
 | 📜 License | AGPLv3 |
 
 ---
@@ -332,7 +332,7 @@ mypy
 ```
 
 - **1800+ test cases** (1830 passing, 89% coverage)
-- CI matrix: Python 3.11 / 3.13
+- CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 30 `examples/*.helix` covered + Python API companions
 
