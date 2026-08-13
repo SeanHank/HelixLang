@@ -1,0 +1,40 @@
+# Example 23: Digital evolution - organisms evolve a signal task (S3)
+# A population of digital organisms (small instruction genomes) is
+# evolved by mutation and selection on a signal-production task, the
+# digital-organism paradigm of Avida (Ofria & Wilke 2004, Artificial
+# Life 10:191) and Lenski et al. 2003 (Nature 423:139).  Fitness is an
+# exponential of the number of target bits reproduced, so every extra
+# correct bit confers a constant selective advantage - the digital analog
+# of the small-effect beneficial mutations of the E. coli LTEE (Lenski
+# 2017, Phil Trans R Soc B 372:20160592).
+#
+# The digital organism must learn to emit a 12-bit target signal:
+#   1010 1100 1011
+# The evolutionary dynamics are driven by the Python API shown at the
+# end; the HelixLang program below keeps this file in the example suite
+# (a signal gene emitting the standard hello program).
+#
+#gene name=signal
+ATG GCT GGT GTA TAA
+#end
+#
+#config ticks=300 output=stdout
+#
+# # Python API for the digital evolution run:
+# #
+# # from helixlang.apps.digital_evolution import (DigitalEvolution,
+# #                                              DigitalEvolutionConfig)
+# # evo = DigitalEvolution(DigitalEvolutionConfig(
+# #     population_size=200,
+# #     genome_length=12,
+# #     target=(1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1),
+# #     substitution_rate=0.01,      # per-instruction mutation rate
+# #     insertion_rate=0.001,
+# #     deletion_rate=0.001,
+# #     generations=300,
+# #     seed=3,
+# # ))
+# # evo.run()
+# # print("mean fitness:", evo.mean_fitness())
+# # print("max  fitness:", evo.max_fitness())
+# # print("fittest genome:", evo.fittest_genome())

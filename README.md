@@ -287,6 +287,15 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [vectorized](src/helixlang/vectorized.py) | Across-cell numpy GRN step, stable cell sorting, snapshot iteration, optional jit |
 | [omics](src/helixlang/omics.py) | Spatial-omics: expression matrices → GRN states / FBA bounds, spatial atlas, heterogeneity (ARI) |
 | [virtual_cell](src/helixlang/virtual_cell.py) | Virtual-cell budget model (GRN → central dogma → FBA), gene encoding, parameter fitting, biofilm/perturbation benchmarks |
+| [apps/consortium](src/helixlang/apps/consortium.py) | Synthetic microbial consortium — quorum consensus vote + composition (ratio) control |
+| [apps/morphogen_gradient](src/helixlang/apps/morphogen_gradient.py) | French-flag positional information — diffusing morphogen + cross-repression thresholds (Wolpert 1969) |
+| [apps/digital_evolution](src/helixlang/apps/digital_evolution.py) | Digital organisms evolve a signal task — Wright-Fisher + Eigen error catastrophe (Avida paradigm) |
+| [apps/synbio_automation](src/helixlang/apps/synbio_automation.py) | Cello-style closed-loop automation — truth table → netlist → gates → plasmid + GenBank + SBOL3 → predicted dynamics |
+| [apps/dna_storage](src/helixlang/apps/dna_storage.py) | DNA-storage scenario decision tool — fountain / Reed-Solomon / Goldman codec benchmarks + per-GB cost |
+| [apps/spatial_dfba](src/helixlang/apps/spatial_dfba.py) | Spatial dynamic-FBA biofilm — 1-D glucose gradient, diffusion-coupled dFBA batches, depletion fronts |
+| [apps/fate_analysis](src/helixlang/apps/fate_analysis.py) | Cell-fate decision analysis — toggle-switch bistability scan + stochastic switching + critical slowing down |
+| [apps/protein_evolution](src/helixlang/apps/protein_evolution.py) | ML-guided directed evolution of GB1 — ESM-2/BLOSUM oracle, top-K screening vs random baseline, Spearman alignment |
+| [apps/virtual_cell_bench](src/helixlang/apps/virtual_cell_bench.py) | Whole-cell calibration → prediction benchmark (fit biomass-to-ATP constant, then predict an independent condition) |
 | [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
@@ -371,10 +380,10 @@ ruff check src tests
 mypy
 ```
 
-- **1500+ test cases**
+- **1800+ test cases** (1830 passing, 89% coverage)
 - CI matrix: Python 3.11 / 3.13
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 20 `examples/*.helix` covered
+- All 30 `examples/*.helix` covered (+ `examples/virtual_cell_workflow.py` Python API companion)
 
 ---
 

@@ -33,9 +33,15 @@ from dataclasses import dataclass
 from math import prod
 
 from helixlang.apps.synbio_designer import (
+    DEFAULT_MCS,
+    MCS_SITES,
+    ORIGIN_SEQUENCES,
     PROMOTER_SEQUENCES,
+    SELECTION_MARKERS,
     TERMINATOR_SEQUENCES,
+    genbank_format,
 )
+from helixlang.central_dogma import coupled_transcription_translation
 from helixlang.interop import (
     SBOL_ROLE_GENE,
     SBOL_ROLE_PROMOTER,
@@ -728,6 +734,167 @@ def xor_gate() -> BooleanCircuitDesign:
         ["a", "b"], ["y"], lambda v: (v[0] != v[1],)))
 
 
+# ============================================================================
+# Closed-loop workflow: logic -> plasmid + time curves + validation
+# ============================================================================
+
+def build_plasmid(design: BooleanCircuitDesign,
+                  backbone: str = "pUC19",
+                  marker: str = "AmpR",
+                  include_mcs: bool = True) -> tuple[str, int, list[str]]:
+    """Assemble the circuit into a complete plasmid (Cello -> wet lab).
+
+    The gate DNAs are cloned into a synthetic vector backbone built from
+    :mod:`helixlang.apps.synbio_designer` parts: replicon + resistance
+    marker + multiple cloning site, then the circuit gates in topological
+    order (``synbio_designer.py`` "expression box / vector" layer).
+
+    Returns ``(plasmid_dna, length, gate_order)``.
+    """
+    parts: list[str] = [ORIGIN_SEQUENCES[backbone], SELECTION_MARKERS[marker]]
+    if include_mcs:
+        parts.append("".join(MCS_SITES[s] for s in DEFAULT_MCS))
+    gate_dna, order = assemble_dna(design.netlist, design.assignment)
+    parts.append(gate_dna)
+    full = "".join(parts)
+    return full, len(full), order
+
+
+def _plasmid_features(design: BooleanCircuitDesign,
+                      backbone: str, marker: str,
+                      gate_order: list[str]) -> list[dict]:
+    """1-based GenBank feature annotations for the assembled plasmid."""
+    features: list[dict] = []
+    pos = 1
+
+    def add(label: str, seq: str, ftype: str) -> None:
+        nonlocal pos
+        features.append({"type": ftype, "start": pos,
+                         "end": pos + len(seq) - 1, "strand": 1,
+                         "label": label})
+        pos += len(seq)
+
+    add(f"ori_{backbone}", ORIGIN_SEQUENCES[backbone], "rep_origin")
+    add(marker, SELECTION_MARKERS[marker], "CDS")
+    add("MCS", "".join(MCS_SITES[s] for s in DEFAULT_MCS), "misc_feature")
+    for node_id in gate_order:
+        gate = design.assignment[node_id]
+        add(node_id, gate.dna, "gene")
+    return features
+
+
+def simulate_expression_curves(netlist: Netlist,
+                               assignment: dict[str, CharacterizedGate],
+                               time_course_min: float = 60.0,
+                               time_step_min: float = 5.0,
+                               ) -> dict[str, dict]:
+    """Simulated expression time course of every gate's output protein.
+
+    Uses the E. coli coupled transcription-translation model
+    (:func:`helixlang.central_dogma.coupled_transcription_translation`)
+    on each assigned gate's CDS, driven by the gate's characterized
+    steady-state on level (Hill transfer) as promoter strength.  Returns
+    ``{node_id: result_dict}`` where each result carries ``time_course``
+    (list of TimeCoursePoint) and ``protein``.
+    """
+    curves: dict[str, dict] = {}
+    for node in netlist.nodes:
+        gate = assignment.get(node.id)
+        if gate is None or node.logic == _CONST:
+            continue
+        promoter_strength = gate.transfer([1.0] * gate.num_inputs)
+        curves[node.id] = coupled_transcription_translation(
+            gate.parts["cds"],
+            promoter_strength=promoter_strength,
+            time_course_min=time_course_min,
+            time_step_min=time_step_min,
+        )
+    return curves
+
+
+@dataclass(slots=True)
+class CelloWorkflowReport:
+    """One-stop report: logic table -> DNA -> plasmid -> SBOL3 -> dynamics.
+
+    Wraps a :class:`BooleanCircuitDesign` with the assembled plasmid, the
+    GenBank export, the simulated expression time curves and a validation
+    summary (the Cello "predicted dynamics" closed loop).
+    """
+
+    design: BooleanCircuitDesign
+    plasmid_dna: str
+    plasmid_length: int
+    genbank: str
+    time_curves: dict[str, dict]
+    validation: dict
+
+    @property
+    def matches_target(self) -> bool:
+        return bool(self.validation.get("matches_target"))
+
+    @property
+    def truth_table(self) -> TruthTable:
+        return self.design.truth_table
+
+    @property
+    def netlist(self) -> Netlist:
+        return self.design.netlist
+
+    @property
+    def assignment(self) -> dict[str, CharacterizedGate]:
+        return self.design.assignment
+
+    @property
+    def gate_order(self) -> list[str]:
+        return self.design.gate_order
+
+    @property
+    def sbol3_xml(self) -> str:
+        return self.design.sbol3_xml
+
+
+def run_cello_workflow(table: TruthTable,
+                       library: list[CharacterizedGate] | None = None,
+                       backbone: str = "pUC19",
+                       marker: str = "AmpR",
+                       include_mcs: bool = True,
+                       time_course_min: float = 60.0,
+                       time_step_min: float = 5.0,
+                       ) -> CelloWorkflowReport:
+    """Run the full Cello-style closed loop in one call.
+
+    truth table -> netlist -> gate assignment -> DNA -> full plasmid +
+    GenBank -> SBOL3 export -> predicted dynamics -> expression time
+    curves -> validation summary (the "design-to-report" pipeline of the
+    SDA plan; Nielsen et al. 2016, Jones et al. 2022).
+    """
+    design = compile_boolean_circuit(table, library)
+    plasmid_dna, plasmid_length, order = build_plasmid(
+        design, backbone, marker, include_mcs)
+    curves = simulate_expression_curves(
+        design.netlist, design.assignment,
+        time_course_min=time_course_min, time_step_min=time_step_min)
+    features = _plasmid_features(design, backbone, marker, order)
+    genbank = genbank_format(
+        plasmid_dna, f"circuit_{'_'.join(table.outputs)}", features)
+    validation = {
+        "matches_target": design.matches_target,
+        "predicted_matches_target": design.predicted.rows == table.rows,
+        "gate_count": len(order),
+        "plasmid_length": plasmid_length,
+        "sbol3_component_count": len(design.sbol3_component_definitions()),
+        "time_curve_count": len(curves),
+    }
+    return CelloWorkflowReport(
+        design=design,
+        plasmid_dna=plasmid_dna,
+        plasmid_length=plasmid_length,
+        genbank=genbank,
+        time_curves=curves,
+        validation=validation,
+    )
+
+
 __all__ = [
     "REPRESSOR_CDS", "RBS_SEQ",
     "TruthTable", "NetlistNode", "Netlist",
@@ -735,5 +902,7 @@ __all__ = [
     "minimize_expression", "synthesize_netlist", "assign_gates",
     "assemble_dna", "simulate_netlist", "simulate_truth_table",
     "BooleanCircuitDesign", "compile_boolean_circuit",
+    "build_plasmid", "simulate_expression_curves",
+    "CelloWorkflowReport", "run_cello_workflow",
     "not_gate", "nand_gate", "xor_gate",
 ]

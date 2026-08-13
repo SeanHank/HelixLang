@@ -1,0 +1,29 @@
+# Example 27: DNA storage codec benchmark (S5)
+# A scenario-decision tool: which DNA storage codec for which data
+# scenario?  The codecs are benchmarked at fixed code rates (0.5 / 1.0 /
+# 1.5 bit/nt) by scanning how much sequence loss and per-base error each
+# can tolerate before the payload becomes unrecoverable, together with
+# the per-GB cost (2024 synthesis/sequencing prices) and decode time.
+#
+# Expected trade-off (Erlich & Zielinski 2017, Science 355:950):
+#   - fountain: as the code rate falls, tolerated molecule loss rises
+#     (~0.5 bit/nt survives > 60% loss; the near-native rate survives
+#     almost none).
+#   - rs (block Reed-Solomon): the mirror image - it corrects base
+#     errors (more redundancy at low density), but losing any whole
+#     block is irrecoverable.
+#   - goldman: fixed native density (built-in 4x overlap), no rate knob.
+#
+#gene name=storage_payload
+ATG GCT GGT GTA TAA
+#end
+#
+#config payload=256 rates=0.5,1.0,1.5 output=stdout
+#
+# # Python API for the benchmark:
+# #
+# # from helixlang.apps.dna_storage import (benchmark_codecs,
+# #                                         format_benchmark_table)
+# #
+# # rows = benchmark_codecs(data_size=256, seed=7)
+# # print(format_benchmark_table(rows))

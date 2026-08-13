@@ -259,3 +259,34 @@ def test_biofilm_benchmark_doubling() -> None:
     bm = run_biofilm_benchmark(pop, n_steps=20, interval=1)
     assert bm["doubling_ticks"] is not None
     assert bm["doubling_ticks"] <= 20
+
+
+def test_calibration_prediction_closed_loop() -> None:
+    # whole-cell "calibrate then predict" (Karr 2012; Virtual Cell
+    # Challenge 2025): fit the hidden biomass_to_atp coupling constant on
+    # a calibration condition, then predict an independent condition and
+    # verify the prediction matches a ground-truth cell run.
+    from helixlang.apps.virtual_cell_bench import (
+        VirtualCellBench,
+        run_virtual_cell_benchmark,
+    )
+
+    bench = VirtualCellBench()
+    assert len(bench.observed_energy) == bench.config.calibration_minutes
+    fit = bench.calibrate()
+    fitted = fit["best"]["biomass_to_atp"]
+    assert fitted == pytest.approx(
+        bench.config.truth_biomass_to_atp, rel=0.05)
+    assert fit["sse"] < 1e4
+    # prediction under the *different* uptake: fitted == ground truth
+    result = bench.run()
+    assert result["passed"] is True
+    assert result["biomass_to_atp_rel_error"] < 0.05
+    assert result["energy_rel_error"] < 0.05
+    assert (result["fitted_prediction"]["alive"]
+            == result["truth_prediction"]["alive"])
+
+    one_shot = run_virtual_cell_benchmark()
+    assert one_shot["passed"] is True
+    assert one_shot["calibration_recovered"] is True
+    assert one_shot["prediction_matches"] is True

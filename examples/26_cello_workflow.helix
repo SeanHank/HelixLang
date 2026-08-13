@@ -1,0 +1,40 @@
+# Example 26: Cello-style closed-loop design automation (S4)
+# A truth table ("y = NOT(a)") is compiled end to end into a full
+# synthetic biology design package, mirroring the Cello workflow
+# (Nielsen et al. 2016 Science 352:aac7341; Cello 2.0, Jones et al.
+# 2022 Nat Protoc 17:1097):
+#
+#   1. truth table -> minimized Boolean netlist
+#   2. characterized gate assignment (Hill transfer scoring)
+#   3. gate DNA assembly
+#   4. full plasmid + GenBank (synbio_designer backbone parts)
+#   5. SBOL3 export for SynBioHub/Cello/LOICA interoperability
+#   6. predicted dynamics (iterated transfer functions) and simulated
+#      expression time curves (coupled transcription-translation)
+#
+# The closed loop validates that the *predicted* truth table matches
+# the *target* truth table before the design is handed to a wet lab.
+#
+#gene name=gate_output
+ATG GCT GGT GTA TAA
+#end
+#
+#config library=pUC19 marker=AmpR output=stdout
+#
+# # Python API for the one-stop closed loop:
+# #
+# # from helixlang.apps.synbio_automation import (TruthTable,
+# #                                               run_cello_workflow)
+# #
+# # table = TruthTable.from_function(["a"], ["y"],
+# #                                  lambda v: (not v[0],))
+# # report = run_cello_workflow(table)
+# #
+# # print("validated:", report.matches_target)
+# # print("plasmid length:", report.plasmid_length, "bp")
+# # print("gates:", report.gate_order)
+# # for node_id, curve in report.time_curves.items():
+# #     last = curve["time_course"][-1]
+# #     print(node_id, "protein after", last.time_min, "min:",
+# #           round(last.protein_accumulated, 1))
+# # # report.genbank / report.sbol3_xml hold the exports

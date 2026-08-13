@@ -19,6 +19,8 @@ References:
 """
 from __future__ import annotations
 
+import itertools
+
 from helixlang.apps.synbio_automation import (
     GATE_LIBRARY,
     RBS_SEQ,
@@ -31,14 +33,20 @@ from helixlang.apps.synbio_automation import (
     assemble_dna,
     assign_gates,
     boolean_apply,
+    build_plasmid,
     compile_boolean_circuit,
     minimize_expression,
     nand_gate,
     not_gate,
+    run_cello_workflow,
     simulate_netlist,
     simulate_truth_table,
     synthesize_netlist,
     xor_gate,
+)
+from helixlang.apps.synbio_designer import (
+    ORIGIN_SEQUENCES,
+    SELECTION_MARKERS,
 )
 from helixlang.interop import (
     SBOL_ROLE_GENE,
@@ -306,6 +314,72 @@ def test_custom_library_overrides() -> None:
     tt = TruthTable.from_function(["a"], ["y"], lambda v: (not v[0],))
     design = compile_boolean_circuit(tt, library=custom)
     assert design.matches_target
+
+
+# ============================================================================
+# Closed-loop workflow: logic -> plasmid -> SBOL3 -> dynamics (S4)
+# ============================================================================
+
+def test_workflow_not_golden_standard() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a"], ["y"], lambda v: (not v[0],)))
+    assert report.matches_target
+    assert report.validation["predicted_matches_target"] is True
+
+
+def test_workflow_nand_golden_standard() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a", "b"], ["y"], lambda v: (not (v[0] and v[1]),)))
+    assert report.matches_target
+    assert report.truth_table.rows == report.design.predicted.rows
+
+
+def test_workflow_xor_golden_standard() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a", "b"], ["y"], lambda v: (v[0] != v[1],)))
+    assert report.matches_target
+    assert report.validation["gate_count"] >= 2
+
+
+def test_plasmid_contains_backbone_and_gates() -> None:
+    d = xor_gate()
+    plasmid, length, order = build_plasmid(d)
+    assert length == len(plasmid)
+    assert plasmid.startswith(ORIGIN_SEQUENCES["pUC19"])
+    assert SELECTION_MARKERS["AmpR"] in plasmid
+    assert plasmid.endswith(d.assignment[order[-1]].dna)
+    for nid in order:
+        assert d.assignment[nid].dna in plasmid
+
+
+def test_workflow_plasmid_annotated_genbank() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a"], ["y"], lambda v: (not v[0],)))
+    assert "LOCUS" in report.genbank
+    assert "ORIGIN" in report.genbank
+    assert str(report.plasmid_length) in report.genbank
+
+
+def test_workflow_time_curves_accumulate_protein() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a"], ["y"], lambda v: (not v[0],)))
+    assert report.validation["time_curve_count"] >= 1
+    for result in report.time_curves.values():
+        points = result["time_course"]
+        assert len(points) >= 2
+        proteins = [p.protein_accumulated for p in points]
+        # expression accumulates monotonically toward steady state
+        assert all(b >= a for a, b in itertools.pairwise(proteins))
+        assert proteins[-1] > 0.0
+        assert result["protein"]
+
+
+def test_workflow_sbol3_and_validation_summary() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a", "b"], ["y"], lambda v: (v[0] != v[1],)))
+    assert len(report.sbol3_xml) > 0
+    assert report.validation["plasmid_length"] > 0
+    assert report.validation["gate_count"] > 0
 
 
 # ============================================================================

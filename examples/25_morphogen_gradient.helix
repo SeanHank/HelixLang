@@ -1,0 +1,55 @@
+# Example 25: Morphogen gradient - French-flag positional information (S2)
+# A single morphogen emitted at one end of a 1-D cell strip diffuses and
+# decays, forming a monotone gradient.  Each cell hosts genes that respond
+# to different concentration thresholds; cross-repression carves the
+# gradient into contiguous, mutually exclusive expression domains, the
+# classic French-flag model (Wolpert 1969; Driever & Nusslein-Volhard
+# 1988), realized synthetically in E. coli with a graded autoinducer by
+# Basu et al. 2005 (Nature 434:1130-1134).
+#
+# The gradient physics below (source influx + on-lattice diffusion +
+# first-order decay + per-gene threshold response) is driven by the
+# Python API shown at the end; the HelixLang GRN threshold mechanism
+# (grn.add_gene(name, threshold)) carries the per-gene morphogen
+# thresholds.
+#
+# #promoter name=p_near strength=0.30      # highest threshold: nearest
+# #promoter name=p_mid  strength=0.15      # mid threshold
+# #promoter name=p_far  strength=0.05      # lowest threshold: farthest
+
+#promoter name=p_near strength=0.30
+#promoter name=p_mid  strength=0.15
+#promoter name=p_far  strength=0.05
+
+#gene name=near promoter=p_near
+ATG GCT TAA
+#end
+
+#gene name=mid promoter=p_mid
+ATG GCT TAA
+#end
+
+#gene name=far promoter=p_far
+ATG GCT TAA
+#end
+
+#regulate near -> mid strength=-1.0     # gap-gene style cross-repression
+#regulate near -> far strength=-1.0
+#regulate mid -> far strength=-1.0
+
+#config ticks=800 output=stdout
+#
+# # Python API for the 1-D morphogen patterning strip:
+# #
+# # from helixlang.apps.morphogen_gradient import (MorphogenGradient,
+# #                                                MorphogenGradientConfig)
+# # grad = MorphogenGradient(MorphogenGradientConfig(
+# #     length=64,
+# #     diffusion_um2_s=10.0,        # physical D (um^2/s), converted on-lattice
+# #     decay_per_tick=0.05,         # first-order morphogen decay
+# #     source_strength_um=20.0,     # morphogen injected at site 0 (uM)
+# # ))
+# # grad.run(800)
+# # assert grad.is_monotone_decreasing()
+# # domains = grad.domains()        # {"near": (0, b1), "mid": (b1, b2), ...}
+# # print("French-flag domains:", {k: v for k, v in domains.items()})

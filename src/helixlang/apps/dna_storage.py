@@ -24,6 +24,7 @@ import math
 import random
 import time
 import warnings
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
@@ -243,8 +244,350 @@ def _count_diffs(seq1: str, seq2: str) -> int:
 
 
 # ============================================================================
-# DNAStorage main class
+# Reed-Solomon availability (mirrors the optional reedsolo dependency of
+# the Erlich codec in helixlang.dna_codec)
 # ============================================================================
+
+try:
+    from reedsolo import ReedSolomonError as _RealRSEncoderError
+    from reedsolo import RSCodec as _RSCodec
+    _HAS_REEDSOLO_BENCH = True
+except ImportError:
+    _RealRSEncoderError = ValueError
+    _RSCodec = None
+    _HAS_REEDSOLO_BENCH = False
+
+_RS_ERROR_TYPES_BENCH: tuple[type[BaseException], ...] = (
+    ValueError, IndexError, _RealRSEncoderError,
+)
+
+
+# ============================================================================
+# Codec benchmark (S5): cost-robustness trade-off across code rates
+# ============================================================================
+
+@dataclass(slots=True)
+class CodecBenchmarkRow:
+    """One row of the codec benchmark table.
+
+    Attributes:
+        scheme: ``"fountain"`` (Erlich LT + RS inner code), ``"goldman"``
+            (4x overlapping segments) or ``"rs"`` (block Reed-Solomon).
+        target_density: requested density (bit/nt); None for Goldman's
+            native rate.
+        achieved_density: actual density of the encoded payload.
+        redundancy: relative redundancy 1 + extra (fountain only).
+        max_loss_fraction: largest fraction of dropped oligos that still
+            decodes (erasure tolerance).
+        max_error_rate: largest per-base substitution rate that still
+            decodes (error tolerance).
+        decode_time_s: time for one full decode of the surviving set.
+        num_oligos: number of DNA oligos produced.
+        total_bp: total bases produced.
+        cost_per_gb_usd: synthesis + sequencing cost normalized per GB
+            of stored data (2024 market prices).
+    """
+
+    scheme: str
+    target_density: float | None
+    achieved_density: float
+    redundancy: float | None
+    max_loss_fraction: float
+    max_error_rate: float
+    decode_time_s: float
+    num_oligos: int
+    total_bp: int
+    cost_per_gb_usd: float
+
+
+def _mutate_dna(seq: str, rate: float, rng: random.Random) -> str:
+    """Introduce substitutions at per-base ``rate`` (no indels)."""
+    bases = "ACGT"
+    out: list[str] = []
+    for b in seq:
+        if rng.random() < rate:
+            out.append(rng.choice([x for x in bases if x != b]))
+        else:
+            out.append(b)
+    return "".join(out)
+
+
+def _binary_search_max(ok: Callable[[float], bool],
+                       lo: float, hi: float, iters: int = 7) -> float:
+    """Largest ``f`` in [lo, hi] for which ``ok(f)`` holds."""
+    best = lo
+    for _ in range(iters):
+        mid = (lo + hi) / 2.0
+        if ok(mid):
+            best = mid
+            lo = mid
+        else:
+            hi = mid
+    return best
+
+
+# -- fountain (Erlich) -----------------------------------------------------
+
+def _fountain_decode_ok(oligos: list, data: bytes,
+                        fraction: float, drop: bool,
+                        seed: int) -> bool:
+    """Decode ``oligos`` after dropping/mutating a ``fraction``."""
+    K = max(1, math.ceil(len(data) / ERLICH_OLIGO_SIZE))
+    rng = random.Random(seed + round(fraction * 10_000))
+    if drop:
+        keep = max(1, int(len(oligos) * (1.0 - fraction)))
+        sub = rng.sample(oligos, keep)
+    else:
+        sub = []
+        for o in oligos:
+            payload = _mutate_dna(o.payload, fraction, rng)
+            sub.append(ErlichOligo(index=o.index, seed=o.seed,
+                                   payload=payload, rs_oligo=b""))
+    try:
+        return erlich_decode(sub, K=K, total_len=len(data)) == data
+    except Exception:
+        return False
+
+
+def _fountain_loss_max(oligos: list, data: bytes, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _fountain_decode_ok(oligos, data, f, True, seed),
+        0.0, 0.95)
+
+
+def _fountain_error_max(oligos: list, data: bytes, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _fountain_decode_ok(oligos, data, f, False, seed),
+        0.0, 0.5)
+
+
+def _benchmark_fountain(data: bytes, target_density: float,
+                        seed: int) -> CodecBenchmarkRow:
+    """Tune the Erlich redundancy to hit ``target_density`` and measure
+    loss/error tolerance."""
+    best_red = 1.05
+    best_density = float("inf")
+    for redundancy in (0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1.0,
+                       1.05, 1.1, 1.2, 1.3, 1.5, 2.0, 2.5, 3.0,
+                       4.0, 5.0, 6.0, 8.0, 10.0):
+        oligos = erlich_encode(data, redundancy=redundancy, seed_rng=seed)
+        density = len(data) * 8 / sum(len(o.payload) for o in oligos)
+        if abs(density - target_density) < abs(best_density - target_density):
+            best_density = density
+            best_red = redundancy
+    oligos = erlich_encode(data, redundancy=best_red, seed_rng=seed)
+    total_bp = sum(len(o.payload) for o in oligos)
+    t0 = time.perf_counter()
+    loss = _fountain_loss_max(oligos, data, seed)
+    err = _fountain_error_max(oligos, data, seed)
+    dt = time.perf_counter() - t0
+    return CodecBenchmarkRow(
+        scheme="fountain", target_density=target_density,
+        achieved_density=best_density, redundancy=best_red,
+        max_loss_fraction=loss, max_error_rate=err,
+        decode_time_s=dt, num_oligos=len(oligos), total_bp=total_bp,
+        cost_per_gb_usd=estimate_cost(total_bp)["total_cost"]
+        / (len(data) / 1e9),
+    )
+
+
+# -- Goldman ---------------------------------------------------------------
+
+def _goldman_decode_ok(oligos: list, data: bytes,
+                       fraction: float, drop: bool, seed: int) -> bool:
+    rng = random.Random(seed + round(fraction * 10_000))
+    if drop:
+        keep = max(1, int(len(oligos) * (1.0 - fraction)))
+        sub = rng.sample(oligos, keep)
+    else:
+        sub = []
+        for o in oligos:
+            full = _mutate_dna(o.full, fraction, rng)
+            sub.append(GoldmanOligo(index=o.index, payload="",
+                                    overhang="", full=full))
+    try:
+        return goldman_decode(sub, total_len=len(data)) == data
+    except Exception:
+        return False
+
+
+def _goldman_loss_max(oligos: list, data: bytes, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _goldman_decode_ok(oligos, data, f, True, seed),
+        0.0, 0.95)
+
+
+def _goldman_error_max(oligos: list, data: bytes, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _goldman_decode_ok(oligos, data, f, False, seed),
+        0.0, 0.5)
+
+
+def _benchmark_goldman(data: bytes, seed: int) -> CodecBenchmarkRow:
+    """Goldman has a fixed native density (built-in 4x overlap)."""
+    oligos = goldman_encode(data)
+    total_bp = sum(len(o.full) for o in oligos)
+    density = len(data) * 8 / total_bp
+    t0 = time.perf_counter()
+    loss = _goldman_loss_max(oligos, data, seed)
+    err = _goldman_error_max(oligos, data, seed)
+    dt = time.perf_counter() - t0
+    return CodecBenchmarkRow(
+        scheme="goldman", target_density=None,
+        achieved_density=density, redundancy=None,
+        max_loss_fraction=loss, max_error_rate=err,
+        decode_time_s=dt, num_oligos=len(oligos), total_bp=total_bp,
+        cost_per_gb_usd=estimate_cost(total_bp)["total_cost"]
+        / (len(data) / 1e9),
+    )
+
+
+# -- block Reed-Solomon ----------------------------------------------------
+
+def _rs_blocks(data: bytes, block_len: int, nsym: int
+               ) -> tuple[list, Any, bytes]:
+    """RS-encode ``data`` into per-block codewords (2-bit DNA mapping)."""
+    codec = _RSCodec(nsym)
+    padded = data + b"\x00" * ((block_len - len(data) % block_len) % block_len)
+    blocks = [padded[i:i + block_len]
+              for i in range(0, len(padded), block_len)]
+    encoded = [bytes(codec.encode(b)) for b in blocks]
+    return encoded, codec, data
+
+
+def _rs_decode_ok(encoded: list, codec: Any, data: bytes,
+                  fraction: float, drop: bool, block_len: int,
+                  seed: int) -> bool:
+    rng = random.Random(seed + round(fraction * 10_000))
+    n_drop = int(len(encoded) * fraction) if drop else 0
+    out = bytearray()
+    for i, block in enumerate(encoded):
+        if drop:
+            if i < n_drop:
+                return False  # a dropped block irrecoverably loses its
+                              # data (RS corrects within, not across,
+                              # blocks)
+        elif fraction > 0.0:
+            mutated = bytearray(block)
+            for j in range(len(mutated)):
+                if rng.random() < fraction:
+                    mutated[j] = rng.randrange(256)
+            block = bytes(mutated)
+        try:
+            dec, _, _ = codec.decode(block)
+        except _RS_ERROR_TYPES_BENCH:
+            return False
+        out += bytes(dec)[:block_len]
+    return bytes(out)[:len(data)] == data
+
+
+def _rs_loss_max(encoded: list, codec: Any, data: bytes,
+                 block_len: int, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _rs_decode_ok(encoded, codec, data, f, True,
+                                block_len, seed),
+        0.0, 0.95)
+
+
+def _rs_error_max(encoded: list, codec: Any, data: bytes,
+                  block_len: int, seed: int) -> float:
+    return _binary_search_max(
+        lambda f: _rs_decode_ok(encoded, codec, data, f, False,
+                                block_len, seed),
+        0.0, 0.5)
+
+
+def _benchmark_rs(data: bytes, target_density: float,
+                  seed: int) -> CodecBenchmarkRow:
+    """Block Reed-Solomon tuned to ``target_density`` (density = 2R)."""
+    block_len = 32
+    rate = target_density / 2.0  # 2-bit DNA mapping: 8 bits / (4 nt)
+    nsym = max(2, round(block_len * (1.0 / rate - 1.0)))
+    encoded, codec, payload = _rs_blocks(data, block_len, nsym)
+    total_bp = 4 * sum(len(e) for e in encoded)
+    density = len(data) * 8 / total_bp
+    t0 = time.perf_counter()
+    loss = _rs_loss_max(encoded, codec, payload, block_len, seed)
+    err = _rs_error_max(encoded, codec, payload, block_len, seed)
+    dt = time.perf_counter() - t0
+    return CodecBenchmarkRow(
+        scheme="rs", target_density=target_density,
+        achieved_density=density, redundancy=None,
+        max_loss_fraction=loss, max_error_rate=err,
+        decode_time_s=dt, num_oligos=len(encoded), total_bp=total_bp,
+        cost_per_gb_usd=estimate_cost(total_bp)["total_cost"]
+        / (len(data) / 1e9),
+    )
+
+
+def benchmark_codecs(data: bytes | None = None,
+                     densities: tuple[float, ...] = (0.5, 1.0, 1.5),
+                     schemes: tuple[str, ...] = ("goldman", "fountain", "rs"),
+                     data_size: int = 512,
+                     seed: int = 7) -> list[CodecBenchmarkRow]:
+    """Compare codecs across code rates (S5; Nat Commun 2026 methodology).
+
+    Scans the robustness of each scheme at fixed code rates (0.5 / 1.0 /
+    1.5 bit/nt) and reports the erasure tolerance (max fraction of lost
+    DNA molecules) and error tolerance (max per-base substitution rate)
+    together with the per-GB cost and decode time.
+
+    Literature anchor (Erlich & Zielinski 2017 Science 355:950): the
+    fountain code decodes from a 1+redundancy fraction of the molecules,
+    so the tolerated molecule loss grows as the code rate falls --
+    at ~0.5 bit/nt a fountain scheme tolerates well above 60% sequence
+    loss, while Goldman's 4x overlap tolerates roughly 3/4 loss at its
+    low native density.
+
+    Args:
+        data: payload bytes (random by default).
+        densities: target code rates in bit/nt.
+        schemes: schemes to benchmark.
+        data_size: payload size in bytes when ``data`` is None.
+        seed: RNG seed for deterministic sampling.
+
+    Returns:
+        list of :class:`CodecBenchmarkRow` (one per scheme/rate).
+    """
+    if data is None:
+        rng = random.Random(seed)
+        data = bytes(rng.randint(0, 255) for _ in range(data_size))
+    rows: list[CodecBenchmarkRow] = []
+    for scheme in schemes:
+        if scheme == "goldman":
+            rows.append(_benchmark_goldman(data, seed))
+        elif scheme == "fountain":
+            for d in densities:
+                rows.append(_benchmark_fountain(data, d, seed))
+        elif scheme == "rs":
+            if not _HAS_REEDSOLO_BENCH:
+                raise BioError(
+                    "rs benchmark requires reedsolo: pip install reedsolo")
+            for d in densities:
+                rows.append(_benchmark_rs(data, d, seed))
+        else:
+            raise BioError(f"unknown scheme {scheme!r}; "
+                           f"use 'goldman', 'fountain' or 'rs'")
+    return rows
+
+
+def format_benchmark_table(rows: list[CodecBenchmarkRow]) -> str:
+    """Render the benchmark rows as an aligned text table."""
+    header = ("scheme   target  achieved  redun.  loss  err    decode  "
+              "oligos  total_bp  cost/GB(USD)")
+    lines = [header]
+    for r in rows:
+        tgt = f"{r.target_density:.2f}" if r.target_density is not None else "native"
+        red = f"{r.redundancy:.2f}" if r.redundancy is not None else "-"
+        lines.append(
+            f"{r.scheme:<8} {tgt:>6} {r.achieved_density:>8.3f} {red:>6} "
+            f"{r.max_loss_fraction:>5.2f} {r.max_error_rate:>5.2f} "
+            f"{r.decode_time_s:>6.3f} {r.num_oligos:>6} "
+            f"{r.total_bp:>9} {r.cost_per_gb_usd:>10.0f}")
+    return "\n".join(lines)
+
+
+
 
 class DNAStorage:
     """Main class of the DNA storage application.
