@@ -9,18 +9,23 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import sys
 from pathlib import Path
 
+from helixlang import hxbc
 from helixlang.ast_nodes import Program
-from helixlang.codon_table import get_table
+from helixlang.bytecode import Chunk
+from helixlang.codon_table import Op, get_table
 from helixlang.compiler import Compiler
 from helixlang.disassembler import disassemble
 from helixlang.errors import (
     CompileError,
     LexError,
     ParseError,
+    RegulationError,
     RuntimeHelixError,
     SemanticError,
     SimConfigError,
@@ -75,6 +80,19 @@ def main(argv: list[str] | None = None) -> int:
                    help="decode DNA file back to helix source")
     p.add_argument("--pcr-cycles", type=int, default=0,
                    help="simulate PCR error injection (0=none, 30=standard PCR)")
+    # Binary artifact (.helixc) tooling (doc/helixc-binary-format.md)
+    p.add_argument("--compile", action="store_true",
+                   help="compile .helix source into a .helixc binary artifact")
+    p.add_argument("--decompile", action="store_true",
+                   help="decompile a .helixc artifact back to .helix source")
+    p.add_argument("--compare", metavar="ARTIFACT", default=None,
+                   help="run a .helix source and a .helixc artifact, diff traces")
+    p.add_argument("-o", "--output", metavar="OUT", default=None,
+                   help="output path for --compile / --decompile")
+    p.add_argument("--no-chunk", action="store_true",
+                   help="--compile without embedding the precompiled chunk")
+    p.add_argument("--no-source", action="store_true",
+                   help="--compile without embedding the original source")
     args = p.parse_args(argv)
 
     # ----- Web mode -----
@@ -164,6 +182,13 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
+    # ----- binary artifact modes (doc/helixc-binary-format.md) -----
+    if args.compile or args.decompile or args.compare:
+        return _run_artifact_mode(args)
+
+    if args.source.suffix == ".helixc":
+        return _run_artifact(args)
+
     src = args.source.read_text()
 
     try:
@@ -241,6 +266,169 @@ def _run_sim(program: Program, args: argparse.Namespace, backend: str) -> int:
     else:
         _emit_sim_table(result, args.source.name)
     return 0
+
+
+def _run_artifact_mode(args: argparse.Namespace) -> int:
+    """Handle --compile / --decompile / --compare (doc/helixc-binary-format.md)."""
+    if args.compile:
+        if args.output is None:
+            print("error: --compile requires -o OUT", file=sys.stderr)
+            return 2
+        try:
+            info = hxbc.compile_file(
+                args.source, args.output,
+                include_chunk=not args.no_chunk,
+                include_source=not args.no_source,
+                table=args.table)
+        except (LexError, ParseError, SemanticError, CompileError,
+                hxbc.BinaryError, OSError) as e:
+            print(f"compile error: {e}", file=sys.stderr)
+            return 1
+        size = info.path.stat().st_size
+        print(f"=== compiled {args.source.name} -> {args.output} ===")
+        print(f"  {size} bytes | table={info.table} | "
+              f"chunk={'embedded' if info.chunk is not None else 'omitted'} | "
+              f"source={'embedded' if info.source is not None else 'omitted'}")
+        return 0
+
+    if args.decompile:
+        if args.output is None:
+            print("error: --decompile requires -o OUT", file=sys.stderr)
+            return 2
+        try:
+            art = hxbc.load_program(args.source)
+        except hxbc.BinaryError as e:
+            print(f"binary error: {e}", file=sys.stderr)
+            return 1
+        text = art.source if art.source is not None else hxbc.decompile(art.program)
+        Path(args.output).write_text(text)
+        print(f"=== decompiled {args.source.name} -> {args.output} ===")
+        print(f"  {len(text)} bytes | "
+              f"byte-for-byte={'yes' if art.source is not None else 'no'} "
+              f"(embedded source)")
+        return 0
+
+    # --compare <source.helix> <artifact.helixc>  (either flag order)
+    artifact_path = Path(args.compare)
+    source_path = args.source
+    if artifact_path.suffix != ".helixc" and source_path.suffix == ".helixc":
+        source_path, artifact_path = artifact_path, source_path
+    try:
+        hxbc.load_program(artifact_path)
+    except hxbc.BinaryError as e:
+        print(f"binary error: {e}", file=sys.stderr)
+        return 1
+    rc1, out1 = _capture_main([str(source_path), "--csv"])
+    rc2, out2 = _capture_main([str(artifact_path), "--csv"])
+    if rc1 != 0:
+        print(f"error: source run failed (rc={rc1})", file=sys.stderr)
+        return rc1
+    if rc2 != 0:
+        print(f"error: artifact run failed (rc={rc2})", file=sys.stderr)
+        return rc2
+    if out1 != out2:
+        print(f"=== compare MISMATCH {source_path} vs {artifact_path} ===")
+        _print_diff(out1.splitlines(), out2.splitlines())
+        return 1
+    print(f"=== compare OK: {source_path} == {artifact_path} ===")
+    return 0
+
+
+def _capture_main(argv: list[str]) -> tuple[int, str]:
+    """Run main() with stdout redirected, returning (rc, output)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = main(argv)
+    return rc, buf.getvalue()
+
+
+def _print_diff(source_lines: list[str], artifact_lines: list[str]) -> None:
+    n = max(len(source_lines), len(artifact_lines))
+    for i in range(n):
+        sl = source_lines[i] if i < len(source_lines) else "<missing>"
+        al = artifact_lines[i] if i < len(artifact_lines) else "<missing>"
+        if sl != al:
+            print(f"  line {i}: source:  {sl}")
+            print(f"          artifact: {al}")
+
+
+def _run_artifact(args: argparse.Namespace) -> int:
+    """Run a .helixc artifact: classic VM (cached chunk) or sim backend."""
+    try:
+        art = hxbc.load_program(args.source)
+    except hxbc.BinaryError as e:
+        print(f"binary error: {e}", file=sys.stderr)
+        return 1
+    program = art.program
+    try:
+        SemanticAnalyzer(program).check()
+    except (SemanticError, RegulationError) as e:
+        print(f"semantic error: {e}", file=sys.stderr)
+        return 1
+
+    if art.chunk_stale:
+        print(f"warning: stale compiled chunk in {args.source.name}; "
+              f"recompiling from the program AST", file=sys.stderr)
+
+    if args.ticks is not None:
+        program.config.ticks = args.ticks
+    effective_backend = args.backend or program.config.backend
+    if not args.disassemble and (
+            program.sim_extensions.get("kind") in _SIM_BACKENDS
+            or effective_backend != "classic"):
+        return _run_sim(program, args, effective_backend)
+
+    # classic bytecode path
+    if args.table != "standard":
+        # explicit --table override -> recompile from the AST
+        chunk = _compile_from_program(program, get_table(args.table))
+        if chunk is None:
+            return 1
+    elif art.chunk is not None:
+        chunk = art.chunk
+    else:
+        chunk = _compile_from_program(program, get_table(art.table))
+        if chunk is None:
+            return 1
+
+    if args.disassemble:
+        print(disassemble(chunk, args.source.name))
+        return 0
+
+    vm = CellVM(chunk, program)
+    vm.debug = args.debug
+    try:
+        trace = vm.run(program.config.ticks)
+    except (RuntimeHelixError, ValueError, IndexError, KeyError) as e:
+        print(f"runtime error: {e}", file=sys.stderr)
+        return 1
+
+    if args.csv:
+        _emit_csv(trace)
+    if args.png:
+        _emit_ppm(vm, args.png)
+    if not args.csv and not args.png:
+        print(f"=== {args.source.name} | table={art.table} "
+              f"ticks={program.config.ticks} ===")
+        for s in trace[-5:]:
+            print(f"  tick={s['tick']:>3} pos=({s['x']},{s['y']}) "
+                  f"energy={s['energy']} alive={int(s['alive'])} "
+                  f"proteins={s['proteins']}")
+        if vm.cell.morphology_points:
+            print(f"  morphology points: {len(vm.cell.morphology_points)}")
+        if vm.field:
+            print(f"  field total V: {vm.field.total_v():.3f}")
+    return 0
+
+
+def _compile_from_program(program: Program,
+                          table: dict[str, Op]) -> Chunk | None:
+    """Compile a chunk, returning None (after reporting) on CompileError."""
+    try:
+        return Compiler(table).compile(program)
+    except CompileError as e:
+        print(f"compile error: {e}", file=sys.stderr)
+        return None
 
 
 def _cell(value: object) -> str:

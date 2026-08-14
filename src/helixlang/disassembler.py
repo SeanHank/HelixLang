@@ -12,7 +12,7 @@ def disassemble(chunk: Chunk, name: str = "HelixLang Chunk") -> str:
     # Gene offset table
     if chunk.gene_offsets:
         out.append("--- Gene Offsets ---")
-        for gname, off in chunk.gene_offsets.items():
+        for gname, off in sorted(chunk.gene_offsets.items()):
             out.append(f"  {gname:<20} @ {off:#06x} ({off})")
 
     out.append("--- Code ---")
