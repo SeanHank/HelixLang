@@ -35,6 +35,11 @@ from helixlang.environment import (
     monod_uptake,
 )
 from helixlang.grn import GRN
+from helixlang.metabolism import (
+    ECOLI_CORE_MODEL,
+    DynamicFBAConfig,
+    DynamicFluxBalance,
+)
 from helixlang.morphology_3d import LSystem3D
 from helixlang.units import (
     AI2_DIFFUSION_UM2_S,
@@ -89,6 +94,8 @@ SIGNAL_EMISSION_PER_STEP = 2.0
 #: site cross the CROMICS 14% critical volume fraction
 #: (Angeles-Martinez & Hatzimanikatis 2021)
 CELL_VOLUME_FRACTION = 1.5e-3
+#: newborn cell volume (um3; Taheri-Araghi 2015)
+CELL_NEWBORN_VOLUME_UM3 = 1.6
 #: maximum on-lattice diffusion coefficient per substep (explicit
 #: 5-point Laplacian stability limit)
 MAX_SUBSTEP_D_LATTICE = 0.25
@@ -151,6 +158,29 @@ class PopulationConfig:
             energy threshold governs division
         trace_streaming: append a per-cell snapshot dict to
             ``population.trace`` each tick (T1.5)
+        dfba_enabled: per-cell dynamic-FBA metabolism (Phase 5,
+            Mahadevan 2002 + Cockx 2024).  When True (and
+            ``environment`` is set) every alive cell owns a
+            :class:`~helixlang.metabolism.DynamicFluxBalance` that reads
+            the local glucose field, integrates one step, writes the
+            consumed glucose and deposited acetate back to the
+            environment, and converts growth into the energy budget.
+            Default False (unchanged energy model).
+        dfba_dt_h: integration step (hours) per population tick.
+        dfba_energy_scale: energy (ATP) per unit specific growth rate
+            (1/h) per hour, coupling the batch growth rate to the cell
+            energy budget.
+        dfba_initial_biomass_gdw: per-cell batch starting biomass (gDW/L).
+        dfba_glucose_half_saturation_mm: Monod Ks (mM) of the per-cell
+            glucose uptake (default 0.1, Kovárová-Kovar & Egli 1998).
+        dfba_oxygen_max_uptake: maximum O2 uptake rate (mmol O2/gDW/h)
+            used to cap the batch's respiratory capacity from the local
+            oxygen field; O2-limited respiration is what forces the
+            overflow switch to fermentative acetate (spatial
+            stratification).
+        dfba_oxygen_half_saturation_mm: Monod Ks (mM) of the per-cell
+            oxygen uptake (~0.01 mM, on the µM scale of the respiration
+            Ks; Stolper 2010).
     """
 
     max_size: int = DEFAULT_MAX_POPULATION_SIZE
@@ -176,6 +206,13 @@ class PopulationConfig:
     ops_per_tick: int = 100
     program_controlled_division: bool = False
     trace_streaming: bool = False
+    dfba_enabled: bool = False
+    dfba_dt_h: float = 0.25
+    dfba_energy_scale: float = 1.25e8
+    dfba_initial_biomass_gdw: float = 0.05
+    dfba_glucose_half_saturation_mm: float = 0.1
+    dfba_oxygen_max_uptake: float = 40.0
+    dfba_oxygen_half_saturation_mm: float = 0.01
 
 
 @dataclass(slots=True)
@@ -209,6 +246,15 @@ class PopulationCell:
     flag_divide: bool = False               # OP_DIVIDE request, honored next
     color: tuple[int, int, int] = (255, 255, 255)
     membrane_permeability: int = 255        # 0 (impermeable) .. 255 (open)
+    volume_um3: float = CELL_NEWBORN_VOLUME_UM3  # physical cell volume (um3)
+    dfba: DynamicFluxBalance | None = None  # per-cell batch metabolism (Phase 5)
+
+
+def cell_radius_um(volume_um3: float) -> float:
+    """Equivalent-sphere radius (um) of a cell of the given volume."""
+    v: float = max(0.0, volume_um3)
+    radius: float = (3.0 * v / (4.0 * math.pi)) ** (1.0 / 3.0)
+    return radius
 
 
 @dataclass(slots=True)
@@ -313,6 +359,7 @@ def divide_cell(
         grn=daughter_grn_a,
         color=cell.color,
         membrane_permeability=cell.membrane_permeability,
+        volume_um3=cell.volume_um3 / 2.0,
     )
     daughter_b = PopulationCell(
         id=-1,
@@ -328,6 +375,7 @@ def divide_cell(
         grn=daughter_grn_b,
         color=cell.color,
         membrane_permeability=cell.membrane_permeability,
+        volume_um3=cell.volume_um3 / 2.0,
     )
     return daughter_a, daughter_b
 
@@ -506,6 +554,10 @@ class CellPopulation:
             raise ValueError(
                 "environment lattice must match the population grid "
                 f"({config.grid_width}x{config.grid_height})")
+        if config.dfba_enabled and config.environment is None:
+            raise ValueError(
+                "dfba_enabled requires an environment (shared substrate "
+                "fields) to be configured")
 
     # -- Internal utilities --
     def _in_bounds(self, x: int, y: int) -> bool:
@@ -1021,6 +1073,8 @@ class CellPopulation:
     def _step_metabolism_python(self) -> tuple[list[PopulationCell], int]:
         """Per-cell metabolism + signal emission + death determination (pure Python)."""
         config = self.config
+        if config.dfba_enabled:
+            return self._step_dfba_metabolism()
         metabolized: list[PopulationCell] = []
         deaths = 0
         env = config.environment
@@ -1049,6 +1103,119 @@ class CellPopulation:
                 continue
             metabolized.append(cell)
         return metabolized, deaths
+
+    def _step_dfba_metabolism(self) -> tuple[list[PopulationCell], int]:
+        """Per-cell dynamic-FBA metabolism (Phase 5, Mahadevan 2002).
+
+        Each alive cell owns a :class:`~helixlang.metabolism.
+        DynamicFluxBalance` batch (lazily created at :attr:
+        `PopulationCell.dfba`).  Every tick it integrates one
+        ``dfba_dt_h``-hour step:
+
+        - the local glucose field is read into the batch
+          (:meth:`DynamicFluxBalance.update_from_environment`) and the
+          local oxygen field caps the batch's respiratory capacity,
+        - the instantaneous FBA LP is solved and the batch is integrated
+          (:meth:`DynamicFluxBalance.step`),
+        - the glucose and oxygen consumed this tick are depleted from the
+          environment fields and the fresh acetate is deposited
+          (:meth:`DynamicFluxBalance.apply_to_environment`),
+        - the specific growth rate is converted into the cell's energy
+          budget (``dfba_energy_scale`` ATP per unit growth rate per
+          hour), replacing the flat rich-medium intake + maintenance
+          model.
+
+        Each cell gets its own **deep-copied** model (``FluxBalanceAnalysis``
+        keeps a shared reference to :data:`ECOLI_CORE_MODEL`), so the
+        per-cell respiratory-capacity bounds never leak into other cells
+        or standalone FBA solves.  O2-limited respiration redirects the
+        LP to fermentative acetate overflow — the mechanism behind the
+        colony-core metabolic stratification (Cockx 2024; COSMIC-dFBA
+        2024).
+
+        The flat ``METABOLIC_COST_PER_STEP`` is not subtracted here: the
+        FBA biomass reaction already carries maintenance (ATPM), so
+        subtracting it again would double-count.
+        """
+        config = self.config
+        dt_h = config.dfba_dt_h
+        env = config.environment
+        metabolized: list[PopulationCell] = []
+        deaths = 0
+        for cell in self.cells:
+            if not cell.alive:
+                continue
+            cell.age += 1
+            if cell.dfba is None:
+                cell.dfba = DynamicFluxBalance(
+                    model=copy.deepcopy(ECOLI_CORE_MODEL),
+                    config=DynamicFBAConfig(
+                        dt_h=dt_h,
+                        initial_biomass_gdw=config.dfba_initial_biomass_gdw,
+                        initial_glucose_mm=0.0,
+                    ))
+            if env is not None and self._in_bounds(cell.x, cell.y):
+                dfba = cell.dfba
+                glucose_before = env.substrate_at(cell.x, cell.y, "glucose")
+                dfba.update_from_environment(env, cell.x, cell.y)
+                self._apply_dfba_oxygen_cap(dfba, env, cell.x, cell.y)
+                dfba.step(dt_h)
+                consumed = max(0.0, glucose_before - dfba.glucose_mm)
+                if consumed > 0.0:
+                    env.glucose.deplete(cell.x, cell.y, consumed)
+                self._deplete_dfba_oxygen(dfba, env, cell.x, cell.y, dt_h)
+                if dfba.byproducts_mm.get("acetate", 0.0) > 0.0:
+                    dfba.apply_to_environment(env, cell.x, cell.y)
+                    dfba.set_state(acetate_mm=0.0)
+                cell.energy += (
+                    dfba.growth_rate * dt_h * config.dfba_energy_scale)
+            if config.signaling_enabled:
+                cell.signal_emitted += SIGNAL_EMISSION_PER_STEP
+                self._emit_signal(cell)
+            if cell.energy <= config.death_threshold:
+                cell.alive = False
+                deaths += 1
+                continue
+            metabolized.append(cell)
+        return metabolized, deaths
+
+    def _apply_dfba_oxygen_cap(self,
+                               dfba: DynamicFluxBalance,
+                               env: Environment,
+                               x: int,
+                               y: int) -> None:
+        """Cap the batch's respiratory capacity from the local O2 field.
+
+        v_o2 = v_max * O2 / (Ks + O2); respiration flux (NADH/FADH2
+        equivalents) is capped at ``2 * v_o2`` (2 reducing equivalents
+        per O2, the ETC yield).  When O2 is scarce the cap binds and the
+        LP must satisfy its ATP demand fermentatively -> acetate
+        overflow.
+        """
+        cfg = self.config
+        o2 = env.oxygen.get(x, y)
+        v_o2 = monod_uptake(cfg.dfba_oxygen_max_uptake, o2,
+                            cfg.dfba_oxygen_half_saturation_mm)
+        cap = 2.0 * v_o2
+        reactions = dfba.fba.model.reactions
+        for rid in ("NADH_OX", "FADH2_OX"):
+            if rid in reactions:
+                reactions[rid].upper_bound = min(
+                    reactions[rid].upper_bound, cap)
+
+    def _deplete_dfba_oxygen(self,
+                             dfba: DynamicFluxBalance,
+                             env: Environment,
+                             x: int,
+                             y: int,
+                             dt_h: float) -> None:
+        """Deplete the local O2 field by the batch's respiratory demand."""
+        fluxes = dfba.last_fluxes
+        nadh = fluxes.get("NADH_OX", 0.0)
+        fadh2 = fluxes.get("FADH2_OX", 0.0)
+        o2_used = 0.5 * (nadh + fadh2) * dfba.biomass_gdw * dt_h
+        if o2_used > 0.0:
+            env.oxygen.deplete(x, y, o2_used)
 
     def _emit_signal(self, cell: PopulationCell) -> None:
         """Accumulate one tick of AI-2 signal emission at the cell's site.
@@ -1201,6 +1368,126 @@ class CellPopulation:
         result["age_distribution"] = age_dist
         result["generation"] = self._generation
         return result
+
+    # -- Phase 5: colony observables (per-cell dFBA) --
+
+    def _colony_center(self, cells: list[PopulationCell]
+                       ) -> tuple[float, float]:
+        """Mean position of the alive cells (colony centre)."""
+        if not cells:
+            return self.config.grid_width / 2.0, self.config.grid_height / 2.0
+        return (sum(c.x for c in cells) / len(cells),
+                sum(c.y for c in cells) / len(cells))
+
+    def colony_observables(self) -> dict:
+        """Colony-scale observables for the per-cell dFBA population
+        (Phase 5, BM3 / iDynoMiCS-style).
+
+        Returns:
+            - ``doubling_times_h``: sorted per-cell doubling times
+              (``ln(2)/mu``) from each cell's batch growth rate,
+            - ``birth_sizes_um3``: sorted newborn volumes (cells with
+              age 0; the Phase-2 adder birth-size distribution),
+            - ``volume_weighted_growth_h``: ``sum(mu_i * V_i)/sum(V_i)``,
+            - ``radial_density``: cell count per radial band around the
+              colony centre (BM3-style density profile),
+            - ``colony_radius_sites``: farthest alive-cell distance from
+              the centre.
+        """
+        alive = [c for c in self.cells if c.alive]
+        cx, cy = self._colony_center(alive)
+
+        def _mu(c: PopulationCell) -> float:
+            if c.dfba is not None and c.dfba.history:
+                return c.dfba.growth_rate
+            return 0.0
+
+        doubling = [math.log(2.0) / m for m in (_mu(c) for c in alive)
+                    if m > 1e-12]
+        birth = [c.volume_um3 for c in alive if c.age == 0]
+        vol = sum(c.volume_um3 for c in alive)
+        vw_growth = (sum(_mu(c) * c.volume_um3 for c in alive) / vol
+                     if vol > 0 else 0.0)
+        radii = [math.hypot(c.x - cx, c.y - cy) for c in alive]
+        rmax = max(radii) if radii else 1.0
+        bands = 10
+        density = [0] * bands
+        for r in radii:
+            b = min(bands - 1, int(r / rmax * bands)) if rmax > 0 else 0
+            density[b] += 1
+        return {
+            "doubling_times_h": sorted(doubling),
+            "birth_sizes_um3": sorted(birth),
+            "volume_weighted_growth_h": vw_growth,
+            "radial_density": density,
+            "colony_radius_sites": rmax,
+        }
+
+    def dfba_stratification(self, quantile: float = 0.25,
+                            min_cells: int = 4) -> dict:
+        """Core-vs-edge metabolic stratification (Phase 5).
+
+        Alive cells are ranked by distance from the colony centre; the
+        ``quantile``-innermost form the ``core`` and the
+        ``quantile``-outermost the ``edge`` group.  Returns each group's
+        median local glucose / oxygen, mean growth rate and mean
+        extracellular acetate.
+
+        With dFBA disabled, no environment, or fewer than ``min_cells``
+        alive cells, returns a zeroed summary.
+        """
+        out: dict[str, float | int] = {
+            "core_cell_count": 0, "edge_cell_count": 0,
+            "core_glucose_mm": 0.0, "edge_glucose_mm": 0.0,
+            "core_oxygen_mm": 0.0, "edge_oxygen_mm": 0.0,
+            "core_growth_rate_h": 0.0, "edge_growth_rate_h": 0.0,
+            "core_acetate_mm": 0.0, "edge_acetate_mm": 0.0,
+        }
+        alive = [c for c in self.cells if c.alive]
+        env = self.config.environment
+        if not alive or env is None or len(alive) < min_cells:
+            return out
+        cx, cy = self._colony_center(alive)
+        ranked = sorted(alive,
+                        key=lambda c: math.hypot(c.x - cx, c.y - cy))
+        n_core = max(1, int(len(ranked) * quantile))
+        core = ranked[:n_core]
+        edge = ranked[-n_core:]
+
+        def _med(vals: list[float]) -> float:
+            if not vals:
+                return 0.0
+            s = sorted(vals)
+            return s[len(s) // 2]
+
+        def _local(c: PopulationCell, name: str) -> float:
+            try:
+                return env.substrate_at(c.x, c.y, name)
+            except KeyError:
+                return 0.0
+
+        def _growth(c: PopulationCell) -> float:
+            if c.dfba is not None and c.dfba.history:
+                return c.dfba.growth_rate
+            return 0.0
+
+        def _acetate(c: PopulationCell) -> float:
+            try:
+                return env.get_field("acetate").get(c.x, c.y)
+            except KeyError:
+                return 0.0
+
+        out["core_cell_count"] = len(core)
+        out["edge_cell_count"] = len(edge)
+        out["core_glucose_mm"] = _med([_local(c, "glucose") for c in core])
+        out["edge_glucose_mm"] = _med([_local(c, "glucose") for c in edge])
+        out["core_oxygen_mm"] = _med([_local(c, "oxygen") for c in core])
+        out["edge_oxygen_mm"] = _med([_local(c, "oxygen") for c in edge])
+        out["core_growth_rate_h"] = sum(_growth(c) for c in core) / len(core)
+        out["edge_growth_rate_h"] = sum(_growth(c) for c in edge) / len(edge)
+        out["core_acetate_mm"] = _med([_acetate(c) for c in core])
+        out["edge_acetate_mm"] = _med([_acetate(c) for c in edge])
+        return out
 
 
 # ============================================================================

@@ -328,7 +328,11 @@ class TestCLIIntegration:
         for f in sorted(EXAMPLES.glob("*.helix")):
             rc, out, err = _run_cli(f.name, "--disassemble")
             assert rc == 0, f"{f.name} disassemble failed: {err}"
-            assert "OP_" in out
+            # annotation-only sim examples carry no bytecode; the classic
+            # (default) examples must disassemble to real opcodes
+            src = f.read_text()
+            if "backend=" not in src or "#config backend=classic" in src:
+                assert "OP_" in out, f"{f.name} has no disassembled opcodes"
 
     def test_cli_table_switch(self):
         """CLI: --table=mito_vertebrate switches the translation table."""

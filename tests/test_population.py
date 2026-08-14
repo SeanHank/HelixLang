@@ -1,8 +1,13 @@
 """Multicellular population simulation unit tests."""
+import math
 import random
 
 import pytest
 
+from helixlang.environment import (
+    Environment,
+    EnvironmentConfig,
+)
 from helixlang.population import (
     DIVISION_ENERGY_THRESHOLD,
     ENERGY_INTAKE_PER_STEP,
@@ -15,6 +20,7 @@ from helixlang.population import (
     PopulationCell,
     PopulationConfig,
     PopulationStatistics,
+    cell_radius_um,
     divide_cell,
     quorum_sensing,
     signal_diffusion_step,
@@ -352,6 +358,30 @@ def test_divide_cell_daughters_lineage():
     assert b.division_count == 1
 
 
+def test_divide_cell_halves_volume():
+    """Binary fission conserves volume: each daughter inherits half of
+    the parent's physical volume (Phase 2, Taheri-Araghi 2015)."""
+    cfg = PopulationConfig(grid_width=20, grid_height=20)
+    parent = _make_cell(id=5, energy=200.0)
+    parent.volume_um3 = 3.2
+    rng = random.Random(1)
+    a, b = divide_cell(parent, cfg, rng)
+    assert a.volume_um3 == pytest.approx(1.6)
+    assert b.volume_um3 == pytest.approx(1.6)
+    assert a.volume_um3 + b.volume_um3 == pytest.approx(parent.volume_um3)
+    assert a.volume_um3 == _make_cell().volume_um3  # default newborn 1.6
+
+
+def test_cell_radius_matches_sphere_geometry():
+    """Equivalent-sphere radius r = (3V/4π)^(1/3); a 1.6 µm^3 newborn is
+    a ~0.73 µm sphere (Milo & Phillips 2015)."""
+    r = cell_radius_um(1.6)
+    assert r == pytest.approx((3.0 * 1.6 / (4.0 * 3.141592653589793))
+                              ** (1.0 / 3.0))
+    assert r == pytest.approx(0.725, abs=0.01)
+    assert cell_radius_um(0.0) == 0.0
+
+
 # ------------------------------------------------------------------ #
 # Physical units (direct ATP + µM + µm²/s)
 # ------------------------------------------------------------------ #
@@ -436,3 +466,117 @@ def test_quorum_cluster_vs_isolate():
     assert all(c.proteins.get("quorum", 0.0) == 0.0 for c in isolate)
     assert pop.signal_field[2][2] == pytest.approx(
         5 * SIGNAL_EMISSION_PER_STEP)   # 10 µM in physical units
+
+
+# ============================================================================
+# Phase 5: per-cell dynamic-FBA metabolism + colony observables
+# ============================================================================
+
+
+def _dfba_cells(n, x0=4, y0=4):
+    return [PopulationCell(id=i, energy=1e5, x=x0 + (i % 3), y=y0 + (i // 3))
+            for i in range(n)]
+
+
+def _dfba_population(n, *, oxygen=0.25, glucose=10.0, diffusion=20.0,
+                     ticks=6, width=12, height=12, x0=4, y0=4, **cfg_extra):
+    env = Environment(EnvironmentConfig(
+        width=width, height=height, glucose_initial_mm=glucose,
+        oxygen_initial_mm=oxygen, glucose_diffusion_um2_s=diffusion,
+        oxygen_diffusion_um2_s=diffusion))
+    cfg = PopulationConfig(
+        grid_width=width, grid_height=height, environment=env,
+        dfba_enabled=True, division_threshold=1e9, **cfg_extra)
+    pop = CellPopulation(_dfba_cells(n, x0, y0), cfg)
+    for _ in range(ticks):
+        pop.step()
+    return pop
+
+
+def test_dfba_enabled_requires_environment():
+    """dfba_enabled without an environment is a config error."""
+    cfg = PopulationConfig(grid_width=4, grid_height=4, dfba_enabled=True)
+    with pytest.raises(ValueError):
+        CellPopulation(_dfba_cells(1), cfg)
+
+
+def test_dfba_cell_owns_batch_and_grows_energy():
+    """An alive dFBA cell gains energy from its batch specific growth rate."""
+    pop = _dfba_population(1)
+    cell = pop.cells[0]
+    assert cell.dfba is not None
+    assert cell.dfba.history
+    assert cell.dfba.growth_rate > 0.0
+    assert cell.energy > 1e5
+    # glucose was consumed from the local field
+    assert pop.config.environment.glucose.get(cell.x, cell.y) < 10.0
+
+
+def test_dfba_oxygen_capped_respiration():
+    """Reducing-equivalent bounds are capped by the local O2: at low O2 the
+    NADH_OX upper bound must drop well below the uncapped value."""
+    from helixlang.population import monod_uptake
+    env = Environment(EnvironmentConfig(width=12, height=12,
+                                        oxygen_initial_mm=0.01))
+    cfg = PopulationConfig(grid_width=12, grid_height=12, environment=env,
+                           dfba_enabled=True, division_threshold=1e9)
+    pop = CellPopulation(_dfba_cells(1), cfg)
+    cell = pop.cells[0]
+    pop.step()
+    dfba = cell.dfba
+    cap = 2.0 * monod_uptake(
+        cfg.dfba_oxygen_max_uptake, 0.01, cfg.dfba_oxygen_half_saturation_mm)
+    bound = dfba.fba.model.reactions["NADH_OX"].upper_bound
+    assert bound == pytest.approx(min(bound, cap), rel=1e-6)
+
+
+def test_dfba_anoxia_ferments_acetate():
+    """O2-limited respiration redirects the LP to fermentative acetate
+    overflow: anoxic runs deposit acetate at the colony."""
+    pop = _dfba_population(9, oxygen=0.01, diffusion=5.0, ticks=10)
+    env = pop.config.environment
+    acetate = env.get_field("acetate")
+    total = sum(sum(row) for row in acetate.concentration)
+    assert total > 0.0
+    strat = pop.dfba_stratification()
+    assert strat["core_acetate_mm"] > 0.0
+    # fermentation yields less ATP than respiration
+    assert strat["core_growth_rate_h"] < 1.2
+
+
+def test_dfba_stratification_core_edge_gradient():
+    """With low diffusion the colony core runs low on glucose and O2 while
+    the edge stays well supplied (Cockx 2024 stratification)."""
+    pop = _dfba_population(25, diffusion=5.0, ticks=10,
+                           width=20, height=20, x0=7, y0=7)
+    strat = pop.dfba_stratification()
+    assert strat["core_cell_count"] > 0
+    assert strat["edge_cell_count"] > 0
+    assert strat["core_glucose_mm"] < strat["edge_glucose_mm"]
+    assert strat["core_oxygen_mm"] < strat["edge_oxygen_mm"]
+
+
+def test_dfba_stratification_zeroed_without_dfba():
+    """Without dFBA (or without an environment) the stratification summary
+    is zeroed rather than crashing."""
+    cfg = PopulationConfig(grid_width=8, grid_height=8,
+                           division_threshold=1e9)
+    pop = CellPopulation(_dfba_cells(6), cfg)
+    for _ in range(3):
+        pop.step()
+    strat = pop.dfba_stratification()
+    assert strat["core_cell_count"] == 0
+    assert strat["core_glucose_mm"] == 0.0
+
+
+def test_colony_observables_shape_and_growth():
+    """colony_observables reports doubling times, a volume-weighted growth
+    rate, a 10-band radial density profile and a colony radius."""
+    pop = _dfba_population(9, ticks=8)
+    obs = pop.colony_observables()
+    assert len(obs["radial_density"]) == 10
+    assert sum(obs["radial_density"]) == len([c for c in pop.cells if c.alive])
+    assert obs["colony_radius_sites"] > 0.0
+    assert obs["volume_weighted_growth_h"] > 0.0
+    assert all(d > 0.0 for d in obs["doubling_times_h"])
+    assert all(math.isfinite(v) for v in obs["birth_sizes_um3"])

@@ -331,6 +331,8 @@ src/helixlang/
 ├── reaction_diffusion.py# Gray-Scott class
 ├── cell.py              # Cell state
 ├── vm.py                # CellVM
+├── hxbc.py              # .helixc binary container codec (encode/decode Program,
+│                        #   optional Chunk + source, checksums; see §8.4)
 └── cli.py               # python -m helixlang <file>
 ```
 
@@ -349,6 +351,28 @@ src/helixlang/
 - VM dispatch uses `match/case` to avoid dict-lookup overhead.
 - The reaction-diffusion field uses the `array` module or plain list-of-list (a grid smaller than 64×64 is sufficient for the prototype).
 - Large-scale simulation can later migrate to numpy + MLIR/LLVM (see the extension roadmap in [05-prototype-plan.md](./prototype-plan.md)).
+
+### 8.4 Binary Artifact (`.helixc`) Serialization
+
+`--compile` serializes the compiled program into a `.helixc` container:
+a versioned header + `PROG` (typed `Program` AST records) + optional `CHNK`
+(precompiled `Chunk`) + optional `SRC` (original source) + a checksummed
+trailer. The classic backend loads the `Chunk` directly; the sim backends and
+the decompiler use the `Program`. Design decisions:
+
+- **`Program` is authoritative**; `CHNK` is a derived cache verified and
+  rebuilt from `PROG` on any mismatch (stale-cache self-healing).
+- **Typed, bounds-checked encoding** (never `pickle`/`marshal`): 1-byte tags,
+  length-prefixed strings, big-endian integers, IEEE-754 doubles, maps
+  serialized in sorted key order for deterministic byte output.
+- **Decompiler round-trip invariants**: `parse(decompile(p)) ≡ p`; canonical
+  source round-trips byte-for-byte; an embedded `SRC` decompiles byte-for-byte
+  regardless of source formatting.
+- The container never executes code on load and rejects unknown versions with
+  `BinaryVersionError`.
+
+Full layout, record tags, CLI surface, debug/test behavior, and test matrix:
+`doc/helixc-binary-format.md`.
 
 ---
 

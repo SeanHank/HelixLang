@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 import random
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations_with_replacement
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -837,6 +837,226 @@ def simplex(c: list[float],
 
 
 # ============================================================================
+# Enzyme-constrained FBA (Phase 4: MOMENT / sMOMENT / GECKO capacity)
+# ============================================================================
+
+#: default enzyme molecular weight when none is given (g/mmol; ~50 kDa)
+DEFAULT_ENZYME_MW = 50.0
+
+#: default global kcat rescaling (the Phase-5 calibration hook: GECKO's
+#: kcat-correction term, Sanchez 2017); with folded-protein-pool enzyme
+#: levels of ~1e6 units and kcat in flux-per-unit-per-hour this puts the
+#: unconstrained enzyme caps far above the substrate-limited uptake, so
+#: they only bind when the proteome is genuinely limiting.
+DEFAULT_ENZYME_SCALE = 1e4
+
+#: E. coli core-model gene -> reaction associations (Orth 2010 core model;
+#: a reaction is gated by ALL of its genes, so deleting any one gene
+#: removes the reaction when no isozyme copy exists).  Canonical location
+#: for the enzyme-capacity wiring; :mod:`helixlang.apps.whole_cell_scale`
+#: re-exports this for ``ko_model``/``predict_essentiality``.
+ECOLI_CORE_GENE_REACTIONS: dict[str, tuple[str, ...]] = {
+    "ptsG": ("GLCpts",),
+    "glk": ("GLK",),
+    "pgi": ("PGI",),
+    "pfkA": ("PFK",),
+    "fba": ("FBA",),
+    "tpiA": ("TPI",),
+    "gapA": ("GAPD",),
+    "pgk": ("PGK",),
+    "pgm": ("PGM",),
+    "eno": ("ENO",),
+    "pykA": ("PYK",),
+    "aceE": ("PDH",),
+    "gltA": ("CS",),
+    "acnB": ("ACONT",),
+    "icdA": ("ICDH",),
+    "sucAB": ("AKGDH",),
+    "sucCD": ("SUCCt", "SUCOAS"),
+    "sdhA": ("SUCDHi",),
+    "fumA": ("FUM",),
+    "mdh": ("MDH",),
+    "ppc": ("PPC",),
+    "zwf": ("G6PDH",),
+    "gnd": ("PGD",),
+    "rpiA": ("RPI",),
+    "ldhA": ("LDH",),
+    "pta": ("PTA_ACK",),
+    "ackA": ("PTA_ACK",),
+    "atpF": ("NADH_OX",),
+}
+
+#: per-reaction turnover capacities in flux-per-enzyme-unit-per-hour
+#: (mmol/gDW/h per enzyme unit).  Relative order follows BRENDA kcat data
+#: for E. coli enzymes (Beg 2007 PNAS 104:12663; Beck 2020 BMC Bioinformatics
+#: 21:4); the absolute scale is a calibrated free parameter
+#: (``EnzymeCapacity.enzyme_scale``, the Phase-5 fitting hook — GECKO's
+#: kcat-correction term, Sánchez 2017).
+ECOLI_CORE_KCAT: dict[str, float] = {
+    "GLCpts": 2.0, "GLK": 2.0, "PGI": 6.0, "PFK": 6.0, "FBA": 3.0,
+    "TPI": 8.0, "GAPD": 6.0, "PGK": 8.0, "PGM": 8.0, "ENO": 6.0,
+    "PYK": 8.0, "PDH": 3.0, "CS": 6.0, "ACONT": 3.0, "ICDH": 6.0,
+    "AKGDH": 2.0, "SUCCt": 3.0, "SUCOAS": 3.0, "SUCDHi": 4.0, "FUM": 6.0,
+    "MDH": 6.0, "PPC": 3.0, "G6PDH": 6.0, "PGD": 4.0, "RPI": 8.0,
+    "LDH": 8.0, "PTA_ACK": 8.0, "NADH_OX": 0.5,
+}
+
+
+@dataclass(slots=True)
+class EnzymeCapacity:
+    """MOMENT-style enzyme-capacity configuration (Beg 2007; Adadi 2012).
+
+    For each gene->reaction pair the reaction flux is capped by
+
+        v_i <= kcat_i * E_i * enzyme_scale
+
+    where ``E_i`` is the enzyme abundance (relative units, e.g. the folded
+    ProteinPool of Phase 3) and ``kcat_i`` the turnover capacity in the
+    model's flux units per enzyme unit.  A reaction gated by several genes
+    (a protein complex / sequential enzymes, e.g. ``pta`` + ``ackA`` ->
+    ``PTA_ACK``) uses the *minimum* subunit level — the conservative MOMENT
+    rule.  Optionally a global enzyme-pool budget can be added:
+
+        Sum_i v_i * MW_i / kcat_i <= protein_mass_fraction
+
+    the sMOMENT compact formulation (Bekiaris & Klamt 2020): a
+    pseudo-metabolite row ``-Sum MW_i/kcat_i * v_i + v_pool = 0`` with
+    ``0 <= v_pool <= P`` is appended to the LP.
+
+    Attributes:
+        gene_to_reactions: gene -> reaction ids (reactions gated by E_i).
+        kcat: reaction_id -> turnover capacity (flux per enzyme unit).
+        enzyme_scale: global kcat rescaling (the Phase-5 calibration hook).
+        protein_mass_fraction: optional global enzyme-pool budget P (g/gDW);
+            ``None`` disables the sMOMENT pool row.
+        enzyme_mw: reaction_id -> enzyme molecular weight (g/mmol); used
+            only by the global pool row (default :data:`DEFAULT_ENZYME_MW`).
+    """
+    gene_to_reactions: dict[str, tuple[str, ...]]
+    kcat: dict[str, float] = field(default_factory=dict)
+    enzyme_scale: float = 1.0
+    protein_mass_fraction: float | None = None
+    enzyme_mw: dict[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.enzyme_scale <= 0.0:
+            raise ValueError("enzyme_scale must be > 0")
+
+
+@dataclass(slots=True)
+class MetabolitePoolConfig:
+    """Intracellular metabolite-pool parameters (Phase 4).
+
+    Args:
+        dt_h: default integration time step (hours) used when
+            :meth:`MetabolitePool.integrate` is called without ``dt_h``.
+        dilution: subtract the growth-rate dilution term ``mu * [P]`` when
+            integrating (default True); with False the pools integrate pure
+            net production only.
+        min_pool: floor below which a pool is clamped (default 0).
+    """
+
+    dt_h: float = 0.25
+    dilution: bool = True
+    min_pool: float = 0.0
+
+
+class MetabolitePool:
+    """Intracellular metabolite pools (Phase 4).
+
+    Integrates the per-metabolite mass balance
+
+        d[P]/dt = Sum_j S[P][j] * v_j  -  mu * [P]
+
+    forward in time with Euler steps, where ``Sum_j S[P][j] * v_j`` is the
+    net production of metabolite ``P`` across every reaction in the last FBA
+    solution and ``mu`` is the specific growth rate (1/h) carrying the
+    dilution term (growth dilutes the pools; Palsson, *Systems Biology*,
+    Ch. 10).  At steady state production balances dilution:
+
+        [P]* = Sum_j S[P][j] * v_j / mu
+
+    Unlike the :class:`DynamicFluxBalance` batch pools these are
+    *intracellular* pools: they respond to the instantaneous enzyme-
+    constrained flux distribution (Phase 4), so a respiratory bottleneck
+    that redirects flux to acetate overflow shows up directly as a rising
+    intracellular Ac pool and a positive :meth:`overflow_flux` on ``EX_ac``
+    (Sanchez 2017; Basan 2015).
+    """
+
+    def __init__(self,
+                 model: MetabolicModel,
+                 config: MetabolitePoolConfig | None = None,
+                 initial: dict[str, float] | None = None) -> None:
+        self.model = model
+        self.config = config or MetabolitePoolConfig()
+        self.pools: dict[str, float] = {
+            met: float(initial.get(met, 0.0) if initial else 0.0)
+            for met in sorted(model.metabolites)
+        }
+
+    def net_production(self, met: str, fluxes: dict[str, float]) -> float:
+        """Net production rate of ``met`` from an FBA flux solution.
+
+        ``Sum_j S[met][j] * v_j``: positive when the flux distribution
+        produces the metabolite faster than it consumes it.
+        """
+        net = 0.0
+        for rid, v in fluxes.items():
+            rxn = self.model.reactions.get(rid)
+            if rxn is None:
+                continue
+            net += rxn.stoichiometry.get(met, 0.0) * v
+        return net
+
+    def integrate(self,
+                  fluxes: dict[str, float],
+                  growth_rate: float = 0.0,
+                  dt_h: float | None = None) -> dict[str, float]:
+        """Advance every pool by one Euler step; returns {met: delta}.
+
+        Args:
+            fluxes: {reaction_id: flux} from the current FBA solution.
+            growth_rate: specific growth rate mu (1/h); drives the
+                dilution term ``mu * [P]`` when ``config.dilution`` is True.
+            dt_h: integration step in hours (default ``config.dt_h``).
+        """
+        dt = self.config.dt_h if dt_h is None else dt_h
+        if dt < 0.0:
+            raise ValueError("dt_h must be >= 0")
+        deltas: dict[str, float] = {}
+        for met in self.pools:
+            net = self.net_production(met, fluxes)
+            if self.config.dilution:
+                net -= growth_rate * self.pools[met]
+            new = max(self.config.min_pool, self.pools[met] + net * dt)
+            deltas[met] = new - self.pools[met]
+            self.pools[met] = new
+        return deltas
+
+    def overflow_flux(self, fluxes: dict[str, float]) -> dict[str, float]:
+        """Byproduct secretion fluxes (mmol/gDW/h) from a flux solution.
+
+        A positive flux through an exchange reaction whose metabolite has a
+        negative coefficient (e.g. ``EX_ac``) exports the metabolite into
+        the medium — the pool-overflow indicator used to flag overflow
+        metabolism (Sanchez 2017; Basan 2015).  Returns {met: flux}; the
+        biomass exchange reaction is excluded.
+        """
+        out: dict[str, float] = {}
+        for rid, rxn in self.model.reactions.items():
+            if rxn.subsystem != "exchange":
+                continue
+            v = max(0.0, fluxes.get(rid, 0.0))
+            if v <= 0.0:
+                continue
+            for met, coef in rxn.stoichiometry.items():
+                if coef < 0.0 and met != "Biomass":
+                    out[met] = out.get(met, 0.0) + v
+        return out
+
+
+# ============================================================================
 # Flux Balance Analysis solver
 # ============================================================================
 
@@ -861,6 +1081,37 @@ class FluxBalanceAnalysis:
         self.uptake_limits: dict[str, float] = {}
         # cache of the most recent solution
         self.last_solution: dict[str, float] | None = None
+        # MOMENT-style enzyme-capacity configuration (Phase 4); when set,
+        # solved reaction fluxes are capped by kcat_i * E_i * enzyme_scale
+        # with E_i read from set_enzyme_levels()
+        self.enzyme_capacity: EnzymeCapacity | None = None
+        # per-gene enzyme abundances (relative units, e.g. folded ProteinPool)
+        self.enzyme_levels: dict[str, float] = {}
+
+    # -------- enzyme-capacity constraints (Phase 4, MOMENT) --------
+
+    def set_enzyme_capacity(self,
+                            capacity: EnzymeCapacity | None) -> None:
+        """Enable/disable enzyme-constrained FBA.
+
+        With a capacity set, :meth:`solve` caps every enzyme-gated reaction
+        flux by ``kcat_i * E_i * enzyme_scale`` and, when a
+        ``protein_mass_fraction`` is configured, adds the sMOMENT global
+        enzyme-pool row ``Sum v_i*MW_i/kcat_i <= P`` (Beg 2007; Adadi 2012;
+        Bekiaris & Klamt 2020).
+        """
+        self.enzyme_capacity = capacity
+        if capacity is None:
+            self.enzyme_levels = {}
+
+    def set_enzyme_levels(self, levels: dict[str, float]) -> None:
+        """Set per-gene enzyme abundances (relative units).
+
+        Values are read from the cell's folded ProteinPool (Phase 3): the
+        GRN/expression machinery controls enzyme supply, so metabolism
+        responds to the proteome (O'Brien 2013 ME-model coupling).
+        """
+        self.enzyme_levels = {g: float(v) for g, v in levels.items()}
 
     # -------- uptake limits --------
 
@@ -892,6 +1143,7 @@ class FluxBalanceAnalysis:
 
         # bounds
         bounds: list[tuple[float, float]] = []
+        ec = self.enzyme_capacity
         for rid in rxn_list:
             rxn = self.model.reactions[rid]
             lb = rxn.lower_bound
@@ -909,10 +1161,54 @@ class FluxBalanceAnalysis:
                         # overrides the upper bound (default 0 -> enables
                         # uptake)
                         ub = self.uptake_limits[met]
+            # MOMENT enzyme capacity: v_i <= kcat_i * E_i * enzyme_scale
+            if ec is not None and rid in ec.kcat:
+                kc = ec.kcat[rid]
+                if kc > 0.0:
+                    e_level: float | None = None
+                    for gene, rids in ec.gene_to_reactions.items():
+                        if rid in rids:
+                            # a reaction gated by several genes (complex /
+                            # sequential enzymes) is limited by the minimum
+                            # subunit abundance (conservative MOMENT rule)
+                            if e_level is None:
+                                e_level = self.enzyme_levels.get(gene, 0.0)
+                            else:
+                                e_level = min(
+                                    e_level, self.enzyme_levels.get(gene, 0.0))
+                    if e_level is not None:
+                        cap = kc * e_level * ec.enzyme_scale
+                        ub = min(ub, cap)
             bounds.append((lb, ub))
 
+        # sMOMENT global enzyme-pool row (Bekiaris & Klamt 2020): append
+        #   -Sum_i (MW_i/kcat_i) * v_i + v_pool = 0 ,  0 <= v_pool <= P
+        # The row counts every enzyme-gated reaction (a gene maps to it);
+        # its cost coefficient MW/(kcat*enzyme_scale) uses the same
+        # relative-kcat convention as the per-reaction caps, so the budget
+        # and the caps stay mutually consistent.
+        n_pool = 0
+        if (ec is not None and ec.protein_mass_fraction is not None
+                and ec.protein_mass_fraction > 0.0):
+            gated: set[str] = set()
+            for rids in ec.gene_to_reactions.values():
+                gated.update(rids)
+            pool_row = [0.0] * n
+            for i, rid in enumerate(rxn_list):
+                kc = ec.kcat.get(rid, 0.0)
+                if rid in gated and kc > 0.0:
+                    mw = ec.enzyme_mw.get(rid, DEFAULT_ENZYME_MW)
+                    pool_row[i] = -(mw / (kc * ec.enzyme_scale))
+            # add the v_pool column (coefficient +1 in the pool row only:
+            # the row is -Sum a_i*v_i + v_pool = 0, so v_pool = Sum a_i*v_i)
+            S = [row + [0.0] for row in S]
+            S.append(pool_row + [1.0])
+            bounds = bounds + [(0.0, ec.protein_mass_fraction)]
+            c = c + [0.0]
+            n_pool = 1
+
         # b: steady-state mass balance S·v = 0 -> b = [0, 0, ..., 0]
-        b = [0.0] * m
+        b = [0.0] * (m + n_pool)
 
         result = simplex(c, S, b, bounds, maximize=maximize)
         if result["status"] not in ("optimal", "max_iter"):
@@ -920,6 +1216,8 @@ class FluxBalanceAnalysis:
             return {rid: 0.0 for rid in rxn_list}
 
         x = result["x"]
+        # the first ``n`` entries map to reactions; a trailing entry (when
+        # n_pool == 1) is the sMOMENT v_pool slack variable
         fluxes = {rxn_list[j]: x[j] for j in range(n)}
         return fluxes
 
@@ -1484,10 +1782,17 @@ __all__ = [
     "DEFAULT_LOWER_BOUND",
     "DEFAULT_GLC_UPTAKE",
     "ATP_MAINTENANCE_FLUX",
+    "DEFAULT_ENZYME_MW",
+    "DEFAULT_ENZYME_SCALE",
+    "ECOLI_CORE_GENE_REACTIONS",
+    "ECOLI_CORE_KCAT",
     # dataclasses
     "Reaction",
     "MetabolicModel",
     "ECOLI_CORE_MODEL",
+    "EnzymeCapacity",
+    "MetabolitePoolConfig",
+    "MetabolitePool",
     # loaders
     "load_model_from_json",
     "load_model",

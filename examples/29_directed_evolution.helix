@@ -1,5 +1,4 @@
 # Example 29: ML-guided directed evolution of GB1 (S8)
-# Python companion script: examples/directed_evolution_workflow.py
 # Closed-loop "design-build-test-learn" protein engineering in miniature,
 # mirroring EVOLVEpro (Jiang et al. Science 2025 387:eadr6006),
 # MULTI-evolve (Tran et al. Science 2025 388:aea1820) and FSFP
@@ -19,31 +18,15 @@
 # The guided campaign recovers far more fitness than an oracle-free
 # random-screening baseline, and the oracle's round-1 predictions align
 # with the landscape (Spearman, the ProteinGym benchmark metric).
-#
+# The campaign runs through the #sim extension point
+# (kind=directed_evolution) using helixlang.apps.protein_evolution; the
+# #gene below documents the GB1 IgG-binding domain.
+
 #gene name=gb1_domain
 ATG GCT GGT GTA TAA
 #end
-#
-#config ticks=100 output=stdout
-#
-# # Python API for the guided-evolution campaign:
-# #
-# # from helixlang.apps.protein_evolution import (GB1_WT,
-# #                                               guided_directed_evolution,
-# #                                               gbi_landscape,
-# #                                               make_crippled)
-# #
-# # res = guided_directed_evolution(rounds=8, library_size=60, top_k=5)
-# # start = make_crippled()
-# #
-# # print(f"wild type fitness : {gbi_landscape(GB1_WT):.3f}")
-# # print(f"crippled start    : {res.initial_fitness:.3f}")
-# # for rnd, (g, b) in enumerate(zip(res.guided_cumulative_best,
-# #                                  res.baseline_cumulative_best,
-# #                                  strict=True)):
-# #     print(f"round {rnd}: guided best {g:.3f} | random best {b:.3f}")
-# #
-# # print(f"oracle            : {res.oracle_name}")
-# # print(f"guided recovery   : {res.guided_gain:+.3f}")
-# # print(f"random recovery   : {res.baseline_gain:+.3f}")
-# # print(f"oracle vs landscape Spearman: {res.spearman_rho:.3f}")
+
+#config backend=fba ticks=1
+#sim kind=directed_evolution oracle=blosum62 rounds=8 library_size=60
+#sim top_k=5 n_crippled_sites=8 seed=7
+#sim output=oracle,initial_fitness,guided_recovery,guided_gain,baseline_gain

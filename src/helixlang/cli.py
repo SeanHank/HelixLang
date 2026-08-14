@@ -9,17 +9,27 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
+from helixlang.ast_nodes import Program
 from helixlang.codon_table import get_table
 from helixlang.compiler import Compiler
 from helixlang.disassembler import disassemble
-from helixlang.errors import CompileError, LexError, ParseError, RuntimeHelixError, SemanticError
+from helixlang.errors import (
+    CompileError,
+    LexError,
+    ParseError,
+    RuntimeHelixError,
+    SemanticError,
+    SimConfigError,
+)
 from helixlang.lexer import Lexer
 from helixlang.parser import Parser
 from helixlang.semantic import SemanticAnalyzer
 from helixlang.seq_utils import stop_codons_from_table as _stop_codons_from_table
+from helixlang.sim_runtime import _SIM_BACKENDS, BACKENDS, SimResult, run
 from helixlang.vm import CellVM
 
 
@@ -43,6 +53,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="write morphology field PNG (PPM format)")
     p.add_argument("--ticks", type=int, default=None,
                    help="override #config ticks")
+    # Simulation backends (wiring.md §6.1, §9)
+    p.add_argument("--backend", choices=sorted(BACKENDS), default=None,
+                   help="override #config backend (classic keeps the bytecode "
+                        "VM; whole_cell/population/fba/calibration/benchmark "
+                        "run the simulation library)")
+    p.add_argument("--json", action="store_true",
+                   help="emit the SimResult payload as JSON (sim backends)")
     # Web visualization
     p.add_argument("--serve", action="store_true",
                    help="launch Web visualization server")
@@ -150,23 +167,35 @@ def main(argv: list[str] | None = None) -> int:
     src = args.source.read_text()
 
     try:
-        # compile pipeline
+        # parse + semantic check (shared by every backend)
         table = get_table(args.table)
         stop_codons = _stop_codons_from_table(table)
         tokens = list(Lexer(src).tokens())
         program = Parser(tokens, stop_codons=stop_codons).parse()
         SemanticAnalyzer(program).check()
-        chunk = Compiler(table).compile(program)
     except (LexError, ParseError, SemanticError, CompileError) as e:
+        print(f"compile error: {e}", file=sys.stderr)
+        return 1
+
+    # ----- Simulation backends (wiring.md §9) -----
+    if args.ticks is not None:
+        program.config.ticks = args.ticks
+    effective_backend = args.backend or program.config.backend
+    if not args.disassemble and (
+            program.sim_extensions.get("kind") in _SIM_BACKENDS
+            or effective_backend != "classic"):
+        return _run_sim(program, args, effective_backend)
+
+    # ----- classic bytecode pipeline (bit-identical to before) -----
+    try:
+        chunk = Compiler(table).compile(program)
+    except CompileError as e:
         print(f"compile error: {e}", file=sys.stderr)
         return 1
 
     if args.disassemble:
         print(disassemble(chunk, args.source.name))
         return 0
-
-    if args.ticks is not None:
-        program.config.ticks = args.ticks
 
     vm = CellVM(chunk, program)
     vm.debug = args.debug
@@ -194,6 +223,50 @@ def main(argv: list[str] | None = None) -> int:
         if vm.field:
             print(f"  field total V: {vm.field.total_v():.3f}")
     return 0
+
+
+def _run_sim(program: Program, args: argparse.Namespace, backend: str) -> int:
+    """Dispatch a sim backend and render the SimResult (wiring.md §9)."""
+    try:
+        result = run(program, backend=backend)
+    except (SimConfigError, ValueError, KeyError, IndexError) as e:
+        print(f"runtime error: {e}", file=sys.stderr)
+        return 1
+    if result is None:
+        return 0
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2, default=str))
+    elif args.csv:
+        _emit_sim_csv(result)
+    else:
+        _emit_sim_table(result, args.source.name)
+    return 0
+
+
+def _cell(value: object) -> str:
+    """Render a cell value for text/CSV output."""
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, default=str)
+    return str(value)
+
+
+def _emit_sim_csv(result: SimResult) -> None:
+    print(",".join(["backend"] + result.columns))
+    for row in result.rows:
+        print(",".join([result.backend] + [_cell(row.get(c))
+                                           for c in result.columns]))
+
+
+def _emit_sim_table(result: SimResult, source_name: str) -> None:
+    n = len(result.rows)
+    print(f"=== {source_name} | backend={result.backend} rows={n} ===")
+    print("  " + " | ".join(result.columns))
+    for row in result.rows[:30]:
+        print("  " + " | ".join(_cell(row.get(c)) for c in result.columns))
+    if n > 30:
+        print(f"  ... {n - 30} more rows")
 
 
 def _emit_csv(trace: list[dict]) -> None:

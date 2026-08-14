@@ -1,41 +1,15 @@
-# Example 24: Spatial dFBA - substrate-gradient colony growth (S6)
-# A one-dimensional strip of well-mixed dynamic-FBA batches is coupled
-# by glucose diffusion, with a glucose reservoir held at the inlet site
-# (site 0).  Growth at each site consumes local glucose via a
-# Michaelis-Menten uptake bound and an instantaneous FBA LP, the static
-# optimization approach of Mahadevan et al. 2002 (Biophys J 83:1905).
-# The diffusion coefficient is the biofilm-effective value (Rittmann &
-# McCarty, Environmental Biotechnology, 2020): glucose in free solution
-# diffuses ~600 um^2/s, but biofilms reduce it by orders of magnitude.
-#
-# The result is a plug-flow-reactor pattern: a substrate-depletion
-# boundary layer at the inlet (continuous resupply), a graded decline
-# of biomass with distance, and a large CO2 overflow (the reduced core
-# model has no glyoxylate shunt, so no acetate / second growth phase).
-#
+# Example 24: Spatial dFBA - substrate-gradient colony growth
+# A one-dimensional strip of dynamic-FBA batches coupled by glucose
+# diffusion. The app that used to be Python-only now runs through the #sim
+# extension point (kind=spatial_dfba, backend=fba).
+
 #gene name=glucose_uptake
 ATG GCT GGT GTA TAA
 #end
-#
-#config length=32 inlet=5.0 diffusion_um2_s=2.0 output=stdout
-#
-# # Python API for the spatial dFBA run:
-# #
-# # from helixlang.apps.spatial_dfba import (SpatialDFBA, SpatialDFBAConfig)
-# #
-# # sim = SpatialDFBA(SpatialDFBAConfig(
-# #     length=32,
-# #     inlet_glucose_mm=5.0,      # open reservoir at site 0
-# #     initial_glucose_mm=5.0,    # uniform sugar at the start
-# #     initial_biomass_gdw=0.05,
-# #     max_biomass_gdw=2.0,       # biofilm carrying capacity
-# #     glucose_diffusion_um2_s=2.0,
-# # ))
-# # sim.run(120)
-# #
-# # g = sim.glucose_profile(); b = sim.biomass_profile()
-# # print("inlet glucose:", g[0], "mM (resupplied)")
-# # print("tail  glucose:", g[-1], "mM (depleted)")
-# # print("inlet biomass:", b[0], "tail biomass:", b[-1], "gDW/L")
-# # print("depletion front at site", sim.depletion_front())
-# # print("CO2 overflow:", round(sim.total_byproduct("co2"), 1), "mM")
+
+#config backend=fba
+#sim kind=spatial_dfba length=32
+#sim inlet_glucose_mm=5.0 initial_glucose_mm=5.0
+#sim initial_biomass_gdw=0.05 max_biomass_gdw=2.0
+#sim glucose_diffusion_um2_s=2.0 steps=120
+#sim output=depletion_front,co2_overflow

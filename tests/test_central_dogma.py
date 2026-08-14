@@ -40,7 +40,10 @@ from helixlang.central_dogma import (
     TRANSLATION_ELONGATION_RATE_AA_PER_S,
     # Data tables
     TRNA_ABUNDANCE,
+    ProteinPool,
     RibosomeState,
+    _find_rho_independent_terminator,
+    advance_protein_pool,
     calculate_mrna_level,
     coupled_transcription_translation,
     # Functions
@@ -168,6 +171,24 @@ class TestTranscription:
                                transcription_factors={"repressor": 0.1})
         assert t_repress.promoter_strength == pytest.approx(0.1)
 
+    def test_transcribe_copy_number_gene_dosage(self):
+        """Gene dosage scales transcription linearly with DNA copy number
+        (Cooper & Helmstetter 1968; Karr et al. 2012)."""
+        single = transcribe("ATGTAA", promoter_strength=1.0)
+        doubled = transcribe("ATGTAA", promoter_strength=1.0,
+                             copy_number=2.0)
+        quad = transcribe("ATGTAA", promoter_strength=1.0,
+                          copy_number=4.0)
+        assert doubled.initiation_frequency_per_min == pytest.approx(
+            2.0 * single.initiation_frequency_per_min)
+        assert quad.initiation_frequency_per_min == pytest.approx(
+            4.0 * single.initiation_frequency_per_min)
+        # copy_number=1 (default) is byte-identical behaviour
+        assert doubled.promoter_strength == single.promoter_strength
+        # a zero-copy gene (fully duplicated/degraded) transcribes nothing
+        zero = transcribe("ATGTAA", promoter_strength=1.0, copy_number=0.0)
+        assert zero.initiation_frequency_per_min == 0.0
+
     def test_transcribe_lowercase_input(self):
         """Lowercase DNA input is correctly normalized."""
         transcript = transcribe("atggcttaa")
@@ -183,6 +204,25 @@ class TestTranscription:
         assert transcript.has_terminator is True
         # Transcription should truncate after poly-T (no longer includes GGGCCC)
         assert "GGGCCC" not in transcript.sequence
+
+    def test_terminator_detection_is_memoized(self):
+        """Repeated terminator scans on the same DNA are served from the
+        cache and return byte-identical results (the scan is O(n^2) and
+        the same gene is transcribed every step)."""
+        _find_rho_independent_terminator.cache_clear()
+        terminator = "GGCCAAA" + "GGCC" + "TTTTTTT"
+        dna = "ATGCTGCTG" + terminator + "GGGCCC"
+        first = _find_rho_independent_terminator(dna)
+        assert first is not None
+        # repeated calls on the identical sequence hit the cache
+        for _ in range(5):
+            assert _find_rho_independent_terminator(dna) == first
+        info = _find_rho_independent_terminator.cache_info()
+        assert info.hits >= 4
+        assert info.currsize <= info.maxsize
+        # a different sequence is a distinct miss with its own result
+        other = _find_rho_independent_terminator("ATG" * 30)
+        assert _find_rho_independent_terminator("ATG" * 30) == other
 
 
 # ============================================================================
@@ -707,3 +747,87 @@ class TestMoleculeCounts:
         mrna_long = calculate_mrna_level(transcript, 1e4)
         assert mrna_long == pytest.approx(expected_ss, rel=0.01)
         assert mrna_long > 100.0  # molecule counts, not a 0-1 level
+
+
+# ============================================================================
+# Protein maturation / folding / QC pools (Phase 3, Balchin 2016)
+# ============================================================================
+
+class TestProteinMaturation:
+    """Verifies first-order folding/QC kinetics of :func:`advance_protein_pool`
+    (Balchin 2016 Science 353:aac4354)."""
+
+    def test_folded_fraction_equilibrium(self):
+        """Unfolded protein ends up folded vs misfolded in the ratio
+        k_fold/(k_fold+k_misfold) = 1/(1+0.05) ~= 0.952 (with the misfolded
+        fraction removed by aggregation/proteolysis)."""
+        pool = ProteinPool(unfolded=1.0)
+        for _ in range(10_000):
+            advance_protein_pool(pool, folded_decay_per_min=None, dt=1.0)
+        kf, km = 1.0, 0.05
+        assert pool.folded == pytest.approx(kf / (kf + km), rel=1e-9)
+        assert pool.degraded + pool.aggregated == pytest.approx(
+            km / (kf + km), rel=1e-9)
+
+    def test_folded_equilibrium_is_steady_under_constant_supply(self):
+        """A constant inflow of unfolded protein drives the folded pool to
+        the same equilibrium fraction as the single-shot case."""
+        pool = ProteinPool()
+        for _ in range(20_000):
+            pool.unfolded += 0.01
+            advance_protein_pool(pool, folded_decay_per_min=None, dt=1.0)
+        kf, km = 1.0, 0.05
+        assert pool.folded / (pool.folded + pool.degraded + pool.aggregated
+                              ) == pytest.approx(kf / (kf + km), rel=1e-3)
+
+    def test_half_life_matches_110_min_decay(self):
+        """The folded pool halved after ~110 ticks with the per-tick decay
+        from decay_from_half_life_ticks(110) (Mosteller 1980, Helbig 2011)."""
+        from helixlang.units import decay_from_half_life_ticks
+        decay = decay_from_half_life_ticks(110.0)
+        pool = ProteinPool(folded=1.0)
+        t = 0
+        while pool.folded > 0.5:
+            advance_protein_pool(
+                pool,
+                fold_rate_per_min=0.0, misfold_rate_per_min=0.0,
+                aggregation_rate_per_min=0.0, degraded_rate_per_min=0.0,
+                folded_decay_per_min=decay, dt=1.0)
+            t += 1
+        assert t == 110
+        assert pool.folded == pytest.approx(0.5, rel=1e-9)
+
+    def test_zero_rates_are_noop(self):
+        """Zero folding/QC rates must not raise (degenerate steady state)."""
+        pool = ProteinPool(unfolded=5.0, folded=3.0)
+        advance_protein_pool(
+            pool,
+            fold_rate_per_min=0.0, misfold_rate_per_min=0.0,
+            aggregation_rate_per_min=0.0, degraded_rate_per_min=0.0,
+            folded_decay_per_min=None, dt=1.0)
+        assert pool.unfolded == 5.0
+        assert pool.folded == 3.0
+
+    def test_atp_cost_scales_with_folds(self):
+        """Chaperone folding consumes PROTEIN_FOLDING_ATP_PER_PROTEIN per fold."""
+        from helixlang.units import PROTEIN_FOLDING_ATP_PER_PROTEIN
+        pool = ProteinPool(unfolded=1.0)
+        delta = advance_protein_pool(pool, folded_decay_per_min=None, dt=1e6)
+        assert delta["atp_cost"] == pytest.approx(
+            pool.folded * PROTEIN_FOLDING_ATP_PER_PROTEIN, rel=1e-6)
+        assert delta["atp_cost"] > 0.0
+
+    def test_misfolded_flux_partitions_by_qc_rates(self):
+        """Misfolded protein is aggregated vs degraded in the ratio
+        k_aggregate : k_degraded."""
+        from helixlang.units import (
+            PROTEIN_AGGREGATION_RATE_PER_MIN,
+            PROTEIN_DEGRADED_RATE_PER_MIN,
+        )
+        pool = ProteinPool(unfolded=1.0)
+        for _ in range(10_000):
+            advance_protein_pool(pool, folded_decay_per_min=None, dt=1.0)
+        ratio = pool.aggregated / pool.degraded
+        expected = (PROTEIN_AGGREGATION_RATE_PER_MIN
+                    / PROTEIN_DEGRADED_RATE_PER_MIN)
+        assert ratio == pytest.approx(expected, rel=1e-9)

@@ -20,8 +20,9 @@
 #     template on which denser/larger colonies grow spot and stripe
 #     motifs (long-range inhibition by the diffusing signal)
 #
-# The intracellular program is declared below; the Python API runs the
-# multicellular morphogenesis.
+# The intracellular program is declared below; the multicellular
+# morphogenesis runs through the backend=population extension point with
+# mechanics=force (helixlang.population.CellPopulation3D).
 
 #promoter name=p_sig strength=-0.4         # constitutive signaler
 #promoter name=p_pig strength=-0.4         # constitutive pigment
@@ -37,48 +38,8 @@ ATG TGG TAA
 #regulate p_sig -> signaler strength=+0.8
 #regulate p_pig -> pigment strength=+0.9
 
-# Note: the following is a Python API example of pattern synthesis ---
-# for use in scripts (not .helix annotations) ---
-#
-# from helixlang.compiler import Compiler
-# from helixlang.codon_table import STANDARD_TABLE
-# from helixlang.lexer import Lexer
-# from helixlang.parser import Parser
-# from helixlang.population import (CellPopulation, PopulationCell,
-#                                   PopulationConfig)
-# from helixlang.semantic import SemanticAnalyzer
-#
-# src = open("22_pattern_synthesis.helix").read()
-# program = Parser(list(Lexer(src).tokens())).parse()
-# SemanticAnalyzer(program).check()
-# chunk = Compiler(STANDARD_TABLE).compile(program)
-#
-# config = PopulationConfig(
-#     program=program,
-#     chunk=chunk,
-#     grid_width=24,
-#     grid_height=24,
-#     signal_diffusion=0.35,     # morphogen spreads several lattice sites
-#     division_threshold=1e9,
-#     metabolic_cost=0.0,
-#     energy_intake=0.0,
-#     mechanics="force",         # cell-cell repulsion -> patterned layout
-# )
-#
-# seed = [PopulationCell(id=i, energy=100.0, x=12, y=12)
-#         for i in range(40)]   # one dense founder cluster
-# pop = CellPopulation(seed, config)
-# for _ in range(120):
-#     pop.step()
-#
-# signal = pop.get_signal_field()
-# alive = [c for c in pop.cells if c.alive]
-# occupied = len({(c.x, c.y) for c in alive})   # colony spread
-# peak = max(max(row) for row in signal)        # morphogen hotspot
-# print(f"alive={len(alive)} occupied_sites={occupied} "
-#       f"signal_peak={peak:.2f} uM")
-# # the founder pile self-organizes: force mechanics spreads it over ~40
-# # distinct sites while the AI-2 footprint keeps a sharp central peak,
-# # and the pigment map traces the expanding disk
-
-#config ticks=30 output=stdout
+#config backend=population ticks=120
+#config population_size=40 grid_width=24 grid_height=24
+#config mechanics=force signal_diffusion=0.35 division_threshold=1e9
+#config seed=7
+#config output=alive_count,avg_energy,generation

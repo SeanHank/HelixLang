@@ -16,6 +16,8 @@ References:
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 import pytest
 
 from helixlang.metabolism import (
@@ -66,10 +68,12 @@ def test_bound_override_called_each_step() -> None:
 
 
 def test_bound_override_exchange_and_reaction() -> None:
+    # operate on a copy: bound overrides mutate the model in place, and the
+    # shared ECOLI_CORE_MODEL must stay pristine for later tests
     def override(t_h, dfba):
         return {"EX_glc": 2.0, "PGI": 1.5}
 
-    dfba = DynamicFluxBalance(ECOLI_CORE_MODEL, _batch(),
+    dfba = DynamicFluxBalance(deepcopy(ECOLI_CORE_MODEL), _batch(),
                               bound_override=override)
     dfba.step()
     assert dfba.fba.uptake_limits["GLC"] == 2.0

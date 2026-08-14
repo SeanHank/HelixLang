@@ -8,7 +8,10 @@
 #   / \  roll around the forward axis
 #   [ ]  push / pop stack (save/restore pose)
 #
-# HelixLang's #lsystem renders with a 2D turtle; real 3D output is via the Python API:
+# The #lsystem annotation documents the generative grammar; the 3D mesh
+# statistics are computed through the #sim extension point
+# (kind=3d_morphology) using helixlang.morphology_3d.LSystem3D and its
+# PLANT_PRESETS (fern / tree3d / bush / algae).
 
 #promoter name=p_grow3d strength=-0.3
 
@@ -21,19 +24,5 @@ ATG CTC TAA
 # 3D branching L-system: each iteration replaces F with a composite segment of 4 directional sub-branches
 #lsystem name=plant3d axiom=F rules=0:F->FF[+F&F][-F^F][&F+F][^F-F] angle=22.5 step=1.0
 
-# Note: the following is a Python API example for 3D morphogenesis
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.morphology_3d import LSystem3D, PLANT_PRESETS
-#
-# # Use preset 3D plants (tree / fern / bush)
-# plant = LSystem3D(**PLANT_PRESETS["tree"])
-# plant.iterate(generations=5)
-# mesh = plant.to_mesh()
-# print(f"branches: {mesh.branch_count}")
-# print(f"vertices: {len(mesh.vertices)}")
-#
-# # Export as OBJ / GLTF for 3D rendering
-# plant.export("plant3d.obj")
-
-#config ticks=5 output=stdout
+#config backend=fba ticks=1
+#sim kind=3d_morphology preset=tree3d iterations=5

@@ -1,28 +1,11 @@
-# Example 20: Diauxic growth - the lac operon and catabolite repression (Monod 1942; Jacob & Monod 1961)
-# E. coli grown on a mix of glucose and lactose grows in two exponential phases
-# separated by a lag: glucose (the preferred sugar) is consumed first, and the
-# lac operon stays off while glucose is present (catabolite repression); only
-# after glucose is depleted does beta-galactosidase synthesis begin.
-#
-# Molecular logic (Jacob & Monod, J Mol Biol 3:318-356, 1961,
-# DOI:10.1016/S0022-2836(61)80072-7; first described by Monod 1942):
-#   - glucose catabolism keeps cAMP low -> CRP (catabolite activator protein)
-#     cannot bind its DNA site -> the lac promoter is not activated
-#   - with glucose depleted, cAMP rises, CRP-cAMP binds upstream of the lac
-#     promoter and activates transcription of lacZ (beta-galactosidase)
-#   - simultaneously, allolactose (an inducer) inactivates the LacI repressor
-#     bound to the operator; both layers must be relieved for expression
-#   - uninduced lacZ is ~0.1% of fully induced (repression ~1000x, Oehler 1990,
-#     DOI:10.1002/j.1460-2075.1990.tb08199.x)
-#
-# HelixLang declares the two regulatory layers below (LacI repression + CRP-cAMP
-# activation on the same lac promoter). The static GRN cannot model the transient
-# glucose depletion, so the .helix run sits in the repressed steady state and the
-# two-phase expression switch is shown with the Python API below.
+# Example 20: Diauxic growth - the lac operon and catabolite repression
+# The lacI/crp/lacZ regulatory layers are declared below; the two-phase
+# expression switch and the Mahadevan et al. 2002 dFBA batch (which the
+# old file could only describe in a comment) now run on backend=fba.
 
-#promoter name=p_lac strength=0.6           # lac promoter (CRP-cAMP site + lac operator)
-#promoter name=p_lacI strength=-0.5         # constitutive lacI (regulator gene)
-#promoter name=p_crp strength=-0.5          # constitutive crp (CRP gene)
+#promoter name=p_lac strength=0.6
+#promoter name=p_lacI strength=-0.5
+#promoter name=p_crp strength=-0.5
 
 #gene name=lacI promoter=p_lacI
 ATG GCT GCT TAA
@@ -38,58 +21,12 @@ ATG GCT GCT GCT TAA
 
 #regulate p_lacI -> lacI strength=+0.8
 #regulate p_crp -> crp strength=+0.8
-#regulate lacI -> p_lac strength=-0.9       # LacI repressor binds the operator
-#regulate crp -> p_lac strength=+0.9        # CRP-cAMP activates the lac promoter
+#regulate lacI -> p_lac strength=-0.9
+#regulate crp -> p_lac strength=+0.9
 
-# Note: the following is a Python API example of the two-phase expression switch
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.central_dogma import transcribe, calculate_mrna_level
-#
-# lacz = "ATG" + "GCT" * 30 + "TAA"         # beta-galactosidase coding region
-#
-# # Phase 1: glucose present -> low cAMP -> CRP inactive -> lac promoter silent
-# t1 = transcribe(lacz, promoter_strength=0.05)
-# m1 = calculate_mrna_level(t1, time=30.0)
-# # Phase 2: glucose depleted -> CRP-cAMP activates the lac promoter
-# t2 = transcribe(lacz, promoter_strength=0.9)
-# m2 = calculate_mrna_level(t2, time=30.0)
-# # the two promoter strengths illustrate the phase switch; real LacI-mediated
-# # repression of the operator reaches ~1000-1300x via DNA-loop cooperativity
-# # (Oehler 1990, EMBO J 9:973-979)
-# print(f"beta-gal mRNA: glucose phase {m1:.3f} -> lactose phase {m2:.3f} "
-#       f"({m2 / m1:.0f}x induction)")
-#
-# # Population-level diauxic growth curve (two exponential phases with a lag):
-# # reproduce with the dynamic-FBA layer below (Mahadevan et al. 2002,
-# # DOI:10.1006/mben.2001.0208): each time step re-solves the FBA linear
-# # program with a glucose-uptake bound set by Michaelis-Menten substrate
-# # availability (v = v_max*S/(Ks+S)); biomass integrates as dX/dt = mu*X
-# # while glucose depletes.  The reduced core model (37 reactions, no
-# # glyoxylate shunt) reproduces the first fermentative phase faithfully:
-# # exponential growth on glucose, overflow CO2, then growth arrest once
-# # glucose is exhausted - the point where a shunt-carrying model would
-# # resume growth on acetate.
-# #
-# # from helixlang.metabolism import (DynamicFBAConfig, DynamicFluxBalance,
-# #                                   ECOLI_CORE_MODEL)
-# #
-# # batch = DynamicFluxBalance(
-# #     model=ECOLI_CORE_MODEL,
-# #     config=DynamicFBAConfig(
-# #         dt_h=0.25,
-# #         initial_biomass_gdw=0.05,
-# #         initial_glucose_mm=10.0,
-# #         max_glucose_uptake=10.0,     # mmol/gDW/h
-# #     ),
-# # )
-# # history = batch.run(duration_h=8.0)
-# #
-# # mu_max = max(e["growth_rate"] for e in history)
-# # last = history[-1]
-# # print(f"batch: mu_max={mu_max:.3f}/h  final_biomass={last['biomass']:.3f} "
-# #       f"gDW/L  glucose={last['glucose']:.4f} mM  co2={last['co2']:.2f} mM")
-# # # mu_max ~1.27/h while glucose is saturating; growth collapses once
-# # # glucose falls below Ks (the lac-induction lag Monod first mapped)
+#media nutrient=GLC concentration=10.0
 
-#config ticks=60 output=stdout
+#config backend=fba
+#config fba_model=core dynfba=true
+#config fba_dt_h=0.25 fba_oxygen_max=20.0 fba_steps=32
+#config output=time_h,biomass,glucose,co2,growth_rate

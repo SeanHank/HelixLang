@@ -49,3 +49,11 @@ class BioError(HelixError):
     join the unified :class:`HelixError` hierarchy, letting the server layer's
     ``@errorhandler`` handle them by severity (bad user input -> 400, implementation bug -> 500).
     """
+
+
+class SimConfigError(HelixError):
+    """Simulation-backend configuration error (bad `#config sim` value, unknown
+    enum, malformed float/int/dict coercion) raised by :mod:`helixlang.sim_runtime`.
+
+    Naming the offending key so the CLI/server can point at the source line.
+    """

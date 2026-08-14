@@ -1,18 +1,8 @@
 # Example 10: Metabolism - flux balance analysis (FBA)
-# Shows cell growth on glucose
-#
-# HelixLang's #gene / #promoter annotations describe the regulatory context of metabolic enzymes,
-# while the actual FBA (Flux Balance Analysis) is run via the Python API:
-#   from helixlang.metabolism import FluxBalanceAnalysis
-#   fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
-#   fba.set_uptake("GLC", 10.0)
-#   fba.solve()
-#
-# Gene -> reaction mapping (glycolysis pathway):
-#   glk  : glucokinase                    glucose -> G6P
-#   pgi  : glucose-6-phosphate isomerase  G6P -> F6P
-#   pyk  : pyruvate kinase                PEP -> pyruvate
-#   biomass : biomass synthesis reaction
+# The glycolysis enzymes are declared once and bound to model reactions with
+# #enzyme; backend=fba turns them into enzyme-constrained FBA instead of
+# bytecode. #media sets the glucose uptake bound. The Python solve() block
+# that used to live here is gone - the run IS the program.
 
 #promoter name=p_glc strength=-0.3
 
@@ -32,21 +22,12 @@ ATG GCT GGT GCT GGT TAA
 #regulate p_glc -> pgi strength=+0.7
 #regulate p_glc -> pyk strength=+0.6
 
-# Note: the following is a Python API example for FBA
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.metabolism import FluxBalanceAnalysis, ECOLI_CORE_MODEL
-#
-# fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
-# fba.set_uptake("GLC", 10.0)        # glucose uptake 10 mmol/gDW/h
-# # solve() returns a {reaction_id: flux} dict (no set_objective method)
-# fluxes = fba.solve(objective="biomass")
-#
-# report = fba.analyze()             # returns an analysis dict
-# print(f"Growth rate:  {report['growth_rate_per_hour']:.4f} 1/h")
-# print(f"Biomass flux: {fluxes['BIOMASS']:.4f}")
-# print(f"Glucose flux: {fluxes['EX_glc']:.3f}")
-# print(f"Acetate flux: {fluxes.get('EX_ac', 0):.3f}")
-# print(f"Lactate flux: {fluxes.get('EX_lac', 0):.3f}")
+#enzyme gene=glk reaction=HEX1
+#enzyme gene=pgi reaction=PGI
+#enzyme gene=pyk reaction=PYK
 
-#config ticks=20 output=stdout
+#media nutrient=GLC concentration=10.0
+
+#config backend=fba
+#config fba_model=core
+#config output=BIOMASS,EX_glc,EX_ac,EX_lac,growth_rate_per_hour

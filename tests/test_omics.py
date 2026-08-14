@@ -22,6 +22,7 @@ References:
 from __future__ import annotations
 
 import math
+from copy import deepcopy
 
 import pytest
 
@@ -255,7 +256,9 @@ def test_apply_fba_bounds_ignores_unknown_reactions() -> None:
 
 
 def test_apply_fba_bounds_upper_bound_reaction() -> None:
-    fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
+    # operate on a copy: reaction-level bounds mutate the model in place,
+    # and the shared ECOLI_CORE_MODEL must stay pristine for later tests
+    fba = FluxBalanceAnalysis(deepcopy(ECOLI_CORE_MODEL))
     apply_fba_bounds(fba, {"PGI": 2.0})
     assert fba.model.reactions["PGI"].upper_bound == 2.0
 

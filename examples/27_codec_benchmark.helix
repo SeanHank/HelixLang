@@ -14,16 +14,14 @@
 #     block is irrecoverable.
 #   - goldman: fixed native density (built-in 4x overlap), no rate knob.
 #
+# The robustness scan runs through the #sim extension point
+# (kind=codec_benchmark) using helixlang.apps.dna_storage.benchmark_codecs;
+# the #gene below is the payload being stored.
+
 #gene name=storage_payload
 ATG GCT GGT GTA TAA
 #end
-#
-#config payload=256 rates=0.5,1.0,1.5 output=stdout
-#
-# # Python API for the benchmark:
-# #
-# # from helixlang.apps.dna_storage import (benchmark_codecs,
-# #                                         format_benchmark_table)
-# #
-# # rows = benchmark_codecs(data_size=256, seed=7)
-# # print(format_benchmark_table(rows))
+
+#config backend=fba ticks=1
+#sim kind=codec_benchmark densities=0.5,1.0,1.5 data_size=256 seed=7
+#sim output=scheme,target_density,max_loss_fraction,max_error_rate,cost_per_gb_usd

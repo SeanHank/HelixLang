@@ -14,27 +14,14 @@
 #
 # The closed loop validates that the *predicted* truth table matches
 # the *target* truth table before the design is handed to a wet lab.
-#
+# It runs through the #sim extension point (kind=cello_workflow) using
+# helixlang.apps.synbio_automation.run_cello_workflow.
+
 #gene name=gate_output
 ATG GCT GGT GTA TAA
 #end
-#
-#config library=pUC19 marker=AmpR output=stdout
-#
-# # Python API for the one-stop closed loop:
-# #
-# # from helixlang.apps.synbio_automation import (TruthTable,
-# #                                               run_cello_workflow)
-# #
-# # table = TruthTable.from_function(["a"], ["y"],
-# #                                  lambda v: (not v[0],))
-# # report = run_cello_workflow(table)
-# #
-# # print("validated:", report.matches_target)
-# # print("plasmid length:", report.plasmid_length, "bp")
-# # print("gates:", report.gate_order)
-# # for node_id, curve in report.time_curves.items():
-# #     last = curve["time_course"][-1]
-# #     print(node_id, "protein after", last.time_min, "min:",
-# #           round(last.protein_accumulated, 1))
-# # # report.genbank / report.sbol3_xml hold the exports
+
+#config backend=fba ticks=1
+#sim kind=cello_workflow function=not backbone=pUC19 marker=AmpR
+#sim time_course_min=60.0 time_step_min=5.0
+#sim output=function,matches_target,gate_count,plasmid_length

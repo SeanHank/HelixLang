@@ -21,13 +21,19 @@ import pytest
 from helixlang.errors import BioError
 from helixlang.metabolism import (
     ATP_MAINTENANCE_FLUX,
+    DEFAULT_ENZYME_SCALE,
     DEFAULT_LOWER_BOUND,
     # constants
     DEFAULT_UPPER_BOUND,
+    ECOLI_CORE_GENE_REACTIONS,
+    ECOLI_CORE_KCAT,
     ECOLI_CORE_MODEL,
+    EnzymeCapacity,
     # solver
     FluxBalanceAnalysis,
     MetabolicModel,
+    MetabolitePool,
+    MetabolitePoolConfig,
     # data classes
     Reaction,
     load_model,
@@ -690,3 +696,207 @@ class TestLoadModel:
                 load_model("iJO1366")
         else:
             pytest.skip("cobrapy installed; identifier path tested live")
+
+
+# ============================================================================
+# Phase 4: enzyme-constrained FBA (MOMENT / sMOMENT, Beg 2007; Adadi 2012;
+# Bekiaris & Klamt 2020) and intracellular metabolite pools
+# ============================================================================
+
+def _enzyme_fba(**kw) -> FluxBalanceAnalysis:
+    """Fresh FBA at rich-medium glucose, ready for capacity constraints."""
+    fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
+    fba.set_uptake("GLC", 10.0)
+    return fba
+
+
+def _capacity(**kw) -> EnzymeCapacity:
+    """Full gene->reaction capacity; NADH_OX re-assigned to a single gene."""
+    kw.setdefault("enzyme_scale", DEFAULT_ENZYME_SCALE)
+    g2r = dict(ECOLI_CORE_GENE_REACTIONS)
+    g2r.pop("atpF")
+    g2r["atpF"] = ("NADH_OX",)
+    return EnzymeCapacity(g2r, kcat=ECOLI_CORE_KCAT, **kw)
+
+
+class TestEnzymeCapacity:
+    """MOMENT-style per-reaction enzyme caps and the sMOMENT pool row."""
+
+    def test_bit_compatible_without_capacity(self):
+        """solve() is unchanged when no enzyme capacity is configured."""
+        base = _enzyme_fba()
+        flux_base = base.solve()["BIOMASS"]
+        fba = _enzyme_fba()
+        assert fba.enzyme_capacity is None
+        assert fba.solve()["BIOMASS"] == pytest.approx(flux_base)
+
+    def test_setting_and_clearing_capacity_restores_baseline(self):
+        """Removing the capacity restores the unconstrained optimum."""
+        fba = _enzyme_fba()
+        baseline = fba.solve()["BIOMASS"]
+        ec = _capacity(protein_mass_fraction=0.3)
+        fba.set_enzyme_capacity(ec)
+        fba.set_enzyme_levels({g: 1e6 for g in ec.gene_to_reactions})
+        assert fba.solve()["BIOMASS"] < baseline
+        fba.set_enzyme_capacity(None)
+        assert fba.solve()["BIOMASS"] == pytest.approx(baseline)
+
+    def test_knockout_gene_collapses_flux(self):
+        """A gene with zero enzyme abundance removes its reaction (ko_model
+        consistency: same gene->reaction table drives essentiality)."""
+        ec = _capacity()
+        fba = _enzyme_fba()
+        fba.set_enzyme_capacity(ec)
+        levels = {g: 1e6 for g in ec.gene_to_reactions}
+        levels["pgi"] = 0.0  # PGI knockout
+        fba.set_enzyme_levels(levels)
+        assert fba.solve()["BIOMASS"] == pytest.approx(0.0, abs=1e-9)
+
+    def test_overexpressing_bottleneck_enzyme_raises_flux(self):
+        """Raising a limiting enzyme's level raises its reaction's flux
+        (enzyme-limitation prediction, Phase 4 verification)."""
+        ec = _capacity()
+        fba = _enzyme_fba()
+        fba.set_enzyme_capacity(ec)
+        # cap NADH_OX hard by giving atpF a small level
+        fba.set_enzyme_levels({g: 1e6 for g in ec.gene_to_reactions
+                               if g != "atpF"} | {"atpF": 0.006})
+        low = fba.solve()
+        assert low["NADH_OX"] < 100.0
+        fba.set_enzyme_levels({g: 1e6 for g in ec.gene_to_reactions})
+        high = fba.solve()
+        assert high["BIOMASS"] > low["BIOMASS"]
+        assert high["NADH_OX"] > low["NADH_OX"]
+
+    def test_acetate_overflow_when_respiratory_capacity_saturated(self):
+        """At high glucose the enzyme-constrained model secretes acetate
+        while the unconstrained one does not (Sanchez 2017 prediction)."""
+        fba = _enzyme_fba()
+        assert fba.solve()["EX_ac"] == pytest.approx(0.0, abs=1e-9)
+        ec = _capacity(protein_mass_fraction=0.3)
+        fba.set_enzyme_capacity(ec)
+        fba.set_enzyme_levels({g: 1e6 for g in ec.gene_to_reactions})
+        sol = fba.solve()
+        assert sol["EX_ac"] > 1.0
+        assert 0.0 < sol["BIOMASS"] < 1.0
+
+    def test_smoment_pool_budget_titrates_biomass(self):
+        """Tighter sMOMENT enzyme budgets lower biomass monotonically up
+        to the unconstrained optimum (Bekiaris & Klamt 2020)."""
+        fba = _enzyme_fba()
+        baseline = fba.solve()["BIOMASS"]
+        biomasses = []
+        for P in (0.05, 0.3, 1.0):
+            fba2 = _enzyme_fba()
+            fba2.set_enzyme_capacity(_capacity(protein_mass_fraction=P))
+            fba2.set_enzyme_levels(
+                {g: 1e6 for g in fba2.enzyme_capacity.gene_to_reactions})
+            biomasses.append(fba2.solve()["BIOMASS"])
+        assert biomasses[0] < biomasses[1] < biomasses[2]
+        assert biomasses[2] == pytest.approx(baseline, rel=1e-6)
+
+    def test_every_kcat_reaction_is_gated_by_a_gene(self):
+        """Regression guard: a reaction with a kcat must map to a gene, so
+        the no-gene->e_level-0 cap bug cannot re-emerge from this table."""
+        ec = _capacity()
+        mapped = {r for rids in ec.gene_to_reactions.values() for r in rids}
+        assert set(ec.kcat) == mapped
+        # every mapped reaction has a kcat so its cap is well-defined
+        for rid in mapped:
+            assert ec.kcat[rid] > 0.0
+
+    def test_min_subunit_rule_for_complexes(self):
+        """A multi-gene reaction (pta+ackA -> PTA_ACK) is limited by the
+        minimum subunit abundance (conservative MOMENT rule)."""
+        ec = _capacity()
+        assert ec.gene_to_reactions["pta"] == ("PTA_ACK",)
+        assert ec.gene_to_reactions["ackA"] == ("PTA_ACK",)
+        # cap NADH_OX at 30 so the model overflows through PTA_ACK
+        fba = _enzyme_fba()
+        fba.set_enzyme_capacity(ec)
+        levels = {g: 1e6 for g in ec.gene_to_reactions}
+        levels["atpF"] = 0.006  # NADH_OX cap = 0.5 * 0.006 * 1e4 = 30
+        fba.set_enzyme_levels(levels)
+        assert fba.solve()["PTA_ACK"] > 5.0
+        # ackA becomes the limiting subunit -> PTA_ACK hits the min cap
+        levels["ackA"] = 1e-4
+        fba.set_enzyme_levels(levels)
+        expected = ECOLI_CORE_KCAT["PTA_ACK"] * 1e-4 * DEFAULT_ENZYME_SCALE
+        assert fba.solve()["PTA_ACK"] == pytest.approx(expected, rel=1e-6)
+
+    def test_enzyme_scale_validation(self):
+        """enzyme_scale <= 0 is rejected at construction."""
+        with pytest.raises(ValueError):
+            _capacity(enzyme_scale=0.0)
+        with pytest.raises(ValueError):
+            _capacity(enzyme_scale=-1.0)
+
+    def test_gene_reaction_table_matches_ko_model(self):
+        """The Phase-4 gene->reaction table drives ko_model essentiality."""
+        from helixlang.apps.whole_cell_scale import ECOLI_CORE_GENE_REACTIONS as app_g2r
+        assert app_g2r is ECOLI_CORE_GENE_REACTIONS
+        assert set(ECOLI_CORE_KCAT) == {
+            r for rids in ECOLI_CORE_GENE_REACTIONS.values() for r in rids}
+
+
+class TestMetabolitePool:
+    """Phase-4 intracellular pool integration + overflow indicators."""
+
+    def test_net_production_from_flux_solution(self):
+        """Net production sums S[met][j]*v_j across the flux solution."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        # PTA_ACK produces acetate (Ac) at 1:1 flux
+        assert mp.net_production("Ac", {"PTA_ACK": 10.0}) == pytest.approx(10.0)
+        assert mp.net_production("GLC", {"EX_glc": 5.0}) == pytest.approx(5.0)
+
+    def test_pool_reaches_steady_state_where_production_equals_dilution(self):
+        """d[P]/dt = production - mu*[P]; the pool converges to
+        production/mu (Palsson ch. 10)."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        for _ in range(5000):
+            mp.integrate({"PTA_ACK": 10.0}, growth_rate=2.0, dt_h=0.01)
+        assert mp.pools["Ac"] == pytest.approx(10.0 / 2.0, rel=1e-3)
+
+    def test_no_dilution_integrates_pure_accumulation(self):
+        """With dilution off the pool accumulates the full net production."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL,
+                            MetabolitePoolConfig(dilution=False))
+        mp.integrate({"PTA_ACK": 10.0}, growth_rate=2.0, dt_h=0.1)
+        assert mp.pools["Ac"] == pytest.approx(1.0)
+
+    def test_min_pool_clamps_negative(self):
+        """Pools clamp at config.min_pool (default 0)."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        mp.integrate({"EX_ac": 5.0}, growth_rate=0.0, dt_h=0.1)
+        assert mp.pools["Ac"] == pytest.approx(0.0)
+
+    def test_negative_dt_raises(self):
+        """Negative integration steps are rejected."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        with pytest.raises(ValueError):
+            mp.integrate({}, dt_h=-0.1)
+
+    def test_initial_values_are_respected(self):
+        """Constructor initial pools seed the integration."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL, initial={"Ac": 3.0})
+        assert mp.pools["Ac"] == pytest.approx(3.0)
+        assert mp.pools["G6P"] == pytest.approx(0.0)
+
+    def test_overflow_detects_acetate_secretion(self):
+        """Overflow flux flags byproduct secretion (Ac) but not biomass."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        ec = _capacity(protein_mass_fraction=0.3)
+        fba = _enzyme_fba()
+        fba.set_enzyme_capacity(ec)
+        fba.set_enzyme_levels({g: 1e6 for g in ec.gene_to_reactions})
+        sol = fba.solve()
+        overflow = mp.overflow_flux(sol)
+        assert overflow["Ac"] == pytest.approx(sol["EX_ac"])
+        assert "Biomass" not in overflow
+        assert "GLC" not in overflow
+
+    def test_overflow_empty_for_unconstrained_solution(self):
+        """The unconstrained optimum secretes no acetate."""
+        mp = MetabolitePool(ECOLI_CORE_MODEL)
+        sol = _enzyme_fba().solve()
+        assert mp.overflow_flux(sol).get("Ac", 0.0) == pytest.approx(0.0, abs=1e-9)

@@ -219,7 +219,8 @@ HelixLang/
 | SemanticAnalyzer | `Program` | `None` (in-place validation + `warnings`) | `SemanticError` / `RegulationError` | none |
 | Compiler | `Program` + `table` | `Chunk` | `CompileError` | none |
 | CellVM | `Chunk` + `Program` | `list[dict]` (trace) | `RuntimeHelixError` (reserved) | mutates Cell/GRN/Field state |
-| CLI | `argv` | process exit code | catches all `HelixError` subclasses | writes files (PPM), writes stdout/stderr |
+| hxbc codec (`hxbc.py`) | `Program` (+ optional `Chunk`, `source`) | `.helixc` bytes / `LoadedArtifact` | `BinaryFormatError` / `BinaryVersionError` | none (pure codec; `.helixc` input never executes on load) |
+| CLI | `argv` | process exit code | catches all `HelixError` subclasses | writes files (PPM/`.helixc`/`.helix`), writes stdout/stderr |
 
 ### 2.3 Call Sequence ([`cli.py:main`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/cli.py))
 

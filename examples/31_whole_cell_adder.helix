@@ -1,0 +1,29 @@
+# Example 31: Whole-cell - adder size control, Cooper-Helmstetter
+# replication and chaperone-mediated folding (NEW; Phases 1-4)
+# A VirtualCell runs from in-language declarations only. The adder rule
+# (division at birth_volume + adder_volume_um3) is #config; replication is
+# timed on the chromosome map; folding is chaperone-assisted.
+
+#promoter name=p_constitutive strength=-0.4
+
+#gene name=gltA promoter=p_constitutive chromosome=0.1
+ATG GCT GGT GCT TAA
+#end
+
+#gene name=zwf promoter=p_constitutive chromosome=0.7 initial_level=1.0
+ATG GCT GGT GCT TAA
+#end
+
+#regulate gltA -> zwf strength=+0.6
+
+#media nutrient=GLC concentration=10.0
+
+#config backend=whole_cell
+#config division_rule=adder adder_volume_um3=1.6 adder_noise_std=0.1
+#config replication_mode=cooper_helmstetter doubling_time_min=30
+#config c_period_min=20 d_period_min=10
+#config protein_maturation_mode=chaperone frac_cotranslational_fold=0.7
+#config enzyme_capacity=true
+#config seed=0
+#config ticks=120
+#config output=energy,volume_um3,added_volume_um3,divisions,phase,proteins

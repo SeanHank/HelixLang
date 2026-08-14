@@ -19,10 +19,13 @@ from __future__ import annotations
 from helixlang.ast_nodes import (
     BioInstruction,
     Codon,
+    EnzymeDecl,
     FieldDecl,
     Gene,
     LSystemDecl,
+    MediaDecl,
     MorphogenFeedback,
+    PoolDecl,
     Program,
     Promoter,
     Regulation,
@@ -66,6 +69,10 @@ class Parser:
                     "morphogen": self._parse_morphogen,
                     "config": self._parse_config,
                     "type": self._parse_type_annotation,
+                    "media": self._parse_media,
+                    "enzyme": self._parse_enzyme,
+                    "metabolite": self._parse_metabolite,
+                    "sim": self._parse_sim,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -244,6 +251,106 @@ class Parser:
             prog.config.use_central_dogma = fields["use_central_dogma"].lower() in ("true", "1", "yes")
         if "species" in fields:
             prog.config.species = fields["species"]
+        # Simulation backend selector (helix-language-wiring.md §6.1)
+        if "backend" in fields:
+            prog.config.backend = fields["backend"]
+        # Every remaining #config key is a sim parameter: preserved verbatim
+        # for the backend adapter (helix-language-wiring.md §7.1). The classic
+        # pipeline never reads `sim`, so its behaviour is untouched.
+        consumed = {
+            "ticks", "output", "table", "ops_per_tick", "react_steps",
+            "use_central_dogma", "species", "backend",
+        }
+        for k, v in fields.items():
+            if k not in consumed:
+                prog.config.sim[k] = v
+
+    def _parse_media(self, prog: Program) -> None:
+        """Parse #media nutrient=GLC concentration=10.0 [diffusion_um2_s=300].
+
+        Growth-medium declaration consumed by the sim backends; inert (with a
+        warning) under the classic backend (helix-language-wiring.md §6.4).
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        nutrient = fields.get("nutrient", "")
+        if not nutrient:
+            raise ParseError("#media requires nutrient= field", line=t.line)
+        if "concentration" not in fields:
+            raise ParseError(
+                f"#media {nutrient!r} requires concentration= field", line=t.line)
+        try:
+            concentration = float(fields["concentration"])
+        except ValueError as e:
+            raise ParseError(
+                f"invalid concentration {fields['concentration']!r}: {e}",
+                line=t.line) from None
+        diffusion: float | None = None
+        if "diffusion_um2_s" in fields:
+            try:
+                diffusion = float(fields["diffusion_um2_s"])
+            except ValueError as e:
+                raise ParseError(
+                    f"invalid diffusion_um2_s {fields['diffusion_um2_s']!r}: {e}",
+                    line=t.line) from None
+        prog.media.append(MediaDecl(
+            nutrient=nutrient, concentration=concentration,
+            diffusion_um2_s=diffusion))
+
+    def _parse_enzyme(self, prog: Program) -> None:
+        """Parse #enzyme gene=gltA reaction=CS [kcat=2800].
+
+        Enzyme--reaction binding for enzyme-constrained FBA; inert under the
+        classic backend (helix-language-wiring.md §6.5).
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        gene = fields.get("gene", "")
+        reaction = fields.get("reaction", "")
+        if not gene:
+            raise ParseError("#enzyme requires gene= field", line=t.line)
+        if not reaction:
+            raise ParseError(
+                f"#enzyme {gene!r} requires reaction= field", line=t.line)
+        kcat: float | None = None
+        if "kcat" in fields:
+            try:
+                kcat = float(fields["kcat"])
+            except ValueError as e:
+                raise ParseError(
+                    f"invalid kcat {fields['kcat']!r}: {e}", line=t.line) from None
+        prog.enzymes.append(EnzymeDecl(gene=gene, reaction=reaction, kcat=kcat))
+
+    def _parse_metabolite(self, prog: Program) -> None:
+        """Parse #metabolite name=glc__D init=0.5.
+
+        Intracellular pool initialisation; requires
+        ``#config metabolite_pools=true`` to take effect, inert under classic
+        (helix-language-wiring.md §6.6).
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        name = fields.get("name", "")
+        if not name:
+            raise ParseError("#metabolite requires name= field", line=t.line)
+        try:
+            init = float(fields.get("init", "0.0"))
+        except ValueError as e:
+            raise ParseError(
+                f"invalid init {fields['init']!r}: {e}", line=t.line) from None
+        prog.pools.append(PoolDecl(name=name, init=init))
+
+    def _parse_sim(self, prog: Program) -> None:
+        """Parse #sim key=value ... (open extension point, wiring.md §8.6).
+
+        Each #sim annotation merges its fields into ``Program.sim_extensions``,
+        reserved for long-tail backends (e.g. ``#sim kind=spatial_dfba``).
+        Inert until a backend registers it.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        for k, v in fields.items():
+            prog.sim_extensions[k] = v
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:

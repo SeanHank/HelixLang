@@ -6,8 +6,9 @@
 #   beta-sheet   : Val(GTT) Ile(ATT) Phe(TTT)  - high sheet propensity
 #   loop         : Gly(GGT) Ser(TCT)            - flexible turns
 #
-# HelixLang's ORF provides the protein sequence context;
-# the actual 3D structure prediction runs via the Python API:
+# HelixLang's ORF provides the protein sequence; the structure report is
+# computed through the #sim extension point (kind=protein_structure) with
+# the Chou-Fasman-style propensity model of helixlang.protein_structure.
 
 #promoter name=p_fold strength=-0.4
 
@@ -17,19 +18,5 @@ ATG GCT GAA CTG GCT GAA CTG GCT GAA CTG GGT TCT GGT GTT ATT TTT GTT ATT TTT GGT 
 
 #regulate p_fold -> folding_demo strength=+0.8
 
-# Note: the following is a Python API example for protein structure prediction
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.protein_structure import predict_structure
-#
-# protein_seq = "MAEAEAEAEAGSGVIFVIFGSGMAEAEAEGSGVIFVIGSAEAEAEAGSGVIF"
-# report = predict_structure(protein_seq)
-#
-# print(f"Length:        {report.length} aa")
-# print(f"SS prediction: {report.secondary_structure}")
-# print(f"Helix %:       {report.helix_fraction:.2f}")
-# print(f"Sheet %:       {report.sheet_fraction:.2f}")
-# print(f"Coil  %:       {report.coil_fraction:.2f}")
-# print(f"Disorder:      {report.disorder_regions}")
-
-#config ticks=1 output=stdout
+#config backend=fba ticks=1
+#sim kind=protein_structure

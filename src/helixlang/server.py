@@ -27,11 +27,12 @@ if TYPE_CHECKING:
 from helixlang.codon_table import Op, get_table
 from helixlang.compiler import Compiler
 from helixlang.disassembler import disassemble
-from helixlang.errors import HelixError
+from helixlang.errors import HelixError, SimConfigError
 from helixlang.lexer import Lexer
 from helixlang.parser import Parser
 from helixlang.semantic import SemanticAnalyzer
 from helixlang.seq_utils import stop_codons_from_table as _stop_codons_from_table
+from helixlang.sim_runtime import run
 from helixlang.vm import CellVM
 from helixlang.web.serializers import (
     _parse_lsystem_rules,
@@ -146,6 +147,31 @@ def create_app() -> Flask:
             "disassemble": disassemble(chunk, "preview"),
             "ticks_run": len(trace),
         })
+
+    @app.post("/api/sim/run")
+    def api_sim_run():
+        """Run any ``#config backend`` and return the SimResult payload
+        (wiring.md §9).  ``body.backend`` overrides the source's choice."""
+        body = request.get_json(force=True, silent=True) or {}
+        source = body.get("source", "")
+        table_name = body.get("table", "standard")
+        backend = body.get("backend")
+        if table_name not in ("standard", "mito_vertebrate", "ciliate"):
+            return jsonify({"error": f"unknown table {table_name!r}"}), 400
+        try:
+            _table, program, _chunk = _pipeline(source, table_name)
+        except HelixError as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+        ticks = body.get("ticks")
+        if ticks is not None:
+            program.config.ticks = int(ticks)
+        try:
+            result = run(program, backend=backend)
+        except (SimConfigError, ValueError, KeyError, IndexError) as e:
+            return jsonify({"ok": False, "error": str(e)}), 400
+        if result is None:
+            return jsonify({"ok": True, "backend": "classic", "sim": None})
+        return jsonify({"ok": True, **result.to_dict()})
 
     # ---------- DNA physical encode/decode API ----------
     @app.post("/api/dna/encode")

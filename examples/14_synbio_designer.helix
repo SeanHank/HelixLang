@@ -7,7 +7,9 @@
 #    regulatory input (inducer)        expression output protein
 #
 # This .helix file provides the DNA context of the cassette's GOI (gene of interest);
-# the actual cassette auto-design (promoter/RBS/terminator selection, matching, validation) runs via the Python API:
+# the cassette auto-design (promoter/RBS/terminator selection, codon optimization,
+# restriction-site avoidance, GC targeting, validation) runs through the #sim
+# extension point (kind=synbio_design) using helixlang.apps.synbio_designer.
 
 #promoter name=p_inducible strength=0.6
 
@@ -18,32 +20,6 @@ ATG GCT GCT GGT GCT GGT GCT TAA
 
 #regulate p_inducible -> goi_target strength=+0.9
 
-# Note: the following is a Python API example for gene cassette design
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.apps.synbio_designer import SynBioDesigner, CassetteConfig
-#
-# designer = SynBioDesigner(host="ecoli")
-#
-# config = CassetteConfig(
-#     promoter="lac",                # lac/T7/araBAD/tet
-#     rbs="aggagg",                  # Shine-Dalgarno sequence
-#     terminator="rrnB_T1",          # rrnB_T1/T7
-#     optimize_codons=True,          # E. coli codon optimization
-#     avoid_restriction=True,        # remove common restriction-enzyme sites
-#     gc_target=0.50,                # target GC content
-#     add_histidine_tag=True,        # add 6xHis tag
-# )
-#
-# protein = "MALEVIFGS"              # target protein sequence
-# cassette = designer.design_cassette(protein, config=config)
-#
-# print(f"Promoter:    {cassette.promoter_seq}")
-# print(f"RBS:         {cassette.rbs_seq}")
-# print(f"ORF length:  {len(cassette.orf_seq)} bp")
-# print(f"Terminator:  {cassette.terminator_seq}")
-# print(f"Full length: {len(cassette.full_sequence)} bp")
-# print(f"CAI:         {cassette.cai:.3f}")
-# print(f"GC content:  {cassette.gc_content:.3f}")
-
-#config ticks=1 output=stdout
+#config backend=fba ticks=1
+#sim kind=synbio_design promoter=lac rbs=aggagg terminator=rrnB_T1
+#sim optimize_codons=true avoid_restriction=true gc_target=0.5

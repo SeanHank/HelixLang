@@ -31,6 +31,10 @@ HelixLang source files use `#` annotation blocks to describe gene structure, reg
 | `#lsystem` | L-system morphogenesis | `#lsystem name=plant axiom=F rules=0:F->F[+F]F` |
 | `#field` | reaction-diffusion field parameters | `#field size=32 F=0.035 k=0.065` |
 | `#config` | run configuration | `#config ticks=100 output=stdout` |
+| `#media` | growth medium (sim backends) | `#media nutrient=GLC concentration=10.0` |
+| `#enzyme` | bind a gene to an FBA reaction | `#enzyme gene=glk reaction=HEX1` |
+| `#metabolite` | initialise an intracellular pool | `#metabolite name=glc__D init=0.5` |
+| `#sim` | long-tail backend hook | `#sim kind=spatial_dfba length=32` |
 
 ### Basic Structure
 
@@ -46,13 +50,14 @@ ATG GCT GGT TAA
 #config ticks=<number of ticks> output=<output format>
 ```
 
-`#config` keys are `ticks`, `output`, and the grid sizes `grid_width` /
-`grid_height` (see `doc/language-spec.md`). The runtime runs on **physical
-units** end-to-end (no `units=` key): energy counts are ATP molecules,
-signals are µM, diffusion is µm²/s, and one tick is one minute. GRN decay
-defaults to the 110-min protein half-life (≈ 0.994/tick), quorum fires at
-10 µM AI-2, and the division threshold is reachable in ~20 rich-medium
-minutes. See `doc/simulation-model.md` §6.3 and `doc/language-spec.md` §3.6.
+`#config` keys are `ticks`, `output`, `table`, `ops_per_tick`, `react_steps`,
+`use_central_dogma`, `species`, and `backend` (see `doc/language-spec.md`
+§3.6). The classic runtime runs on **physical units** end-to-end: energy
+counts are ATP molecules, signals are µM, diffusion is µm²/s, and one tick
+is one minute. GRN decay defaults to the 110-min protein half-life
+(≈ 0.994/tick), quorum fires at 10 µM AI-2, and the division threshold is
+reachable in ~20 rich-medium minutes. See `doc/simulation-model.md` §6.3 and
+`doc/language-spec.md` §3.6.
 
 ### DNA Triplet Rules
 
@@ -233,17 +238,56 @@ rules=0:F->F[+F]F[-F]F;1:X->FX
         table=<translation table>
         ops_per_tick=<instructions per tick>
         react_steps=<reaction-diffusion sub-steps>
+        backend=<classic|whole_cell|population|fba|calibration|benchmark>
 ```
 
 ### Parameter Descriptions
 
 | Parameter | Default | Description |
 |---|---|---|
-| `ticks` | 1 | number of simulation ticks |
+| `ticks` | 100 | number of simulation ticks |
 | `output` | `stdout` | output format: `stdout` / `csv` / `png` / `json` |
-| `table` | `standard` | translation table: `standard` / `mito` / `ciliate` |
-| `ops_per_tick` | 100 | number of instructions executed per tick |
+| `table` | `standard` | translation table: `standard` / `mito_vertebrate` / `ciliate` |
+| `ops_per_tick` | 64 | number of instructions executed per tick |
 | `react_steps` | 1 | reaction-diffusion sub-steps per tick |
+| `backend` | `classic` | runtime selector; see §6.1 (sim backends) |
+
+### 6.1 Simulation backends
+
+Setting `#config backend` switches the run from the classic bytecode VM to
+the quantitative simulation library (`helixlang.sim_runtime`). The same
+`#gene` / `#promoter` / `#regulate` declarations plus `#media` / `#enzyme`
+/ `#metabolite` and `#config` sim keys drive the chosen simulator:
+
+| Backend | What runs | `ticks` means |
+|---|---|---|
+| `classic` | the bytecode VM (default; unchanged) | ticks |
+| `whole_cell` | `VirtualCell` — cell cycle, adder size control, protein maturation, enzyme-constrained FBA | minutes |
+| `population` | `CellPopulation3D` — shared `Environment`, per-cell dFBA, colony observables | ticks |
+| `fba` | `FluxBalanceAnalysis` (static) or `DynamicFluxBalance` (`dynfba=true`) | steps |
+| `calibration` | recover the four hidden whole-cell parameters from synthetic observables | — |
+| `benchmark` | the 4-gate calibrate→predict whole-cell benchmark | — |
+
+Sim configuration uses `#config` keys that mirror the target dataclass
+fields — e.g. `division_rule=adder`, `population_size=2000`, `dfba=true`,
+`fba_model=core dynfba=true` — plus `seed=` for determinism and
+`output=` for column selection. Example (population colony with per-cell
+dFBA):
+
+```
+#media nutrient=GLC concentration=10.0 diffusion_um2_s=300
+#media nutrient=O2  concentration=0.25 diffusion_um2_s=1600
+#config backend=population
+#config population_size=2000 grid_width=64 grid_height=64
+#config dfba=true dfba_dt_h=0.1 dfba_oxygen_max_uptake=20.0
+#config signaling=true signal_diffusion=0.3 signal_threshold=20.0
+#config ticks=60
+#config output=alive_count,core_oxygen_mm,edge_oxygen_mm,core_acetate_mm,edge_acetate_mm
+```
+
+Full key tables and coercion rules are in `doc/helix-language-wiring.md`
+§6.2–6.3; new examples run as
+`helixlang examples/32_colony_dfba.helix --csv`.
 
 ### Variable Translation Table Example
 
@@ -255,7 +299,7 @@ ATG TGA GCT TAA
 #config ticks=1 output=stdout table=standard
 # standard table: TGA = Stop → ORF terminates immediately
 
-#config ticks=1 output=stdout table=mito
+#config ticks=1 output=stdout table=mito_vertebrate
 # mitochondrial table: TGA = Trp → continues until TAA terminates
 ```
 
@@ -263,7 +307,7 @@ ATG TGA GCT TAA
 
 ## 7. Bio Module Python API Calls
 
-HelixLang's biological function modules (central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution) are called through the Python API and are not used directly in `.helix` annotations.
+HelixLang's biological function modules (central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution) are callable through the Python API. The metabolism module is additionally reachable from `.helix` source via `#config backend=fba` (§6.1) with `#media` / `#enzyme` annotations; the remaining modules below are Python-first.
 
 ### Central Dogma
 
@@ -286,6 +330,15 @@ fba.set_uptake("GLC", 10.0)
 fluxes = fba.solve()
 report = fba.analyze()
 print(f"Biomass yield: {report['biomass_yield']:.4f}")
+```
+
+The same static solve (plus `DynamicFluxBalance` batches) runs in-language as:
+
+```
+#media nutrient=GLC concentration=10.0
+#config backend=fba
+#config fba_model=core output=BIOMASS,EX_glc,growth_rate_per_hour
+#config dynfba=true fba_dt_h=0.25 fba_oxygen_max=20.0 fba_steps=32
 ```
 
 ### Protein Structure Prediction

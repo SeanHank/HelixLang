@@ -1,57 +1,12 @@
-# Example 30: virtual-cell calibration -> prediction workflow (S9)
-# The whole-cell-modeling validation loop in miniature, mirroring the
-# "calibrate then predict" protocol of the Virtual Cell Challenge 2025:
-# a VirtualCell (central dogma + GRN + FBA metabolism + cell-cycle energy
-# budget, Karr et al. 2012) is *calibrated* on one growth condition and
-# then *predicts* an independent condition from fitted parameters alone.
-#
-# The benchmark in helixlang.apps.virtual_cell_bench hides a true
-# biomass-to-ATP conversion constant (5.0e6) behind a synthetic trajectory
-# (GLC 10 mM, 20 min).  A calibration pass searches + refines that constant
-# from the observed energy alone, then the fitted model predicts a harder
-# condition (GLC 20 mM, 60 min) and must land on the ground-truth energy:
-#
-#   fit        -> biomass_to_atp 5.000e6 (truth 5.000e6, rel err 0.0%)
-#   prediction -> energy 284,982,601 ATP (alive=True, proteins=3), alive
-#                 and protein counts match the ground-truth model exactly
-#   benchmark  -> passed (calibrated=True, predicted=True)
-#
-#gene name=virtual_cell
-ATG GCT GGT GTA TAA
-#end
-#
-#config ticks=100 output=stdout
-#
-# # Python API for the calibration -> prediction loop:
-# #
-# # from helixlang.apps.virtual_cell_bench import (VirtualCellBench,
-# #                                               VirtualCellBenchConfig,
-# #                                               run_virtual_cell_benchmark)
-# #
-# # bench = VirtualCellBench(VirtualCellBenchConfig(
-# #     truth_biomass_to_atp=5.0e6,
-# #     truth_maintenance_atp_per_min=2.5e7,
-# #     calibration_uptake={"GLC": 10.0},
-# #     prediction_uptake={"GLC": 20.0},
-# #     calibration_minutes=20,
-# #     prediction_minutes=60,
-# # ))
-# # print(f"observed energy @ t={bench.config.calibration_minutes}: "
-# #       f"{bench.observed_energy[-1]:,.0f} ATP")
-# #
-# # fit = bench.calibrate()
-# # fitted = fit["best"]["biomass_to_atp"]
-# # print(f"fitted biomass_to_atp : {fitted:.3e}")
-# # print(f"fit evaluations       : {fit['n_samples']}")
-# #
-# # truth = bench.run_prediction(bench.config.truth_biomass_to_atp)
-# # prediction = bench.run_prediction(fitted)
-# # print(f"ground-truth energy   : {truth['energy']:,.0f} ATP "
-# #       f"(alive={truth['alive']}, proteins={truth['proteins']})")
-# # print(f"fitted-model energy   : {prediction['energy']:,.0f} ATP "
-# #       f"(alive={prediction['alive']}, proteins={prediction['proteins']})")
-# #
-# # result = run_virtual_cell_benchmark()
-# # print(f"benchmark passed      : {result['passed']} "
-# #       f"(calibrated={result['calibration_recovered']}, "
-# #       f"predicted={result['prediction_matches']})")
+# Example 30: virtual-cell calibration -> prediction workflow
+# The "calibrate then predict" protocol of the Virtual Cell Challenge 2025
+# runs on backend=benchmark: fit the hidden biomass-to-ATP constant on the
+# calibration condition, predict the harder one, report the four gates.
+# The Python VirtualCellBench block that used to live here is gone.
+
+#config backend=benchmark
+#config truth_biomass_to_atp=5e6 truth_maintenance_atp_per_min=2.5e7
+#config calibration_uptake=GLC=10.0 calibration_minutes=20
+#config prediction_uptake=GLC=20.0 prediction_minutes=60
+#config n_samples=150 fit_seed=0
+#config output=scores,passed,all_passed

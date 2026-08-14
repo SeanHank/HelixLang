@@ -1,0 +1,11 @@
+# Example 33: FBA - batch dFBA diauxie trace (NEW)
+# backend=fba with dynfba=true runs the DynamicFluxBalance batch that
+# examples/20 and 24 could only describe in comments. Glucose is the single
+# #media nutrient; the O2 cap drives overflow. No genes required.
+
+#media nutrient=GLC concentration=10.0
+
+#config backend=fba
+#config fba_model=core dynfba=true
+#config fba_dt_h=0.25 fba_oxygen_max=20.0 fba_steps=32
+#config output=time_h,biomass,glucose,co2,growth_rate

@@ -226,6 +226,13 @@ class ConcentrationField:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.concentration[y][x] = max(0.0, float(value))
 
+    def set_all(self, value: float) -> None:
+        """Set the whole field to a uniform concentration (mM)."""
+        v = max(0.0, float(value))
+        self.concentration = [
+            [v] * self.width for _ in range(self.height)
+        ]
+
     def add(self, x: int, y: int, amount: float) -> None:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.concentration[y][x] = max(

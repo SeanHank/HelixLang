@@ -47,7 +47,9 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
 - 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding (true base-3 Huffman, ~5.05 trits/byte) and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
 - 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
-- 🧪 **Frontier biology** — the frontier tier turns the simulator into a quantitative model: **programmable cells** (per-cell GRN + bytecode in a multicellular population), **stochastic gene expression** (telegraph two-state promoter, SSA, Fano-factor noise; Peccoud & Ycart 1995), **environment-coupled Monod metabolism** (Monod 1949; Kovárová-Kovar & Egli 1998) with CROMICS cell-crowding diffusion (PLOS Comput Biol 2021 e1009140/e1009158), **dynamic FBA** batch/diauxic simulation (Mahadevan 2002), and spatial cell mechanics — all grounded in `units.py`.
+- 🧪 **Frontier biology** — the frontier tier turns the simulator into a quantitative model: **programmable cells**, **stochastic gene expression**, **environment-coupled Monod metabolism** with CROMICS cell-crowding diffusion, **dynamic FBA** batch / diauxic simulation, and spatial cell mechanics.
+- 🧬 **Whole-cell realism** — the integrated `VirtualCell` is now a physically complete model: cell-cycle phasing with scheduled Cooper–Helmstetter chromosome replication, real volume in µm³ with **adder** size control, chaperone protein maturation / QC , **enzyme-constrained FBA**  with intracellular pools and a multicellular closure.
+- 🖥️ **Simulation backends from source** — `#config backend=whole_cell|population|fba|calibration|benchmark` runs the whole quantitative stack from `.helix` source (via `helixlang.sim_runtime`), with `#media`/`#enzyme`/`#metabolite` annotations, `seed=` determinism, `--backend`/`--json` CLI flags and a `POST /api/sim/run` web endpoint. `backend=classic` stays the default, bit-identical.
 
 ---
 
@@ -230,6 +232,42 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 
 > 💡 Note the two distinct pipelines: the **compiler** translates `ATG GCT` into VM opcode bytes; the **DNA codec** maps the entire `.helix` file as a byte stream onto ACGT strings for real wet-lab DNA data storage. The two are fully orthogonal.
 
+### 6. Simulation Backends — quantitative runs from `.helix`
+
+`#config backend` selects the quantitative simulator instead of the bytecode VM (see `doc/bio-instructions.md` §6.1). All examples ship in `examples/`:
+
+| Example | Backend | What it demonstrates |
+|---|---|---|
+| `10_metabolism_fba.helix` | `fba` | static FBA biomass solve + enzyme-bound reactions |
+| `20_diauxic_growth.helix` | `fba` (dynfba) | glucose→acetate diauxic batch curve |
+| `21_quorum_circuit.helix` | `population` | quorum-sensing colony of 81 cells |
+| `22_pattern_synthesis.helix` | `population` (mechanics=force) | self-organizing morphogen/pigment pattern |
+| `24_spatial_diauxie.helix` | `population` (`#sim kind=spatial_dfba`) | depletion-front oxygen/CO₂ overflow |
+| `30_virtual_cell.helix` | `benchmark` | 4-gate calibrate→predict whole-cell benchmark |
+| `31_whole_cell_adder.helix` | `whole_cell` | adder size control, replication, maturation |
+| `32_colony_dfba.helix` | `population` | 2000-cell colony with per-cell dFBA |
+| `33_fba_diauxie.helix` | `fba` (dynfba) | dynamic FBA trace of `20` |
+| `34_whole_cell_calibration.helix` | `calibration` | recover hidden whole-cell parameters |
+| `11_protein_structure.helix` | `#sim kind=protein_structure` | Chou-Fasman secondary-structure report |
+| `12_multi_species.helix` | `#sim kind=codon_usage` | per-species codon adaptation index |
+| `14_synbio_designer.helix` | `#sim kind=synbio_design` | promoter→RBS→GOI→terminator cassette design |
+| `15_3d_morphology.helix` | `#sim kind=3d_morphology` | L-system 3D plant mesh statistics |
+| `23_evolve_signal.helix` | `#sim kind=digital_evolution` | Avida-style 12-bit signal evolution |
+| `25_morphogen_gradient.helix` | `#sim kind=morphogen_gradient` | French-flag positional-information domains |
+| `26_cello_workflow.helix` | `#sim kind=cello_workflow` | truth table → DNA + SBOL3 closed loop |
+| `27_codec_benchmark.helix` | `#sim kind=codec_benchmark` | DNA-storage codec loss/error tolerance |
+| `28_fate_analysis.helix` | `#sim kind=fate_analysis` | toggle-switch bistability / slowing |
+| `29_directed_evolution.helix` | `#sim kind=directed_evolution` | oracle-guided GB1 protein engineering |
+
+```bash
+helixlang examples/10_metabolism_fba.helix --json   # machine-readable
+helixlang examples/31_whole_cell_adder.helix --csv
+helixlang examples/24_spatial_diauxie.helix --backend population
+```
+
+Deterministic with `seed=`; same source parses under the classic backend
+(`backend=classic`) for a bit-identical bytecode run.
+
 ---
 
 ## 🏗️ Architecture
@@ -276,17 +314,17 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [stochastic](src/helixlang/stochastic.py) | Two-state (telegraph) promoter Fano factor + Gillespie SSA of bursty gene expression (Peccoud & Ycart 1995) |
 | [environment](src/helixlang/environment.py) | Diffusing nutrient/O₂ fields (µm²/s Fick diffusion), Monod / Michaelis-Menten uptake, chemostat flow, CROMICS crowding factor |
 | [lsystem](src/helixlang/lsystem.py) / [reaction_diffusion](src/helixlang/reaction_diffusion.py) | L-system morphology + Gray-Scott field |
-| [central_dogma](src/helixlang/central_dogma.py) | Transcription / translation / coupling — codon-specific elongation rates, per-gene mRNA half-lives |
-| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + dN/dS codon-substitution models + programmable-cell population (per-cell GRN + bytecode, CROMICS diffusion, shoving/force mechanics, trace streaming) |
+| [central_dogma](src/helixlang/central_dogma.py) | Transcription / translation / coupling — codon-specific elongation rates, per-gene mRNA half-lives, `ProteinPool` chaperone maturation & QC, memoized rho-independent terminator scan |
+| [evolution](src/helixlang/evolution.py) / [population](src/helixlang/population.py) | Wright-Fisher evolution + dN/dS codon-substitution models + programmable-cell population (per-cell GRN + bytecode, CROMICS diffusion, shoving/force mechanics, trace streaming), per-cell dFBA in a shared environment, colony observables & metabolic stratification |
 | [crispr](src/helixlang/crispr.py) | Cas variants / sgRNA design (nearest-PAM or max-score) / Doench 2016 on-target scoring / off-target prediction |
 | [epigenetics](src/helixlang/epigenetics.py) | CpG islands / methylation / histone modification |
-| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG `load_model`) and dynamic FBA batch/diauxic simulation (Mahadevan 2002) |
+| [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG load_model), enzyme-constrained FBA (kcat capacity bound by protein pools, MOMENT/GECKO), `MetabolitePool` intracellular dynamics, dynamic FBA batch/diauxic simulation (Mahadevan 2002) |
 | [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
 | [protein_fitness](src/helixlang/protein_fitness.py) | Fitness oracles: BLOSUM62 conservation + ESM-2 pseudo-likelihood + variant ranking |
 | [morphology_3d](src/helixlang/morphology_3d.py) | 3D population + 3D concentration-field diffusion (6/26-connectivity) + LSystem3D |
 | [vectorized](src/helixlang/vectorized.py) | Across-cell numpy GRN step, stable cell sorting, snapshot iteration, optional jit |
 | [omics](src/helixlang/omics.py) | Spatial-omics: expression matrices → GRN states / FBA bounds, spatial atlas, heterogeneity (ARI) |
-| [virtual_cell](src/helixlang/virtual_cell.py) | Virtual-cell budget model (GRN → central dogma → FBA), gene encoding, parameter fitting, biofilm/perturbation benchmarks |
+| [virtual_cell](src/helixlang/virtual_cell.py) | Whole-cell budget model — cell-cycle phasing + Cooper–Helmstetter chromosome replication, physical volume + adder size control with threshold noise, protein maturation/QC, enzyme-constrained FBA wiring, gene encoding, `fit_parameters` inverse-variance-weighted fitting |
 | [apps/consortium](src/helixlang/apps/consortium.py) | Synthetic microbial consortium — quorum consensus vote + composition (ratio) control |
 | [apps/morphogen_gradient](src/helixlang/apps/morphogen_gradient.py) | French-flag positional information — diffusing morphogen + cross-repression thresholds (Wolpert 1969) |
 | [apps/digital_evolution](src/helixlang/apps/digital_evolution.py) | Digital organisms evolve a signal task — Wright-Fisher + Eigen error catastrophe (Avida paradigm) |
@@ -295,14 +333,16 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | [apps/spatial_dfba](src/helixlang/apps/spatial_dfba.py) | Spatial dynamic-FBA biofilm — 1-D glucose gradient, diffusion-coupled dFBA batches, depletion fronts |
 | [apps/fate_analysis](src/helixlang/apps/fate_analysis.py) | Cell-fate decision analysis — toggle-switch bistability scan + stochastic switching + critical slowing down |
 | [apps/protein_evolution](src/helixlang/apps/protein_evolution.py) | ML-guided directed evolution of GB1 — ESM-2/BLOSUM oracle, top-K screening vs random baseline, Spearman alignment |
-| [apps/virtual_cell_bench](src/helixlang/apps/virtual_cell_bench.py) | Whole-cell calibration → prediction benchmark (fit biomass-to-ATP constant, then predict an independent condition) |
+| [apps/virtual_cell_bench](src/helixlang/apps/virtual_cell_bench.py) | 4-gate whole-cell benchmark (`run_whole_cell_benchmark`) — essentiality accuracy, batch doubling-time fidelity, adder slope, colony radial density profile |
 | [apps/omics_calibration](src/helixlang/apps/omics_calibration.py) | Omics-level parameter calibration — CRISPRi PerturbSeq with negative-binomial noise, VCC-style log fold-change vs WT, inverse-variance weighted `fit_parameters` |
 | [apps/whole_cell_scale](src/helixlang/apps/whole_cell_scale.py) | Whole-cell scale — FASTA genome loader (RBS + bare-ORF fallback), KO→FBA gene-essentiality screening (Feist 2007 / EcoCyc) |
+| [apps/whole_cell_calibration](src/helixlang/apps/whole_cell_calibration.py) | Whole-cell calibration closure — two-stage separable fit recovering adder / k_fold / enzyme-scale / maintenance from mixed observables; adder-noise robustness via population averaging (`n_cells`) |
 | [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
 | [type_system](src/helixlang/type_system.py) | Type checker + symbol table |
 | [debugger](src/helixlang/debugger.py) | Bytecode-level debugger (breakpoints / stepping / state inspection) |
+| [sim_runtime](src/helixlang/sim_runtime.py) | `#config backend` adapter — classic/whole_cell/population/fba/calibration/benchmark dispatch, key→dataclass coercion, `SimResult` (`to_dict`/CSV columns), determinism via `seed=` |
 | [server](src/helixlang/server.py) / [web/](src/helixlang/web/) | Flask REST API + visualization frontend |
 | [cli](src/helixlang/cli.py) | Command-line entry point |
 
@@ -322,6 +362,7 @@ Main REST endpoints:
 |----------|----------|
 | `POST /api/compile` | Compile source, return disassembly + AST summary |
 | `POST /api/run` | Compile and run, return trace + GRN + morphology |
+| `POST /api/sim/run` | Run a sim backend (classic/whole_cell/population/fba/calibration/benchmark) from source; returns `SimResult` JSON |
 | `POST /api/dna/encode` | DNA data-storage encoding (goldman / erlich) |
 | `POST /api/dna/decode` | DNA data-storage decoding |
 | `GET  /api/bio/codon-usage` | Codon usage frequency table (ecoli / yeast / human) |
@@ -355,7 +396,9 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`production-upgrade.md`](doc/production-upgrade.md) | Maintainers | Plan to replace education-oriented implementations with literature-backed engineering-grade ones, preserving the public API |
 | [`frontier-biology-analysis.md`](doc/frontier-biology-analysis.md) | Researchers | The tiered frontier upgrade plan — programmable cells, stochastic expression, CROMICS crowding, dFBA, mechanics, pattern synthesis — each tier literature-verified with explicit failure budgets |
 | [`prototype-plan.md`](doc/prototype-plan.md) | Contributors | Prototype milestones, validation cases, test matrix, and future roadmap |
-| [`references.md`](doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
+| [`whole-cell-realism.md`](doc/whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
+| [`helix-language-wiring.md`](doc/helix-language-wiring.md) | Language designers | Wires the simulation library into `.helix`: `#config backend`, `#media`/`#enzyme`/`#metabolite`, the `sim_runtime` adapter, CLI/`/api/sim/run`, example coverage audit (wired vs Python-only) + W-6 backlog |
+| [`references.md`](doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
 
 ### Suggested reading order
 
@@ -382,10 +425,10 @@ ruff check src tests
 mypy
 ```
 
-- **1879 test cases** (1879 passing, 89% coverage)
+- **1972 test cases** (1972 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 30 `examples/*.helix` covered + Python API companions
+- All `examples/*.helix` covered + Python API companions
 
 ---
 

@@ -55,6 +55,66 @@ AI2_DIFFUSION_UM2_S = 100.0
 #: tick duration (s) used for the on-lattice diffusion conversion
 DIFFUSION_DT_S = 60.0
 
+# ============================================================================
+# Chromosome replication timing (Phase 1: cell cycle, Cooper & Helmstetter
+# 1968 J Mol Biol 31:519-540)
+# ============================================================================
+#: C period: minutes for one round of bidirectional chromosome replication
+#: (~40 min for E. coli B/r in rich medium at 37 °C).
+UNITS_CELL_C_PERIOD_MIN = 40.0
+
+#: D period: minutes between replication termination and cell division
+#: (~20 min for E. coli B/r).
+UNITS_CELL_D_PERIOD_MIN = 20.0
+
+#: rich-medium doubling time tau (min).  Replication origins fire every tau
+#: minutes; with tau < C + D this is the multifork regime (origin copies
+#: double before the previous round terminates), which is the canonical
+#: E. coli fast-growth pattern (Cooper & Helmstetter 1968; Karr et al.
+#: 2012 integrate it as scheduled per-chromosome replication).
+UNITS_CELL_DOUBLING_TIME_RICH_MIN = 20.0
+
+# ============================================================================
+# Cell size / density anchors (Phase 2: volume growth & adder)
+# ============================================================================
+# E. coli cell-density anchors used to convert biomass flux into a physical
+# volume (µm^3).  ~0.28 pg of dry mass per µm^3 of wet cell and ~0.15 pg per
+# µm^3 of dry cell (Milo & Phillips 2015, Cell Biology by the Numbers;
+# Taheri-Araghi 2015 Curr Biol 25:385-391).
+UNITS_CELL_DENSITY_WET_PG_UM3 = 0.28
+UNITS_CELL_DENSITY_DRY_PG_UM3 = 0.15
+
+#: newborn E. coli volume in rich medium (~1.6 µm^3; Taheri-Araghi 2015)
+UNITS_CELL_VOLUME_NEWBORN_UM3 = 1.6
+
+#: adder rule: a rod-shaped bacterium divides when it has added a constant
+#: volume Δ since birth, independent of birth size (Taheri-Araghi 2015;
+#: Jun 2018 Rep Prog Phys 81:056601).  In rich medium Δ ≈ V_birth.
+UNITS_ADDER_VOLUME_UM3 = 1.6
+
+#: surface-to-volume exponent for uptake scaling (V^(2/3) ~ surface of a
+#: sphere/rod), used by the Phase-2 ``surface_scaling`` option.
+UNITS_CELL_SURFACE_EXPONENT = 2.0 / 3.0
+
+# ============================================================================
+# Protein maturation / folding / QC anchors (Phase 3, Balchin 2016)
+# ============================================================================
+#: ATP cost to fold one protein through the chaperone machinery (order
+#: 10^1-10^2 ATP per protein; GroEL-GroES uses ~7 ATP per folding cycle and
+#: a substrate may require several cycles; Balchin 2016 Science
+#: 353:aac4354).
+PROTEIN_FOLDING_ATP_PER_PROTEIN = 50.0
+#: first-order folding rate (per min) for unfolded, chaperone-bound protein
+PROTEIN_FOLD_RATE_PER_MIN = 1.0
+#: first-order misfolding rate (per min) competing with folding; the folded
+#: fraction at equilibrium is k_fold/(k_fold+k_misfold)
+PROTEIN_MISFOLD_RATE_PER_MIN = 0.05
+#: misfolded -> aggregate rate (per min); aggregates are inert (not removed)
+PROTEIN_AGGREGATION_RATE_PER_MIN = 0.02
+#: misfolded -> degraded rate (per min; Lon/Clp remove misfolded protein
+#: much faster than folding)
+PROTEIN_DEGRADED_RATE_PER_MIN = 5.0
+
 
 # ============================================================================
 # Derived conversions
@@ -120,6 +180,17 @@ __all__ = [
     "TIME_TICK_MIN", "TIME_TICK_S", "LATTICE_SPACING_UM",
     "ATP_PER_GLUCOSE", "PROTEIN_HALF_LIFE_MEDIAN_TICKS",
     "AI2_DIFFUSION_UM2_S", "DIFFUSION_DT_S",
+    # chromosome replication timing (Phase 1)
+    "UNITS_CELL_C_PERIOD_MIN", "UNITS_CELL_D_PERIOD_MIN",
+    "UNITS_CELL_DOUBLING_TIME_RICH_MIN",
+    # cell volume / density / adder (Phase 2)
+    "UNITS_CELL_DENSITY_WET_PG_UM3", "UNITS_CELL_DENSITY_DRY_PG_UM3",
+    "UNITS_CELL_VOLUME_NEWBORN_UM3", "UNITS_ADDER_VOLUME_UM3",
+    "UNITS_CELL_SURFACE_EXPONENT",
+    # protein maturation / folding / QC (Phase 3)
+    "PROTEIN_FOLDING_ATP_PER_PROTEIN", "PROTEIN_FOLD_RATE_PER_MIN",
+    "PROTEIN_MISFOLD_RATE_PER_MIN", "PROTEIN_AGGREGATION_RATE_PER_MIN",
+    "PROTEIN_DEGRADED_RATE_PER_MIN",
     # conversions
     "ticks_to_min", "diffusion_to_lattice", "diffusion_lattice_to_dx",
     "decay_from_half_life_ticks", "decay_to_half_life_ticks",

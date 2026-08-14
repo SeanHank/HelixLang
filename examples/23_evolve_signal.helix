@@ -10,31 +10,17 @@
 #
 # The digital organism must learn to emit a 12-bit target signal:
 #   1010 1100 1011
-# The evolutionary dynamics are driven by the Python API shown at the
-# end; the HelixLang program below keeps this file in the example suite
-# (a signal gene emitting the standard hello program).
-#
+# The evolutionary dynamics run through the #sim extension point
+# (kind=digital_evolution) using helixlang.apps.digital_evolution; the
+# HelixLang #gene below keeps this file in the example suite (a signal
+# gene emitting the standard hello program).
+
 #gene name=signal
 ATG GCT GGT GTA TAA
 #end
-#
-#config ticks=300 output=stdout
-#
-# # Python API for the digital evolution run:
-# #
-# # from helixlang.apps.digital_evolution import (DigitalEvolution,
-# #                                              DigitalEvolutionConfig)
-# # evo = DigitalEvolution(DigitalEvolutionConfig(
-# #     population_size=200,
-# #     genome_length=12,
-# #     target=(1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1),
-# #     substitution_rate=0.01,      # per-instruction mutation rate
-# #     insertion_rate=0.001,
-# #     deletion_rate=0.001,
-# #     generations=300,
-# #     seed=3,
-# # ))
-# # evo.run()
-# # print("mean fitness:", evo.mean_fitness())
-# # print("max  fitness:", evo.max_fitness())
-# # print("fittest genome:", evo.fittest_genome())
+
+#config backend=fba ticks=1
+#sim kind=digital_evolution target=101011001011
+#sim population_size=200 genome_length=12 substitution_rate=0.01
+#sim insertion_rate=0.001 deletion_rate=0.001 generations=300 seed=3
+#sim output=generation,mean_fitness,max_fitness

@@ -1,0 +1,9 @@
+# Example 34: Whole-cell calibration (NEW)
+# Recovers the hidden enzyme_scale/maintenance/adder/k_fold parameters from
+# synthetic observables. adder_noise_std>0 makes each generation's added
+# volume noisy, so n_cells independent cells back every observable vector.
+
+#config backend=calibration
+#config fit_seed=1 n_samples=60 refine_rounds=2
+#config adder_noise_std=0.1 n_cells=4
+#config output=best,sse,n_samples

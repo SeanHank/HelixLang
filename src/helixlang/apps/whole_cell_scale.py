@@ -35,6 +35,7 @@ from helixlang.bio_data import ECOLI_CODON_USAGE
 from helixlang.central_dogma import transcribe, translate
 from helixlang.grn import GRN
 from helixlang.metabolism import (
+    ECOLI_CORE_GENE_REACTIONS,
     ECOLI_CORE_MODEL,
     FluxBalanceAnalysis,
     MetabolicModel,
@@ -49,37 +50,9 @@ DEFAULT_UPTAKE_GLC = 10.0
 
 #: E. coli core-model gene -> reaction associations (Orth 2010 core model;
 #: a reaction is gated by all of its genes, so deleting any one gene
-#: removes the reaction when no isozyme copy exists)
-ECOLI_CORE_GENE_REACTIONS: dict[str, tuple[str, ...]] = {
-    "ptsG": ("GLCpts",),
-    "glk": ("GLK",),
-    "pgi": ("PGI",),
-    "pfkA": ("PFK",),
-    "fba": ("FBA",),
-    "tpiA": ("TPI",),
-    "gapA": ("GAPD",),
-    "pgk": ("PGK",),
-    "pgm": ("PGM",),
-    "eno": ("ENO",),
-    "pykA": ("PYK",),
-    "aceE": ("PDH",),
-    "gltA": ("CS",),
-    "acnB": ("ACONT",),
-    "icdA": ("ICDH",),
-    "sucAB": ("AKGDH",),
-    "sucCD": ("SUCCt", "SUCOAS"),
-    "sdhA": ("SUCDHi",),
-    "fumA": ("FUM",),
-    "mdh": ("MDH",),
-    "ppc": ("PPC",),
-    "zwf": ("G6PDH",),
-    "gnd": ("PGD",),
-    "rpiA": ("RPI",),
-    "ldhA": ("LDH",),
-    "pta": ("PTA_ACK",),
-    "ackA": ("PTA_ACK",),
-    "atpF": ("NADH_OX",),
-}
+#: removes the reaction when no isozyme copy exists).  Canonical copy lives
+#: in :mod:`helixlang.metabolism` (the Phase-4 enzyme-capacity wiring);
+#: re-exported here for ``ko_model``/``predict_essentiality``.
 
 #: EcoCyc glucose-minimal essentiality labels (Gerdes 2003, Kim & Copley
 #: 2007) for the genes the reduced core model represents faithfully.

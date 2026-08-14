@@ -1,25 +1,15 @@
 # Example 16: Population dynamics - multicellular population simulation
-# Shows mutual regulation of multiple cell types within a population (quorum sensing / resource competition)
-#
-# Two cell types:
-#   producer  : continuously synthesizes signal molecules (quorum-sensing signal AI)
-#   responder : responds to AI concentration and expresses a reporter gene once a threshold is reached
-#
-# p_auto constitutively expresses producer; once AI accumulation crosses the threshold, responder's p_quorum is activated.
-# This .helix file declares the quorum-sensing threshold via the #quorum bio-instruction annotation,
-# targeting reporter (activates reporter-gene expression once AI concentration reaches 5.0).
-# HelixLang's single-cell VM uses #gene/#regulate to describe intracellular networks;
-# the coupling of the multicellular population (signal diffusion, division, death, drift) is described via the Python API below:
+# Producer cells secrete the AI signal; the responder's reporter turns on
+# once the shared field crosses the quorum threshold. Everything below runs
+# in-language on backend=population; the Python evolve() loop is gone.
 
 #promoter name=p_auto strength=-0.4
 #promoter name=p_quorum strength=0.7
 
-# producer cell: synthesizes signal molecules
 #gene name=ai_synth promoter=p_auto
 ATG GCT GCT GCT GCT TAA
 #end
 
-# responder cell: expresses the reporter gene in response to AI
 #gene name=reporter promoter=p_quorum
 ATG GGT GGT GGT GGT TAA
 #end
@@ -27,32 +17,13 @@ ATG GGT GGT GGT GGT TAA
 #regulate p_auto -> ai_synth strength=+0.8
 #regulate p_quorum -> reporter strength=+0.9
 
-# Quorum-sensing instruction: activates reporter when signal-molecule concentration reaches threshold=5.0
-# The parser records it as BioInstruction(kind=quorum, target=reporter, params={threshold:5.0})
 #quorum target=reporter threshold=5.0
 
-# Note: the following is a Python API example for multicellular population simulation (equivalent to the #quorum annotation above)
-# --- for use in scripts (not .helix annotations) ---
-#
-# from helixlang.population import Population, PopulationConfig, PopulationCell
-#
-# config = PopulationConfig(
-#     max_size=1000,
-#     division_threshold=200.0,
-#     death_threshold=0.0,
-#     signal_diffusion=0.4,
-#     signal_threshold=5.0,
-# )
-#
-# initial_cells = [PopulationCell() for _ in range(100)]
-# pop = Population(initial_cells, config=config)
-#
-# history = pop.evolve(generations=30)
-# for t, snap in enumerate(history):
-#     print(f"tick {t:2d}: size={snap['alive_count']:4d} "
-#           f"diversity={snap['diversity_index']:.2f} "
-#           f"energy={snap['avg_energy']:.2f}")
-#
-# # Output population dynamics curves (exponential growth -> quorum-sensing activation -> steady state)
+#media nutrient=GLC concentration=10.0
 
-#config ticks=30 output=csv
+#config backend=population
+#config population_size=1000 grid_width=32 grid_height=32
+#config division_threshold=200.0 death_threshold=0.0
+#config signaling=true signal_diffusion=0.4 signal_threshold=5.0
+#config ticks=30
+#config output=alive_count,avg_energy,diversity_index

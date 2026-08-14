@@ -73,6 +73,34 @@ class MorphogenFeedback:
 
 
 @dataclass(slots=True)
+class MediaDecl:
+    """Growth medium declaration (#media): a nutrient concentration (mM).
+
+    The backend adapter turns these into FBA uptake bounds
+    (``VirtualCellConfig.uptake`` / ``DynamicFBAConfig``) or shared
+    ``Environment`` field inits for the population backend.
+    """
+    nutrient: str
+    concentration: float
+    diffusion_um2_s: float | None = None
+
+
+@dataclass(slots=True)
+class EnzymeDecl:
+    """Enzyme--reaction binding (#enzyme) for enzyme-constrained FBA."""
+    gene: str
+    reaction: str
+    kcat: float | None = None
+
+
+@dataclass(slots=True)
+class PoolDecl:
+    """Intracellular metabolite pool initialisation (#metabolite)."""
+    name: str
+    init: float = 0.0
+
+
+@dataclass(slots=True)
 class Config:
     """Runtime config."""
     ticks: int = 100
@@ -84,6 +112,12 @@ class Config:
     use_central_dogma: bool = False
     # Species (affects codon usage, tRNA abundance)
     species: str = "ecoli"
+    # Backend selector: classic (bytecode VM) | whole_cell | population |
+    # fba | calibration | benchmark (see helix-language-wiring.md)
+    backend: str = "classic"
+    # Simulation parameters not consumed by the classic pipeline, preserved
+    # verbatim as strings; coerced by the backend adapter (sim_runtime.py).
+    sim: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -114,3 +148,9 @@ class Program:
     bio_instructions: list[BioInstruction] = field(default_factory=list)
     # Type annotations (P0-1.3 type system)
     type_annotations: dict[str, str] = field(default_factory=dict)
+    # Simulation-library declarations (consumed by sim_runtime, inert under classic)
+    media: list[MediaDecl] = field(default_factory=list)
+    enzymes: list[EnzymeDecl] = field(default_factory=list)
+    pools: list[PoolDecl] = field(default_factory=list)
+    # Open #sim key=value extension point (forward-compatible long-tail hook)
+    sim_extensions: dict[str, str] = field(default_factory=dict)

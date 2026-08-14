@@ -190,6 +190,7 @@ value              := NUMBER | IDENT | STRING
 ```
 #config ticks=<n> output=<stdout|png|csv|none> table=<name> \
         ops_per_tick=<n> react_steps=<n> use_central_dogma=<bool> species=<name>
+#config backend=classic|whole_cell|population|fba|calibration|benchmark
 ```
 
 | Field | Default | Meaning |
@@ -201,6 +202,17 @@ value              := NUMBER | IDENT | STRING
 | `react_steps` | `1` | field steps performed by one `OP_REACT` |
 | `use_central_dogma` | `false` | switch to the central-dogma pipeline (§6.6) |
 | `species` | `ecoli` | species context (`ecoli` / `yeast` / `human`) |
+| `backend` | `classic` | which runtime executes the program (§6.8): `classic` is the bytecode VM; the sim backends (`whole_cell`, `population`, `fba`, `calibration`, `benchmark`) run the quantitative simulation library via `helixlang.sim_runtime` |
+
+The first seven keys above are consumed by the classic pipeline exactly as before.
+**Every other `#config` key is preserved verbatim** in `Program.config.sim`
+(`dict[str, str]`) and applied by the sim backends — the keys mirror the target
+simulator's dataclass fields (§6.8). For example
+`#config backend=population` plus `#config population_size=64 grid_width=16`
+selects the colony backend and sizes the lattice. Classic runs never read `sim`,
+so adding these keys to a `classic` program is inert (matching the old lenient
+handling of unknown keys). Full key tables live in
+`doc/helix-language-wiring.md` §6.2.
 
 ### 3.6.1 Unit system (always on)
 
@@ -244,6 +256,31 @@ by the VM (§6.5 / §6.6).
 | `#transcribe` | `target` | Forces transcription: sets the target gene's GRN level to 1.0 |
 | `#translate` | `target` | Forces translation: adds 1.0 unit of the target gene's protein |
 | `#quorum` | `target`, `threshold` (10.0 µM), `activate` (= `target`) | Quorum sensing: if the local V-channel signal ≥ `threshold`, sets `activate`'s GRN level to 1.0 |
+| `#morphogen` | `gene`, `channel`, `gain` | GRN↔field feedback: the named gene's expression level injects into the reaction-diffusion channel scaled by `gain` (implemented; documented here to fix the audit drift) |
+
+### 3.9 Structural annotations (sim backends)
+
+The following annotations are **structural declarations** consumed by the sim
+backends (§6.8), never by the classic VM. In `classic` mode they parse but are
+inert. Repeatable.
+
+```
+#media nutrient=GLC concentration=10.0 [diffusion_um2_s=300]
+#enzyme gene=glk reaction=HEX1 [kcat=2800]
+#metabolite name=glc__D init=0.5
+#sim key=value ...
+```
+
+| Annotation | Fields | Meaning |
+|---|---|---|
+| `#media` | `nutrient` (required), `concentration` (required), `diffusion_um2_s` (optional) | Declares the growth medium. For `whole_cell`/`fba` the concentration sets the FBA uptake bound; for `population` it initialises the shared `Environment` field (and its Fick diffusion). Units: mM concentrations, µm²/s diffusion. |
+| `#enzyme` | `gene` (required), `reaction` (required), `kcat` (optional) | Binds a `#gene` to an FBA model reaction for enzyme-constrained metabolism; `kcat` overrides the canonical table. With `#config enzyme_capacity=true` and no `#enzyme`, the adapter falls back to the default `ECOLI_CORE_GENE_REACTIONS` / `ECOLI_CORE_KCAT` tables. |
+| `#metabolite` | `name` (required), `init` (default 0.0) | Initialises an intracellular pool concentration (requires `#config metabolite_pools=true`). |
+| `#sim` | any `key=value` | Open extension point (`Program.sim_extensions`). Reserved for long-tail backends; currently registers `#sim kind=spatial_dfba` (a 1-D dFBA strip under `backend=fba`). Inert until a backend registers it. |
+
+Per-gene `#gene` extra fields are also read by the sim backends: `chromosome=<0..1>`
+feeds the Cooper–Helmstetter `chromosome_map`, `threshold=` and `initial_level=`
+override the GRN node defaults (§6.8).
 
 ---
 
@@ -377,6 +414,17 @@ Constants are deduplicated by value.
 `--disassemble` prints the gene offset table, the code (one instruction per line with the
 opcode name, hex operands, and source `codon #N line L` location), and the constant pool.
 Unknown opcode bytes are printed as `<unknown 0xNN>`.
+
+### 5.5 Binary Artifact (`.helixc`)
+
+`--compile` packages the source program into a `.helixc` binary container. The
+container stores the serialized `Program` AST, the bytecode chunk described in
+§5.1–5.3 (with its `lines`/`codon_indices`/`gene_offsets` tables), the codon
+table id, and optionally the original source text. A `.helixc` input therefore
+runs, disassembles, and traces identically to its source file, and decompiles
+back to `.helix` source. The full container layout, typed `PROG` record
+encoding, decompiler round-trip invariants, and CLI behavior are specified in
+`doc/helixc-binary-format.md`.
 
 ---
 
@@ -530,6 +578,52 @@ The VM keeps runtime event logs exposed via snapshots and the Python API:
 | `binding_events` | total `OP_BIND` events |
 | `field_total_v` | sum of V-channel concentrations (0 if no field) |
 
+### 6.8 Simulation backends
+
+`#config backend` selects which runtime executes the program. `classic`
+(the default) is the bytecode VM described above, bit-identical to prior
+releases. The other backends reuse the same `#gene`/`#promoter`/`#regulate`
+declarations plus the structural annotations of §3.9; a single adapter,
+`helixlang.sim_runtime.run(program) -> SimResult | None`, dispatches on
+`Program.config.backend` and returns a uniform result (history records, flux
+tables, colony observables or score rows). `SimResult` fields:
+`backend`, `columns`, `rows`, `meta`.
+
+| Backend | Simulator | `ticks` means | Result |
+|---|---|---|---|
+| `whole_cell` | `VirtualCell` (Phases 1–4: cell cycle, adder, maturation, enzyme caps) | minutes | one row per minute of `history` (keys per `output=`) |
+| `population` | `CellPopulation3D` (Phase 5: per-cell program + shared `Environment` + per-cell dFBA) | ticks | one row per tick of colony stats + `meta.colony_observables` |
+| `fba` | `FluxBalanceAnalysis` / `DynamicFluxBalance` | steps (dFBA) | static flux vector or a dFBA batch trace |
+| `calibration` | `apps.whole_cell_calibration` | — | single score row (`best`, `sse`, `n_samples`, `passed`) |
+| `benchmark` | `apps.virtual_cell_bench` | — | single score row (`scores`, `passed`, `all_passed`) |
+
+**Sim configuration** is declared with `#config` keys that mirror the target
+dataclass fields and are collected into `Program.config.sim` (§3.6). Notable
+groups: whole-cell timing/size (`division_rule`, `adder_volume_um3`,
+`replication_mode`, `c_period_min`, `d_period_min`, `doubling_time_min`,
+`chromosome_map`), protein maturation/QC (`protein_maturation_mode`,
+`k_fold`, `frac_cotranslational_fold`, `misfold_rate_per_min`, …), enzyme
+caps (`enzyme_capacity`, `enzyme_scale`, `protein_mass_fraction`), population
+lattice (`population_size`, `grid_width`/`grid_height`/`grid_depth`), colony
+signalling/mechanics (`signaling`, `signal_diffusion`, `signal_threshold`,
+`crowding`, `mechanics`), per-cell dFBA (`dfba`, `dfba_dt_h`,
+`dfba_oxygen_max_uptake`, …), and the FBA batch (`fba_model`, `dynfba`,
+`fba_dt_h`, `fba_oxygen_max`, `fba_steps`). The full key tables with types
+and coercion rules are in `doc/helix-language-wiring.md` §6.2–6.3.
+
+**Column selection** — in sim backends `#config output=` selects the reported
+columns instead of the dead legacy list: e.g.
+`#config backend=whole_cell output=energy,volume_um3,divisions,phase`.
+Whole-cell columns are the `history` keys (`age`, `energy`, `alive`,
+`divisions`, `mass`, `volume_um3`, `volume_birth_um3`, `added_volume_um3`,
+`biomass_flux`, `dna_copy_number`, `phase`, `proteins`, protein-pool and
+metabolite columns, …); population columns come from `colony_observables`;
+`fba` reports flux keys; `calibration`/`benchmark` report their score dicts.
+
+**Determinism** — `#config seed=N` (or `none`) is threaded to the RNG of every
+sim backend (`VirtualCellConfig.seed`, GRN/population noise seeds, calibration
+`fit_seed`), so the same source + same seed gives identical output.
+
 ---
 
 ## 7. Type System
@@ -583,24 +677,54 @@ The stop-codon set used by the parser to delimit ORFs is derived from the select
 helixlang <source.helix> [--table=standard|mito_vertebrate|ciliate]
                          [--disassemble] [--debug] [--csv] [--png PREFIX]
                          [--ticks N]
+helixlang <source.helix> [--backend NAME] [--json]        # sim backends (§6.8)
 helixlang --serve [--host 127.0.0.1] [--port 5000]
 helixlang --encode-dna <goldman|erlich> <source.helix> [--pcr-cycles N]
 helixlang --decode-dna <file.fasta>
+helixlang --compile <source.helix> -o <out.helixc>        # binary artifact (§5.5)
+helixlang <artifact.helixc> [--table T] [--disassemble]   # run from binary
+                         [--debug] [--csv] [--png PREFIX] [--ticks N]
+helixlang <artifact.helixc> [--backend NAME] [--json]
+helixlang --decompile <artifact.helixc> -o <out.helix>    # .helixc -> .helix
+helixlang --compare <source.helix> <artifact.helixc>      # trace equivalence
 ```
+
+> **Binary artifacts (`.helixc`).** Compiling with `--compile` produces a
+> self-contained, versioned binary container holding the serialized `Program`,
+> an optional precompiled bytecode chunk, and an optional embedded source text.
+> A `.helixc` input is auto-detected and runs the classic or sim backends
+> exactly like its `.helix` source, disassembles/traces under `--disassemble` /
+> `--debug`, and decompiles back to source under `--decompile`. The complete
+> binary format, codec API, decompiler invariants, and test matrix are specified
+> in `doc/helixc-binary-format.md`.
 
 | Flag | Effect |
 |---|---|
 | `--table NAME` | select the translation table (default `standard`) |
 | `--disassemble` | print the bytecode disassembly and exit |
 | `--debug` | trace every executed instruction with the stack contents |
-| `--csv` | emit the trace as CSV to stdout |
-| `--png PREFIX` | write the morphology/field image as a PPM file |
+| `--csv` | emit the trace as CSV to stdout; for sim backends emits the `output=` columns |
+| `--png PREFIX` | write the morphology/field image as a PPM file (classic backend only) |
 | `--ticks N` | override `#config ticks` |
+| `--backend NAME` | override `#config backend` (`classic`, `whole_cell`, `population`, `fba`, `calibration`, `benchmark`); useful for CI |
+| `--json` | emit the `SimResult` payload as JSON (sim backends) |
 | `--serve` | start the web visualization server (Flask) |
 | `--host` / `--port` | web server bind address |
 | `--encode-dna SCHEME` | encode the source file to DNA oligos (Goldman or Erlich codec), output FASTA |
 | `--decode-dna FILE` | decode a FASTA DNA file back to `.helix` source |
 | `--pcr-cycles N` | inject simulated PCR errors into encoded oligos (0 = none) |
+| `--compile` | compile `.helix` source into a `.helixc` binary artifact (`-o OUT`; `--no-chunk` / `--no-source` to trim it) |
+| `--decompile` | regenerate `.helix` source from a `.helixc` artifact (`-o OUT`); byte-for-byte when the artifact embeds its source |
+| `--compare` | run a `.helix` source and a `.helixc` artifact and diff the traces/`SimResult` payloads |
+
+A `.helixc` input runs without any special flag: the classic backend loads the
+precompiled chunk directly and the sim backends reconstruct the full `Program`
+from the serialized AST, so `--backend`, `--json`, `--csv`, `--ticks`, and
+`--disassemble`/`--debug` behave identically to the source path.
+
+The web server also exposes `POST /api/sim/run` (`{"source": ..., "table": ...,
+"backend": ...}`) which parses the source, honours `#config backend`, and
+returns the `SimResult` payload as JSON.
 
 ---
 

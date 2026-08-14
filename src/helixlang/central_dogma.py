@@ -35,8 +35,16 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from helixlang.bio_data import ECOLI_CODON_USAGE, MAX_TRNA_ABUNDANCE, TRNA_ABUNDANCE
+from helixlang.units import (
+    PROTEIN_AGGREGATION_RATE_PER_MIN,
+    PROTEIN_DEGRADED_RATE_PER_MIN,
+    PROTEIN_FOLD_RATE_PER_MIN,
+    PROTEIN_FOLDING_ATP_PER_PROTEIN,
+    PROTEIN_MISFOLD_RATE_PER_MIN,
+)
 
 # ============================================================================
 # Real biological parameters (based on literature measurements)
@@ -268,6 +276,98 @@ class TimeCoursePoint:
 
 
 # ============================================================================
+# Protein maturation / folding / QC (Phase 3, Balchin 2016)
+# ============================================================================
+
+@dataclass(slots=True)
+class ProteinPool:
+    """Per-gene protein folding-state pools (Phase 3).
+
+    Attributes:
+        unfolded: newly translated, chaperone-bound protein.
+        folded: mature, functional protein (the only pool that counts
+            as ``proteins[gene]`` / GRN trigger).
+        misfolded: folding attempt failed; doomed to refolding, aggregation
+            or degradation.
+        aggregated: inert aggregates (not removed, only grows).
+        degraded: protein removed by Lon/Clp proteolysis.
+    """
+    unfolded: float = 0.0
+    folded: float = 0.0
+    misfolded: float = 0.0
+    aggregated: float = 0.0
+    degraded: float = 0.0
+
+
+def advance_protein_pool(
+    pool: ProteinPool,
+    *,
+    fold_rate_per_min: float = PROTEIN_FOLD_RATE_PER_MIN,
+    misfold_rate_per_min: float = PROTEIN_MISFOLD_RATE_PER_MIN,
+    aggregation_rate_per_min: float = PROTEIN_AGGREGATION_RATE_PER_MIN,
+    degraded_rate_per_min: float = PROTEIN_DEGRADED_RATE_PER_MIN,
+    fold_atp_per_protein: float = PROTEIN_FOLDING_ATP_PER_PROTEIN,
+    folded_decay_per_min: float | None = None,
+    dt: float = 1.0,
+) -> dict[str, float]:
+    """Advance one ``dt`` (minutes) of first-order maturation + QC kinetics.
+
+    Unfolded protein folds with rate ``fold_rate_per_min`` or misfolds
+    with ``misfold_rate_per_min``; the equilibrium folded fraction is
+    ``k_fold/(k_fold + k_misfold)`` (Balchin 2016).  Misfolded protein is
+    removed by aggregation (``aggregation_rate_per_min``, inert) or
+    proteolysis (``degraded_rate_per_min``).  The folded pool is subject
+    to turnover with the optional per-minute decay coefficient (from
+    ``decay_from_half_life_ticks``; Mosteller 1980 / Helbig 2011).
+
+    Returns the per-step deltas (``folded``, ``misfolded``,
+    ``aggregated``, ``degraded``, ``unfolded_consumed``) plus the
+    ``atp_cost`` (ATP spent on chaperone-assisted folding).
+    """
+    if dt <= 0.0:
+        raise ValueError("dt must be > 0")
+    dt = float(dt)
+    total = fold_rate_per_min + misfold_rate_per_min
+    frac = 1.0 - math.exp(-total * dt) if total > 0.0 else 0.0
+    unfold_consumed = pool.unfolded * frac
+    if total > 0.0:
+        folded_new = unfold_consumed * (fold_rate_per_min / total)
+        misfolded_new = unfold_consumed * (misfold_rate_per_min / total)
+    else:
+        folded_new = 0.0
+        misfolded_new = 0.0
+    pool.unfolded -= unfold_consumed
+    pool.folded += folded_new
+    pool.misfolded += misfolded_new
+
+    total_qc = aggregation_rate_per_min + degraded_rate_per_min
+    frac_qc = 1.0 - math.exp(-total_qc * dt) if total_qc > 0.0 else 0.0
+    misfold_consumed = pool.misfolded * frac_qc
+    if total_qc > 0.0:
+        aggregated_new = misfold_consumed * (aggregation_rate_per_min / total_qc)
+        degraded_new = misfold_consumed * (degraded_rate_per_min / total_qc)
+    else:
+        aggregated_new = 0.0
+        degraded_new = 0.0
+    pool.misfolded -= misfold_consumed
+    pool.aggregated += aggregated_new
+    pool.degraded += degraded_new
+
+    if folded_decay_per_min is not None:
+        decay = max(0.0, min(1.0, folded_decay_per_min)) ** dt
+        pool.folded *= decay
+
+    return {
+        "folded": folded_new,
+        "misfolded": misfolded_new,
+        "aggregated": aggregated_new,
+        "degraded": degraded_new,
+        "unfolded_consumed": unfold_consumed,
+        "atp_cost": folded_new * fold_atp_per_protein,
+    }
+
+
+# ============================================================================
 # Transcription: DNA -> mRNA
 # ============================================================================
 
@@ -301,7 +401,8 @@ def _estimate_mrna_half_life(cds_dna: str) -> float:
 def transcribe(dna: str,
                promoter_strength: float = 1.0,
                transcription_factors: dict[str, float] | None = None,
-               half_life_model: str = "bernstein_2002"
+               half_life_model: str = "bernstein_2002",
+               copy_number: float = 1.0
                ) -> Transcript:
     """DNA -> mRNA transcription.
 
@@ -316,6 +417,11 @@ def transcribe(dna: str,
     - mRNA half-life ~5 min (Bernstein 2002 J Bacteriol 184:6477-6486)
     - poly-A tail addition ~15 nt (Mohanty & Kushner 2006 RNA
       12:1398-1407)
+    - Gene dosage scales transcription output linearly with the number of
+      DNA copies of the gene (Cooper & Helmstetter 1968; Karr et al. 2012
+      whole-cell model): the initiation frequency is multiplied by
+      ``copy_number``, so a replicating chromosome produces a gene-dosage
+      wave.
 
     Args:
         dna: DNA template strand sequence (5'->3', coding-strand
@@ -329,6 +435,9 @@ def transcribe(dna: str,
             "bernstein_2002" (default) = per-sequence estimate from the
             5' AU/GC content (RNase E dependence, Bernstein 2002),
             "flat" = constant 5 min median for all sequences
+        copy_number: number of DNA copies of the gene (1.0 = single copy,
+            the default; >1 during chromosome replication).  Multiplies
+            the transcription initiation frequency.
 
     Returns:
         a Transcript object (with 5'UTR / CDS / 3'UTR / poly-A tail /
@@ -344,8 +453,9 @@ def transcribe(dna: str,
     effective_strength = max(0.0, min(1.0, promoter_strength * tf_effect))
 
     # 2. initiation frequency: max about 10 mRNA/min (strong promoters
-    #    such as rrn P1)
-    initiation_freq = effective_strength * MAX_INITIATION_FREQUENCY_PER_MIN
+    #    such as rrn P1), scaled by gene dosage (copy_number)
+    initiation_freq = (effective_strength * MAX_INITIATION_FREQUENCY_PER_MIN
+                       * copy_number)
 
     # 3. detect rho-independent terminator and truncate transcription
     terminator = _find_rho_independent_terminator(dna)
@@ -401,8 +511,14 @@ def transcribe(dna: str,
     )
 
 
+@lru_cache(maxsize=4096)
 def _find_rho_independent_terminator(dna: str) -> tuple[int, int] | None:
     """Detect a rho-independent terminator.
+
+    Memoized: the scan is a pure function of ``dna`` but O(n^2) in the
+    worst case, and the same gene is transcribed repeatedly (every step,
+    and across the 28-gene enzyme genome all genes share one sequence),
+    so identical sequences are resolved once and reused.
 
     Two features of rho-independent terminators (d'Aubenton Carafa 1990
     J Mol Biol 216:835-859):
@@ -791,6 +907,7 @@ def coupled_transcription_translation(dna: str,
 __all__ = [
     # dataclasses
     "Transcript", "RibosomeState", "TranslationResult", "TimeCoursePoint",
+    "ProteinPool",
     # data tables
     "TRNA_ABUNDANCE", "STOP_CODON_EFFICIENCY", "STOP_CODONS",
     "RBS_CONSENSUS", "RBS_VARIANTS",
@@ -805,5 +922,5 @@ __all__ = [
     "PROTEINS_PER_MRNA_LIFETIME",
     # functions
     "transcribe", "translate", "calculate_mrna_level",
-    "coupled_transcription_translation",
+    "coupled_transcription_translation", "advance_protein_pool",
 ]
