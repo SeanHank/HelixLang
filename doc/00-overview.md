@@ -116,8 +116,8 @@ In one sentence: **DNA is the source, codons are the mnemonics, the ribosome is 
 | [14-production-upgrade.md](./14-production-upgrade.md) | Production-grade upgrade plan (historical): literature-backed replacements preserving the public API |
 | [15-whole-cell-realism.md](./15-whole-cell-realism.md) | Five-phase roadmap to a physically complete virtual cell — implemented & gated |
 | [16-gameplay-units-upgrade.md](./16-gameplay-units-upgrade.md) | Gameplay-unit calibration plan (superseded): toy-design → physical-biology unit system |
-| [17-项目详解与前沿生物学应用.md](./17-项目详解与前沿生物学应用.md) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
-
+| [17-project-details-and-frontier-bio-applications.md](./17-project-details-and-frontier-bio-applications.md) | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples, problem→capability mapping, delivered designs |
+| [18-programmable-cell-population-simulation.md](./18-programmable-cell-population-simulation.md) | Programmable cell-population simulation: tick model, 3D, evolution line, and the delivered population roadmap designs |
 ---
 
 ## 6. Positioning vs. Existing Systems
@@ -140,7 +140,7 @@ HelixLang adopts a **16-core-module** architecture in three layers: the compiler
 
 ```
 HelixLang/
-├── doc/                              # Design docs (00-17)
+├── doc/                              # Design docs
 │   ├── 00-overview.md                # Project overview
 │   ├── 01-references.md             # Literature review
 │   ├── 02-language-spec.md           # Language spec
@@ -158,7 +158,6 @@ HelixLang/
 │   ├── 14-production-upgrade.md       # Production upgrade plan (historical)
 │   ├── 15-whole-cell-realism.md       # Virtual cell roadmap
 │   ├── 16-gameplay-units-upgrade.md   # Gameplay-unit calibration (superseded)
-│   └── 17-项目详解与前沿生物学应用.md      # Chinese explainer + frontier biology applications
 ├── src/helixlang/                    # Compiler and runtime implementation
 │   ├── __init__.py                   # Package exports
 │   │

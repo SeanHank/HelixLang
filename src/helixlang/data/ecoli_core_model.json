@@ -1,7 +1,7 @@
 {
   "name": "E. coli core metabolic model (simplified)",
   "source": "Orth 2010 Mol Syst Biol 6:390 (iJO1366 simplified)",
-  "description": "Glycolysis + TCA + PPP + fermentation + respiration + biomass. ~36 reactions.",
+  "description": "Glycolysis + TCA + PPP + fermentation + respiration + biomass + glyoxylate shunt (aceA/aceB, off by default). ~38 reactions.",
   "biomass_reaction": "BIOMASS",
   "reactions": [
     {
@@ -94,9 +94,9 @@
     },
     {
       "id": "GAPD",
-      "name": "Glyceraldehyde-3-phosphate dehydrogenase",
+      "name": "Glyceraldehyde-3-phosphate dehydrogenase (reversible for gluconeogenesis)",
       "stoichiometry": {"G3P": -1.0, "NAD": -1.0, "1,3BPG": 1.0, "NADH": 1.0},
-      "lower_bound": 0.0,
+      "lower_bound": -1000.0,
       "upper_bound": 1000.0,
       "subsystem": "glycolysis"
     },
@@ -252,14 +252,54 @@
       "upper_bound": 1000.0,
       "subsystem": "fermentation"
     },
-    {
-      "id": "PTA_ACK",
-      "name": "Phosphotransacetylase + Acetate kinase (combined)",
-      "stoichiometry": {"AcCoA": -1.0, "ADP": -1.0, "Ac": 1.0, "CoA": 1.0, "ATP": 1.0},
-      "lower_bound": 0.0,
-      "upper_bound": 1000.0,
-      "subsystem": "fermentation"
-    },
+{
+    "id": "PTA_ACK",
+    "name": "Phosphotransacetylase + Acetate kinase (combined)",
+    "stoichiometry": {"AcCoA": -1.0, "ADP": -1.0, "Ac": 1.0, "CoA": 1.0, "ATP": 1.0},
+    "lower_bound": 0.0,
+    "upper_bound": 1000.0,
+    "subsystem": "fermentation"
+},
+{
+    "id": "ICL",
+    "name": "Isocitrate lyase (aceA; glyoxylate shunt): ICT -> GOX + Succ",
+    "stoichiometry": {"ICT": -1.0, "GOX": 1.0, "Succ": 1.0},
+    "lower_bound": 0.0,
+    "upper_bound": 0.0,
+    "subsystem": "glyoxylate"
+},
+{
+    "id": "MAS",
+    "name": "Malate synthase (aceB; glyoxylate shunt): AcCoA + GOX -> CoA + Mal",
+    "stoichiometry": {"AcCoA": -1.0, "GOX": -1.0, "CoA": 1.0, "Mal": 1.0},
+    "lower_bound": 0.0,
+    "upper_bound": 0.0,
+    "subsystem": "glyoxylate"
+},
+{
+    "id": "ACS",
+    "name": "Acetyl-CoA synthetase (acs; AMP-forming acetate activation): Ac + CoA + 2 ATP -> AcCoA + 2 ADP",
+    "stoichiometry": {"Ac": -1.0, "CoA": -1.0, "ATP": -2.0, "AcCoA": 1.0, "ADP": 2.0},
+    "lower_bound": 0.0,
+    "upper_bound": 0.0,
+    "subsystem": "glyoxylate"
+},
+{
+    "id": "PEPCK",
+    "name": "Phosphoenolpyruvate carboxykinase (pckA; gluconeogenic): OAA + ATP -> PEP + CO2 + ADP",
+    "stoichiometry": {"OAA": -1.0, "ATP": -1.0, "PEP": 1.0, "CO2": 1.0, "ADP": 1.0},
+    "lower_bound": 0.0,
+    "upper_bound": 0.0,
+    "subsystem": "gluconeogenesis"
+},
+{
+    "id": "FBP",
+    "name": "Fructose-1,6-bisphosphatase (fbp; gluconeogenic): F1,6BP -> F6P",
+    "stoichiometry": {"F1,6BP": -1.0, "F6P": 1.0},
+    "lower_bound": 0.0,
+    "upper_bound": 0.0,
+    "subsystem": "gluconeogenesis"
+},
     {
       "id": "ATPM",
       "name": "ATP maintenance",

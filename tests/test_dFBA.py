@@ -225,3 +225,91 @@ def test_environment_glucose_feeds_batch() -> None:
     assert d.glucose_mm < 1.0
     d.run(duration_h=1.0)
     assert d.last()["biomass"] < 0.2
+
+
+# ---------------------------------------------------------------------------
+# acetate switch (Wolfe 2005; glyoxylate bypass + gluconeogenesis)
+# ---------------------------------------------------------------------------
+
+def _switch_batch(**overrides: object) -> DynamicFluxBalance:
+    kwargs: dict[str, object] = {
+        "dt_h": 0.1,
+        "initial_biomass_gdw": 0.05,
+        "initial_glucose_mm": 3.0,
+        "initial_acetate_mm": 5.0,
+        "max_glucose_uptake": 10.0,
+        "acetate_switch": True,
+    }
+    kwargs.update(overrides)
+    return DynamicFluxBalance(config=DynamicFBAConfig(**kwargs))  # type: ignore[arg-type]
+
+
+def test_acetate_only_growth_via_switch() -> None:
+    """With no glucose the switch lets acetate alone fuel biomass."""
+    batch = _switch_batch(initial_glucose_mm=0.0)
+    batch.run(duration_h=12.0)
+    last = batch.last()
+    assert last["biomass"] > batch.config.initial_biomass_gdw
+    assert last["acetate"] < 0.5
+    # slow acetate growth, not the fast fermentative mu (~1.2/h)
+    assert max(e["growth_rate"] for e in batch.history) < 0.5
+
+
+def test_no_switch_means_no_acetate_growth() -> None:
+    batch = DynamicFluxBalance(config=DynamicFBAConfig(
+        dt_h=0.1, initial_glucose_mm=0.0, initial_acetate_mm=5.0,
+        acetate_switch=False))
+    batch.run(duration_h=12.0)
+    assert batch.last()["biomass"] == pytest.approx(
+        batch.config.initial_biomass_gdw, abs=1e-9)
+    assert batch.last()["acetate"] == pytest.approx(5.0, abs=1e-6)
+
+
+def test_diauxie_glucose_then_acetate() -> None:
+    """Mixed substrate: glucose consumed first, acetate only afterwards.
+
+    Enjalbert et al. 2011 (ISME J 5:1301) established that E. coli does
+    not co-consume acetate while glucose is available, so the acetate pool
+    must not decline above the switch threshold.
+    """
+    batch = _switch_batch()
+    batch.run(duration_h=20.0)
+    # acetate never drops while glucose is still present
+    for i in range(1, len(batch.history)):
+        prev, cur = batch.history[i - 1], batch.history[i]
+        if cur["glucose"] > 0.5:
+            assert cur["acetate"] >= prev["acetate"] - 1e-9
+    # and a second growth phase appears once glucose is gone
+    second = [e for e in batch.history
+              if e["glucose"] < 0.05 and e["growth_rate"] > 0.01]
+    assert len(second) > 2
+    assert batch.last()["acetate"] < 0.5
+
+
+def test_acetate_switch_mass_balance() -> None:
+    """Biomass produced ~ yield x glucose + yield x acetate consumed."""
+    batch = _switch_batch()
+    batch.run(duration_h=20.0)
+    last = batch.last()
+    mu_g = _lp_growth(10.0)
+    X0 = batch.config.initial_biomass_gdw
+    S0 = batch.config.initial_glucose_mm
+    A0 = batch.config.initial_acetate_mm
+    dS = S0 - last["glucose"]
+    dA = A0 - last["acetate"]
+    predicted = X0 + (mu_g / 10.0) * dS + (mu_g / 10.0) * dA
+    # acetate yields less biomass per carbon; require the second phase to
+    # add carbon-conservative biomass on top of the glucose phase
+    assert last["biomass"] < predicted * 1.5
+    glucose_contribution = (mu_g / 10.0) * dS
+    assert last["biomass"] > X0 + glucose_contribution + 0.01 * dA
+
+
+def test_acetate_switch_no_free_energy_artifact() -> None:
+    """The second phase must not blow up the growth rate (mu <= mu_max)."""
+    batch = _switch_batch()
+    batch.run(duration_h=20.0)
+    mu_max = _lp_growth(10.0)
+    for e in batch.history:
+        assert e["growth_rate"] <= mu_max * 1.05
+

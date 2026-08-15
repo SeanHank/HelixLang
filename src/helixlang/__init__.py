@@ -52,6 +52,7 @@ from helixlang.metabolism import (
 )
 from helixlang.morphology_3d import LSystem3D, Point3D
 from helixlang.population import CellPopulation, CellPopulation3D, PopulationConfig
+from helixlang.sparse_grn import SparseGRN, sparse_from_edges
 from helixlang.stochastic import (
     TelegraphPromoter,
     fano_to_noise_std,
@@ -100,6 +101,8 @@ __all__ = [
     # GRN + VM + population
     "GRN", "CellVM", "Program", "CellPopulation", "CellPopulation3D",
     "PopulationConfig",
+    # sparse genome-scale GRN (Design 5)
+    "SparseGRN", "sparse_from_edges",
     # 3D morphology
     "LSystem3D", "Point3D",
     # flux balance analysis

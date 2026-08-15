@@ -248,6 +248,11 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `32_colony_dfba.helix` | `population` | 2000-cell colony with per-cell dFBA |
 | `33_fba_diauxie.helix` | `fba` (dynfba) | dynamic FBA trace of `20` |
 | `34_whole_cell_calibration.helix` | `calibration` | recover hidden whole-cell parameters |
+| `35_acetate_switch.helix` | `fba` (dynfba) | acetate switch: glyoxylate-bypass second growth phase (Wolfe 2005) |
+| `36_population_calibration.helix` | `#sim kind=population_calibration` | recover colony-level dFBA parameters |
+| `37_genome_colony.helix` | `population` (`#genome`) | 4338-gene sparse GRN colony + FBA gating |
+| `38_flow_biofilm.helix` | `population` (`#sim lbm`) | rod-cell colony inside an LBM microfluidic channel |
+| `39_lbm3d_biofilm.helix` | `population` (`#sim lbm_3d`) | D3Q19 3D flow displaced around a biofilm |
 | `11_protein_structure.helix` | `#sim kind=protein_structure` | Chou-Fasman secondary-structure report |
 | `12_multi_species.helix` | `#sim kind=codon_usage` | per-species codon adaptation index |
 | `14_synbio_designer.helix` | `#sim kind=synbio_design` | promoter→RBS→GOI→terminator cassette design |
@@ -401,7 +406,8 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`01-references.md`](doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
 | [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
 | [`16-gameplay-units-upgrade.md`](doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [`17-项目详解与前沿生物学应用.md`](doc/17-项目详解与前沿生物学应用.md) | Everyone (中文) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
+| [`17-project-details-and-frontier-bio-applications.md`](doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–39), problem→capability mapping, delivered solution designs |
+| [`18-programmable-cell-population-simulation.md`](doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
 
 ### Suggested reading order
 
@@ -428,7 +434,7 @@ ruff check src tests
 mypy
 ```
 
-- **1972 test cases** (1972 passing, 89% coverage)
+- **2134 test cases** (2134 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All `examples/*.helix` covered + Python API companions

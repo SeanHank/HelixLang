@@ -13,7 +13,7 @@ simulation stack, selected by ``#config backend``:
   :data:`_SIM_BACKENDS` (consortium, digital_evolution, stochastic,
   codec_benchmark, synbio_design, protein_fitness, morphogen_gradient,
   protein_structure, fate_analysis, directed_evolution, 3d_morphology,
-  omics_calibration, cello_workflow, codon_usage).
+  omics_calibration, population_calibration, cello_workflow, codon_usage).
 
 ``backend=classic`` (the default) returns ``None`` so the CLI keeps the
 existing compile -> CellVM path.  A registered ``#sim kind=...`` overrides
@@ -51,8 +51,15 @@ from helixlang.apps.morphogen_gradient import (
     MorphogenGradientConfig,
 )
 from helixlang.apps.omics_calibration import run_omics_calibration_benchmark
+from helixlang.apps.population_calibration import (
+    run_population_calibration,
+)
 from helixlang.apps.protein_evolution import guided_directed_evolution
 from helixlang.apps.spatial_dfba import SpatialDFBA, SpatialDFBAConfig
+from helixlang.apps.spatial_evolution import (
+    SpatialEvolution,
+    SpatialEvolutionConfig,
+)
 from helixlang.apps.synbio_automation import (
     TruthTable,
     run_cello_workflow,
@@ -77,6 +84,7 @@ from helixlang.environment import (
     EnvironmentConfig,
 )
 from helixlang.errors import SimConfigError
+from helixlang.flow import FlowField, channel_poiseuille, stagnant
 from helixlang.grn import GRN
 from helixlang.metabolism import (
     DEFAULT_ENZYME_SCALE,
@@ -103,6 +111,7 @@ from helixlang.stochastic import (
     TelegraphPromoter,
     gillespie_telegraph,
 )
+from helixlang.units import LATTICE_SPACING_UM
 from helixlang.virtual_cell import VirtualCell, VirtualCellConfig
 
 __all__ = [
@@ -517,14 +526,22 @@ def _run_dfba(program: Program, fba: FluxBalanceAnalysis,
     sim = program.config.sim
     glc_media = next((m.concentration for m in program.media
                       if m.nutrient == "GLC"), None)
+    ac_media = next((m.concentration for m in program.media
+                     if m.nutrient == "AC"), None)
     cfg = DynamicFBAConfig(
         dt_h=_opt_float(sim, "fba_dt_h", 0.25),
         initial_biomass_gdw=_opt_float(sim, "fba_initial_biomass_gdw", 0.05),
         initial_glucose_mm=_opt_float(sim, "fba_glucose_mm",
                                       glc_media if glc_media is not None
                                       else 10.0),
+        initial_acetate_mm=_opt_float(sim, "fba_acetate_mm",
+                                      ac_media if ac_media is not None
+                                      else 0.0),
         max_glucose_uptake=_opt_float(sim, "fba_max_glucose_uptake",
                                       DEFAULT_GLC_UPTAKE),
+        acetate_switch=_opt_bool(sim, "acetate_switch", False),
+        acetate_switch_threshold_mm=_opt_float(
+            sim, "acetate_switch_threshold_mm", 0.5),
     )
     batch = DynamicFluxBalance(model, config=cfg, fba=fba)
     o2_cap = _opt_float(sim, "fba_oxygen_max", 0.0)
@@ -736,6 +753,54 @@ def _run_digital_evolution(program: Program) -> ScoreResult:
             "final_mean": evo.mean_fitness(),
             "final_max": evo.max_fitness(),
             "fittest_genome": list(evo.fittest_genome()),
+            "generations": evo.generation,
+        },
+    )
+
+
+# -- kind=spatial_evolution (apps/spatial_evolution.py) -----------------------
+
+_SPATIAL_EVO_DEFAULT_COLUMNS = [
+    "generation", "mean_fitness", "max_fitness", "best_radius_sites",
+    "best_survival", "mean_uptake_gain",
+]
+
+
+def _run_spatial_evolution(program: Program) -> ScoreResult:
+    """``#sim kind=spatial_evolution`` — dual-loop range-expansion evolution
+    (doc/18-programmable-cell-population-simulation.md §13 Design 1; Bosshard et al. 2020 BMC Genomics 21:232)."""
+    ext = program.sim_extensions
+    config = SpatialEvolutionConfig(
+        generations=_opt_int(ext, "generations", 10),
+        population_size=_opt_int(ext, "population_size", 10),
+        genome_length_nt=_opt_int(ext, "genome_length", 30),
+        substitution_rate=_opt_float(ext, "substitution_rate", 0.05),
+        indel_rate=_opt_float(ext, "indel_rate", 0.0),
+        recombination_rate=_opt_float(ext, "recombination_rate", 0.2),
+        selection_fraction=_opt_float(ext, "selection_fraction", 0.25),
+        metabolic_cost=_opt_float(ext, "metabolic_cost", 0.05),
+        seed=_opt_int_or_none(ext, "seed", None),
+        grid_width=_opt_int(ext, "grid_width", 24),
+        grid_height=_opt_int(ext, "grid_height", 24),
+        colonization_ticks=_opt_int(ext, "colonization_ticks", 25),
+        inner_population_size=_opt_int(ext, "inner_population_size", 40),
+        energy_intake=_opt_float(ext, "energy_intake", 5.0e7),
+        base_division_threshold=_opt_float(ext, "base_division_threshold",
+                                            1.8e9),
+        signaling=_opt_bool(ext, "signaling", True),
+    )
+    evo = SpatialEvolution(config)
+    rows = evo.run()
+    columns = _select_columns(program, rows,
+                              default=_SPATIAL_EVO_DEFAULT_COLUMNS)
+    return ScoreResult(
+        backend="spatial_evolution", columns=columns,
+        rows=[_project(row, columns) for row in rows],
+        meta={
+            "kind": "spatial_evolution",
+            "final_mean": evo.mean_fitness(),
+            "final_max": evo.max_fitness(),
+            "fittest_genome": evo.best_genome(),
             "generations": evo.generation,
         },
     )
@@ -1298,6 +1363,33 @@ def _run_omics_calibration(program: Program) -> ScoreResult:
     )
 
 
+def _run_population_calibration(program: Program) -> ScoreResult:
+    """``#sim kind=population_calibration``: recover the dFBA colony
+    parameters from colony-level mixed observables (doc/18-programmable-cell-population-simulation.md §13 Design 4)."""
+    ext = program.sim_extensions
+    result = run_population_calibration(
+        n_samples=_opt_int(ext, "n_samples", 12),
+        refine_rounds=_opt_int(ext, "refine_rounds", 2),
+        fit_seed=_opt_int(ext, "fit_seed", 0),
+        division_ticks=_opt_int(ext, "division_ticks", 12),
+        n_cells=_opt_int(ext, "n_cells", 4),
+    )
+    row: dict[str, Any] = {
+        "best": result["fitted"],
+        "sse": result["fit"]["sse"],
+        "n_samples": result["fit"]["n_samples"],
+        "passed": result["passed"],
+    }
+    columns = _select_columns(program, [row], default=list(row))
+    return ScoreResult(
+        backend="population_calibration", columns=columns,
+        rows=[_project(row, columns)],
+        meta={"relative_error": result["relative_error"],
+              "recovered": result["recovered"],
+              "truth": result["truth"]},
+    )
+
+
 # -- kind=cello_workflow (apps/synbio_automation.py) -----------------------------
 
 _CELLO_COLUMNS = [
@@ -1402,9 +1494,11 @@ _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {
     "fate_analysis": _run_fate_analysis,
     "morphogen_gradient": _run_morphogen_gradient,
     "omics_calibration": _run_omics_calibration,
+    "population_calibration": _run_population_calibration,
     "protein_fitness": _run_protein_fitness,
     "protein_structure": _run_protein_structure,
     "spatial_dfba": _run_spatial_dfba,
+    "spatial_evolution": _run_spatial_evolution,
     "stochastic": _run_stochastic,
     "synbio_design": _run_synbio_design,
 }
@@ -1418,6 +1512,7 @@ _POP_MECHANICS = {
     "shove": "shoving",
     "shoving": "shoving",
     "force": "force",
+    "contact": "contact",
 }
 
 _POP_DEFAULT_COLUMNS = [
@@ -1446,18 +1541,64 @@ def _environment(program: Program, width: int, height: int) -> Environment:
 
 
 def _build_population_config(program: Program) -> PopulationConfig:
-    sim = program.config.sim
+    # #sim keys merge over #config keys (the same open extension point,
+    # wiring.md §8.6); the population backend reads both so e.g.
+    # `#sim lbm=true` and `#config mechanics=contact` combine.
+    sim = {**program.config.sim, **program.sim_extensions}
     mechanics_raw = sim.get("mechanics", "none")
     mechanics = _POP_MECHANICS.get(mechanics_raw)
     if mechanics is None and mechanics_raw != "none":
         raise SimConfigError(
             f"sim key 'mechanics': expected one of "
             f"{sorted(_POP_MECHANICS)}, got {mechanics_raw!r}")
+    cell_shape = sim.get("cell_shape")
+    if cell_shape not in (None, "rod"):
+        raise SimConfigError(
+            f"sim key 'cell_shape': expected 'rod' or unset, got "
+            f"{cell_shape!r}")
+    width = _opt_int(sim, "grid_width", 32)
+    height = _opt_int(sim, "grid_height", 32)
+    depth = _opt_int(sim, "grid_depth", 1)
+    flow = _build_pop_flow(sim, width, height)
+    lbm = _build_pop_lbm(sim, width, height, depth)
+    lbm_3d = _opt_bool(sim, "lbm_3d", False)
+    if lbm_3d:
+        if _opt_bool(sim, "lbm", False):
+            raise SimConfigError(
+                "sim keys 'lbm' and 'lbm_3d' are mutually exclusive: "
+                "use one or the other as the flow driver")
+        if flow is not None:
+            raise SimConfigError(
+                "sim keys 'flow' and 'lbm_3d' are mutually exclusive: "
+                "use one or the other as the flow driver")
+        if depth < 2:
+            raise SimConfigError(
+                "sim key 'lbm_3d' requires grid_depth > 1 (a 3D lattice)")
+    elif flow is not None and lbm is not None:
+        raise SimConfigError(
+            "sim keys 'flow' and 'lbm' are mutually exclusive: "
+            "use one or the other as the flow driver")
+    # #genome source=... (Design 5): fields merge into sim_extensions under a
+    # genome_ prefix (the same open extension point as #sim); build the
+    # shared sparse template once per run.
+    ext = program.sim_extensions
+    genome = None
+    if ext.get("genome") or any(k.startswith("genome_") for k in ext):
+        from helixlang.apps.genome_scale import build_genome
+        genome = build_genome(
+            source=str(ext.get("genome_source", "synth-4300")),
+            tf_map=str(ext.get("genome_tf_map", "regulon")),
+            grn_mode=str(ext.get("genome_grn_mode", "sparse")),
+            seed=_opt_int(ext, "genome_seed", 7),
+            active_gene_budget=_opt_int(
+                ext, "genome_active_gene_budget", 512),
+            noise_seed=_opt_int_or_none(sim, "noise_seed", None),
+        )
     config = PopulationConfig(
         max_size=_opt_int(sim, "population_size", 1000),
-        grid_width=_opt_int(sim, "grid_width", 32),
-        grid_height=_opt_int(sim, "grid_height", 32),
-        grid_depth=_opt_int(sim, "grid_depth", 1),
+        grid_width=width,
+        grid_height=height,
+        grid_depth=depth,
         division_threshold=_opt_float(sim, "division_threshold", 1.8e9),
         death_threshold=_opt_float(sim, "death_threshold", 0.0),
         signaling_enabled=_opt_bool(sim, "signaling", True),
@@ -1478,30 +1619,134 @@ def _build_population_config(program: Program) -> PopulationConfig:
         dfba_oxygen_max_uptake=_opt_float(sim, "dfba_oxygen_max_uptake", 40.0),
         dfba_oxygen_half_saturation_mm=_opt_float(
             sim, "dfba_oxygen_half_saturation_mm", 0.01),
+        dfba_shared_batch=_opt_bool(sim, "dfba_shared", False),
+        acetate_switch=_opt_bool(sim, "acetate_switch", False),
+        acetate_switch_threshold_mm=_opt_float(
+            sim, "acetate_switch_threshold_mm", 0.5),
         program=program,
         chunk=Compiler(STANDARD_TABLE).compile(program),
         ops_per_tick=program.config.ops_per_tick,
+        genome=genome,
+        flow=flow,
+        cell_shape=cell_shape,
+        cell_length_um=_opt_float(
+            sim, "length_um", _opt_float(sim, "cell_length_um", 2.0)),
+        cell_diameter_um=_opt_float(
+            sim, "diameter_um", _opt_float(sim, "cell_diameter_um", 1.0)),
+        contact_stiffness=_opt_float(sim, "contact_stiffness", 1.0e3),
+        fluid_viscosity_mpas=_opt_float(sim, "fluid_viscosity_mpas", 1.0),
+        lbm=lbm,
+        flow_substeps=_opt_int(sim, "lbm_substeps", 1),
     )
     config.environment = _environment(
         program, config.grid_width, config.grid_height)
     return config
 
 
+def _build_pop_flow(sim: dict[str, str], width: int,
+                    height: int) -> FlowField | None:
+    """Build the analytic Level-1 flow field from ``#sim flow=...``."""
+    raw = sim.get("flow")
+    if raw is None:
+        return None
+    if raw == "channel_poiseuille":
+        direction = sim.get("direction", "E")
+        mean = _opt_float(sim, "mean_velocity_um_s", 50.0)
+        return channel_poiseuille(width, height, mean, direction)
+    if raw == "stagnant":
+        return stagnant(width, height)
+    raise SimConfigError(
+        f"sim key 'flow': expected 'channel_poiseuille' or 'stagnant', "
+        f"got {raw!r}")
+
+
+def _build_pop_lbm(sim: dict[str, str], width: int, height: int,
+                   depth: int = 1) -> object | None:
+    """Build the Level-2 LBM solver from ``#sim lbm=true``/``lbm_3d=true``.
+
+    ``lbm=true`` builds the 2D D2Q9 solver (``apps.lattice_boltzmann``);
+    ``lbm_3d=true`` builds the 3D D3Q19 solver
+    (``apps.lattice_boltzmann_3d``) over the ``width x height x depth``
+    volume.  Both share the same key family (``relaxation_omega``,
+    ``lbm_inlet_density``, ``lbm_outlet_density``, ``lbm_substeps``).
+    """
+    lbm_3d = _opt_bool(sim, "lbm_3d", False)
+    if not (_opt_bool(sim, "lbm", False) or lbm_3d):
+        return None
+    try:
+        import numpy as np  # noqa: F401
+    except ImportError as e:
+        raise SimConfigError(
+            "sim keys 'lbm'/'lbm_3d' require numpy (lattice Boltzmann "
+            "solver)") from e
+    omega = _opt_float(sim, "relaxation_omega", 1.2 if lbm_3d else 1.5)
+    inlet_velocity = _opt_float(sim, "lbm_inlet_velocity", 0.0)
+    inlet_density = _opt_float(sim, "lbm_inlet_density", 1.001)
+    outlet_density = _opt_float(sim, "lbm_outlet_density", 0.999)
+    if lbm_3d:
+        from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+
+        return LatticeBoltzmann3D(
+            width=width,
+            height=height,
+            depth=depth,
+            omega=omega,
+            inlet_velocity=inlet_velocity,
+            inlet_density=inlet_density,
+            outlet_density=outlet_density,
+        )
+    from helixlang.apps.lattice_boltzmann import LatticeBoltzmann
+
+    return LatticeBoltzmann(
+        width=width,
+        height=height,
+        omega=omega,
+        inlet_velocity=inlet_velocity,
+        inlet_density=inlet_density,
+        outlet_density=outlet_density,
+    )
+
+
 def _seed_cells(config: PopulationConfig, n: int) -> list[PopulationCell]:
-    """Pack ``n`` cells as a centered colony block (like the apps do)."""
-    w, h = config.grid_width, config.grid_height
+    """Pack ``n`` cells as a centered colony block (like the apps do).
+
+    With ``grid_depth > 1`` the block fills a centered cuboid of
+    ``side x side x side`` layers so the 3D D3Q19 colony occupies all
+    three axes (cells default to z = 0 otherwise).
+    """
+    w, h, d = config.grid_width, config.grid_height, config.grid_depth
     side = 1
-    while side * side < n:
+    layers = 1
+    while side * side * layers < n:
         side += 1
+        if side * side * layers >= n:
+            break
+        layers = min(side, d)
+        if side * side * layers >= n:
+            break
+        side += 1
+    side = max(1, side)
+    layers = max(1, min(layers, d))
     off_x = max(0, (w - side) // 2)
     off_y = max(0, (h - side) // 2)
+    off_z = max(0, (d - layers) // 2)
     cells: list[PopulationCell] = []
     for i in range(n):
-        cells.append(PopulationCell(
-            id=i,
-            x=min(off_x + i % side, w - 1),
-            y=min(off_y + (i // side) % side, h - 1),
-        ))
+        x = min(off_x + i % side, w - 1)
+        y = min(off_y + (i // side) % side, h - 1)
+        z = min(off_z + (i // (side * side)) % layers, d - 1)
+        body = None
+        if config.cell_shape == "rod":
+            from helixlang.cell_body import CellBody
+
+            body = CellBody(
+                x=(x + 0.5) * LATTICE_SPACING_UM,
+                y=(y + 0.5) * LATTICE_SPACING_UM,
+                length_um=config.cell_length_um,
+                diameter_um=config.cell_diameter_um,
+                angle=0.0,
+            )
+        cells.append(PopulationCell(id=i, x=x, y=y, z=z, body=body))
     return cells
 
 
@@ -1523,6 +1768,14 @@ def _run_population(program: Program) -> ColonyResult:
     meta: dict[str, Any] = {
         "colony_observables": population.colony_observables(),
     }
+    if config.genome is not None:
+        meta["genome"] = {
+            "genes": config.genome.n_genes,
+            "edges": config.genome.n_edges,
+            "tf_map": config.genome.tf_map,
+            "grn_mode": config.genome.grn_mode,
+            "active_gene_budget": config.genome.active_gene_budget,
+        }
     if config.trace_streaming:
         meta["trace"] = population.trace
     return ColonyResult(

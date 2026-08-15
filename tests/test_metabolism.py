@@ -672,10 +672,10 @@ class TestLoadModel:
     """Verify the optional model loader (4.6)."""
 
     def test_load_model_none_returns_core(self):
-        """load_model(None) returns the curated 37-reaction core model."""
+        """load_model(None) returns the curated 42-reaction core model."""
         m = load_model()
         assert m is ECOLI_CORE_MODEL
-        assert len(m.reactions) == 37
+        assert len(m.reactions) == 42
 
     def test_load_model_json_path(self):
         """load_model() accepts a JSON path."""
@@ -683,7 +683,7 @@ class TestLoadModel:
         p = Path(__file__).resolve().parents[1] / "src" / "helixlang" \
             / "data" / "ecoli_core_model.json"
         m = load_model(p)
-        assert len(m.reactions) == 37
+        assert len(m.reactions) == 42
         assert m.biomass_reaction is not None
 
     def test_load_model_unknown_identifier_without_cobra(self):

@@ -378,3 +378,68 @@ def test_population3d_mechanics_relieves_crowding_in_z(mechanics: str) -> None:
     assert max(occ[z][y][x] for z in range(12)
                for y in range(12) for x in range(12)) < 6
     assert len({c.z for c in p.cells}) > 1  # cells escaped along z
+
+
+@pytest.mark.parametrize("direction,axis", [("E", "x"), ("U", "z")])
+def test_flow3d_drift_advects_cells(direction: str, axis: str) -> None:
+    """Design 6 Level 2 3D wiring: ``config.flow3d`` (a FlowField3D) drifts
+    lattice cells along the flow axis in 3D (`_drift_cells_3d`).
+
+    The strong analytic duct field (mean 3 sites/tick) is far above the
+    half-site rounding threshold, so the cells move one or more lattice
+    sites per tick; a stagnant field keeps them in place.
+    """
+    from helixlang.flow import (
+        channel_poiseuille_3d,
+        stagnant_3d,
+    )
+
+    cfg = PopulationConfig(**{**GRID, "division_threshold": 1e13})
+    cells = [PopulationCell(id=i, energy=1e12, x=5, y=8, z=4)
+             for i in range(4)]
+    flow = channel_poiseuille_3d(12, 12, 12, 0.5, direction)
+    cfg.flow3d = flow
+    pop = CellPopulation3D(cells, cfg, seed=0)
+    assert cfg.flow3d is flow  # config flow3d is the driver
+    x0 = [c.x for c in pop.cells]
+    z0 = [c.z for c in pop.cells]
+    for _ in range(2):
+        pop.step()
+    if axis == "x":
+        assert all(c.x > x0[i] for i, c in enumerate(pop.cells))
+    else:
+        assert all(c.z > z0[i] for i, c in enumerate(pop.cells))
+
+    still = CellPopulation3D(
+        [PopulationCell(id=i, energy=1e12, x=5, y=8, z=4) for i in range(4)],
+        PopulationConfig(**{**GRID, "division_threshold": 1e13}), seed=0)
+    still.config.flow3d = stagnant_3d(12, 12, 12)
+    x0s = [c.x for c in still.cells]
+    z0s = [c.z for c in still.cells]
+    for _ in range(2):
+        still.step()
+    assert [c.x for c in still.cells] == x0s
+    assert [c.z for c in still.cells] == z0s
+
+
+def test_lbm3d_refreshes_flow3d_and_obstacle_mask() -> None:
+    """Design 6 Level 2 3D wiring: a D3Q19 solver attached via
+    ``config.lbm`` is stepped each tick, its occupancy mask rasterizes
+    the alive cells, and the refreshed FlowField3D is published to
+    ``config.flow3d`` (driving drift + environment advection)."""
+    from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+    from helixlang.flow import FlowField3D
+
+    lbm = LatticeBoltzmann3D(width=12, height=12, depth=12, omega=1.2)
+    cfg = PopulationConfig(**{**GRID, "lbm": lbm, "flow_substeps": 2,
+                              "division_threshold": 1e13})
+    cells = [PopulationCell(id=i, energy=1e12, x=5, y=5, z=5)
+             for i in range(4)]
+    p = CellPopulation3D(cells, cfg, seed=0)
+    assert cfg.flow3d is None
+    p.step()
+    assert isinstance(cfg.flow3d, FlowField3D)
+    # the 4 cells rasterized as no-slip obstacles at their site
+    assert bool(lbm.solid[5][5][5])
+    # flow field is the same object the population will drift on
+    assert p.config.flow3d is cfg.flow3d

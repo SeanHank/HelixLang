@@ -1,0 +1,23 @@
+# Example 36: Population-level calibration (NEW)
+# Recovers the three free dFBA colony parameters (maximum O2 uptake,
+# energy scale, division threshold) from colony-level mixed observables
+# only -- no per-cell state is read (doc/18-programmable-cell-population-simulation.md §13 Design 4).
+#
+# The probe is a short co-located shared-batch colony that divides one to
+# two times in-window.  The fit runs three nearly independent stages:
+#   1. metabolic probe (growth rate + core/edge O2/acetate) -> oxygen
+#   2. division-free energy probe (mean cell energy grows linearly with
+#      the per-tick accumulation rate) -> energy scale
+#   3. division probe (time-averaged mean/total/newborn energy + colony
+#      size) -> division threshold, with the other two held fixed
+# The division block alone cannot separate scale from threshold (both its
+# mean and newborn energies scale like threshold - c*scale); reading the
+# scale division-free is what makes the two knobs separable.
+#
+# Runtime ~1-2 min (the fit budget is dominated by the division probe).
+
+#sim kind=population_calibration
+#sim n_samples=12 refine_rounds=2 division_ticks=12 fit_seed=0
+#sim output=best,passed
+
+#config backend=fba

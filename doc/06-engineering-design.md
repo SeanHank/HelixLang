@@ -157,7 +157,6 @@ HelixLang/
 │   ├── 14-production-upgrade.md
 │   ├── 15-whole-cell-realism.md
 │   ├── 16-gameplay-units-upgrade.md
-│   └── 17-项目详解与前沿生物学应用.md
 ├── src/
 │   └── helixlang/
 │       ├── __init__.py           # public API exports

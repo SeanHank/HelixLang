@@ -747,7 +747,8 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
                    ranges: dict[str, tuple[float, float]],
                  n_samples: int = 500, seed: int = 0,
                  refine_rounds: int = 5, n_grid: int = 50,
-                 weights: Sequence[float] | None = None) -> dict:
+                 weights: Sequence[float] | None = None,
+                 polish_passes: int = 64) -> dict:
     """Fit model parameters to observed data.
 
     ``predict(**params) -> list[float]`` is evaluated at randomized
@@ -776,6 +777,11 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
             variance weights (DESeq2 2014 variance structure
             ``Var = mu + dispersion*mu^2``; Karr et al. 2012 DREAM8
             weighted fitting). ``None`` = unit weights.
+        polish_passes: maximum coordinate-wise parabolic-polish passes
+            after the pattern search. 64 (the default) is enough for the
+            unit-test benchmark objectives; expensive simulators should
+            pass a small value (e.g. 4-8), since each pass costs three
+            ``predict`` calls per fitted parameter.
 
     Returns:
         ``{"best": {param: value}, "sse": float, "n_samples": int}``.
@@ -836,7 +842,7 @@ def fit_parameters(predict: Callable[..., list[float]], observed: list[float],
     # stage 2: parabolic-interpolation polish on each axis. The discrete
     # grid cannot slide along a narrow ridge (e.g. a + b*x), so fit a
     # parabola through three samples and jump to its vertex.
-    for _ in range(64):
+    for _ in range(polish_passes):
         improved = False
         for n in names:
             lo, hi = ranges[n]

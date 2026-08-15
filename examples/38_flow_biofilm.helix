@@ -1,0 +1,30 @@
+# Example 38: Flow biofilm - rod cells in an LBM microfluidic channel
+# (Design 6 Level 2 + Level 3, doc/18-programmable-cell-population-simulation.md §13)
+# A colony of rod cells (continuous spherocylinders) grows in a
+# pressure-driven channel.  Every tick the D2Q9 lattice-Boltzmann
+# solver recomputes the flow around the cells (no-slip bounce-back
+# obstacles); the local current then drags the rods downstream
+# (Stokes drag) while Hertzian contacts keep them non-overlapping.
+# Glucose/O2 advect with the same flow field, so the colony edge sees
+# fresh medium while the core turns hypoxic (nutrient boundary layer,
+# gate 4).
+
+#promoter name=p_housekeeping strength=-0.4
+
+#gene name=pilT promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+
+#media nutrient=GLC concentration=10.0 diffusion_um2_s=300
+#media nutrient=O2 concentration=0.25 diffusion_um2_s=20
+
+#config backend=population
+#config population_size=64 grid_width=48 grid_height=24
+#config cell_shape=rod length_um=4.0 diameter_um=1.0
+#config mechanics=contact contact_stiffness=2.0e3
+#sim lbm=true relaxation_omega=1.5 lbm_substeps=10
+#config dfba=true dfba_dt_h=0.1
+#config signaling=true signal_diffusion=0.3 signal_threshold=20.0
+#config seed=0
+#config ticks=60
+#config output=alive_count,diversity_index,core_cell_count,edge_cell_count,core_oxygen_mm,edge_oxygen_mm

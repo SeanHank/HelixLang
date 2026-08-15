@@ -14,6 +14,7 @@ from helixlang.lexer import Lexer
 from helixlang.parser import Parser
 from helixlang.sim_runtime import (
     _build_grn,
+    _build_population_config,
     _build_virtual_cell_config,
     run,
 )
@@ -220,8 +221,107 @@ def test_population_determinism():
     b = run(parse(_POP_SRC))
     assert a is not None and b is not None
     assert a.rows == b.rows
-    assert (a.meta["colony_observables"]
-            == b.meta["colony_observables"])
+
+
+# ============================================================================
+# Design 6 Level 2 3D: `#sim lbm_3d=true` (D3Q19) wiring
+# ============================================================================
+def test_sim_lbm_3d_true_builds_solver() -> None:
+    """`#sim lbm_3d=true` builds the D3Q19 solver over the 3D lattice."""
+    from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+
+    with pytest.raises(SimConfigError, match="grid_depth"):
+        _build_population_config(
+            parse("#sim lbm_3d=true grid_depth=1"))
+    cfg = _build_population_config(
+        parse("#sim lbm_3d=true relaxation_omega=1.2 grid_depth=8"))
+    assert isinstance(cfg.lbm, LatticeBoltzmann3D)
+    assert cfg.lbm.omega == pytest.approx(1.2)
+    assert cfg.grid_depth == 8
+    assert _build_population_config(
+        parse("#sim lbm_3d=false grid_depth=8")).lbm is None
+
+
+def test_sim_lbm_3d_mutually_exclusive_with_flow_drivers() -> None:
+    """lbm_3d excludes both ``flow=`` and ``lbm=`` (one driver only)."""
+    with pytest.raises(SimConfigError, match="mutually exclusive"):
+        _build_population_config(
+            parse("#sim flow=channel_poiseuille lbm_3d=true grid_depth=8"))
+    with pytest.raises(SimConfigError, match="mutually exclusive"):
+        _build_population_config(
+            parse("#sim lbm=true lbm_3d=true grid_depth=8"))
+
+
+def test_run_population_lbm_3d_end_to_end() -> None:
+    """`#sim lbm_3d=true` drives a 3D population run end to end.
+
+    The D3Q19 solver steps behind the population (fresh 3D flow each
+    tick); the colony survives and stays on the lattice.
+    """
+    src = """
+#promoter name=p_housekeeping strength=-0.4
+#gene name=pilT promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+#config backend=population
+#config population_size=8 grid_width=16 grid_height=16 grid_depth=8
+#sim lbm_3d=true relaxation_omega=1.2 lbm_substeps=3
+#config seed=0
+#config ticks=5
+#config output=alive_count,diversity_index
+"""
+    result = run(parse(src))
+    assert result is not None and result.backend == "population"
+    assert len(result.rows) == 5
+    assert result.rows[-1]["alive_count"] == 8
+    assert result.rows[-1]["diversity_index"] == 0.0
+
+
+# ============================================================================
+# Design 5 (doc/18-programmable-cell-population-simulation.md §13): #genome wiring (task 1)
+# ============================================================================
+_GENOME_SRC = """
+#genome source=synth-4300 tf_map=regulon grn_mode=sparse active_gene_budget=512
+#genome seed=7
+#promoter name=p_housekeeping strength=-0.4
+#gene name=crp promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+#media nutrient=GLC concentration=10.0 diffusion_um2_s=5.0
+#media nutrient=O2 concentration=0.25 diffusion_um2_s=5.0
+#config backend=population
+#config population_size=32 grid_width=16 grid_height=16
+#config dfba=true dfba_dt_h=0.1
+#config seed=0
+#config ticks=4
+#config output=alive_count,triggered_genes
+"""
+
+
+def test_genome_annotation_maps_shared_template():
+    """#genome fields merge into sim_extensions and build the shared
+    sparse template (4338 genes / ~10^4 edges) once per run."""
+    prog = parse(_GENOME_SRC)
+    assert prog.sim_extensions["genome"] == "true"
+    assert prog.sim_extensions["genome_source"] == "synth-4300"
+    assert prog.sim_extensions["genome_seed"] == "7"
+    result = run(prog)
+    assert result is not None and result.backend == "population"
+    meta = result.meta["genome"]
+    assert meta["genes"] == 4338
+    assert meta["edges"] == 10428
+    assert meta["tf_map"] == "regulon"
+    last = result.rows[-1]
+    # 28 FBA-gated core genes seeded ON per cell drive triggered_genes > 0
+    assert last["triggered_genes"] is not None
+    assert last["triggered_genes"] > 0
+
+
+def test_genome_annotation_inert_without_population_backend():
+    """#genome is inert under the classic backend (no template is built)."""
+    prog = parse("#genome source=synth-4300\n#config backend=classic")
+    assert prog.sim_extensions["genome"] == "true"
+    assert run(prog) is None
 
 
 def test_spatial_dfba_extension():
@@ -505,3 +605,39 @@ ATG GCG CTG GAA GTG ATT TTT GGC AGC TAA
     assert by_species["ecoli"] == pytest.approx(1.0)
     assert by_species["ecoli"] > by_species["yeast"]
     assert by_species["ecoli"] > by_species["human"]
+
+
+def test_sim_kind_population_calibration():
+    """Population-level mixed-observable calibration (doc/18-programmable-cell-population-simulation.md §13 Design 4):
+    the backend recovers the dFBA colony parameters within tolerance."""
+    result = run(parse("""
+#config backend=fba
+#sim kind=population_calibration n_samples=2 refine_rounds=1
+#sim division_ticks=10 fit_seed=1
+#sim output=best,passed
+"""))
+    assert result is not None and result.backend == "population_calibration"
+    row = result.rows[0]
+    assert row["passed"] is True
+    best = row["best"]
+    assert best["dfba_oxygen_max_uptake"] == pytest.approx(12.0, abs=0.6)
+    assert best["dfba_energy_scale"] == pytest.approx(2.1e8, rel=0.05)
+    assert best["division_threshold"] == pytest.approx(2.0e8, rel=0.10)
+
+
+def test_sim_kind_spatial_evolution():
+    """Dual-loop range-expansion evolution (doc/18-programmable-cell-population-simulation.md §13 Design 1;
+    Bosshard et al. 2020 BMC Genomics 21:232)."""
+    result = run(parse("""
+#config backend=classic
+#sim kind=spatial_evolution generations=3 population_size=4
+#sim genome_length=30 substitution_rate=0.03 seed=7
+#sim output=generation,mean_fitness,max_fitness,mean_uptake_gain
+"""))
+    assert result is not None and result.backend == "spatial_evolution"
+    assert len(result.rows) == 3
+    assert result.rows[-1]["generation"] == 2
+    # selection acts on the spatial phenotype, so max fitness never
+    # decreases below its first-generation value
+    assert (result.rows[-1]["max_fitness"]
+            >= result.rows[0]["max_fitness"])

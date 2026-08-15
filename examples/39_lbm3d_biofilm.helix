@@ -1,0 +1,23 @@
+# Example 39: 3D LBM biofilm - D3Q19 microfluidic channel
+# (Design 6 Level 2 3D, doc/18-programmable-cell-population-simulation.md §13)
+# A colony of cells grows inside a 3D pressure-driven channel.  Every
+# tick the D3Q19 lattice-Boltzmann solver recomputes the 3D flow around
+# the cells (no-slip obstacles); the refreshed FlowField3D drives 3D
+# cell drift (lattice sites move along the axial current) and, when a
+# #media block is present, 3D substrate advection.  `#sim lbm_3d=true`
+# is the 3D counterpart of `#sim lbm=true` (D2Q9) and requires
+# grid_depth > 1.
+
+#promoter name=p_housekeeping strength=-0.4
+
+#gene name=pilT promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+
+#config backend=population
+#config population_size=27 grid_width=16 grid_height=16 grid_depth=8
+#sim lbm_3d=true relaxation_omega=1.2 lbm_substeps=3
+#config signaling=true signal_diffusion=0.3 signal_threshold=20.0
+#config seed=0
+#config ticks=10
+#config output=alive_count,diversity_index,avg_energy

@@ -25,15 +25,20 @@ import copy
 import math
 import random
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING
 
 from helixlang.ast_nodes import Program
 from helixlang.bytecode import Chunk
 from helixlang.environment import (
+    ACETATE_DIFFUSION_UM2_S,
+    ConcentrationField,
     Environment,
     crowding_diffusion_factor,
     monod_uptake,
 )
+from helixlang.flow import FlowField, FlowField3D
 from helixlang.grn import GRN
 from helixlang.metabolism import (
     ECOLI_CORE_MODEL,
@@ -54,6 +59,11 @@ try:
     _HAS_NUMPY = True
 except ImportError:
     _HAS_NUMPY = False
+
+if TYPE_CHECKING:
+    from helixlang.apps.genome_scale import GenomeColony, GenomeSpec
+    from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+    from helixlang.cell_body import CellBody
 
 
 # ============================================================================
@@ -181,6 +191,29 @@ class PopulationConfig:
         dfba_oxygen_half_saturation_mm: Monod Ks (mM) of the per-cell
             oxygen uptake (~0.01 mM, on the µM scale of the respiration
             Ks; Stolper 2010).
+        dfba_shared_batch: when True, cells sharing a lattice site (an
+            identical environment state) solve **one** FBA LP per tick,
+            and every co-located batch integrates from that shared
+            solution (surfin_FBA basis reuse, Brunner & Chai 2020 PLoS
+            Comput Biol 16:e1007786).  Default False (per-cell LP,
+            unchanged behaviour).
+        acetate_switch: when True, each cell's dFBA batch runs the
+            acetate switch (Wolfe 2005): once the local glucose falls
+            below ``acetate_switch_threshold_mm`` the cell opens the
+            glyoxylate bypass + gluconeogenesis and assimilates the
+            acetate accumulated at its site (second growth phase).
+            Default False (baseline fermentative model unchanged).
+        acetate_switch_threshold_mm: local glucose (mM) below which the
+            acetate-assimilation phase opens (default 0.5 mM; below the
+            ~1 mM induction range of the acetate catabolism operons).
+        genome: genome-scale template (doc/18-programmable-cell-population-simulation.md Design 5).  When set, every
+            cell's expression state is a row of one shared numpy matrix
+            ``(max_size, G)`` advanced by a single :class:
+            `~helixlang.sparse_grn.SparseGRN` call per tick, instead of
+            deep-copying a scalar GRN per cell.  The engineered `.helix`
+            layer still runs per cell and overlaps (same gene names)
+            read/write the background matrix; expression-triggered core
+            genes gate their FBA reactions (knockout = silent node).
     """
 
     max_size: int = DEFAULT_MAX_POPULATION_SIZE
@@ -213,6 +246,20 @@ class PopulationConfig:
     dfba_glucose_half_saturation_mm: float = 0.1
     dfba_oxygen_max_uptake: float = 40.0
     dfba_oxygen_half_saturation_mm: float = 0.01
+    dfba_shared_batch: bool = False
+    acetate_switch: bool = False
+    acetate_switch_threshold_mm: float = 0.5
+    genome: GenomeSpec | None = None
+    # Design 6 (doc/18-programmable-cell-population-simulation.md §13): flow + rod-cell contact mechanics
+    flow: FlowField | None = None        # 2D advective flow; cells drift with it
+    flow3d: FlowField3D | None = None    # 3D advective flow (D3Q19 3D branch)
+    cell_shape: str | None = None        # None or "rod"
+    cell_length_um: float = 2.0          # rod length at birth (µm)
+    cell_diameter_um: float = 1.0        # rod diameter (µm)
+    contact_stiffness: float = 1.0e3     # Hertzian contact stiffness
+    fluid_viscosity_mpas: float = 1.0    # medium viscosity (mPa·s, water ~1)
+    lbm: object | None = None            # Level-2 LBM solver (apps.lattice_boltzmann)
+    flow_substeps: int = 1               # LBM ticks per population tick
 
 
 @dataclass(slots=True)
@@ -248,6 +295,8 @@ class PopulationCell:
     membrane_permeability: int = 255        # 0 (impermeable) .. 255 (open)
     volume_um3: float = CELL_NEWBORN_VOLUME_UM3  # physical cell volume (um3)
     dfba: DynamicFluxBalance | None = None  # per-cell batch metabolism (Phase 5)
+    genome_row: int = -1  # row index into the shared genome-level matrix (-1 = off)
+    body: CellBody | None = None  # continuous rod body (Design 6 Level 3)
 
 
 def cell_radius_um(volume_um3: float) -> float:
@@ -315,15 +364,30 @@ def divide_cell(
     """
     half_energy = cell.energy / 2.0
 
-    # Random directional offset (8-neighborhood), the two daughter cells separate in opposite directions
-    dx = rng.choice((-1, 0, 1))
-    dy = rng.choice((-1, 0, 1))
-    if dx == 0 and dy == 0:
-        dy = 1
-    ax = _clamp(cell.x + dx, 0, config.grid_width - 1)
-    ay = _clamp(cell.y + dy, 0, config.grid_height - 1)
-    bx = _clamp(cell.x - dx, 0, config.grid_width - 1)
-    by = _clamp(cell.y - dy, 0, config.grid_height - 1)
+    # Rod cells split along their own axis (doc/18-programmable-cell-population-simulation.md §13 Design 6 Level 3):
+    # the parent capsule breaks at its centre into two half-length rods,
+    # one on each side of the parent centre (axial jitter +/- epsilon).
+    # Lattice coordinates are re-derived from the continuous bodies.
+    body_a = None
+    body_b = None
+    if config.cell_shape == "rod" and cell.body is not None:
+        from helixlang.cell_body import divide_rod
+
+        body_a, body_b = divide_rod(cell.body, rng, epsilon=0.05)
+        ax, ay = body_a.lattice(config.grid_width, config.grid_height,
+                                LATTICE_SPACING_UM)
+        bx, by = body_b.lattice(config.grid_width, config.grid_height,
+                                LATTICE_SPACING_UM)
+    else:
+        # Random directional offset (8-neighborhood), the two daughter cells separate in opposite directions
+        dx = rng.choice((-1, 0, 1))
+        dy = rng.choice((-1, 0, 1))
+        if dx == 0 and dy == 0:
+            dy = 1
+        ax = _clamp(cell.x + dx, 0, config.grid_width - 1)
+        ay = _clamp(cell.y + dy, 0, config.grid_height - 1)
+        bx = _clamp(cell.x - dx, 0, config.grid_width - 1)
+        by = _clamp(cell.y - dy, 0, config.grid_height - 1)
 
     # Allocate proteins via a binomial distribution (each molecule independently goes to daughter_a with p=0.5)
     prots_a: dict[int | str, float] = {}
@@ -360,6 +424,7 @@ def divide_cell(
         color=cell.color,
         membrane_permeability=cell.membrane_permeability,
         volume_um3=cell.volume_um3 / 2.0,
+        body=body_a,
     )
     daughter_b = PopulationCell(
         id=-1,
@@ -376,6 +441,7 @@ def divide_cell(
         color=cell.color,
         membrane_permeability=cell.membrane_permeability,
         volume_um3=cell.volume_um3 / 2.0,
+        body=body_b,
     )
     return daughter_a, daughter_b
 
@@ -543,10 +609,44 @@ class CellPopulation:
                     c.grn = copy.deepcopy(self._template_grn)
         else:
             self._template_grn = None
-        if config.mechanics not in (None, "shoving", "force"):
+        self._genome_colony: GenomeColony | None = None
+        # engineered (.helix) gene -> background column, for the overlap
+        # reads/writes between the two layers
+        self._genome_overlap: dict[str, int] = {}
+        if config.genome is not None:
+            from helixlang.apps.genome_scale import GenomeColony
+            if not _HAS_NUMPY:
+                raise ValueError(
+                    "genome mode requires numpy (SparseGRN matrix step)")
+            if config.chunk is None:
+                raise ValueError(
+                    "genome mode requires a compiled .helix program")
+            if config.max_size < len(self.cells):
+                raise ValueError(
+                    "genome mode requires max_size >= initial cell count")
+            # one shared template + one levels matrix for the whole colony
+            self._genome_colony = GenomeColony(
+                config.genome, len(self.cells),
+                initial_genes=tuple(config.genome.gene_to_reactions),
+                capacity=config.max_size)
+            for i, c in enumerate(self.cells):
+                c.genome_row = i
+            idx = config.genome.index
+            for name in config.chunk.gene_offsets:
+                col = idx.get(name)
+                if col is not None:
+                    self._genome_overlap[name] = col
+        if config.mechanics not in (None, "shoving", "force", "contact"):
             raise ValueError(
-                "mechanics must be None, 'shoving' or 'force', "
+                "mechanics must be None, 'shoving', 'force' or 'contact', "
                 f"got {config.mechanics!r}")
+        if config.cell_shape not in (None, "rod"):
+            raise ValueError(
+                f"cell_shape must be None or 'rod', got {config.cell_shape!r}")
+        if config.mechanics == "contact" and config.cell_shape != "rod":
+            raise ValueError("mechanics=contact requires cell_shape=rod")
+        if config.lbm is not None and not _HAS_NUMPY:
+            raise ValueError("lbm requires numpy (lattice Boltzmann solver)")
         if config.environment is not None and (
             config.environment.config.width != config.grid_width
             or config.environment.config.height != config.grid_height
@@ -570,6 +670,29 @@ class CellPopulation:
             if c.id < 0:
                 c.id = self._next_id
                 self._next_id += 1
+
+    def _assign_genome_rows(self, parent: PopulationCell,
+                            a: PopulationCell,
+                            b: PopulationCell) -> None:
+        """Hand daughters their shared-levels rows after binary fission.
+
+        One daughter inherits the parent's row (no copy); the other gets
+        a fresh row copied from the parent's expression state.
+        """
+        if self._genome_colony is None:
+            return
+        a.genome_row = parent.genome_row
+        b.genome_row = self._genome_colony.alloc_row(copy_of=parent.genome_row)
+
+    def _free_dead_genome_rows(self) -> None:
+        """Return the rows of cells that died this tick to the free pool."""
+        colony = self._genome_colony
+        if colony is None:
+            return
+        for c in self.cells:
+            if not c.alive and c.genome_row >= 0:
+                colony.free_row(c.genome_row)
+                c.genome_row = -1
 
     @staticmethod
     def _build_program_grn(program: Program, noise_enabled: bool = False,
@@ -676,6 +799,7 @@ class CellPopulation:
                     and cell.energy >= config.division_threshold
                     and divisions_done < divisions_allowed):
                 a, b = divide_cell(cell, config, self.rng)
+                self._assign_genome_rows(cell, a, b)
                 divisions_done += 1
                 next_cells.append(a)
                 next_cells.append(b)
@@ -683,9 +807,14 @@ class CellPopulation:
                 next_cells.append(cell)
 
         # 4) Spatial mechanics (exclusion / force-based repulsion)
+        if config.lbm is not None:
+            self._step_lbm()
+        if config.flow is not None and next_cells:
+            self._drift_cells(next_cells)
         if config.mechanics is not None and next_cells:
             self._apply_mechanics(next_cells)
 
+        self._free_dead_genome_rows()
         self.cells = next_cells
         self._assign_ids()
         self._last_divisions = divisions_done
@@ -778,9 +907,26 @@ class CellPopulation:
         return ip resumes the suspended stream; execution is limited to
         ``ops_per_tick`` ops per cell per tick (remaining frames resume
         next tick).
+
+        In genome mode (:attr:`PopulationConfig.genome` set) the whole
+        colony is stepped in **one** vectorized call first; triggered
+        engineered (.helix) genes then push their bytecode frames
+        (doc/18-programmable-cell-population-simulation.md Design 5, task 3).
         """
         alive: list[PopulationCell] = []
         deaths = 0
+        colony = self._genome_colony
+        if colony is not None:
+            colony.step()
+            trig = colony.triggered()
+            for cell in cells:
+                if not cell.alive or cell.genome_row < 0:
+                    continue
+                row = trig[cell.genome_row]
+                for name, col_idx in self._genome_overlap.items():
+                    if row[col_idx]:
+                        self._push_gene_frame(cell, name)
+
         for cell in cells:
             if not cell.alive:
                 continue
@@ -788,6 +934,12 @@ class CellPopulation:
             if grn is not None:
                 for gene in grn.step():
                     self._push_gene_frame(cell, gene)
+                    if colony is not None and cell.genome_row >= 0:
+                        # engineered -> background write (overlap nodes
+                        # share one expression matrix)
+                        col = self._genome_overlap.get(gene)
+                        if col is not None:
+                            colony.levels[cell.genome_row, col] = 1.0
             self._execute_cell(cell, self.config.ops_per_tick)
             if cell.alive:
                 alive.append(cell)
@@ -1012,8 +1164,13 @@ class CellPopulation:
         - ``force``: cells are displaced one step toward the least
           crowded neighboring site, a lattice realization of the
           force-balance mechanics in iDynoMiCS 2.0 (Cockx et al. 2024).
+        - ``contact``: continuous rod cells (``cell_shape=rod``) resolve
+          Hertzian contacts + Stokes drag (doc/18-programmable-cell-population-simulation.md §13 Design 6 Level 3).
         """
         config = self.config
+        if config.mechanics == "contact":
+            self._apply_contact_mechanics(cells)
+            return
         occ = self._occupancy(cells)
         if config.mechanics == "shoving":
             for c in cells:
@@ -1048,9 +1205,135 @@ class CellPopulation:
                     occ[best[2]][best[1]] += 1
                     c.x, c.y = best[1], best[2]
 
+    # -- Design 6 Level 1: advective cell drift --
+    def _drift_cells(self, cells: list[PopulationCell]) -> None:
+        """Advect cells with the configured flow before mechanics.
+
+        Lattice cells are displaced by the rounded local velocity
+        (sites/tick).  Cells with a continuous rod ``body`` are moved
+        continuously (µm/tick) and re-projected onto the lattice, so the
+        environment/metabolism lookups stay lattice-based.  Called before
+        ``_apply_mechanics`` so the relaxation then resolves any overlaps
+        the drift created.
+
+        With ``mechanics=contact`` the drift is deferred to the contact
+        solver (which applies the same flow drag alongside the Hertzian
+        contacts), so it is skipped here.
+        """
+        flow = self.config.flow
+        if flow is None or self.config.mechanics == "contact":
+            return
+        for c in cells:
+            if not c.alive:
+                continue
+            u, v = flow.velocity(c.x, c.y)
+            if c.body is not None:
+                c.body.x += u * LATTICE_SPACING_UM
+                c.body.y += v * LATTICE_SPACING_UM
+            else:
+                c.x = _clamp(c.x + int(round(u)), 0,
+                             self.config.grid_width - 1)
+                c.y = _clamp(c.y + int(round(v)), 0,
+                             self.config.grid_height - 1)
+        if self.config.cell_shape == "rod":
+            self._sync_bodies_to_lattice(cells)
+
+    def _sync_bodies_to_lattice(self, cells: list[PopulationCell]) -> None:
+        """Project each rod body's continuous center onto the lattice."""
+        if self.config.cell_shape != "rod":
+            return
+        w = self.config.grid_width
+        h = self.config.grid_height
+        for c in cells:
+            if c.body is None or not c.alive:
+                continue
+            c.x = _clamp(int(round(c.body.x / LATTICE_SPACING_UM)), 0, w - 1)
+            c.y = _clamp(int(round(c.body.y / LATTICE_SPACING_UM)), 0, h - 1)
+
+    # -- Design 6 Level 2: LBM self-consistent flow --
+    def _step_lbm(self) -> None:
+        """Step the Level-2 2D D2Q9 solver once per population tick and
+        refresh the flow field driving drift and substrate advection.
+
+        The alive cells (rod bodies rasterized over their capsules,
+        point cells on their occupancy sites) are the no-slip obstacles;
+        the solver then advances ``config.flow_substeps`` LBM ticks and
+        the refreshed :class:`~helixlang.flow.FlowField` is attached to
+        ``config.flow`` and the environment (if any).  The 3D D3Q19
+        solver is handled by the :class:`CellPopulation3D` override.
+        """
+        config = self.config
+        lbm = config.lbm
+        if lbm is None:
+            return
+        from helixlang.apps.lattice_boltzmann import LatticeBoltzmann
+
+        if not isinstance(lbm, LatticeBoltzmann):
+            return
+        w = config.grid_width
+        h = config.grid_height
+        mask = np.zeros((h, w), dtype=bool)
+        for c in self.cells:
+            if not c.alive:
+                continue
+            if c.body is not None:
+                for sx, sy in c.body.sites(w, h, LATTICE_SPACING_UM):
+                    mask[sy][sx] = True
+            elif self._in_bounds(c.x, c.y):
+                mask[c.y][c.x] = True
+        lbm.set_occupancy(mask)
+        for _ in range(max(1, int(config.flow_substeps))):
+            lbm.step()
+        flow = lbm.flow_field(config.flow_substeps)
+        config.flow = flow
+        if config.environment is not None:
+            config.environment.set_flow(flow)
+
+    # -- Design 6 Level 3: rod contact + Stokes drag --
+    def _apply_contact_mechanics(self, cells: list[PopulationCell]) -> None:
+        """Continuous rod mechanics: Hertzian contact + Stokes drag.
+
+        Overlaps (rod-rod and rod-wall) are resolved quasi-statically:
+        each contact pushes the two rods apart by
+        ``min(overlap/2, k*overlap^1.5/drag)``, repeated until every
+        overlap is below tolerance.  The flow field then advects each
+        rod at the local velocity (µm/tick).  Rod lengths grow toward
+        ``2 x birth length`` as energy approaches the division
+        threshold, so fission at the threshold yields two
+        birth-length daughters (adder control).
+        """
+        config = self.config
+        if config.cell_shape != "rod":
+            return
+        from helixlang.cell_body import (
+            advect_rods,
+            capsule_radius,
+            resolve_rod_contacts,
+            stokes_drag_coefficient,
+        )
+
+        spacing = LATTICE_SPACING_UM
+        radius = capsule_radius(config.cell_diameter_um)
+        drag = stokes_drag_coefficient(radius, config.fluid_viscosity_mpas)
+        bodies = [c.body for c in cells if c.alive and c.body is not None]
+        if not bodies:
+            return
+        # rod length grows with the energy budget (elongation before
+        # fission); newborn cells keep the birth length.
+        for c in cells:
+            if c.body is None or not c.alive:
+                continue
+            frac = min(1.0, max(0.0,
+                                c.energy / max(1.0, config.division_threshold)))
+            c.body.length_um = config.cell_length_um * (1.0 + frac)
+        resolve_rod_contacts(bodies, drag, config.contact_stiffness,
+                             config.grid_width * spacing,
+                             config.grid_height * spacing)
+        advect_rods(bodies, config.flow, spacing)
+        self._sync_bodies_to_lattice(cells)
+
     # -- T1.5: streaming per-cell trace --
     def _append_trace(self) -> None:
-        """Append a per-cell snapshot to ``self.trace`` for this tick."""
         snap: dict[str, object] = {
             "tick": self._generation,
             "cells": [
@@ -1136,10 +1419,24 @@ class CellPopulation:
         The flat ``METABOLIC_COST_PER_STEP`` is not subtracted here: the
         FBA biomass reaction already carries maintenance (ATPM), so
         subtracting it again would double-count.
+
+        When ``config.dfba_shared_batch`` is set, cells on the same
+        lattice site (an identical environment state) share **one** LP
+        solve per tick: the representative batch is integrated with
+        :meth:`DynamicFluxBalance.step` and every co-located batch
+        advances from the same flux solution via
+        :meth:`DynamicFluxBalance.step_from_solution`.  This is the
+        surfin_FBA basis-reuse trick (Brunner & Chai 2020, PLoS Comput
+        Biol 16:e1007786): the intracellular flux space of a medium
+        state is shared, so the number of LP optimizations drops from one
+        per cell to one per occupied site.
         """
         config = self.config
         dt_h = config.dfba_dt_h
         env = config.environment
+        if config.dfba_shared_batch and env is not None:
+            return self._step_dfba_shared_batch(dt_h)
+
         metabolized: list[PopulationCell] = []
         deaths = 0
         for cell in self.cells:
@@ -1147,13 +1444,7 @@ class CellPopulation:
                 continue
             cell.age += 1
             if cell.dfba is None:
-                cell.dfba = DynamicFluxBalance(
-                    model=copy.deepcopy(ECOLI_CORE_MODEL),
-                    config=DynamicFBAConfig(
-                        dt_h=dt_h,
-                        initial_biomass_gdw=config.dfba_initial_biomass_gdw,
-                        initial_glucose_mm=0.0,
-                    ))
+                cell.dfba = self._new_cell_dfba(dt_h, genome_row=cell.genome_row)
             if env is not None and self._in_bounds(cell.x, cell.y):
                 dfba = cell.dfba
                 glucose_before = env.substrate_at(cell.x, cell.y, "glucose")
@@ -1164,9 +1455,7 @@ class CellPopulation:
                 if consumed > 0.0:
                     env.glucose.deplete(cell.x, cell.y, consumed)
                 self._deplete_dfba_oxygen(dfba, env, cell.x, cell.y, dt_h)
-                if dfba.byproducts_mm.get("acetate", 0.0) > 0.0:
-                    dfba.apply_to_environment(env, cell.x, cell.y)
-                    dfba.set_state(acetate_mm=0.0)
+                self._sync_acetate(dfba, env, cell.x, cell.y)
                 cell.energy += (
                     dfba.growth_rate * dt_h * config.dfba_energy_scale)
             if config.signaling_enabled:
@@ -1178,6 +1467,179 @@ class CellPopulation:
                 continue
             metabolized.append(cell)
         return metabolized, deaths
+
+    def _genome_dfba_override(
+        self, row: int,
+    ) -> Callable[[float, DynamicFluxBalance], dict[str, float]]:
+        """Expression -> reaction gating for one genome-scale cell.
+
+        Returns the ``bound_override`` hook for the cell's dFBA batch:
+        before every LP solve it clamps the upper bound of each
+        FBA-gated reaction whose gene is silent (level <= 0.5) to the
+        reaction's lower bound, so a silent gene closes its reactions
+        and an expressed one opens them (doc/18-programmable-cell-population-simulation.md Design 5, task 4).  A
+        "knocked-out" gene is exactly a never-triggered silent node.
+        """
+        colony = self._genome_colony
+        assert colony is not None
+        g2r = colony.spec.gene_to_reactions
+        idx = colony.spec.grn._idx  # noqa: SLF001
+
+        def override(_time_h: float, batch: DynamicFluxBalance
+                     ) -> dict[str, float]:
+            if row < 0 or row >= colony.levels.shape[0]:
+                return {}
+            levels = colony.levels[row]
+            off: dict[str, float] = {}
+            for gene, rxns in g2r.items():
+                if levels[idx[gene]] <= 0.5:
+                    for rid in rxns:
+                        rxn = batch.fba.model.reactions.get(rid)
+                        if rxn is not None:
+                            off[rid] = max(0.0, rxn.lower_bound)
+            return off
+
+        return override
+
+    def _new_cell_dfba(self, dt_h: float,
+                       genome_row: int = -1) -> DynamicFluxBalance:
+        """Per-cell batch metabolism with a deep-copied core model.
+
+        In genome mode the batch's ``bound_override`` closes the
+        expression -> reaction loop from the cell's row of the shared
+        levels matrix.
+        """
+        config = self.config
+        dfba = DynamicFluxBalance(
+            model=copy.deepcopy(ECOLI_CORE_MODEL),
+            config=DynamicFBAConfig(
+                dt_h=dt_h,
+                initial_biomass_gdw=config.dfba_initial_biomass_gdw,
+                initial_glucose_mm=0.0,
+                acetate_switch=config.acetate_switch,
+                acetate_switch_threshold_mm=config.
+                acetate_switch_threshold_mm,
+            ))
+        if self._genome_colony is not None and genome_row >= 0:
+            dfba.bound_override = self._genome_dfba_override(genome_row)
+        return dfba
+
+    def _step_dfba_shared_batch(self,
+                                dt_h: float) -> tuple[list[PopulationCell],
+                                                      int]:
+        """Shared-batch dFBA: one LP per occupied lattice site.
+
+        Alive in-bounds cells are grouped by site.  For each group the
+        representative batch is solved once (:meth:`DynamicFluxBalance.
+        step`); the remaining group members integrate their own state
+        from the shared flux solution (:meth:`DynamicFluxBalance.
+        step_from_solution`).  The environment sees one depletion and one
+        acetate deposit per site (the group's aggregate demand), keeping
+        the field update identical to the per-cell loop at the same
+        site.
+        """
+        config = self.config
+        env = config.environment
+        assert env is not None
+        groups: dict[tuple[int, int], list[PopulationCell]] = {}
+        for cell in self.cells:
+            if not cell.alive:
+                continue
+            cell.age += 1
+            if not self._in_bounds(cell.x, cell.y):
+                cell.energy -= 0.0
+                continue
+            groups.setdefault((cell.x, cell.y), []).append(cell)
+
+        metabolized: list[PopulationCell] = []
+        deaths = 0
+        for (x, y), site_cells in groups.items():
+            if site_cells[0].dfba is None:
+                site_cells[0].dfba = self._new_cell_dfba(
+                    dt_h, genome_row=site_cells[0].genome_row)
+            rep = site_cells[0].dfba
+            rep.update_from_environment(env, x, y)
+            self._apply_dfba_oxygen_cap(rep, env, x, y)
+            shared_S = rep.glucose_mm
+            rep.step(dt_h)
+            sol = rep.last_fluxes
+            site_consumed = 0.0
+            site_acetate = 0.0
+            for cell in site_cells:
+                if cell is site_cells[0]:
+                    dfba = rep
+                else:
+                    if cell.dfba is None:
+                        cell.dfba = self._new_cell_dfba(
+                            dt_h, genome_row=cell.genome_row)
+                    dfba = cell.dfba
+                    dfba.step_from_solution(sol, shared_S, dt_h)
+                consumed = max(0.0, shared_S - dfba.glucose_mm)
+                site_consumed += consumed
+                site_acetate += dfba.byproducts_mm.get("acetate", 0.0)
+                cell.energy += (
+                    dfba.growth_rate * dt_h * config.dfba_energy_scale)
+                if config.signaling_enabled:
+                    cell.signal_emitted += SIGNAL_EMISSION_PER_STEP
+                    self._emit_signal(cell)
+                if cell.energy <= config.death_threshold:
+                    cell.alive = False
+                    deaths += 1
+                    continue
+                metabolized.append(cell)
+            if site_consumed > 0.0:
+                env.glucose.deplete(x, y, site_consumed)
+            self._deplete_dfba_oxygen(rep, env, x, y, dt_h)
+            has_ac = "acetate" in env.fields
+            if site_acetate > 0.0 or (config.acetate_switch and has_ac):
+                base = (env.get_field("acetate").get(x, y)
+                        if config.acetate_switch and has_ac else 0.0)
+                delta = site_acetate - base
+                if delta > 0.0:
+                    if not has_ac:
+                        env.add_field(
+                            "acetate",
+                            ConcentrationField(
+                                "acetate", env.config.width,
+                                env.config.height,
+                                ACETATE_DIFFUSION_UM2_S, 0.0))
+                        has_ac = True
+                    env.get_field("acetate").set(
+                        x, y, env.get_field("acetate").get(x, y) + delta)
+                elif delta < 0.0 and has_ac:
+                    env.get_field("acetate").deplete(x, y, -delta)
+            for cell in site_cells:
+                if cell.dfba is not None:
+                    cell.dfba.set_state(acetate_mm=0.0)
+        return metabolized, deaths
+
+    def _sync_acetate(self,
+                      dfba: DynamicFluxBalance,
+                      env: Environment,
+                      x: int,
+                      y: int) -> None:
+        """Return the batch's acetate pool to the environment site.
+
+        Without the acetate switch this reproduces the baseline overflow
+        deposit (write the whole pool, clear it).  With the switch the
+        batch pool *is* the site's well-mixed acetate (read back by
+        :meth:`DynamicFluxBalance.update_from_environment`), so only the
+        net delta of this step (production - assimilation) is written
+        back; the round-trip keeps the field mass-conserving while the
+        LP can draw the pool down to fuel the second growth phase.
+        """
+        pool = dfba.byproducts_mm.get("acetate", 0.0)
+        if self.config.acetate_switch and "acetate" in env.fields:
+            field = env.get_field("acetate")
+            base = field.get(x, y)
+            delta = pool - base
+            if delta > 0.0:
+                field.set(x, y, base + delta)
+            elif delta < 0.0:
+                field.deplete(x, y, -delta)
+        elif pool > 0.0:
+            dfba.apply_to_environment(env, x, y)
+        dfba.set_state(acetate_mm=0.0)
 
     def _apply_dfba_oxygen_cap(self,
                                dfba: DynamicFluxBalance,
@@ -1367,6 +1829,10 @@ class CellPopulation:
         result = asdict(stats)
         result["age_distribution"] = age_dist
         result["generation"] = self._generation
+        if self._genome_colony is not None:
+            result["triggered_genes"] = int(
+                self._genome_colony.triggered().sum())
+            result["genome_genes"] = self._genome_colony.spec.n_genes
         return result
 
     # -- Phase 5: colony observables (per-cell dFBA) --
@@ -1757,8 +2223,86 @@ class CellPopulation3D(CellPopulation):
                     c.x, c.y, c.z = best[1], best[2], best[3]
 
     def _apply_mechanics(self, cells: list[PopulationCell]) -> None:
-        """3D dispatch for mechanics (shoving/force, 26-neighborhood)."""
+        """3D dispatch for mechanics (shoving/force, 26-neighborhood).
+
+        ``contact`` (rod cells, doc/18-programmable-cell-population-simulation.md Design 6 Level 3) is a 2D model and
+        is delegated to the base contact solver unchanged.
+        """
+        if self.config.mechanics == "contact":
+            self._apply_contact_mechanics(cells)
+            return
         self._apply_mechanics_3d(cells)
+
+    def _drift_cells_3d(self, cells: list[PopulationCell]) -> None:
+        """Advect cells with the 3D flow field (config.flow3d).
+
+        The 3D analogue of :meth:`CellPopulation._drift_cells`: lattice
+        cells are displaced by the rounded local velocity along every
+        axis; rod bodies drift continuously in x/y (no z body yet).
+        Skipped under ``mechanics=contact``, which applies the flow drag
+        itself.
+        """
+        flow = self.config.flow3d
+        if flow is None or self.config.mechanics == "contact":
+            return
+        for c in cells:
+            if not c.alive:
+                continue
+            u, v, w = flow.velocity(c.x, c.y, c.z)
+            if c.body is not None:
+                c.body.x += u * LATTICE_SPACING_UM
+                c.body.y += v * LATTICE_SPACING_UM
+            else:
+                c.x = _clamp(c.x + int(round(u)), 0,
+                             self.config.grid_width - 1)
+                c.y = _clamp(c.y + int(round(v)), 0,
+                             self.config.grid_height - 1)
+                c.z = _clamp(c.z + int(round(w)), 0,
+                             self.config.grid_depth - 1)
+        if self.config.cell_shape == "rod":
+            self._sync_bodies_to_lattice(cells)
+
+    # -- Design 6 Level 2 3D: D3Q19 self-consistent flow --
+    def _step_lbm(self) -> None:
+        """3D dispatch of :meth:`CellPopulation._step_lbm`.
+
+        A :class:`~helixlang.apps.lattice_boltzmann_3d.LatticeBoltzmann3D`
+        (D3Q19) solver is advanced over ``config.flow_substeps`` ticks
+        with the alive cells as no-slip obstacles and the resulting
+        :class:`~helixlang.flow.FlowField3D` attached to
+        ``config.flow3d`` (3D drift + environment advection).  A plain
+        2D :class:`~helixlang.apps.lattice_boltzmann.LatticeBoltzmann`
+        is delegated to the base implementation.
+        """
+        from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+
+        lbm = self.config.lbm
+        if isinstance(lbm, LatticeBoltzmann3D):
+            self._step_lbm_3d(lbm)
+            return
+        super()._step_lbm()
+
+    def _step_lbm_3d(self, lbm: LatticeBoltzmann3D) -> None:
+        """Rasterize alive cells into a ``[z][y][x]`` occupancy mask,
+        advance the D3Q19 solver, and publish the refreshed flow.
+        """
+        config = self.config
+        w = config.grid_width
+        h = config.grid_height
+        d = config.grid_depth
+        mask = np.zeros((d, h, w), dtype=bool)
+        for c in self.cells:
+            if not c.alive:
+                continue
+            if self._in_bounds_3d(c.x, c.y, c.z):
+                mask[c.z][c.y][c.x] = True
+        lbm.set_occupancy(mask)
+        for _ in range(max(1, int(config.flow_substeps))):
+            lbm.step()
+        flow = lbm.flow_field(config.flow_substeps)
+        config.flow3d = flow
+        if config.environment is not None:
+            config.environment.set_flow(flow)
 
     def neighbors_3d(self, x: int, y: int, z: int,
                      connectivity: int = 6) -> list[tuple[int, int, int]]:
@@ -1851,15 +2395,23 @@ class CellPopulation3D(CellPopulation):
                     and cell.energy >= config.division_threshold
                     and divisions_done < divisions_allowed):
                 a, b = self._divide_3d(cell, config, self.rng)
+                self._assign_genome_rows(cell, a, b)
                 divisions_done += 1
                 next_cells.append(a)
                 next_cells.append(b)
             else:
                 next_cells.append(cell)
 
+        if config.lbm is not None:
+            self._step_lbm()
+        if config.flow3d is not None and next_cells:
+            self._drift_cells_3d(next_cells)
+        elif config.flow is not None and next_cells:
+            self._drift_cells(next_cells)
         if config.mechanics is not None and next_cells:
             self._apply_mechanics(next_cells)
 
+        self._free_dead_genome_rows()
         self.cells = next_cells
         self._assign_ids()
         self._last_divisions = divisions_done

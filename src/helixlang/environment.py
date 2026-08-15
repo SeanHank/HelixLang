@@ -36,6 +36,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from helixlang.flow import FlowField, FlowField3D
 from helixlang.units import (
     ATP_PER_GLUCOSE,
     DIFFUSION_DT_S,
@@ -265,9 +266,216 @@ class ConcentrationField:
             grid = _laplacian_step(grid, d_sub, w, h)
         self.concentration = grid
 
+    def advect(self, flow: FlowField) -> None:
+        """Advect the field with the given flow (first-order upwind).
+
+        (Design 6 Level 1.)  The flow is in lattice sites per tick; the
+        explicit upwind scheme is stable for a per-substep Courant
+        number <= 1, so one tick is split into ``ceil(max|u|)``
+        sub-steps — the same sub-stepping pattern as :meth:`diffuse`.
+        Zero-flux (reflecting) boundaries, matching the diffusion
+        scheme.
+        """
+        peak = flow.max_magnitude()
+        if peak <= 0.0:
+            return
+        steps = max(1, math.ceil(peak))
+        dt_sub = 1.0 / steps
+        grid = self.concentration
+        w, h = self.width, self.height
+        for _ in range(steps):
+            grid = _upwind_step(grid, flow, dt_sub, w, h)
+        self.concentration = grid
+
     def total_mm(self) -> float:
         """Total substrate in the field (mM x sites)."""
         return sum(sum(row) for row in self.concentration)
+
+
+def _upwind_step(
+    grid: list[list[float]],
+    flow: FlowField,
+    dt: float,
+    w: int,
+    h: int,
+) -> list[list[float]]:
+    """One first-order-upwind advection sub-step (zero-flux boundaries).
+
+    Conservative face-flux form: the flux across each lattice face is
+    taken from the upstream cell (``u>0`` -> west value, ``u<0`` -> east
+    value); each interior face's flux is added to the receiving cell and
+    subtracted from the donating cell, and the domain faces carry zero
+    flux, so total mass is conserved to rounding error.
+    """
+    if _HAS_NUMPY:
+        a = _np.asarray(grid, dtype=float)
+        u_arr = _np.asarray(flow.arrays()[0], dtype=float)
+        v_arr = _np.asarray(flow.arrays()[1], dtype=float)
+        # x-face fluxes (face j+1/2 between columns j and j+1), upwind:
+        # the upstream cell is j when u>0, j+1 when u<0.  Zero at walls.
+        fe_x = _np.zeros_like(a)
+        eastward = u_arr[:, :-1] > 0.0
+        fe_x[:, :-1] = _np.where(
+            eastward, u_arr[:, :-1] * a[:, :-1],
+            u_arr[:, 1:] * a[:, 1:])
+        fi_x = _np.zeros_like(a)
+        fi_x[:, 1:] = fe_x[:, :-1]
+        # y-face fluxes (face i+1/2 between rows i and i+1)
+        fe_y = _np.zeros_like(a)
+        northward = v_arr[:-1, :] > 0.0
+        fe_y[:-1, :] = _np.where(
+            northward, v_arr[:-1, :] * a[:-1, :],
+            v_arr[1:, :] * a[1:, :])
+        fi_y = _np.zeros_like(a)
+        fi_y[1:, :] = fe_y[:-1, :]
+        new = a - dt * (fe_x - fi_x) - dt * (fe_y - fi_y)
+        _np.clip(new, 0.0, None, out=new)
+        result: list[list[float]] = new.tolist()
+        return result
+    u_grid = flow.u
+    v_grid = flow.v
+    new_grid: list[list[float]] = []
+    for i in range(h):
+        row = grid[i]
+        new_row: list[float] = []
+        for j in range(w):
+            cur = row[j]
+            # x-fluxes: out east (face j+1/2) and in west (face j-1/2)
+            u = u_grid[i][j]
+            if j < w - 1:
+                if u > 0.0:
+                    fe_xc = u * cur
+                else:
+                    fe_xc = u * row[j + 1]
+            else:
+                fe_xc = 0.0
+            fi_xc = 0.0
+            if j > 0:
+                u_w = u_grid[i][j - 1]
+                if u_w > 0.0:
+                    fi_xc = u_w * row[j - 1]
+                else:
+                    fi_xc = u_w * cur
+            # y-fluxes: out south (face i+1/2) and in north (face i-1/2)
+            v = v_grid[i][j]
+            if i < h - 1:
+                if v > 0.0:
+                    fe_yc = v * cur
+                else:
+                    fe_yc = v * grid[i + 1][j]
+            else:
+                fe_yc = 0.0
+            fi_yc = 0.0
+            if i > 0:
+                v_n = v_grid[i - 1][j]
+                if v_n > 0.0:
+                    fi_yc = v_n * grid[i - 1][j]
+                else:
+                    fi_yc = v_n * cur
+            val = cur - dt * ((fe_xc - fi_xc) + (fe_yc - fi_yc))
+            new_row.append(val if val > 0.0 else 0.0)
+        new_grid.append(new_row)
+    return new_grid
+
+
+def _upwind_step_3d(
+    grid: list[list[list[float]]],
+    flow: FlowField3D,
+    dt: float,
+    w: int,
+    h: int,
+    depth: int,
+) -> list[list[list[float]]]:
+    """One first-order-upwind advection sub-step in 3D (zero-flux faces).
+
+    Conservative face-flux form over the z/y/x lattice faces (the 3D
+    extension of :func:`_upwind_step`): the flux across each face is
+    taken from the upstream cell, added to the receiving cell and
+    subtracted from the donating cell, and the domain faces carry zero
+    flux, so total mass is conserved to rounding error.
+    """
+    if _HAS_NUMPY:
+        a = _np.asarray(grid, dtype=float)
+        u_arr = _np.asarray(flow.arrays()[0], dtype=float)
+        v_arr = _np.asarray(flow.arrays()[1], dtype=float)
+        w_arr = _np.asarray(flow.arrays()[2], dtype=float)
+        # x-face fluxes (face j+1/2 between columns j and j+1)
+        fe_x = _np.zeros_like(a)
+        eastward = u_arr[:, :, :-1] > 0.0
+        fe_x[:, :, :-1] = _np.where(
+            eastward, u_arr[:, :, :-1] * a[:, :, :-1],
+            u_arr[:, :, 1:] * a[:, :, 1:])
+        fi_x = _np.zeros_like(a)
+        fi_x[:, :, 1:] = fe_x[:, :, :-1]
+        # y-face fluxes (face i+1/2 between rows i and i+1)
+        fe_y = _np.zeros_like(a)
+        northward = v_arr[:, :-1, :] > 0.0
+        fe_y[:, :-1, :] = _np.where(
+            northward, v_arr[:, :-1, :] * a[:, :-1, :],
+            v_arr[:, 1:, :] * a[:, 1:, :])
+        fi_y = _np.zeros_like(a)
+        fi_y[:, 1:, :] = fe_y[:, :-1, :]
+        # z-face fluxes (face k+1/2 between planes k and k+1)
+        fe_z = _np.zeros_like(a)
+        upward = w_arr[:-1, :, :] > 0.0
+        fe_z[:-1, :, :] = _np.where(
+            upward, w_arr[:-1, :, :] * a[:-1, :, :],
+            w_arr[1:, :, :] * a[1:, :, :])
+        fi_z = _np.zeros_like(a)
+        fi_z[1:, :, :] = fe_z[:-1, :, :]
+        new = (a - dt * (fe_x - fi_x) - dt * (fe_y - fi_y)
+               - dt * (fe_z - fi_z))
+        _np.clip(new, 0.0, None, out=new)
+        result: list[list[list[float]]] = new.tolist()
+        return result
+    u_grid = flow.u
+    v_grid = flow.v
+    w_grid = flow.w
+    new_grid: list[list[list[float]]] = []
+    for k in range(depth):
+        plane = grid[k]
+        new_plane: list[list[float]] = []
+        for i in range(h):
+            row = plane[i]
+            new_row: list[float] = []
+            for j in range(w):
+                cur = row[j]
+                # x-fluxes
+                u = u_grid[k][i][j]
+                if j < w - 1:
+                    fe_xc = u * cur if u > 0.0 else u * row[j + 1]
+                else:
+                    fe_xc = 0.0
+                fi_xc = 0.0
+                if j > 0:
+                    u_w = u_grid[k][i][j - 1]
+                    fi_xc = u_w * row[j - 1] if u_w > 0.0 else u_w * cur
+                # y-fluxes
+                v = v_grid[k][i][j]
+                if i < h - 1:
+                    fe_yc = v * cur if v > 0.0 else v * plane[i + 1][j]
+                else:
+                    fe_yc = 0.0
+                fi_yc = 0.0
+                if i > 0:
+                    v_n = v_grid[k][i - 1][j]
+                    fi_yc = v_n * plane[i - 1][j] if v_n > 0.0 else v_n * cur
+                # z-fluxes
+                wv = w_grid[k][i][j]
+                if k < depth - 1:
+                    fe_zc = wv * cur if wv > 0.0 else wv * grid[k + 1][i][j]
+                else:
+                    fe_zc = 0.0
+                fi_zc = 0.0
+                if k > 0:
+                    w_u = w_grid[k - 1][i][j]
+                    fi_zc = w_u * grid[k - 1][i][j] if w_u > 0.0 else w_u * cur
+                val = (cur - dt * ((fe_xc - fi_xc) + (fe_yc - fi_yc)
+                                   + (fe_zc - fi_zc)))
+                new_row.append(val if val > 0.0 else 0.0)
+            new_plane.append(new_row)
+        new_grid.append(new_plane)
+    return new_grid
 
 
 def _laplacian_step(
@@ -400,6 +608,27 @@ class ConcentrationField3D:
             grid = _laplacian_step_3d(grid, d_sub, w, h, depth)
         self.concentration = grid
 
+    def advect_3d(self, flow: FlowField3D) -> None:
+        """Advect the volume with the given 3D flow (first-order upwind).
+
+        (Design 6 Level 2 3D extension.)  The 3D analogue of
+        :meth:`ConcentrationField.advect`: a conservative face-flux
+        upwind scheme over the z/y/x lattice faces
+        (:func:`_upwind_step_3d`), sub-stepped so the per-substep
+        Courant number stays <= 1.  Zero-flux (reflecting) domain faces,
+        matching the 3D diffusion scheme.
+        """
+        peak = flow.max_magnitude()
+        if peak <= 0.0:
+            return
+        steps = max(1, math.ceil(peak))
+        dt_sub = 1.0 / steps
+        grid = self.concentration
+        w, h, depth = self.width, self.height, self.depth
+        for _ in range(steps):
+            grid = _upwind_step_3d(grid, flow, dt_sub, w, h, depth)
+        self.concentration = grid
+
     def total_mm(self) -> float:
         """Total substrate in the field (mM x sites)."""
         return sum(sum(sum(row) for row in plane)
@@ -506,7 +735,31 @@ class Environment:
             "glucose": self.glucose,
             "oxygen": self.oxygen,
         }
+        self.flow: FlowField | None = None  # analytic/solver flow field (Design 6)
+        self.flow3d: FlowField3D | None = None  # 3D flow field (Design 6 3D)
         self.tick = 0
+
+    def set_flow(self, flow: FlowField | FlowField3D) -> None:
+        """Attach a flow field; every substrate is then advected by it
+        before diffusion each tick (Design 6 Level 1).
+
+        ``FlowField3D`` is routed to the 3D advection path
+        (:meth:`ConcentrationField3D.advect_3d`), ``FlowField`` to the
+        2D one (:meth:`ConcentrationField.advect`).
+        """
+        if isinstance(flow, FlowField3D):
+            if (flow.width != self.config.width
+                    or flow.height != self.config.height):
+                raise ValueError(
+                    "flow field dimensions must match the environment")
+            self.flow3d = flow
+            self.flow = None
+            return
+        if (flow.width != self.config.width
+                or flow.height != self.config.height):
+            raise ValueError("flow field dimensions must match the environment")
+        self.flow = flow
+        self.flow3d = None
 
     def add_field(self, name: str, field: ConcentrationField) -> None:
         """Register an additional named substrate field."""
@@ -520,8 +773,16 @@ class Environment:
         return self.fields[name]
 
     def step(self) -> None:
-        """Advance the environment one tick: diffuse every field, then
-        apply the flow refresh (chemostat mixing toward the bulk)."""
+        """Advance the environment one tick: advect (when a flow field is
+        attached), diffuse every field, then apply the flow refresh
+        (chemostat mixing toward the bulk)."""
+        if self.flow is not None:
+            for field in self.fields.values():
+                field.advect(self.flow)
+        elif self.flow3d is not None:
+            for field in self.fields.values():
+                if isinstance(field, ConcentrationField3D):
+                    field.advect_3d(self.flow3d)
         for field in self.fields.values():
             field.diffuse()
         if self.config.flow_rate > 0.0:

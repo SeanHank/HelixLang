@@ -5,8 +5,8 @@
 the whole simulation stack, without breaking the existing compiler pipeline.
 
 Status: **implemented (W-1 … W-5 complete, Aug 2026).** The full gate is green:
-`mypy src` (0 issues, 56 files), `ruff check src tests` (clean), and
-`pytest --cov=helixlang` (1972 passed, coverage 89.2 % ≥ 80 %). `backend=classic`
+`mypy src` (0 issues, 65 files), `ruff check src tests` (clean), and
+`pytest --cov=helixlang` (2134 passed, coverage 89.2 % ≥ 80 %). `backend=classic`
 remains the default and is bit-identical. §18 is the coverage audit of which
 Python features are reachable from `.helix` today, §19 is the remaining backlog
 and next-step plan.
@@ -821,6 +821,23 @@ dict-typed keys (`calibration_uptake`) use the §6.3 comma/equals syntax.
   (Phase 5).
 - `33_fba_diauxie.helix` — the batch dFBA diauxie trace, pure-config.
 - `34_whole_cell_calibration.helix` — parameter recovery under adder noise.
+- `35_acetate_switch.helix` — overflow-metabolism switch: acetate build-up under
+  an O₂ cap, then secondary consumption via the glycerate/ethanol/acetate
+  dissimilatory routes.
+- `36_population_calibration.helix` — colony-level mixed-observable calibration
+  (`#sim kind=population_calibration`) recovering the dFBA colony parameters
+  (oxygen cap, energy scale, division threshold).
+- `37_genome_colony.helix` — a genome-scale colony from the `#genome` annotation:
+  `source=` builds the shared 4338-gene sparse template once, every cell's
+  expression is one row of the shared matrix, and expression-gated dFBA turns an
+  essential-gene knockout (silent node) into zero growth at the colony level
+  (`#sim` exposes `triggered_genes`).
+- `38_flow_biofilm.helix` — rod cells + contact mechanics in an LBM
+  microfluidic channel (doc/18-programmable-cell-population-simulation.md §13 Design 6): `#sim lbm=true` runs the D2Q9
+  solver around the no-slip rod obstacles every tick, the local current drags
+  the rods downstream (Stokes drag) while Hertzian contacts keep them
+  non-overlapping, and the advected O₂ field forms a boundary layer
+  (core < edge at the colony).
 
 #### 10.2.1 `31_whole_cell_adder.helix`
 

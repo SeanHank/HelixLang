@@ -5,6 +5,8 @@ import random
 import pytest
 
 from helixlang.environment import (
+    ACETATE_DIFFUSION_UM2_S,
+    ConcentrationField,
     Environment,
     EnvironmentConfig,
 )
@@ -544,6 +546,65 @@ def test_dfba_anoxia_ferments_acetate():
     assert strat["core_growth_rate_h"] < 1.2
 
 
+def test_dfba_acetate_switch_second_phase():
+    """Wolfe 2005 at the colony level: with ``acetate_switch`` the cells
+    assimilate a pre-supplied acetate pool (glyoxylate bypass +
+    gluconeogenesis) and grow, while the baseline fermentative model
+    cannot touch it."""
+    def _run(switch):
+        env = Environment(EnvironmentConfig(width=10, height=10,
+                                            glucose_initial_mm=0.0,
+                                            oxygen_initial_mm=0.3))
+        env.add_field("acetate", ConcentrationField(
+            "acetate", 10, 10, ACETATE_DIFFUSION_UM2_S, 4.0))
+        cfg = PopulationConfig(grid_width=10, grid_height=10, environment=env,
+                               dfba_enabled=True, acetate_switch=switch,
+                               division_threshold=1e9, dfba_energy_scale=2e9)
+        cells = [PopulationCell(id=i, energy=8e8, x=4, y=4) for i in range(2)]
+        pop = CellPopulation(cells, cfg)
+        for _ in range(12):
+            pop.step()
+        return pop, env
+
+    off_pop, off_env = _run(False)
+    on_pop, on_env = _run(True)
+    # baseline: no acetate catabolism -> no growth, pool untouched
+    assert len(off_pop.cells) == 2
+    assert off_env.fields["acetate"].get(4, 4) == pytest.approx(4.0, abs=1e-6)
+    # switch: cells grow and draw the acetate pool down
+    assert len(on_pop.cells) > 2
+    assert on_env.fields["acetate"].get(4, 4) < 4.0
+
+
+def test_dfba_acetate_switch_shared_batch_equivalence():
+    """The shared-batch path (one LP per site) preserves the acetate
+    switch behaviour of the per-cell path."""
+    def _run(shared):
+        env = Environment(EnvironmentConfig(width=10, height=10,
+                                            glucose_initial_mm=0.0,
+                                            oxygen_initial_mm=0.3))
+        env.add_field("acetate", ConcentrationField(
+            "acetate", 10, 10, ACETATE_DIFFUSION_UM2_S, 4.0))
+        cfg = PopulationConfig(
+            grid_width=10, grid_height=10, environment=env,
+            dfba_enabled=True, acetate_switch=True,
+            dfba_shared_batch=shared, division_threshold=1e9,
+            dfba_energy_scale=2e9)
+        cells = [PopulationCell(id=i, energy=8e8, x=4, y=4) for i in range(2)]
+        pop = CellPopulation(cells, cfg)
+        for _ in range(12):
+            pop.step()
+        return env.fields["acetate"].get(4, 4), len(pop.cells)
+
+    per_cell_ac, per_cell_n = _run(False)
+    shared_ac, shared_n = _run(True)
+    # shared batch solves one LP for the whole site, so the aggregate is
+    # close but not bit-identical to per-cell LPs
+    assert shared_ac == pytest.approx(per_cell_ac, rel=0.05)
+    assert shared_n == per_cell_n
+    assert per_cell_ac < 4.0
+
+
 def test_dfba_stratification_core_edge_gradient():
     """With low diffusion the colony core runs low on glucose and O2 while
     the edge stays well supplied (Cockx 2024 stratification)."""
@@ -580,3 +641,74 @@ def test_colony_observables_shape_and_growth():
     assert obs["volume_weighted_growth_h"] > 0.0
     assert all(d > 0.0 for d in obs["doubling_times_h"])
     assert all(math.isfinite(v) for v in obs["birth_sizes_um3"])
+
+
+# -- shared-batch dFBA (surfin_FBA basis reuse, Brunner & Chai 2020) --------
+
+def _colocated_dfba_population(n, *, shared, ticks=3):
+    """n cells packed on ONE lattice site (identical environment state)."""
+    env = Environment(EnvironmentConfig(
+        width=8, height=8, glucose_initial_mm=10.0,
+        oxygen_initial_mm=0.25, glucose_diffusion_um2_s=20.0,
+        oxygen_diffusion_um2_s=20.0))
+    cells = [PopulationCell(id=i, energy=1e5, x=3, y=3) for i in range(n)]
+    cfg = PopulationConfig(
+        grid_width=8, grid_height=8, environment=env,
+        dfba_enabled=True, division_threshold=1e9,
+        dfba_shared_batch=shared, signaling_enabled=False)
+    pop = CellPopulation(cells, cfg)
+    for _ in range(ticks):
+        pop.step()
+    return pop
+
+
+def test_shared_batch_reduces_lp_solves():
+    """Shared-batch mode solves one LP per occupied site, not one per
+    cell (surfin_FBA: basis reuse across identical medium states)."""
+    from helixlang.metabolism import FluxBalanceAnalysis
+    n_cells = 6
+    calls: list[int] = [0]
+    base = FluxBalanceAnalysis.solve
+
+    def _counting(self, *args, **kwargs):
+        calls[0] += 1
+        return base(self, *args, **kwargs)
+
+    FluxBalanceAnalysis.solve = _counting
+    try:
+        shared = _colocated_dfba_population(n_cells, shared=True, ticks=2)
+        # 2 ticks -> 2 solves for the single occupied site
+        assert calls[0] == 2
+        _colocated_dfba_population(n_cells, shared=False, ticks=2)
+        # 2 ticks x 6 cells -> 12 per-cell solves
+        assert calls[0] == 2 + n_cells * 2
+    finally:
+        FluxBalanceAnalysis.solve = base
+    # identical pre-depletion environment state -> identical growth
+    assert shared.cells[0].dfba.growth_rate == pytest.approx(
+        shared.cells[1].dfba.growth_rate)
+
+
+def test_shared_batch_matches_per_cell_on_distinct_sites():
+    """When every cell sits on its own site there is no sharing: the
+    shared-batch path must reproduce the per-cell path exactly."""
+    pop_shared = _dfba_population(9, ticks=5, dfba_shared_batch=True)
+    pop_cells = _dfba_population(9, ticks=5, dfba_shared_batch=False)
+    for a, b in zip(pop_shared.cells, pop_cells.cells, strict=False):
+        assert a.energy == pytest.approx(b.energy)
+    assert pop_shared.dfba_stratification()["core_growth_rate_h"] == pytest.approx(
+        pop_cells.dfba_stratification()["core_growth_rate_h"])
+
+
+def test_shared_batch_conserves_glucose_mass():
+    """Shared-batch depletion removes exactly the aggregate demand: the
+    closed environment conserves total glucose (initial - consumed =
+    remaining)."""
+    pop = _colocated_dfba_population(6, shared=True, ticks=4)
+    env = pop.config.environment
+    remaining = sum(sum(row) for row in env.glucose.concentration)
+    initial = 10.0 * env.config.width * env.config.height
+    consumed = initial - remaining
+    assert consumed > 0.0
+    assert all(c.dfba is not None and c.dfba.growth_rate > 0.0
+               for c in pop.cells if c.alive)

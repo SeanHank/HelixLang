@@ -73,6 +73,7 @@ class Parser:
                     "enzyme": self._parse_enzyme,
                     "metabolite": self._parse_metabolite,
                     "sim": self._parse_sim,
+                    "genome": self._parse_genome,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -351,6 +352,29 @@ class Parser:
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for k, v in fields.items():
             prog.sim_extensions[k] = v
+
+    def _parse_genome(self, prog: Program) -> None:
+        """Parse #genome source=... (doc/18-programmable-cell-population-simulation.md §13 Design 5, task 1).
+
+        Fields are merged into ``Program.sim_extensions`` under a ``genome_``
+        prefix (the same open extension point as ``#sim``) and turn the
+        genome-scale backend on:
+
+            #genome source=synth-4300 tf_map=regulon grn_mode=sparse
+            #genome seed=7
+
+        Keys consumed by ``sim_runtime._build_population_config``:
+        ``genome`` (true/false), ``genome_source`` (``ecoli-mg1655`` |
+        ``synth-4300`` | file path), ``genome_tf_map`` (``regulon`` |
+        ``random`` | ``off``), ``genome_grn_mode`` (``sparse`` | ``full``),
+        ``genome_active_gene_budget`` (per-cell per-tick budget, default
+        512), ``genome_seed``.  Inert under the classic backend.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        prog.sim_extensions["genome"] = "true"
+        for k, v in fields.items():
+            prog.sim_extensions[f"genome_{k}"] = v
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:

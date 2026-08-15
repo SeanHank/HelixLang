@@ -1,0 +1,43 @@
+# Example 37: Genome-scale colony - 4300-gene GRN + FBA closure (NEW)
+# Every cell's expression is a row of ONE shared numpy matrix (4338 genes,
+# ~10^4 sparse regulatory edges, RegulonDB scale) advanced by a single
+# vectorized call per tick (doc/18-programmable-cell-population-simulation.md §13 Design 5).  Expression-triggered core
+# genes gate their reaction upper bounds in per-cell dFBA, so a knocked-out
+# gene is simply a never-triggered silent node (WT growth ~0.12/h, a pgi
+# knockout collapses to 0).
+#
+# The engineered .helix layer overlays the background genome: crp is a
+# *background* master-regulator name, so the constitutive engineered copy
+# reads/writes the shared matrix (overlap nodes share one expression state);
+# gfp reports the engineered regulon on top of the genome-scale background.
+#
+# Scale note: the genome GRN step is < 1 s/tick at 10^4 cells (the doc's
+# performance gate, verified in tests/test_genome_scale.py); the run below
+# is kept to 256 cells / 12 ticks so the per-cell dFBA LPs (~2 ms each) do
+# not dominate.  The doc's full-scale config (5000 cells x 60 ticks with
+# dfba=true) is the same genome with proportionally more LPs.
+
+#genome source=synth-4300 tf_map=regulon grn_mode=sparse active_gene_budget=512
+#genome seed=7
+
+#promoter name=p_housekeeping strength=-0.4
+#promoter name=p_crp strength=0.6
+#gene name=crp promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+#gene name=gfp promoter=p_crp
+ATG GCT GGT GCT TAA
+#end
+#regulate crp -> gfp strength=+1.0
+
+#media nutrient=GLC concentration=10.0 diffusion_um2_s=300
+#media nutrient=O2 concentration=0.25 diffusion_um2_s=1600
+
+#config backend=population
+#config population_size=256 grid_width=32 grid_height=32
+#config dfba=true dfba_dt_h=0.1
+#config signaling=true signal_threshold=10.0
+#config crowding=true mechanics=force
+#config seed=0
+#config ticks=12
+#config output=population_size,alive_count,triggered_genes,core_acetate_mm,edge_oxygen_mm

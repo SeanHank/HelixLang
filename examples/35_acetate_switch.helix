@@ -1,0 +1,16 @@
+# Example 35: FBA - acetate switch / second growth phase (NEW)
+# Mixed carbon source (Wolfe 2005, MMBR 69:12-50 "The Acetate Switch"):
+# while glucose stays above acetate_switch_threshold_mm (0.5 mM) the batch
+# assimilates only glucose (Enjalbert et al. 2011: no acetate co-consumption);
+# once glucose drops below the threshold, the glyoxylate bypass (aceA/aceB),
+# the AMP-forming acetyl-CoA synthetase (acs) and gluconeogenesis (pckA/fbp)
+# open and the accumulated acetate fuels a second exponential phase.
+
+#media nutrient=GLC concentration=3.0
+#media nutrient=AC concentration=5.0
+
+#config backend=fba
+#config fba_model=core dynfba=true
+#config fba_dt_h=0.25 fba_steps=80
+#config acetate_switch=true
+#config output=time_h,biomass,glucose,acetate,growth_rate

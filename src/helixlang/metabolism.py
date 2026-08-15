@@ -38,6 +38,7 @@ References:
 """
 from __future__ import annotations
 
+import copy
 import json
 import random
 from collections.abc import Callable, Sequence
@@ -1346,6 +1347,49 @@ class FluxBalanceAnalysis:
 _EX_GLC = "EX_glc"
 # exchange reaction that removes accumulated biomass from the medium
 _EX_BIOMASS = "EX_biomass"
+# acetate exchange + PTA/ACK + glyoxylate-shunt reaction ids for the
+# acetate-switch activation (Wolfe 2005, MMBR 69:12-50)
+_EX_AC = "EX_ac"
+_ICL = "ICL"
+_MAS = "MAS"
+_ACS = "ACS"
+_PEPCK = "PEPCK"
+_FBP = "FBP"
+_ACETATE_SWITCH_RXNS = (_ICL, _MAS, _ACS, _PEPCK, _FBP)
+
+
+def activate_acetate_switch(model: MetabolicModel) -> None:
+    """Enable the second, acetate-assimilation growth phase (in place).
+
+    Wolfe 2005 (Microbiol Mol Biol Rev 69:12-50, "The Acetate Switch")
+    describes how E. coli excretes acetate during exponential growth on
+    glucose (dissimilation) and, once glucose is depleted, switches to
+    *assimilating* the accumulated acetate.  Assimilation requires the
+    glyoxylate bypass (isocitrate lyase ``aceA``, malate synthase
+    ``aceB``) to replenish C4 precursors without the decarboxylating
+    losses of a full turn of the TCA cycle, the AMP-forming acetyl-CoA
+    synthetase ``acs`` for acetate activation, and the gluconeogenic
+    phosphoenolpyruvate carboxykinase (``pckA``) and fructose
+    bisphosphatase (``fbp``) to build hexose/phospho-sugar precursors
+    from oxaloacetate.  The curated core model ships these reactions
+    present but flux-``0`` (``ICL``/``MAS``/``ACS``/``PEPCK``/``FBP``),
+    so the baseline fermentative behaviour is unchanged; this function
+    flips them on and opens the acetate exchange for import,
+    reproducing the dynamic switch once glucose runs out.
+
+    Note that ``PTA_ACK`` is deliberately kept forward-only: reversed
+    PTA/ACK would let the LP close an ATP-neutral acetate cycle and
+    inflate the biomass flux (a free-energy artifact).  Acetate
+    assimilation is instead routed through ``ACS``, which costs 2 ATP
+    per acetate (ATP -> AMP + PPi), keeping the second phase
+    mass- and energy-conserving.
+    """
+    reactions = model.reactions
+    for rid in _ACETATE_SWITCH_RXNS:
+        if rid in reactions:
+            reactions[rid].upper_bound = 1000.0
+    if _EX_AC in reactions:
+        reactions[_EX_AC].lower_bound = -10.0
 
 
 @dataclass(slots=True)
@@ -1368,6 +1412,20 @@ class DynamicFBAConfig:
             growth rate mu (1/h)
         min_biomass: growth floor (gDW/L) used to detect batch
             exhaustion / stagnation in :meth:`DynamicFluxBalance.run`
+        acetate_switch: enable the second, acetate-assimilation growth
+            phase (Wolfe 2005 "Acetate Switch", MMBR 69:12-50): the
+            glyoxylate bypass (aceA/aceB) is activated, the acetate
+            exchange is opened for import and PTA/ACK becomes reversible,
+            so once glucose is depleted the LP re-imports the overflow
+            acetate and biomass keeps growing.  Default False (baseline
+            fermentative behaviour).
+        acetate_switch_threshold_mm: glucose concentration below which
+            acetate import is permitted.  E. coli does not co-consume
+            acetate while glucose is abundant; consumption starts only
+            once glucose drops below ~0.5 mM (Enjalbert et al. 2011,
+            ISME J 5:1301).  Import is additionally capped by the
+            well-mixed acetate pool (Mahadevan et al. 2002 dFBA), so the
+            second phase cannot outrun the available acetate.
     """
 
     dt_h: float = 0.25
@@ -1378,6 +1436,8 @@ class DynamicFBAConfig:
     glucose_half_saturation_mm: float = 0.1
     biomass_per_mmol: float = _BIOMASS_MW
     min_biomass: float = 1e-9
+    acetate_switch: bool = False
+    acetate_switch_threshold_mm: float = 0.5
 
 
 class DynamicFluxBalance:
@@ -1400,10 +1460,14 @@ class DynamicFluxBalance:
     first, fermentative phase of the classic diauxic shift, with overflow
     acetate accumulating in the medium.
 
-    The reduced 37-reaction core model has no glyoxylate shunt (iCL/MS),
-    so overflow acetate cannot be re-imported for the second growth phase;
-    a full model with the shunt consumes it automatically once glucose is
-    gone.
+    The reduced core model ships the glyoxylate bypass (iCL ``aceA`` /
+    MS ``aceB``) flux-``0``: by default overflow acetate cannot be
+    re-imported and growth stops once glucose is gone (baseline
+    fermentative behaviour).  With ``config.acetate_switch=True`` the
+    bypass is activated and the acetate exchange opened for import, so
+    the LP *automatically* switches to assimilating the accumulated
+    acetate once glucose depletes -- the second, co-assimilation phase of
+    the classic "Acetate Switch" (Wolfe 2005, MMBR 69:12-50).
 
     The batch pools can be coupled to a :class:`~helixlang.environment.
     Environment`: :meth:`update_from_environment` reads the local glucose
@@ -1419,7 +1483,13 @@ class DynamicFluxBalance:
         bound_override: Callable[[float, DynamicFluxBalance], dict[str, float]] | None = None,
     ) -> None:
         self.config = config or DynamicFBAConfig()
-        self.fba = fba or FluxBalanceAnalysis(model or ECOLI_CORE_MODEL)
+        model = model or ECOLI_CORE_MODEL
+        if self.config.acetate_switch:
+            # the acetate switch mutates reaction bounds; deep-copy so the
+            # shared ECOLI_CORE_MODEL stays pristine (Wolfe 2005).
+            model = copy.deepcopy(model)
+            activate_acetate_switch(model)
+        self.fba = fba or FluxBalanceAnalysis(model)
         self._biomass_reaction = self.fba.model.biomass_reaction
         # dynamic bound hook (T3.2): ``bound_override(time_h, self) ->
         # dict[reaction_id, bound]`` applied before each LP solve, so the
@@ -1504,10 +1574,71 @@ class DynamicFluxBalance:
         dt = cfg.dt_h if dt_h is None else dt_h
         S = self.glucose_mm
         self.fba.set_uptake("GLC", self.uptake_bound(S))
+        if cfg.acetate_switch:
+            self._apply_acetate_switch_bounds(S, dt)
         if self.bound_override is not None:
             self._apply_bounds(self.bound_override(self.time_h, self))
         sol = self.fba.solve()
         self.last_fluxes = sol
+        return self._integrate(sol, S, dt)
+
+    def _apply_acetate_switch_bounds(self, S: float, dt: float) -> None:
+        """Glucose-gated, pool-limited acetate import and shunt (switch).
+
+        - While glucose is above ``acetate_switch_threshold_mm`` the
+          acetate exchange is closed for import and the glyoxylate shunt
+          (aceA/aceB) stays flux-``0`` -- no co-consumption and no
+          shunt activity during glucose growth (catabolite repression of
+          the switch, Enjalbert et al. 2011 ISME J 5:1301).
+        - Once glucose drops below the threshold, the shunt and the
+          acetate-activating synthetase open, and the acetate import is
+          capped by the well-mixed acetate pool: the batch cannot take up
+          more acetate than the overflow it accumulated (Mahadevan et
+          al. 2002 dynamic FBA), so the second phase is mass-conserving.
+        """
+        reactions = self.fba.model.reactions
+        if _EX_AC not in reactions:
+            return
+        if S > self.config.acetate_switch_threshold_mm:
+            reactions[_EX_AC].lower_bound = 0.0
+            for rid in _ACETATE_SWITCH_RXNS:
+                if rid in reactions:
+                    reactions[rid].upper_bound = 0.0
+            return
+        reactions[_EX_AC].lower_bound = -10.0
+        for rid in _ACETATE_SWITCH_RXNS:
+            if rid in reactions:
+                reactions[rid].upper_bound = 1000.0
+        pool = self.byproducts_mm.get("acetate", 0.0)
+        denom = self.biomass_gdw * dt
+        max_import = min(10.0, pool / denom) if denom > 0.0 else 0.0
+        reactions[_EX_AC].lower_bound = -max_import
+
+    def step_from_solution(self,
+                           sol: dict[str, float],
+                           glucose_mm: float,
+                           dt_h: float | None = None) -> dict[str, float]:
+        """Integrate one step from a *shared* LP solution (surfin_FBA).
+
+        Brunner & Chai 2020 (PLoS Comput Biol 16:e1007786) showed that
+        the intracellular flux space of identical medium states is reused
+        across cells/batches: one LP solve per environment state serves
+        every co-located batch instead of one LP per batch.  This method
+        advances **this** batch's own biomass / pools using the shared
+        fluxes (``sol``) and the shared pre-depletion substrate level
+        ``glucose_mm`` -- the same integration math as :meth:`step` with
+        the LP solve removed.
+        """
+        cfg = self.config
+        dt = cfg.dt_h if dt_h is None else dt_h
+        self.last_fluxes = sol
+        return self._integrate(sol, glucose_mm, dt)
+
+    def _integrate(self, sol: dict[str, float], S: float,
+                   dt: float) -> dict[str, float]:
+        """Forward-Euler state advance shared by :meth:`step` and
+        :meth:`step_from_solution` (Mahadevan 2002)."""
+        cfg = self.config
         v_bm = (sol.get(self._biomass_reaction, 0.0)
                 if self._biomass_reaction else 0.0)
         v_glc = sol.get(_EX_GLC, 0.0)
@@ -1518,9 +1649,15 @@ class DynamicFluxBalance:
         self.glucose_mm = S - removed
         for rid, pool in self._byproduct_ex.items():
             v = sol.get(rid, 0.0)
+            dP = v * X * dt
             if v > 0.0:
                 self.byproducts_mm[pool] = (self.byproducts_mm[pool]
-                                            + v * X * dt)
+                                            + dP)
+            elif v < 0.0 and pool == "acetate":
+                # acetate re-import (Wolfe 2005 "Acetate Switch"): the
+                # LP consumes the well-mixed overflow pool; never below 0
+                self.byproducts_mm[pool] = max(
+                    0.0, self.byproducts_mm[pool] + dP)
         self.time_h += dt
         entry: dict[str, float] = {
             "time": self.time_h,
@@ -1581,10 +1718,20 @@ class DynamicFluxBalance:
                                 y: int | None = None) -> None:
         """Set the batch glucose from the environment field at (x, y)
         (default: lattice centre), treating the site as a well-mixed
-        unit of the batch medium."""
+        unit of the batch medium.
+
+        With the acetate switch enabled (:attr:`DynamicFBAConfig.
+        acetate_switch`) the batch also adopts the site's well-mixed
+        acetate pool (the overflow deposited by neighbours), so the
+        second, acetate-assimilation phase of the population can draw on
+        it once glucose falls below the threshold (Wolfe 2005).
+        """
         cx = environment.config.width // 2 if x is None else x
         cy = environment.config.height // 2 if y is None else y
         self.glucose_mm = environment.substrate_at(cx, cy, "glucose")
+        if self.config.acetate_switch and "acetate" in environment.fields:
+            self.byproducts_mm["acetate"] = environment.fields["acetate"].get(
+                cx, cy)
 
     def apply_to_environment(self,
                              environment: Environment,

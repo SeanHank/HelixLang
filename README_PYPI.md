@@ -306,8 +306,10 @@ The full technical documentation lives in the [repository `doc/` folder](https:/
 | [06-engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/06-engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
 | [01-references.md](https://github.com/SeanHank/HelixLang/blob/main/doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
 | [11-helixc-binary-format.md](https://github.com/SeanHank/HelixLang/blob/main/doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
+| [15-whole-cell-realism.md](https://github.com/SeanHank/HelixLang/blob/main/doc/15-whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
 | [16-gameplay-units-upgrade.md](https://github.com/SeanHank/HelixLang/blob/main/doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [17-项目详解与前沿生物学应用.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-项目详解与前沿生物学应用.md) | Everyone (中文) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
+| [17-project-details-and-frontier-bio-applications.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–39), problem→capability mapping, delivered solution designs |
+| [18-programmable-cell-population-simulation.md](https://github.com/SeanHank/HelixLang/blob/main/doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
 
 ### Suggested reading order
 
@@ -334,10 +336,10 @@ ruff check src tests
 mypy
 ```
 
-- **1879 test cases** (1879 passing, 89% coverage)
+- **2134 test cases** (2134 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 30 `examples/*.helix` covered + Python API companions
+- All 39 `examples/*.helix` covered + Python API companions
 
 ---
 
