@@ -146,7 +146,18 @@ HelixLang/
 │   ├── 03-compiler-design.md
 │   ├── 04-simulation-model.md
 │   ├── 05-prototype-plan.md
-│   └── 06-engineering-design.md  # this document
+│   ├── 06-engineering-design.md  # this document
+│   ├── 07-bio-modules.md
+│   ├── 08-api-reference.md
+│   ├── 09-bio-instructions.md
+│   ├── 10-frontier-biology-analysis.md
+│   ├── 11-helixc-binary-format.md
+│   ├── 12-helix-language-wiring.md
+│   ├── 13-performance-report.md
+│   ├── 14-production-upgrade.md
+│   ├── 15-whole-cell-realism.md
+│   ├── 16-gameplay-units-upgrade.md
+│   └── 17-项目详解与前沿生物学应用.md
 ├── src/
 │   └── helixlang/
 │       ├── __init__.py           # public API exports

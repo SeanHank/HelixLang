@@ -2,8 +2,8 @@
 
 Status: **Draft for review** (feature not yet implemented)
 Owner: compiler / tooling track
-Related docs: `language-spec.md` §5 (bytecode), §9 (CLI); `compiler-design.md` §5–§8;
-`engineering-design.md` §2 (module contracts).
+Related docs: `02-language-spec.md` §5 (bytecode), §9 (CLI); `03-compiler-design.md` §5–§8;
+`06-engineering-design.md` §2 (module contracts).
 
 This document is the design contract for turning `.helix` source into a compiled
 binary artifact (`.helixc`) and back. It covers all three capabilities requested:
@@ -50,7 +50,7 @@ binary artifact (`.helixc`) and back. It covers all three capabilities requested
   (see §8) implements; a `.helixc` is tied to the table it was built with.
 - No obfuscation, licensing, or DRM. `.helixc` is a deterministic, inspectable
   artifact (`--decompile` is a first-class feature).
-- No changes to the classic chunk wire encoding itself (`language-spec.md`
+- No changes to the classic chunk wire encoding itself (`02-language-spec.md`
   §5.1 stays byte-for-byte compatible).
 - No network/distribution format (that is `--encode-dna`'s job).
 
@@ -146,7 +146,7 @@ or duplicate sections.
 
 ### 3.3 Table id
 
-The codon table is part of the runtime contract (`language-spec.md` §9
+The codon table is part of the runtime contract (`02-language-spec.md` §9
 `--table`). The id maps onto the `codon_table.py` `STANDARD_TABLE`,
 `MITO_TABLE`, `CILIATE_TABLE` constants; the loader resolves it at
 read time so a `.helixc` remains self-describing across versions.
@@ -323,7 +323,7 @@ record is decoded positionally, so a `Program` round-trips 1:1.
 
 Constants are encoded as a tag byte selecting the pool entry type
 (string / float / int / wobble) plus its primitive payload — mirroring
-`compiler-design.md` §5.4.
+`03-compiler-design.md` §5.4.
 
 ### 5.2 Relation to PROG
 
@@ -428,7 +428,7 @@ used by the DNA codecs.
 
 ### 9.1 Disassembly
 
-`--disassemble` on `.helixc` prints the existing format (`compiler-design.md`
+`--disassemble` on `.helixc` prints the existing format (`03-compiler-design.md`
 §7). Because `lines` and `codon_indices` live in `CHNK`, the
 `; ATG (#0, line 5)` annotations work identically from the binary. Without a
 chunk, the loader recompiles from PROG first — output is identical either way
@@ -483,7 +483,7 @@ format versions. Neither type is ever raised during ordinary parse; the CLI
 catches them and exits with rc=2 plus a `!` diagnostic, matching the existing
 `--decode-dna` failure style.
 
-Registration: `hxbc` is added to `engineering-design.md` §2's module table and
+Registration: `hxbc` is added to `06-engineering-design.md` §2's module table and
 imported by `cli.py` at the same level as `bytecode`/`sim_runtime` (already
 present). `hxbc` imports only stdlib (`hashlib`, `struct`, `dataclasses`) and
 `helixlang.ast_nodes` / `bytecode` / `codon_table` — no new third-party deps.
@@ -548,8 +548,8 @@ Gate: `mypy src`, `ruff check src tests`, `pytest --cov=helixlang` with
 binary, `--compare`; tests 6, 7, 8, 13.
 **M3 — debug + decompile.** `--decompile`, byte-for-byte mode, `--disassemble`
 and `--debug` from binary, `verify`; tests 2, 3, 4, 9, 10, 14.
-**M4 — docs.** §9 CLI table in `language-spec.md`, §8 additions in
-`compiler-design.md`, this document marked Implemented.
+**M4 — docs.** §9 CLI table in `02-language-spec.md`, §8 additions in
+`03-compiler-design.md`, this document marked Implemented.
 
 Each milestone ends with a green gate (mypy/ruff/pytest≥80).
 

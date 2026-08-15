@@ -350,7 +350,7 @@ src/helixlang/
 - No compile-time optimization in the prototype phase (following CPython/Lua).
 - VM dispatch uses `match/case` to avoid dict-lookup overhead.
 - The reaction-diffusion field uses the `array` module or plain list-of-list (a grid smaller than 64×64 is sufficient for the prototype).
-- Large-scale simulation can later migrate to numpy + MLIR/LLVM (see the extension roadmap in [05-prototype-plan.md](./prototype-plan.md)).
+- Large-scale simulation can later migrate to numpy + MLIR/LLVM (see the extension roadmap in [05-prototype-plan.md](./05-prototype-plan.md)).
 
 ### 8.4 Binary Artifact (`.helixc`) Serialization
 
@@ -372,7 +372,7 @@ the decompiler use the `Program`. Design decisions:
   `BinaryVersionError`.
 
 Full layout, record tags, CLI surface, debug/test behavior, and test matrix:
-`doc/helixc-binary-format.md`.
+`doc/11-helixc-binary-format.md`.
 
 ---
 

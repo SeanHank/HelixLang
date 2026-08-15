@@ -51,7 +51,7 @@ abusive behavior is not tolerated.
 - **Never silently change defaults.** Legacy behavior is the compatibility
   contract. New semantics belong behind new flags or clearly documented
   opt-ins. The runtime now runs on **physical units** end-to-end (no
-  `calibrated=`/`units=` switch; see `doc/simulation-model.md` §6.3).
+  `calibrated=`/`units=` switch; see `doc/04-simulation-model.md` §6.3).
 - **Data is sourced, not invented.** Every magic number that stands for a
   biological quantity must carry a citation — see
   [Biological constants & citations](#biological-constants--citations).
@@ -97,10 +97,10 @@ doc/               All technical documentation (kept in sync with the code)
 
 Key entry points for contributors:
 
-- `doc/compiler-design.md` — the compilation pipeline, AST, bytecode format.
-- `doc/engineering-design.md` — module interfaces, invariants, error matrix.
-- `doc/language-spec.md` — the authoritative language spec.
-- `doc/api-reference.md` — per-module Python API reference.
+- `doc/03-compiler-design.md` — the compilation pipeline, AST, bytecode format.
+- `doc/06-engineering-design.md` — module interfaces, invariants, error matrix.
+- `doc/02-language-spec.md` — the authoritative language spec.
+- `doc/08-api-reference.md` — per-module Python API reference.
 - `tests/conftest.py` — shared fixtures (Flask client, example sources, paths).
 
 ## Finding something to work on
@@ -252,14 +252,14 @@ DIVISION_ENERGY_THRESHOLD = 1.8e9
 Rules of thumb:
 
 - Cite the *primary* source (first author + year) at the point of definition,
-  and add the full reference to `doc/references.md`.
+  and add the full reference to `doc/01-references.md`.
 - If you can't find a published value, say so explicitly ("gameplay units,
   not experimentally measured") rather than inventing one.
 - Constants are **directly physical** — no conversion functions or calibration
   registry. To add one, define the named constant in its owning module and add
   the unit + citation to the docstring (see `src/helixlang/units.py` for the
   canonical example). The former `CALIBRATED` registry / `calibrated=` mode was
-  removed; `doc/gameplay-units-upgrade.md` documents that history.
+  removed; `doc/16-gameplay-units-upgrade.md` documents that history.
 - When you change a physical value, update its tests together (e.g. a
   half-life change must be reflected in the
   `test_default_decay_halves_at_110_ticks`-style assertions).
@@ -273,10 +273,10 @@ code prevails."* Practically, that means:
   biological constants.
 - **`doc/*.md`** is user- and contributor-facing documentation. Behavior
   changes must update the affected documents in the same PR:
-  - Language syntax → `doc/language-spec.md`
-  - Bio annotations / `.helix` authoring → `doc/bio-instructions.md`
-  - Simulation semantics → `doc/simulation-model.md`
-  - Python API signatures → `doc/api-reference.md`
+  - Language syntax → `doc/02-language-spec.md`
+  - Bio annotations / `.helix` authoring → `doc/09-bio-instructions.md`
+  - Simulation semantics → `doc/04-simulation-model.md`
+  - Python API signatures → `doc/08-api-reference.md`
 - If you notice stale docs while working on something else, fixing them in the
   same PR is appreciated — but call it out in the description.
 

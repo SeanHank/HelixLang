@@ -941,7 +941,7 @@ class TestVmRunIntegration:
 
 
 # ------------------------------------------------------------------ #
-# Calibrated mode (doc/gameplay-units-upgrade.md §7 Tier 2)
+# Calibrated mode (doc/16-gameplay-units-upgrade.md §7 Tier 2)
 # ------------------------------------------------------------------ #
 def test_central_dogma_named_constants_match_legacy_literals():
     """Hardcoded literals were lifted to named constants with identical defaults."""

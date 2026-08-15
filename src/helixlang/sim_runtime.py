@@ -1,4 +1,4 @@
-"""Simulation-library adapter (``doc/helix-language-wiring.md`` §8).
+"""Simulation-library adapter (``doc/12-helix-language-wiring.md`` §8).
 
 Maps a parsed :class:`~helixlang.ast_nodes.Program` onto the quantitative
 simulation stack, selected by ``#config backend``:
@@ -162,7 +162,7 @@ class ScoreResult(SimResult):
 
 
 # ============================================================================
-# Type coercion (helix-language-wiring.md §6.3)
+# Type coercion (12-helix-language-wiring.md §6.3)
 # ============================================================================
 _TRUE = {"true", "1", "yes"}
 _FALSE = {"false", "0", "no"}
@@ -374,7 +374,7 @@ def _build_grn(program: Program, noise_seed: int | None = None) -> GRN:
     Promoter strengths become thresholds; a negative promoter strength is
     constitutive (active from tick 0).  Per-gene ``threshold=`` /
     ``initial_level=`` fields override the promoter-derived defaults
-    (helix-language-wiring.md §7.2).
+    (12-helix-language-wiring.md §7.2).
     """
     grn = GRN(noise_enabled=False, noise_seed=noise_seed)
     prom_by_name = {p.name: p for p in program.promoters}

@@ -25,7 +25,7 @@ Methodology
   are reproducible run-to-run.
 
 Output is a markdown report (printed to stdout) suitable for pasting into
-``doc/performance-report.md``.
+``doc/13-performance-report.md``.
 """
 from __future__ import annotations
 

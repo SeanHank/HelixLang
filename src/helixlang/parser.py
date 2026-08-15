@@ -251,11 +251,11 @@ class Parser:
             prog.config.use_central_dogma = fields["use_central_dogma"].lower() in ("true", "1", "yes")
         if "species" in fields:
             prog.config.species = fields["species"]
-        # Simulation backend selector (helix-language-wiring.md §6.1)
+        # Simulation backend selector (12-helix-language-wiring.md §6.1)
         if "backend" in fields:
             prog.config.backend = fields["backend"]
         # Every remaining #config key is a sim parameter: preserved verbatim
-        # for the backend adapter (helix-language-wiring.md §7.1). The classic
+        # for the backend adapter (12-helix-language-wiring.md §7.1). The classic
         # pipeline never reads `sim`, so its behaviour is untouched.
         consumed = {
             "ticks", "output", "table", "ops_per_tick", "react_steps",
@@ -269,7 +269,7 @@ class Parser:
         """Parse #media nutrient=GLC concentration=10.0 [diffusion_um2_s=300].
 
         Growth-medium declaration consumed by the sim backends; inert (with a
-        warning) under the classic backend (helix-language-wiring.md §6.4).
+        warning) under the classic backend (12-helix-language-wiring.md §6.4).
         """
         t = self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
@@ -301,7 +301,7 @@ class Parser:
         """Parse #enzyme gene=gltA reaction=CS [kcat=2800].
 
         Enzyme--reaction binding for enzyme-constrained FBA; inert under the
-        classic backend (helix-language-wiring.md §6.5).
+        classic backend (12-helix-language-wiring.md §6.5).
         """
         t = self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
@@ -326,7 +326,7 @@ class Parser:
 
         Intracellular pool initialisation; requires
         ``#config metabolite_pools=true`` to take effect, inert under classic
-        (helix-language-wiring.md §6.6).
+        (12-helix-language-wiring.md §6.6).
         """
         t = self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)

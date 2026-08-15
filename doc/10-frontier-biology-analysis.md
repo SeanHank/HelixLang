@@ -126,7 +126,7 @@ Each gap: **Current** → **Gap** → **Why it blocks frontier work** → **Rela
 - **Current:** `vm.CellVM` is a single programmable cell (genome, GRN, Gray-Scott field, ops quota); `population.CellPopulation` is multi-cell (≤10⁴, AI-2 diffusion, quorum, lineage) but carries **no genome, no GRN, no bytecode**. They share neither code paths nor state.
 - **Gap:** No way to run "programmed cells in a spatial population".
 - **Blocks:** P1 (programmable quorum circuits), P2 (signaling-driven patterning), P3 (evolution of multicellular behavior), P10. It is the prerequisite for almost everything else.
-- **Literature:** iDynoMiCS 2.0 modules (agent properties assembled from orthogonal modules, 2024); MiMICS per-agent metabolic states (2024); NUFEB "biological + chemical + physical" integration (2019); `engineering-design.md` §6.2 already sketches "OP_DIVIDE creates daughters; GRN per cell; shared fields" — this is the documented multicellular extension.
+- **Literature:** iDynoMiCS 2.0 modules (agent properties assembled from orthogonal modules, 2024); MiMICS per-agent metabolic states (2024); NUFEB "biological + chemical + physical" integration (2019); `06-engineering-design.md` §6.2 already sketches "OP_DIVIDE creates daughters; GRN per cell; shared fields" — this is the documented multicellular extension.
 
 ### G2 — Fully deterministic core; no stochastic gene expression
 - **Current:** GRN is a discrete-time recurrence (`level' = clamp(decay·level + (1−decay)·sigmoid(...))`); Gray-Scott, cell dynamics, and L-systems are deterministic (seeded RNG only in division partitioning and bio instructions).
@@ -181,7 +181,7 @@ Each gap: **Current** → **Gap** → **Why it blocks frontier work** → **Rela
 - **Current:** VM dispatch ≈ 770 ns/op (~1.3M ops/s); pure-Python Gray-Scott fallback ~0.14–0.18 µs/cell; `trace` accumulates every snapshot (O(ticks) memory); population metabolism vectorizes only via optional numpy.
 - **Gap:** For 10⁴–10⁶ cells × per-cell GRN, need vectorized across-cell GRN, grid-based diffusion, snapshot streaming/downsampling, optional C/numba/numba-less parallel hot paths.
 - **Blocks:** P10 scale, whole-population evolution studies.
-- **Literature:** `doc/performance-report.md` §4 items 4–5 (open items); NUFEB parallelization lessons.
+- **Literature:** `doc/13-performance-report.md` §4 items 4–5 (open items); NUFEB parallelization lessons.
 
 ### G11 — No validation/calibration pipeline
 - **Current:** 1766 tests validate internal consistency and literature anchors, but there is no pipeline to fit model parameters to experimental data or run standardized benchmarks (BM2/BM3 biofilms, Virtual Cell Challenge style).
@@ -203,7 +203,7 @@ Each item lists the modules touched and the frontier problems it unlocks.
 - Give `PopulationCell` a `program` (bytecode chunk), a per-cell `GRN`, and a protein/energy budget; give `CellVM`-style dispatch per cell under an ops budget.
 - `OP_DIVIDE` actually spawns a daughter (existing `divide_cell()` binary fission); `OP_SIGNAL` writes into the shared AI-2 field (already exists in population path); `OP_EMIT_MORPHOGEN` into the shared Gray-Scott field.
 - Share the tick loop: metabolism → field diffusion → per-cell GRN → per-cell dispatch → quorum → division.
-- **Unlocks:** P1, P2, P3, P10. **Note:** `engineering-design.md` §6.2 is the existing design anchor.
+- **Unlocks:** P1, P2, P3, P10. **Note:** `06-engineering-design.md` §6.2 is the existing design anchor.
 - **Status:** `population.py` — `_build_program_grn` (promoter→nodes, regulations→edges), `_push_gene_frame` / `_execute_cell` (full bytecode dispatch incl. move/signal/feed/divide/die/build/bind/call/jump/stack), `_step_programs` under `config.ops_per_tick`; each cell deep-copies the template GRN so daughter state stays isolated. Verified in `tests/test_population_advances.py` (signal, build, move, divide, per-cell GRN isolation).
 
 **T1.2 Environment fields: nutrients + O₂** (`population.py`, new `environment.py`) — ✅ implemented
@@ -224,7 +224,7 @@ Each item lists the modules touched and the frontier problems it unlocks.
 - **Status:** new `stochastic.py` — `telegraph_fano_factor`, `TelegraphPromoter` (k_on/k_off/burst_size/degradation_rate/expression_scale), `fano_to_noise_std`, `gillespie_telegraph` (SSA); `grn.py` gains `GRN(noise_enabled, noise_seed)` + `GeneNode.noise`, zero-mean Fano-scaled noise keeping the deterministic mean unchanged. Verified in `tests/test_stochastic.py` (SSA vs analytic Fano, Poisson limit, seed reproducibility).
 
 **T1.5 Trace streaming / downsampling** (`vm.py`, CLI) — ✅ implemented
-- Snapshot every k-th tick or stream to file (documented open item in `performance-report.md` §4).
+- Snapshot every k-th tick or stream to file (documented open item in `13-performance-report.md` §4).
 - **Unlocks:** P3 (evolution across many generations needs memory-bounded traces).
 - **Status:** `PopulationConfig.trace_streaming` appends per-cell snapshots (id/x/y/alive/energy/proteins/gene levels) each tick, off by default. Verified in `tests/test_population_advances.py`.
 

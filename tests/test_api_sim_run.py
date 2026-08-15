@@ -1,4 +1,4 @@
-"""POST /api/sim/run round-trip (doc/helix-language-wiring.md §9, W-4)."""
+"""POST /api/sim/run round-trip (doc/12-helix-language-wiring.md §9, W-4)."""
 from __future__ import annotations
 
 import pytest

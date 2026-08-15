@@ -1,6 +1,6 @@
 """HelixLang binary artifact (.helixc) codec.
 
-Implements ``doc/helixc-binary-format.md``: a versioned container holding
+Implements ``doc/11-helixc-binary-format.md``: a versioned container holding
 
 - a ``PROG`` section: the serialized ``Program`` AST (authoritative payload),
 - an optional ``CHNK`` section: the precompiled bytecode ``Chunk``,
@@ -86,7 +86,7 @@ SECTION_EOF = b"EOF "
 _TABLE_IDS: dict[str, int] = {"standard": 0, "mito_vertebrate": 1, "ciliate": 2}
 _TABLE_NAMES: dict[int, str] = {v: k for k, v in _TABLE_IDS.items()}
 
-# Record tags (doc/helixc-binary-format.md §4.3)
+# Record tags (doc/11-helixc-binary-format.md §4.3)
 _TAG_CODON = 0x01
 _TAG_GENE = 0x02
 _TAG_PROMOTER = 0x03

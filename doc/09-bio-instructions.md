@@ -51,13 +51,13 @@ ATG GCT GGT TAA
 ```
 
 `#config` keys are `ticks`, `output`, `table`, `ops_per_tick`, `react_steps`,
-`use_central_dogma`, `species`, and `backend` (see `doc/language-spec.md`
+`use_central_dogma`, `species`, and `backend` (see `doc/02-language-spec.md`
 §3.6). The classic runtime runs on **physical units** end-to-end: energy
 counts are ATP molecules, signals are µM, diffusion is µm²/s, and one tick
 is one minute. GRN decay defaults to the 110-min protein half-life
 (≈ 0.994/tick), quorum fires at 10 µM AI-2, and the division threshold is
-reachable in ~20 rich-medium minutes. See `doc/simulation-model.md` §6.3 and
-`doc/language-spec.md` §3.6.
+reachable in ~20 rich-medium minutes. See `doc/04-simulation-model.md` §6.3 and
+`doc/02-language-spec.md` §3.6.
 
 ### DNA Triplet Rules
 
@@ -285,7 +285,7 @@ dFBA):
 #config output=alive_count,core_oxygen_mm,edge_oxygen_mm,core_acetate_mm,edge_acetate_mm
 ```
 
-Full key tables and coercion rules are in `doc/helix-language-wiring.md`
+Full key tables and coercion rules are in `doc/12-helix-language-wiring.md`
 §6.2–6.3; new examples run as
 `helixlang examples/32_colony_dfba.helix --csv`.
 

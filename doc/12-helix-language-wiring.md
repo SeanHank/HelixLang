@@ -21,7 +21,7 @@ and next-step plan.
 | W-2 | `sim_runtime.py` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | **done** (`sim_runtime.py`, `cli.py`) |
 | W-3 | `population` backend, example 32 | **done** |
 | W-4 | `calibration`/`benchmark` backends, `/api/sim/run`, example 34, long-tail `#sim` hook (`spatial_dfba`) | **done** (`server.py`) |
-| W-5 | docs: `language-spec.md`, `bio-instructions.md`, README + drift fixes | **done** |
+| W-5 | docs: `02-language-spec.md`, `09-bio-instructions.md`, README + drift fixes | **done** |
 
 Public surface delivered:
 
@@ -70,8 +70,8 @@ gain new, typed configuration (§6, §18).
 (`ops_per_tick` quota), flushes L-system / reaction-diffusion morphology, and
 optionally runs the central-dogma pipeline (`#config use_central_dogma=true`).
 
-This runtime is the documented language (`doc/language-spec.md`,
-`doc/bio-instructions.md`). It is intentionally minimal: ~30 opcodes, one GRN
+This runtime is the documented language (`doc/02-language-spec.md`,
+`doc/09-bio-instructions.md`). It is intentionally minimal: ~30 opcodes, one GRN
 per cell, no physical units, no metabolism.
 
 ### 2.2 The simulation library
@@ -125,7 +125,7 @@ the remaining Python-only features.
 
 The 7 bio instructions only dispatch when `use_central_dogma=true`
 (`vm.py:564`); in the default path they are parsed but inert
-(`language-spec.md` §6.5).
+(`02-language-spec.md` §6.5).
 
 ### 3.2 `#config` keys (`parser.py:229-246`)
 
@@ -167,19 +167,19 @@ Positional `source`, `--table`, `--disassemble`, `--debug`, `--csv`, `--png`,
 ### 3.5 Documentation drift found by the audit
 
 - `#morphogen` is implemented (`parser.py:205`) but absent from
-  `language-spec.md` and `bio-instructions.md`.
-- `bio-instructions.md` §1 documents `#config grid_width/grid_height` — never
+  `02-language-spec.md` and `09-bio-instructions.md`.
+- `09-bio-instructions.md` §1 documents `#config grid_width/grid_height` — never
   implemented.
-- `bio-instructions.md` §6 defaults (`ticks=1`, `ops_per_tick=100`) differ from
+- `09-bio-instructions.md` §6 defaults (`ticks=1`, `ops_per_tick=100`) differ from
   code (`100`, `64`); the `table` value `mito` is `mito_vertebrate` in code;
   its codon-table quick reference mislabels opcodes.
-- `language-spec.md` §3.6 documents `output=stdout|png|csv|none`, but `output`
+- `02-language-spec.md` §3.6 documents `output=stdout|png|csv|none`, but `output`
   is not consumed by the CLI.
 
-> **Resolved in W-5 (§15)**: `#morphogen` is now in `language-spec.md` §3.9;
+> **Resolved in W-5 (§15)**: `#morphogen` is now in `02-language-spec.md` §3.9;
 > `grid_width/grid_height` was removed (replaced by the real population keys);
 > `ticks`/`ops_per_tick`/`table=mito_vertebrate` were corrected in
-> `bio-instructions.md` §6; the `output=` semantics were redefined as sim
+> `09-bio-instructions.md` §6; the `output=` semantics were redefined as sim
 > column selection (§6.7) and are consumed by the CLI.
 
 ---
@@ -359,7 +359,7 @@ Declares the growth medium. Repeatable.
   `DynamicFBAConfig`); for `population` it initialises the shared
   `Environment` field.
 - `diffusion_um2_s` (optional): Fick diffusion of the field (population only).
-- Units documented in `doc/bio-instructions.md` (mM for concentrations; the
+- Units documented in `doc/09-bio-instructions.md` (mM for concentrations; the
   FBA exchange bound is the numeric value, matching today's `uptake={"GLC":10}`).
 
 ### 6.5 `#enzyme` annotation
@@ -1011,7 +1011,7 @@ Config keys map directly onto `run_whole_cell_calibration` arguments
 | W-2 | `sim_runtime.py` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | `sim_runtime.py` (new), `cli.py`, `examples/` | W-1 + adapter tests | **done** |
 | W-3 | `population` backend, examples 32 | `sim_runtime.py`, `examples/` | W-2 + colony tests | **done** |
 | W-4 | `calibration`/`benchmark` backends, `/api/sim/run`, example 34, long-tail `#sim` hook | `sim_runtime.py`, `server.py`, `examples/` | W-3 + endpoint tests | **done** |
-| W-5 | docs: this surface into `language-spec.md`/`bio-instructions.md` + fix §3.5 drift; README | `doc/*`, `README.md` | — | **done** |
+| W-5 | docs: this surface into `02-language-spec.md`/`09-bio-instructions.md` + fix §3.5 drift; README | `doc/*`, `README.md` | — | **done** |
 | W-6 | long tail (§8.6, §19): register remaining apps behind `#sim`; rewire stub examples | `sim_runtime.py`, `parser.py`, `examples/` | W-5 + app tests | **done** |
 
 W-1…W-5 each landed behind the project's quantitative gates; `classic` stayed
@@ -1025,10 +1025,10 @@ the §19 backlog: 14 `#sim kind=` backends + example rewrites, all green behind
 
 In addition to documenting the new surface:
 
-- `doc/language-spec.md` — add `#config backend` + sim keys (§3.6), new
+- `doc/02-language-spec.md` — add `#config backend` + sim keys (§3.6), new
   annotations (§3.9 `#media`/`#enzyme`/`#metabolite`), runtime semantics for
   sim backends (§6.8), and document `#morphogen` (drift).
-- `doc/bio-instructions.md` — sim backend section; fix drift: remove
+- `doc/09-bio-instructions.md` — sim backend section; fix drift: remove
   `grid_width/grid_height` (replaced by real population keys), correct
   `ticks`/`ops_per_tick` defaults, `mito_vertebrate`, codon-table labels.
 - `README.md` — module map row for `sim_runtime.py`; a "simulation backends"
@@ -1096,7 +1096,7 @@ Every `examples/*.helix` file was run end-to-end
 | Quorum signal gate | `#quorum` | 16 (per-cell gate) |
 | Species / translation table | `#config species` / CLI `--table` | 05, 12 |
 | DNA storage codec | CLI `--encode-dna` / `--decode-dna` | 01, 13 |
-| `#morphogen` feedback | `#morphogen` | implemented (`parser.py:205`) but no example uses it; documented in `language-spec.md` §6.5 |
+| `#morphogen` feedback | `#morphogen` | implemented (`parser.py:205`) but no example uses it; documented in `02-language-spec.md` §6.5 |
 
 ### 18.2 Wired — simulation backends (`sim_runtime.py`)
 

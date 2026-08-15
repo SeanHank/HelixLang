@@ -99,17 +99,24 @@ In one sentence: **DNA is the source, codons are the mnemonics, the ribosome is 
 
 | Document | Content |
 |---|---|
-| [00-overview.md](./overview.md) | This document: project vision, architecture, navigation |
-| [01-references.md](./references.md) | Academic literature review (DNA computing / ALife / compilers) |
-| [02-language-spec.md](./language-spec.md) | Language spec: alphabet, syntax, codon table, data types |
-| [03-compiler-design.md](./compiler-design.md) | Compiler pipeline, AST, bytecode, VM design |
-| [04-simulation-model.md](./simulation-model.md) | Cell simulation: GRN, L-system, reaction-diffusion, tick loop |
-| [05-prototype-plan.md](./prototype-plan.md) | Prototype implementation plan, verification cases, future extensions |
-| [06-engineering-design.md](./engineering-design.md) | Engineering design: module decoupling, error handling, extension points |
-| [07-bio-modules.md](./bio-modules.md) | Bio modules in detail: central dogma, metabolic FBA, protein structure, CRISPR, epigenetics, evolution |
-| [08-api-reference.md](./api-reference.md) | API reference: core data classes, function signatures, parameter docs |
-| [09-bio-instructions.md](./bio-instructions.md) | Bio instruction guide: .helix annotation syntax, bio operation usage |
-| [10-frontier-biology-analysis.md](./frontier-biology-analysis.md) | Frontier biology analysis + upgrade plan: capability mapping, SOTA benchmark, gap analysis, tiered roadmap |
+| [00-overview.md](./00-overview.md) | This document: project vision, architecture, navigation |
+| [01-references.md](./01-references.md) | Academic literature review (DNA computing / ALife / compilers) |
+| [02-language-spec.md](./02-language-spec.md) | Language spec: alphabet, syntax, codon table, data types |
+| [03-compiler-design.md](./03-compiler-design.md) | Compiler pipeline, AST, bytecode, VM design |
+| [04-simulation-model.md](./04-simulation-model.md) | Cell simulation: GRN, L-system, reaction-diffusion, tick loop |
+| [05-prototype-plan.md](./05-prototype-plan.md) | Prototype implementation plan, verification cases, future extensions |
+| [06-engineering-design.md](./06-engineering-design.md) | Engineering design: module decoupling, error handling, extension points |
+| [07-bio-modules.md](./07-bio-modules.md) | Bio modules in detail: central dogma, metabolic FBA, protein structure, CRISPR, epigenetics, evolution |
+| [08-api-reference.md](./08-api-reference.md) | API reference: core data classes, function signatures, parameter docs |
+| [09-bio-instructions.md](./09-bio-instructions.md) | Bio instruction guide: .helix annotation syntax, bio operation usage |
+| [10-frontier-biology-analysis.md](./10-frontier-biology-analysis.md) | Frontier biology analysis + upgrade plan: capability mapping, SOTA benchmark, gap analysis, tiered roadmap |
+| [11-helixc-binary-format.md](./11-helixc-binary-format.md) | Binary artifact design (.helixc): versioned container, compile/decompile/compare, round-trip testing |
+| [12-helix-language-wiring.md](./12-helix-language-wiring.md) | Wires the simulation library into `.helix`: `#config backend`, `#media`/`#enzyme`/`#metabolite`, `sim_runtime` adapter, CLI/API, example coverage audit |
+| [13-performance-report.md](./13-performance-report.md) | Measured performance report: bottleneck analysis + scaling behavior of the full pipeline |
+| [14-production-upgrade.md](./14-production-upgrade.md) | Production-grade upgrade plan (historical): literature-backed replacements preserving the public API |
+| [15-whole-cell-realism.md](./15-whole-cell-realism.md) | Five-phase roadmap to a physically complete virtual cell — implemented & gated |
+| [16-gameplay-units-upgrade.md](./16-gameplay-units-upgrade.md) | Gameplay-unit calibration plan (superseded): toy-design → physical-biology unit system |
+| [17-项目详解与前沿生物学应用.md](./17-项目详解与前沿生物学应用.md) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
 
 ---
 
@@ -133,7 +140,7 @@ HelixLang adopts a **16-core-module** architecture in three layers: the compiler
 
 ```
 HelixLang/
-├── doc/                              # Design docs (00-09)
+├── doc/                              # Design docs (00-17)
 │   ├── 00-overview.md                # Project overview
 │   ├── 01-references.md             # Literature review
 │   ├── 02-language-spec.md           # Language spec
@@ -143,7 +150,15 @@ HelixLang/
 │   ├── 06-engineering-design.md      # Engineering design
 │   ├── 07-bio-modules.md             # Bio modules in detail
 │   ├── 08-api-reference.md           # API reference
-│   └── 09-bio-instructions.md        # Bio instruction guide
+│   ├── 09-bio-instructions.md        # Bio instruction guide
+│   ├── 10-frontier-biology-analysis.md  # Frontier biology analysis + upgrade plan
+│   ├── 11-helixc-binary-format.md     # Binary artifact design (.helixc)
+│   ├── 12-helix-language-wiring.md    # Language ↔ simulation wiring
+│   ├── 13-performance-report.md       # Performance report
+│   ├── 14-production-upgrade.md       # Production upgrade plan (historical)
+│   ├── 15-whole-cell-realism.md       # Virtual cell roadmap
+│   ├── 16-gameplay-units-upgrade.md   # Gameplay-unit calibration (superseded)
+│   └── 17-项目详解与前沿生物学应用.md      # Chinese explainer + frontier biology applications
 ├── src/helixlang/                    # Compiler and runtime implementation
 │   ├── __init__.py                   # Package exports
 │   │

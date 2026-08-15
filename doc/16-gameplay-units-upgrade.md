@@ -5,8 +5,8 @@
 > switches, the `CALIBRATED` registry, and the `energy_to_atp`/`signal_to_um`
 > conversion functions were **removed** in favor of direct physical magnitudes
 > (ATP molecule counts, µM concentrations, µm²/s diffusion, 1 tick = 1 minute).
-> The current design is documented in `doc/simulation-model.md` §6.3 and
-> `doc/language-spec.md` §3.6; the unit constants live in
+> The current design is documented in `doc/04-simulation-model.md` §6.3 and
+> `doc/02-language-spec.md` §3.6; the unit constants live in
 > `src/helixlang/units.py`. This file is kept for provenance only.
 
 > Goal: turn the remaining **gameplay units** (arbitrary, dimensionless energy / signal / threshold
@@ -14,7 +14,7 @@
 > literature-cited calibration targets**, without breaking the language, the VM semantics, the
 > public API, or the green test suite.
 >
-> This plan is the follow-on to `production-upgrade.md` §4.10: Batch 10 registered the magic
+> This plan is the follow-on to `14-production-upgrade.md` §4.10: Batch 10 registered the magic
 > numbers as named constants and added honest `UNITS` disclaimers. This plan goes one step
 > further — it defines **what physical quantity each gameplay unit should mean**, derives a
 > consistent unit system, and proposes opt-in `calibrated=` re-parameterization backed by primary
@@ -48,7 +48,7 @@ budget that is internally consistent but physically unattached.
 Example: a cell starts with `energy = 100`, loses `1` per move, gains `10` per `feed`,
 divides at `200`, and senses quorum at a signal of `5.0`. Nothing wrong *in play* — the numbers
 are tuned so examples behave nicely. But none of these numbers means anything physical, and the
-previous upgrade rounds (production-upgrade.md Batch 10) deliberately stopped at *documenting*
+previous upgrade rounds (14-production-upgrade.md Batch 10) deliberately stopped at *documenting*
 them ("gameplay units, not Joules") rather than *calibrating* them.
 
 **Why calibrate now?**
@@ -62,7 +62,7 @@ them ("gameplay units, not Joules") rather than *calibrating* them.
 - **Predictive tests.** Physical anchoring turns the test suite into a *validation* suite
   (does a starved cell die on schedule? does the doubling time match Neidhardt?).
 
-**Design constraints** (unchanged from production-upgrade.md §5):
+**Design constraints** (unchanged from 14-production-upgrade.md §5):
 1. Do not change existing functionality — every default stays, every documented API keeps working.
 2. Keep all tests green (1471 baseline) plus ruff + mypy.
 3. Stay dependency-light: stdlib first; numpy only where already optional.
@@ -409,9 +409,9 @@ test_parser,test_server,test_end_to_end}.py`.
 | 6 | §5.5 Tier 2 | `grn.py` half-life decay default when calibrated | **DONE** |
 | 7 | §5.6 Tier 2 | `central_dogma.py` `units=` yield mapping (optional) | **DONE** |
 | 8 | §5.7 Tier 3 | `#config units=real` + output metadata + frontend units | **DONE** |
-| 9 | Docs | update `language-spec.md`, `bio-instructions.md`, `simulation-model.md`, `api-reference.md` with the unit system and `units=` | **DONE** |
+| 9 | Docs | update `02-language-spec.md`, `09-bio-instructions.md`, `04-simulation-model.md`, `08-api-reference.md` with the unit system and `units=` | **DONE** |
 
-**Pending follow-ups (pre-existing, orthogonal)**: production-upgrade.md §4.2 Erlich/legacy
+**Pending follow-ups (pre-existing, orthogonal)**: 14-production-upgrade.md §4.2 Erlich/legacy
 Goldman; §4.4 TMHMM-style TM; §4.5 codon-dependent `stop_efficiency`; the remaining
 parameterized-but-functional opcode operands (`OP_FEED <src>`, `OP_DIVIDE <mode>`, `OP_DIE`,
 `OP_DIFFUSE`, `OP_REACT`).

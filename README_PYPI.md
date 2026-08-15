@@ -296,25 +296,28 @@ The full technical documentation lives in the [repository `doc/` folder](https:/
 
 | Document | Audience | What it covers |
 |---|---|---|
-| [overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
-| [language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
-| [api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
-| [bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
-| [bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/bio-modules.md) | Bio module users | Deep dive on the biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
-| [simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
-| [compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
-| [engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
-| [references.md](https://github.com/SeanHank/HelixLang/blob/main/doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
+| [00-overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/00-overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
+| [02-language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/02-language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
+| [08-api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/08-api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
+| [09-bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/09-bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
+| [07-bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/07-bio-modules.md) | Bio module users | Deep dive on the biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
+| [04-simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/04-simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
+| [03-compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/03-compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
+| [06-engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/06-engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
+| [01-references.md](https://github.com/SeanHank/HelixLang/blob/main/doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
+| [11-helixc-binary-format.md](https://github.com/SeanHank/HelixLang/blob/main/doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
+| [16-gameplay-units-upgrade.md](https://github.com/SeanHank/HelixLang/blob/main/doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
+| [17-项目详解与前沿生物学应用.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-项目详解与前沿生物学应用.md) | Everyone (中文) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
 
 ### Suggested reading order
 
-1. **[overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/overview.md)** — the big picture.
-2. **[language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/language-spec.md)** — how to write programs (codons, genes, annotations, config).
-3. **[simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/simulation-model.md)** — what happens when a program *runs*.
-4. **[bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/bio-modules.md)** — the biological machinery, per domain.
-5. **[api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/api-reference.md)** + **[bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/bio-instructions.md)** — while you write code.
-6. **[compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/compiler-design.md)** — if you want to extend the toolchain.
-7. **[engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/engineering-design.md)** — before touching internals.
+1. **[00-overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/00-overview.md)** — the big picture.
+2. **[02-language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/02-language-spec.md)** — how to write programs (codons, genes, annotations, config).
+3. **[04-simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/04-simulation-model.md)** — what happens when a program *runs*.
+4. **[07-bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/07-bio-modules.md)** — the biological machinery, per domain.
+5. **[08-api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/08-api-reference.md)** + **[09-bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/09-bio-instructions.md)** — while you write code.
+6. **[03-compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/03-compiler-design.md)** — if you want to extend the toolchain.
+7. **[06-engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/06-engineering-design.md)** — before touching internals.
 
 ---
 

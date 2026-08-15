@@ -3,7 +3,7 @@
 > **HISTORICAL.** This is the plan for a completed earlier upgrade round; the
 > constant values and line numbers it cites are snapshots from that era. The
 > current runtime uses physical units end-to-end (see `src/helixlang/units.py`,
-> `doc/simulation-model.md` §6.3, and `doc/gameplay-units-upgrade.md`).
+> `doc/04-simulation-model.md` §6.3, and `doc/16-gameplay-units-upgrade.md`).
 
 > Goal: replace every simplified / education-oriented implementation in `src/helixlang/` with engineering-grade equivalents backed by primary literature, while preserving the public API surface, the compiler/VM pipeline, and a fully green test suite.
 >

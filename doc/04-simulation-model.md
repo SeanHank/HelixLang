@@ -314,7 +314,7 @@ metabolism → field diffusion → per-cell GRN → per-cell dispatch
 
 1. **Metabolism** — Monod uptake `vmax·S/(Ks+S)` scaled by 38 ATP/glucose
    depletes the local glucose field (optionally via `DynamicFluxBalance`
-   coupling, documented in `bio-modules.md` §2); `OP_DIVIDE` spawns a real
+   coupling, documented in `07-bio-modules.md` §2); `OP_DIVIDE` spawns a real
    daughter (binary fission, energy split).
 2. **Diffusion** — AI-2 (quorum), glucose, and O₂ fields advance one
    sub-stepped tick (`environment.py`, flux-conservative, D≤0.25/step;

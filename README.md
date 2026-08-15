@@ -234,7 +234,7 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 
 ### 6. Simulation Backends — quantitative runs from `.helix`
 
-`#config backend` selects the quantitative simulator instead of the bytecode VM (see `doc/bio-instructions.md` §6.1). All examples ship in `examples/`:
+`#config backend` selects the quantitative simulator instead of the bytecode VM (see `doc/09-bio-instructions.md` §6.1). All examples ship in `examples/`:
 
 | Example | Backend | What it demonstrates |
 |---|---|---|
@@ -384,31 +384,34 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 
 | Document | Audience | What it covers |
 |---|---|---|
-| [`overview.md`](doc/overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
-| [`language-spec.md`](doc/language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
-| [`api-reference.md`](doc/api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
-| [`bio-instructions.md`](doc/bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
-| [`bio-modules.md`](doc/bio-modules.md) | Bio module users | Deep dive on the six biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
-| [`simulation-model.md`](doc/simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
-| [`compiler-design.md`](doc/compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
-| [`engineering-design.md`](doc/engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
-| [`performance-report.md`](doc/performance-report.md) | Performance engineers | Measured bottleneck analysis + scaling behavior of the full pipeline (compile / VM / GRN / reaction-diffusion / memory) |
-| [`production-upgrade.md`](doc/production-upgrade.md) | Maintainers | Plan to replace education-oriented implementations with literature-backed engineering-grade ones, preserving the public API |
-| [`frontier-biology-analysis.md`](doc/frontier-biology-analysis.md) | Researchers | The tiered frontier upgrade plan — programmable cells, stochastic expression, CROMICS crowding, dFBA, mechanics, pattern synthesis — each tier literature-verified with explicit failure budgets |
-| [`prototype-plan.md`](doc/prototype-plan.md) | Contributors | Prototype milestones, validation cases, test matrix, and future roadmap |
-| [`whole-cell-realism.md`](doc/whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
-| [`helix-language-wiring.md`](doc/helix-language-wiring.md) | Language designers | Wires the simulation library into `.helix`: `#config backend`, `#media`/`#enzyme`/`#metabolite`, the `sim_runtime` adapter, CLI/`/api/sim/run`, example coverage audit (wired vs Python-only) + W-6 backlog |
-| [`references.md`](doc/references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
+| [`00-overview.md`](doc/00-overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
+| [`02-language-spec.md`](doc/02-language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
+| [`08-api-reference.md`](doc/08-api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
+| [`09-bio-instructions.md`](doc/09-bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
+| [`07-bio-modules.md`](doc/07-bio-modules.md) | Bio module users | Deep dive on the six biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
+| [`04-simulation-model.md`](doc/04-simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
+| [`03-compiler-design.md`](doc/03-compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
+| [`06-engineering-design.md`](doc/06-engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
+| [`13-performance-report.md`](doc/13-performance-report.md) | Performance engineers | Measured bottleneck analysis + scaling behavior of the full pipeline (compile / VM / GRN / reaction-diffusion / memory) |
+| [`14-production-upgrade.md`](doc/14-production-upgrade.md) | Maintainers | Plan to replace education-oriented implementations with literature-backed engineering-grade ones, preserving the public API |
+| [`10-frontier-biology-analysis.md`](doc/10-frontier-biology-analysis.md) | Researchers | The tiered frontier upgrade plan — programmable cells, stochastic expression, CROMICS crowding, dFBA, mechanics, pattern synthesis — each tier literature-verified with explicit failure budgets |
+| [`05-prototype-plan.md`](doc/05-prototype-plan.md) | Contributors | Prototype milestones, validation cases, test matrix, and future roadmap |
+| [`15-whole-cell-realism.md`](doc/15-whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
+| [`12-helix-language-wiring.md`](doc/12-helix-language-wiring.md) | Language designers | Wires the simulation library into `.helix`: `#config backend`, `#media`/`#enzyme`/`#metabolite`, the `sim_runtime` adapter, CLI/`/api/sim/run`, example coverage audit (wired vs Python-only) + W-6 backlog |
+| [`01-references.md`](doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
+| [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
+| [`16-gameplay-units-upgrade.md`](doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
+| [`17-项目详解与前沿生物学应用.md`](doc/17-项目详解与前沿生物学应用.md) | Everyone (中文) | Chinese explainer: what HelixLang is, how it works, and frontier biology applications (2024–2026 literature) |
 
 ### Suggested reading order
 
-1. **[`overview.md`](doc/overview.md)** — the big picture.
-2. **[`language-spec.md`](doc/language-spec.md)** — how to write programs (codons, genes, annotations, config).
-3. **[`simulation-model.md`](doc/simulation-model.md)** — what happens when a program *runs*.
-4. **[`bio-modules.md`](doc/bio-modules.md)** — the biological machinery, per domain.
-5. **[`api-reference.md`](doc/api-reference.md)** + **[`bio-instructions.md`](doc/bio-instructions.md)** — while you write code.
-6. **[`compiler-design.md`](doc/compiler-design.md)** — if you want to extend the toolchain.
-7. **[`engineering-design.md`](doc/engineering-design.md)** — before touching internals.
+1. **[`00-overview.md`](doc/00-overview.md)** — the big picture.
+2. **[`02-language-spec.md`](doc/02-language-spec.md)** — how to write programs (codons, genes, annotations, config).
+3. **[`04-simulation-model.md`](doc/04-simulation-model.md)** — what happens when a program *runs*.
+4. **[`07-bio-modules.md`](doc/07-bio-modules.md)** — the biological machinery, per domain.
+5. **[`08-api-reference.md`](doc/08-api-reference.md)** + **[`09-bio-instructions.md`](doc/09-bio-instructions.md)** — while you write code.
+6. **[`03-compiler-design.md`](doc/03-compiler-design.md)** — if you want to extend the toolchain.
+7. **[`06-engineering-design.md`](doc/06-engineering-design.md)** — before touching internals.
 
 ---
 

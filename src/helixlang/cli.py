@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="decode DNA file back to helix source")
     p.add_argument("--pcr-cycles", type=int, default=0,
                    help="simulate PCR error injection (0=none, 30=standard PCR)")
-    # Binary artifact (.helixc) tooling (doc/helixc-binary-format.md)
+    # Binary artifact (.helixc) tooling (doc/11-helixc-binary-format.md)
     p.add_argument("--compile", action="store_true",
                    help="compile .helix source into a .helixc binary artifact")
     p.add_argument("--decompile", action="store_true",
@@ -182,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
-    # ----- binary artifact modes (doc/helixc-binary-format.md) -----
+    # ----- binary artifact modes (doc/11-helixc-binary-format.md) -----
     if args.compile or args.decompile or args.compare:
         return _run_artifact_mode(args)
 
@@ -269,7 +269,7 @@ def _run_sim(program: Program, args: argparse.Namespace, backend: str) -> int:
 
 
 def _run_artifact_mode(args: argparse.Namespace) -> int:
-    """Handle --compile / --decompile / --compare (doc/helixc-binary-format.md)."""
+    """Handle --compile / --decompile / --compare (doc/11-helixc-binary-format.md)."""
     if args.compile:
         if args.output is None:
             print("error: --compile requires -o OUT", file=sys.stderr)

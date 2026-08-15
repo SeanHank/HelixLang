@@ -212,14 +212,14 @@ simulator's dataclass fields (§6.8). For example
 selects the colony backend and sizes the lattice. Classic runs never read `sim`,
 so adding these keys to a `classic` program is inert (matching the old lenient
 handling of unknown keys). Full key tables live in
-`doc/helix-language-wiring.md` §6.2.
+`doc/12-helix-language-wiring.md` §6.2.
 
 ### 3.6.1 Unit system (always on)
 
 HelixLang runs on physical units end-to-end (no `#config units=` switch; the
 legacy gameplay-unit catalog was removed). Energy counts are **ATP molecules**,
 the signal field is in **µM**, diffusion is a physical **µm²/s** coefficient,
-and one tick is **one minute** (`helixlang.units`; see `doc/simulation-model.md` §6.3).
+and one tick is **one minute** (`helixlang.units`; see `doc/04-simulation-model.md` §6.3).
 
 | Quantity | Default | Physical meaning |
 |---|---|---|
@@ -424,7 +424,7 @@ table id, and optionally the original source text. A `.helixc` input therefore
 runs, disassembles, and traces identically to its source file, and decompiles
 back to `.helix` source. The full container layout, typed `PROG` record
 encoding, decompiler round-trip invariants, and CLI behavior are specified in
-`doc/helixc-binary-format.md`.
+`doc/11-helixc-binary-format.md`.
 
 ---
 
@@ -609,7 +609,7 @@ signalling/mechanics (`signaling`, `signal_diffusion`, `signal_threshold`,
 `crowding`, `mechanics`), per-cell dFBA (`dfba`, `dfba_dt_h`,
 `dfba_oxygen_max_uptake`, …), and the FBA batch (`fba_model`, `dynfba`,
 `fba_dt_h`, `fba_oxygen_max`, `fba_steps`). The full key tables with types
-and coercion rules are in `doc/helix-language-wiring.md` §6.2–6.3.
+and coercion rules are in `doc/12-helix-language-wiring.md` §6.2–6.3.
 
 **Column selection** — in sim backends `#config output=` selects the reported
 columns instead of the dead legacy list: e.g.
@@ -696,7 +696,7 @@ helixlang --compare <source.helix> <artifact.helixc>      # trace equivalence
 > exactly like its `.helix` source, disassembles/traces under `--disassemble` /
 > `--debug`, and decompiles back to source under `--decompile`. The complete
 > binary format, codec API, decompiler invariants, and test matrix are specified
-> in `doc/helixc-binary-format.md`.
+> in `doc/11-helixc-binary-format.md`.
 
 | Flag | Effect |
 |---|---|

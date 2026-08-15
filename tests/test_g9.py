@@ -11,7 +11,7 @@ Verification goals:
 - ``OP_CALL_GENE`` addresses the full gene space via ``call_target=``,
   breaking the 4-gene wobble limit.
 
-References: doc/frontier-biology-analysis.md G9.
+References: doc/10-frontier-biology-analysis.md G9.
 """
 from __future__ import annotations
 

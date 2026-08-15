@@ -1,4 +1,4 @@
-"""Simulation-backend adapter tests (doc/helix-language-wiring.md §13).
+"""Simulation-backend adapter tests (doc/12-helix-language-wiring.md §13).
 
 Covers the W-2 (whole_cell + fba), W-3 (population), W-4
 (calibration/benchmark + /api/sim/run) and W-6 (#sim long-tail backends)

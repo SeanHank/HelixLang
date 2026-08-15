@@ -113,7 +113,7 @@ class Config:
     # Species (affects codon usage, tRNA abundance)
     species: str = "ecoli"
     # Backend selector: classic (bytecode VM) | whole_cell | population |
-    # fba | calibration | benchmark (see helix-language-wiring.md)
+    # fba | calibration | benchmark (see 12-helix-language-wiring.md)
     backend: str = "classic"
     # Simulation parameters not consumed by the classic pipeline, preserved
     # verbatim as strings; coerced by the backend adapter (sim_runtime.py).

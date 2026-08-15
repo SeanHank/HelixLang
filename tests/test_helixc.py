@@ -1,6 +1,6 @@
 """Binary artifact (.helixc) codec tests.
 
-Covers doc/helixc-binary-format.md:
+Covers doc/11-helixc-binary-format.md:
 - encode/decode round-trips (Program, Chunk, SRC, table)
 - decompiler invariants R1 (reparse -> same chunk), R2 (canonical
   byte-for-byte), R3 (embedded source byte-for-byte)
