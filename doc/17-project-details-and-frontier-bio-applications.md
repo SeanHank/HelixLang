@@ -5,7 +5,7 @@ what happens when a program is compiled and run (§3), the software architecture
 worked examples (§5), how the toolset maps onto frontier biology problems (§8), and the
 per-problem solution designs that were delivered (§9). Each section is self-contained.
 Writing date: 2026-08 · Baseline: 2134 tests, ≈89% coverage, `ruff` + `mypy` clean
-(revision 2026.8.1).
+(revision 2026.8.2).
 
 ## Table of Contents
 

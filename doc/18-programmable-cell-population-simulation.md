@@ -13,7 +13,7 @@
 > Intended reader: someone who has read 17 (or already has a mental model of multi-agent /
 > spatial simulation). Every claim is anchored to specific files and line numbers so you can
 > verify against the source. Writing date: 2026-08 · Baseline: 2134 tests, ≈89% coverage,
-> `ruff` + `mypy` clean (revision 2026.8.1).
+> `ruff` + `mypy` clean (revision 2026.8.2).
 
 ---
 

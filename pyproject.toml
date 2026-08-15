@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixlang"
-version = "2026.8.1"
+version = "2026.8.2"
 description = "A bio-genetic DSL that compiles DNA codons to bytecode and simulates biological behavior/morphology."
 readme = "README_PYPI.md"
 requires-python = ">=3.11"
