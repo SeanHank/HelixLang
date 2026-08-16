@@ -1,0 +1,63 @@
+# Example 40: Spatial evolution — the full-stack 10-layer scenario
+# (Plan 1, doc/18-programmable-cell-population-simulation.md §13; Bosshard et al. 2020 BMC Genomics 21:232)
+#
+# The "large helix example" of the population roadmap: DNA genotypes are
+# evolved by their *spatial behavior*, not by a hand-set fitness score.
+# `#sim kind=spatial_evolution` runs a dual loop:
+#   1. outer loop — the real biological mutation spectrum from
+#      evolution.py (substitutions, indels, transition:transversion bias)
+#      mutates each genotype; the reading frame is validated and the
+#      genome recompiled;
+#   2. inner loop — every genotype is scored as a spatial colonizer: an
+#      80-cell colony grows on the 32x32 lattice for colonization_ticks
+#      and is scored by the Bosshard proxy
+#          fitness = colony_radius_sites * core_survival - metabolic_cost
+# The fittest genotypes survive (truncation selection) and seed the next
+# generation, so colony radius and core survival are the heritable,
+# selectable phenotype — exactly what Bosshard et al. 2020 measured in
+# their range-expansion lines.  Mean fitness roughly doubles within the
+# first generations (fast colonizers fix), then plateaus at the
+# mutation-selection balance.
+#
+# The `.helix` GRN below is the programmable-cell layer of the scenario:
+# a housekeeping adhE reporter plus a quorum-signal reporter (inner AI-2
+# signaling is on).  The ten layers of the full-stack scenario:
+#   ① genotype   = the evolved DNA (outer-loop population)
+#   ② compilation = SemanticAnalyzer + Compiler recompile per round
+#   ③ spatial    = CellPopulation3D lattice (grid_width x grid_height)
+#   ④ environment = rich-medium energy_intake + the AI-2 signaling field
+#   ⑤ metabolism = energy_intake x uptake-gain drives division
+#   ⑥ communication = inner signaling=true (quorum threshold)
+#   ⑦ expression = phenotype_of(genome) -> uptake / division gains
+#   ⑧ observation = #sim output + the per-generation history rows
+#   ⑨ fitness    = colony_radius_sites x core_survival - cost
+#   ⑩ feedback   = truncation selection -> next generation
+#
+# Deterministic with #sim seed=42.  Runtime ~25 s (12 generations x 10
+# genotypes x 80-cell inner colonies).
+
+#promoter name=p_housekeeping strength=-0.4
+#promoter name=p_quorum        strength=0.7
+
+#gene name=adhE promoter=p_housekeeping
+ATG GCT GGT GCT TAA
+#end
+
+#gene name=reporter promoter=p_quorum
+ATG GCT GCT TAA
+#end
+
+#regulate p_housekeeping -> adhE strength=+0.8
+#regulate p_quorum -> reporter strength=+0.9
+
+#config backend=population
+#config signaling=true signal_diffusion=0.3 signal_threshold=10.0
+#config ticks=20
+
+#sim kind=spatial_evolution generations=12 population_size=10 genome_length=30
+#sim substitution_rate=0.03 indel_rate=0.001 recombination_rate=0.2
+#sim selection_fraction=0.25 metabolic_cost=0.05
+#sim grid_width=32 grid_height=32 colonization_ticks=30 inner_population_size=80
+#sim energy_intake=5.0e7 base_division_threshold=1.8e9 signaling=true
+#sim seed=42
+#sim output=generation,mean_fitness,max_fitness,best_radius_sites,best_survival,mean_uptake_gain
