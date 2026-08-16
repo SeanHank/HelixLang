@@ -290,6 +290,10 @@ class TestPerformance:
         assert elapsed < 1.0, f"budgeted tick took {elapsed:.3f}s"
 
     def test_exact_csr_tick_10k_cells_under_second(self):
+        try:
+            import scipy  # noqa: F401
+        except ImportError:
+            pytest.skip("scipy not installed")
         spec = build_genome(n_genes=4300, tf_map="regulon", seed=7)
         n_cells = 10_000
         rng = np.random.default_rng(1)
