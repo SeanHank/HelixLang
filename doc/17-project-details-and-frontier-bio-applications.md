@@ -174,9 +174,9 @@ the §9 solution designs, the three extension directions, and the §13 designs o
 
 ## 5. Understanding it with real examples
 
-`examples/` contains 39 `.helix` example programs (plus 5 directly runnable Python API
-scripts, see §5.4); 38 of them ship with `.helixc` binary artifacts (example 39 is the
-freshly added LBM-3D file). A few representative ones:
+`examples/` contains 40 `.helix` example programs (plus 5 directly runnable Python API
+scripts, see §5.4); 39 of them ship with `.helixc` binary artifacts (example 40 is the
+freshly added spatial-evolution file). A few representative ones:
 
 ### 5.1 Hello, DNA (minimal program)
 
@@ -242,7 +242,7 @@ Frontier layer (delivery examples for Designs 1–9):
 - `30_virtual_cell.helix` (with `virtual_cell_workflow.py`): virtual cell
   "calibrate → predict" loop benchmark (Virtual Cell Challenge 2025 protocol).
 
-**Latest 2026-08 deliverables (examples 31–39) — whole-cell realism layer, dFBA
+**Latest 2026-08 deliverables (examples 31–40) — whole-cell realism layer, dFBA
 deepening, and the population roadmap**:
 
 - `31_whole_cell_adder.helix`: all four whole-cell layers on — **adder size control of
@@ -284,6 +284,15 @@ deepening, and the population roadmap**:
   3D) — `#sim lbm_3d=true` solves Navier–Stokes on the D3Q19 stencil over a depth-volume
   (requires `grid_depth > 1`); the dense biofilm acts as no-slip obstacles and the
   refreshed `FlowField3D` drives 3D cell drift (x/y/z) plus substrate advection.
+- `40_spatial_evolution.helix`: **spatial range-expansion evolution** (doc/18 §13 Design 1;
+  Bosshard et al. 2020, BMC Genomics 21:232) — the "large helix example" of the
+  population roadmap. `#sim kind=spatial_evolution` mutates DNA genotypes with the real
+  mutation spectrum, recompiles them, and scores each as a spatial colonizer on the
+  32×32 lattice (80-cell inner colonies); fitness is
+  `colony_radius_sites × core_survival − metabolic_cost`, and truncation selection feeds
+  the next generation. Mean fitness roughly doubles in the first generations (fast
+  colonizers fix) before plateauing at the mutation-selection balance
+  (`helixlang examples/40_spatial_evolution.helix`, ~25 s, deterministic `seed=42`).
 
 **Frontier-delivered Python API applications** (delivered as directly runnable Python
 rather than `.helix` — the three extension directions, the workflow scripts paired with

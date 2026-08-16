@@ -211,9 +211,12 @@ class TestNetworkStructure:
     def test_random_background_scale_free(self):
         spec = build_genome(n_genes=4300, tf_map="random", seed=7)
         assert 3000 < spec.n_edges < 20000
-        csr = spec.grn._csr
-        deg = (np.asarray(csr.sum(axis=1)).ravel()
-               + np.asarray(csr.sum(axis=0)).ravel())
+        # weighted in+out sum per gene, from the pure-numpy CSR arrays so
+        # the gate runs without scipy (SparseGRN._csr is only populated
+        # when scipy is installed)
+        data, cols, rp = spec.grn.data, spec.grn.col_indices, spec.grn.row_ptr
+        deg = (np.add.reduceat(data, rp[:-1])
+               + np.bincount(cols, weights=data, minlength=spec.n_genes))
         fit = powerlaw_fit([int(d) for d in deg])
         assert -4.0 < fit["slope"] < -2.0
         assert fit["r2"] > 0.9

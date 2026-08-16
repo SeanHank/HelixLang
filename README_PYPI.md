@@ -315,7 +315,7 @@ The full technical documentation lives in the [repository `doc/` folder](https:/
 | [11-helixc-binary-format.md](https://github.com/SeanHank/HelixLang/blob/main/doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
 | [15-whole-cell-realism.md](https://github.com/SeanHank/HelixLang/blob/main/doc/15-whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
 | [16-gameplay-units-upgrade.md](https://github.com/SeanHank/HelixLang/blob/main/doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [17-project-details-and-frontier-bio-applications.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–39), problem→capability mapping, delivered solution designs |
+| [17-project-details-and-frontier-bio-applications.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–40), problem→capability mapping, delivered solution designs |
 | [18-programmable-cell-population-simulation.md](https://github.com/SeanHank/HelixLang/blob/main/doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
 
 ### Suggested reading order
@@ -346,7 +346,7 @@ mypy
 - **2134 test cases** (2134 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 39 `examples/*.helix` covered + Python API companions
+- All 40 `examples/*.helix` covered + Python API companions
 
 ---
 

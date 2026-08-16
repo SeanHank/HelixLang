@@ -410,7 +410,7 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`01-references.md`](doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
 | [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
 | [`16-gameplay-units-upgrade.md`](doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [`17-project-details-and-frontier-bio-applications.md`](doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–39), problem→capability mapping, delivered solution designs |
+| [`17-project-details-and-frontier-bio-applications.md`](doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–40), problem→capability mapping, delivered solution designs |
 | [`18-programmable-cell-population-simulation.md`](doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
 
 ### Suggested reading order

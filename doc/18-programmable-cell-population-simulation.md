@@ -531,9 +531,9 @@ remaining gap of the evolution line, and it is HelixLang's unique differentiatin
 ```helix
 # Example 35 (design draft): full-spatial evolution — the 10-layer full-stack scenario
 # #sim kind=spatial_evolution backend is the deliverable of §13 Plan 1 of this document.
-# Design draft only: the backend has since landed as apps/spatial_evolution.py (see the
-# delivery note below); the "35" example slot was taken by examples/35_acetate_switch.helix,
-# so no dedicated example file ships for this design.
+# The backend has since landed as apps/spatial_evolution.py, and the plan shipped as
+# examples/40_spatial_evolution.helix (the "35" slot went to
+# examples/35_acetate_switch.helix) — see the delivery note below.
 
 #promoter name=p_housekeeping strength=-0.4
 #promoter name=p_quorum        strength=0.7
@@ -607,9 +607,13 @@ Tierra/Avida/NetLogo.
 > al. 2020, BMC Genomics 21:232). `#sim kind=spatial_evolution` is registered in
 > `sim_runtime.py` (`_run_spatial_evolution`, keys incl.
 > `generations/population_size/genome_length/substitution_rate/indel_rate/.../signaling`),
-> and `tests/test_spatial_evolution.py` (6 cases) is green. As noted in the draft, the `35`
-> example slot went to `examples/35_acetate_switch.helix`, so the loop is demonstrated by
-> the app + tests rather than a dedicated example file.
+> and `tests/test_spatial_evolution.py` (6 cases) is green. The large example shipped as
+> **`examples/40_spatial_evolution.helix`** (+ `.helixc`): the 10-layer full-stack scenario
+> as a runnable file — `#sim kind=spatial_evolution generations=12 population_size=10`
+> seeds 80-cell inner colonies on a 32×32 lattice; mean fitness roughly doubles in the
+> first generations (fast colonizers fix) then plateaus at the mutation-selection balance
+> (`run: helixlang examples/40_spatial_evolution.helix`, ~25 s). The `35` slot went to
+> `examples/35_acetate_switch.helix`, so the draft above reads as `40` in the shipped file.
 
 ### Plan 2: Vectorized dFBA with shared batches (★★★)
 
