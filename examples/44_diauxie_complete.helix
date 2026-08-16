@@ -1,0 +1,20 @@
+# Example 44: Complete diauxie - glucose -> acetate -> acetate re-use
+# (doc/19 §5.5 Phase-C gate).  A sealed anoxic batch shows the textbook
+# two-phase succession in the ecosystem backend: while glucose lasts, the
+# fermenter grows explosively and its overflow secretion builds an acetate
+# pool (Phase 1); once glucose is gone the acetotroph blooms on the
+# accumulated acetate, draining the pool to zero and driving a second
+# biomass peak (Phase 2).  This is the ecosystem-scale analogue of the
+# FBA-layer acetate switch (examples/35_acetate_switch.helix), now with
+# the two physiological roles split across species that cross-feed.
+# Carbon is conserved in the sealed microcosm: biomass + acetate + CO2.
+
+#species name=fermenter substrate=glucose vmax=0.03 ks=0.2 cn_ratio=6 maintenance=0.001 secretion=acetate:0.008
+#species name=acetotroph substrate=acetate vmax=0.012 ks=0.05 cn_ratio=6 maintenance=0.0015
+
+#patch name=batch kind=chemostat flow_rate=0 anoxic=true initial.fermenter=20 initial.acetotroph=0.2 initial_nh4_mm=400 substrate.glucose.initial=100 substrate.acetate.initial=0
+
+#config backend=ecosystem
+
+#sim kind=ecosystem ticks=1440 seed=7 fast_forward=false sample_every=72
+#sim output=tick,batch:fermenter,batch:acetotroph,batch:glucose,batch:acetate,batch:co2

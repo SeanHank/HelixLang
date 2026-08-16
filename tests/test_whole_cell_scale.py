@@ -25,10 +25,15 @@ import pytest
 from helixlang.apps.whole_cell_scale import (
     ECOLI_CORE_ESSENTIALITY_NOTES,
     ECOLI_CORE_ESSENTIALITY_REFERENCE,
+    Chromosome,
+    GffFeature,
+    _revcomp,
     build_whole_cell,
     essentiality_screen,
     ko_model,
+    load_chromosome,
     load_genome,
+    parse_gff3,
     predict_essentiality,
     proteins_of,
     random_genome,
@@ -36,6 +41,7 @@ from helixlang.apps.whole_cell_scale import (
     single_gene_ko_protocol,
 )
 from helixlang.metabolism import ECOLI_CORE_MODEL
+from helixlang.virtual_cell import encode_gene
 
 PROTEIN = "MAQILARVFFDDV"
 
@@ -63,6 +69,133 @@ def test_load_genome_fasta_roundtrip() -> None:
 def test_load_genome_empty_fasta_raises() -> None:
     with pytest.raises(ValueError):
         load_genome(">only_header\n")
+
+
+# ============================================================================
+# GFF3 chromosome import (Phase-C C1)
+# ============================================================================
+
+_CHROM_PROTEINS = {
+    "gltA": "MAQILARVFFDDV",
+    "zwf": "MSSRPQAAASSWW",
+    "aceE": "MKVLIVTGDVLDAA",
+}
+_SPACER = "GATCTAGCTAGC"
+
+
+def _chromosome_fixture() -> tuple[str, str, dict[str, str]]:
+    """Synthetic 3-gene chromosome: FASTA text, GFF3 text, proteins.
+
+    ``gltA``/``zwf`` sit on the plus strand, ``aceE`` on the minus
+    strand; intergenic spacers carry a promoter, the trailing spacer a
+    terminator, and an operon spans the whole locus.
+    """
+    genes = {g: encode_gene(p) for g, p in _CHROM_PROTEINS.items()}
+    placements = [("gltA", "+"), ("zwf", "+"), ("aceE", "-")]
+    chrom_parts: list[str] = []
+    cds_rows: list[tuple[int, int, str, str]] = []
+    offset = 0
+    for i, (name, strand) in enumerate(placements):
+        dna = genes[name] if strand == "+" else _revcomp(genes[name])
+        chrom_parts.append(dna)
+        cds_rows.append((offset + 1, offset + len(dna), strand, name))
+        offset += len(dna)
+        if i < len(placements) - 1:
+            chrom_parts.append(_SPACER)
+            offset += len(_SPACER)
+    chrom_parts.append(_SPACER)
+    terminator_start = offset + 1
+    offset += len(_SPACER)
+    chrom = "".join(chrom_parts)
+
+    lines = ["##gff-version 3"]
+    for start, end, strand, name in cds_rows:
+        lines.append(
+            f"NC_000913\t.\tgene\t{start}\t{end}\t.\t{strand}\t.\t"
+            f"ID=gene:{name};gene={name}")
+        lines.append(
+            f"NC_000913\t.\tCDS\t{start}\t{end}\t.\t{strand}\t0\t"
+            f"ID=cds:{name};gene={name}")
+    p_start, p_end = cds_rows[0][1] + 1, cds_rows[0][1] + len(_SPACER)
+    lines.append(
+        f"NC_000913\t.\tpromoter\t{p_start}\t{p_end}\t.\t+\t.\t"
+        f"ID=prom:gltA;gene=gltA")
+    lines.append(
+        f"NC_000913\t.\tterminator\t{terminator_start}\t"
+        f"{terminator_start + len(_SPACER) - 1}\t.\t+\t.\t"
+        f"ID=term:aceE;gene=aceE")
+    lines.append(
+        f"NC_000913\t.\toperon\t1\t{offset}\t.\t+\t.\tID=op:glycolysis")
+    gff = "\n".join(lines) + "\n"
+    fasta = ">NC_000913\n" + "\n".join(
+        chrom[i:i + 60] for i in range(0, len(chrom), 60)) + "\n"
+    return fasta, gff, _CHROM_PROTEINS
+
+
+def test_load_chromosome_roundtrip() -> None:
+    """C1 gate: full-chromosome FASTA + GFF3 round-trips the proteome."""
+    fasta, gff, proteins = _chromosome_fixture()
+    genes = {g: encode_gene(p) for g, p in proteins.items()}
+
+    chrom = load_chromosome(fasta, gff)
+    assert isinstance(chrom, Chromosome)
+    assert chrom.seqid == "NC_000913"
+    assert chrom.sequence == "".join(fasta.splitlines()[1:])  # wrapped FASTA
+    assert set(chrom.genome) == set(genes)
+    # both strands round-trip exactly through the central-dogma pipeline
+    assert chrom.genome == genes
+    assert proteins_of(chrom.genome) == proteins
+    # structured annotations survive the import
+    assert len(chrom.cds) == 3
+    assert len(chrom.genes) == 3
+    assert len(chrom.promoters) == 1
+    assert len(chrom.terminators) == 1
+    assert len(chrom.operons) == 1
+    assert chrom.promoters[0].name == "gltA"
+    assert chrom.operons[0].attributes["ID"] == "op:glycolysis"
+    assert all(isinstance(f, GffFeature) for f in chrom.features("promoter"))
+
+
+def test_load_genome_accepts_gff() -> None:
+    """``load_genome(fasta, gff=gff)`` uses the chromosome path (C1)."""
+    fasta, gff, proteins = _chromosome_fixture()
+    genome = load_genome(fasta, gff=gff)
+    assert proteins_of(genome) == proteins
+
+
+def test_load_chromosome_multisegment_cds_merged() -> None:
+    """Split CDS rows sharing a Parent merge into one translatable gene."""
+    dna = encode_gene("MPKKPLTSYQW")
+    mid = len(dna) // 2
+    gff = (
+        "##gff-version 3\n"
+        f"NC_000913\t.\tCDS\t1\t{mid}\t.\t+\t0\t"
+        f"ID=cds:fadD;gene=fadD;Parent=trans:fadD\n"
+        f"NC_000913\t.\tCDS\t{mid + 1}\t{len(dna)}\t.\t+\t0\t"
+        f"ID=cds:fadD2;gene=fadD;Parent=trans:fadD\n")
+    chrom = load_chromosome(f">NC_000913\n{dna}\n", gff)
+    assert proteins_of(chrom.genome) == {"fadD": "MPKKPLTSYQW"}
+
+
+def test_parse_gff3_handles_directives_and_escaping() -> None:
+    text = (
+        "##gff-version 3\n"
+        "##sequence-region NC_000913 1 1000\n"
+        "NC_000913\tRefSeq\tCDS\t10\t30\t.\t-\t0\t"
+        "ID=cds:y1;gene=y1;note=has%3Bsemicolon%3Dequal\n"
+        "NC_000913\t.\tCDS\t5\t3\t.\t+\t0\tID=bad\n"
+        "##FASTA\n>NC_000913\nACGTACGT\n")
+    feats = parse_gff3(text)
+    assert len(feats) == 1
+    assert feats[0].strand == "-"
+    assert feats[0].start == 10 and feats[0].end == 30
+    assert feats[0].attributes["note"] == "has;semicolon=equal"
+
+
+def test_load_chromosome_empty_gff_raises() -> None:
+    with pytest.raises(ValueError, match="no GFF3 features"):
+        load_chromosome(">NC_000913\nACGTACGT\n", "##gff-version 3\n")
+
 
 
 def test_random_genome_is_deterministic() -> None:

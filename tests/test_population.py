@@ -22,6 +22,7 @@ from helixlang.population import (
     PopulationCell,
     PopulationConfig,
     PopulationStatistics,
+    SpeciesParams,
     cell_radius_um,
     divide_cell,
     quorum_sensing,
@@ -712,3 +713,40 @@ def test_shared_batch_conserves_glucose_mass():
     assert consumed > 0.0
     assert all(c.dfba is not None and c.dfba.growth_rate > 0.0
                for c in pop.cells if c.alive)
+
+
+# -- per-species physiology knobs (species_params, doc/19 §5.3) --
+def test_species_params_split_growth_rates():
+    """Two species sharing one lattice with different energy intake per
+    tick grow at different rates: fast divides more often than slow, so
+    both coexist and the fast population outnumbers the slow (Lardon
+    2011 / iDynoMiCS species identity)."""
+    cells = [
+        PopulationCell(id=0, species="fast", energy=100.0, x=0, y=0),
+        PopulationCell(id=1, species="slow", energy=100.0, x=0, y=0),
+    ]
+    cfg = PopulationConfig(
+        grid_width=1, grid_height=1, max_size=100000,
+        division_threshold=1e9, death_threshold=-1e9,
+        metabolic_cost=0.0, signaling_enabled=False,
+        species_params={
+            "fast": SpeciesParams(
+                energy_intake=30.0, metabolic_cost=0.0,
+                division_threshold=100.0, death_threshold=0.0),
+            "slow": SpeciesParams(
+                energy_intake=6.0, metabolic_cost=0.0,
+                division_threshold=100.0, death_threshold=0.0),
+        },
+    )
+    pop = CellPopulation(cells, cfg)
+    for _ in range(20):
+        pop.step()
+    alive = [c for c in pop.cells if c.alive]
+    counts: dict[str, int] = {}
+    for c in alive:
+        counts[c.species] = counts.get(c.species, 0) + 1
+    assert counts["fast"] > 0 and counts["slow"] > 0
+    assert counts["fast"] > 8 * counts["slow"]
+    # fast grew ~exponentially (2^14 of 1 cell after 20 ticks)
+    assert counts["fast"] == 16384
+    assert counts["slow"] == 512

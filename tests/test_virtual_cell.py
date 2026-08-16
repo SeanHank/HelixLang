@@ -32,6 +32,7 @@ from helixlang.population import (
 )
 from helixlang.virtual_cell import (
     CellCyclePhase,
+    RepliconSpec,
     VirtualCell,
     VirtualCellConfig,
     _next_scheduled_division,
@@ -300,6 +301,81 @@ def test_cooper_helmstetter_phase_sequence_slow_growth() -> None:
     served = init + vc.config.c_period_min + vc.config.d_period_min
     assert served == vc.config.doubling_time_min
     assert served % vc.config.doubling_time_min == pytest.approx(0.0)
+
+
+# ============================================================================
+# Replicon structure (Phase-C C2: chromosome oriC/terC + plasmids)
+# ============================================================================
+
+REPLICON_GENOME = {
+    "chrGene": encode_gene("MAQILARVFFDDV"),
+    "plGene": encode_gene("MAQILARVFFDDV"),  # identical to chrGene
+}
+
+
+def _replicon_vc(gene_replicons, replicons, mode="flat", **cfg_kw) -> VirtualCell:
+    cfg = VirtualCellConfig(
+        replication_mode=mode,
+        replicons=replicons,
+        gene_replicons=gene_replicons,
+        maintenance_atp_per_min=0.0,
+        transcription_atp_per_nt=0.0,
+        translation_atp_per_aa=0.0,
+        **cfg_kw,
+    )
+    g = GRN()
+    for name in REPLICON_GENOME:
+        g.add_gene(name, 0.5)
+        g.nodes[name].level = 1.0
+    return VirtualCell(REPLICON_GENOME, g, config=cfg)
+
+
+def test_plasmid_gene_carries_constant_base_copy() -> None:
+    """C2: a plasmid gene keeps its replicon copy through forks + division."""
+    replicons = {"pBR322": RepliconSpec(kind="plasmid", copy_number=20)}
+    vc = _replicon_vc({"plGene": "pBR322"}, replicons,
+                      mode="cooper_helmstetter",
+                      uptake={"GLC": 10.0}, biomass_to_atp=5.0e7,
+                      division_energy=2.0e9, energy_init=1.0e9)
+    assert vc.dna_copy_number["plGene"] == 20
+    assert vc.dna_copy_number["chrGene"] >= 1  # fork-driven (origin-proximal)
+    for _ in range(120):
+        vc.step()
+        assert vc.dna_copy_number["plGene"] == 20  # forks never touch it
+        assert vc.dna_copy_number["chrGene"] >= 1
+    assert vc.divisions >= 1
+
+
+def test_plasmid_copy_number_dosage_lifts_expression() -> None:
+    """C2 gate: copy number -> expression level is replicon-aware.
+
+    The identical gene sequence expressed from a 20-copy pBR322 plasmid
+    produces 20x the mRNA and protein of the chromosome copy.
+    """
+    puc = {"pBR322": RepliconSpec(kind="plasmid", copy_number=20)}
+    chr_vc = _replicon_vc({}, {})
+    pl_vc = _replicon_vc({"plGene": "pBR322"}, puc)
+    chr_vc.run(10)
+    pl_vc.run(10)
+    assert pl_vc.mrna["plGene"] == pytest.approx(20 * chr_vc.mrna["chrGene"])
+    assert pl_vc.proteins["plGene"] == pytest.approx(
+        20 * chr_vc.proteins["chrGene"])
+    # the chromosome gene is untouched by the plasmid replicon
+    assert chr_vc.dna_copy_number["chrGene"] == 1
+    assert pl_vc.dna_copy_number["plGene"] == 20
+
+
+def test_flat_mode_keeps_plasmid_copy() -> None:
+    vc = _replicon_vc({"plGene": "pBR322"},
+                      {"pBR322": RepliconSpec("plasmid", 20)})
+    vc.run(5)
+    assert all(e["dna_copy_number"]["plGene"] == 20 for e in vc.history)
+    assert all(e["dna_copy_number"]["chrGene"] == 1 for e in vc.history)
+
+
+def test_unknown_replicon_raises() -> None:
+    with pytest.raises(ValueError, match="unknown replicon"):
+        _replicon_vc({"plGene": "pUC19"}, {})
 
 
 # ============================================================================

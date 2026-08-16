@@ -1,0 +1,21 @@
+# Example 43: Diurnal microcosm - water column + anoxic sediment
+# (doc/19 §5.4 B4 gate).  The sealed water patch has a phototroph that
+# secretes acetate and an acetotroph feeding on it.  Sunlight follows a
+# diurnal sine (light scalar, period 1440 ticks): during the day
+# photosynthesis supersaturates O2 well above the 0.21 mM baseline, and
+# at night the heterotroph's respiration sags O2 to ~0 while CO2 and
+# acetate spike - the classic day/night oxygen flip.  The sediment patch
+# is anoxic by construction (no O2 field) and receives settling biomass
+# by dispersal; the whole microcosm conserves carbon (sealed).
+
+#species name=producer photo=true photo_vmax=0.006 cn_ratio=8 maintenance=0.0005 secretion=acetate:0.0015
+#species name=consumer substrate=acetate vmax=0.02 ks=0.1 cn_ratio=6 maintenance=0.002
+#species name=sedimenter substrate=acetate vmax=0.015 ks=0.1 cn_ratio=6 maintenance=0.0015
+
+#patch name=water kind=water carrying_capacity=1e6 initial.producer=500 initial.consumer=200 initial_nh4_mm=300 initial_no3_mm=100 substrate.co2.initial=2 substrate.acetate.initial=0 scalar.light.initial=500 scalar.light.kind=light scalar.light.forcing=diurnal dispersal.sediment=0.001
+#patch name=sediment kind=chemostat anoxic=true initial.sedimenter=20 substrate.acetate.initial=0 initial_nh4_mm=300 dispersal.water=0.0005
+
+#config backend=ecosystem
+
+#sim kind=ecosystem ticks=2880 seed=7 fast_forward=false sample_every=288
+#sim output=tick,water:producer,water:consumer,water:oxygen,water:co2,water:acetate,water:light,sediment:sedimenter

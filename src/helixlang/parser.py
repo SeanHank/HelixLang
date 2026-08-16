@@ -74,6 +74,8 @@ class Parser:
                     "metabolite": self._parse_metabolite,
                     "sim": self._parse_sim,
                     "genome": self._parse_genome,
+                    "species": self._parse_species,
+                    "patch": self._parse_patch,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -375,6 +377,89 @@ class Parser:
         prog.sim_extensions["genome"] = "true"
         for k, v in fields.items():
             prog.sim_extensions[f"genome_{k}"] = v
+
+    def _parse_species(self, prog: Program) -> None:
+        """Parse #species name=... (doc/19 §5.3 A2; ecosystem spine).
+
+        The ecosystem backend's species table, namespaced into
+        ``Program.sim_extensions`` under a ``species.<name>.`` prefix (the
+        same open extension point as ``#sim``/``#genome``):
+
+            #species name=producer photo=true photo_vmax=0.01 cn_ratio=8
+            #species name=consumer substrate=glucose vmax=0.02 ks=0.1
+            #species name=predator diet=consumer:0.5 attack=consumer:0.001
+            #species name=acetotroph substrate=acetate vmax=0.012 ks=0.05
+
+        Supported fields (after ``name``): ``genome``, ``photo``,
+        ``photo_vmax``, ``cn_ratio``, ``maintenance``,
+        ``consumption.<sub>.vmax`` / ``consumption.<sub>.ks`` (dotted keys
+        for multiple substrates), the flat ``substrate``/``vmax``/``ks``
+        (plus ``substrate2``/``vmax2``/``ks2``) form,
+        ``secretion=<sub>:<rate>``, ``diet=<prey>:<efficiency>`` and
+        ``attack=<prey>:<rate>``.  The genotype may be given either as a
+        ``genome=`` field or as a DNA code block on the following lines
+        (analogous to ``#gene``): the block DNA is concatenated into the
+        ``genome`` and must not be combined with a ``genome=`` field.
+        Consumed by ``sim_runtime._run_ecosystem``; inert otherwise.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        name = fields.get("name", "")
+        if not name:
+            raise ParseError("#species requires name= field", line=t.line)
+        if "genome" in fields and self._peek().kind == "CODON":
+            raise ParseError(
+                f"#species {name}: use either a genome= field or a DNA "
+                "code block, not both", line=t.line)
+        if "genome" not in fields and self._peek().kind == "CODON":
+            # DNA code block (analogous to #gene): every CODON token up to
+            # the next annotation/#end forms the species genotype
+            codons: list[str] = []
+            while self._peek().kind == "CODON":
+                ct = self._advance()
+                codons.append(ct.value)
+            fields["genome"] = "".join(codons)
+            if self._peek().kind == "ANNOT_END":
+                self._advance()
+        for k, v in fields.items():
+            if k != "name":
+                prog.sim_extensions[f"species.{name}.{k}"] = v
+
+    def _parse_patch(self, prog: Program) -> None:
+        """Parse #patch name=... (doc/19 §5.3 A2; multi-environment, G10).
+
+        The ecosystem backend's habitat table, namespaced into
+        ``Program.sim_extensions`` under a ``patch.<name>.`` prefix:
+
+            #patch name=water kind=water width=4 height=4
+            #patch name=sediment kind=sediment anoxic=true moisture=0.6
+            #patch name=chemostat kind=chemostat flow_rate=0.002
+            #patch initial producer=100 consumer=10
+            #patch substrate glucose initial=1.0 bulk=10.0 diffusion=600
+            #patch scalar light initial=500 kind=light forcing=diurnal
+            #patch scalar temperature initial=25 forcing=diurnal amplitude=3
+            #patch dispersal sediment=0.0001
+            #patch carrying_capacity=1e5
+
+        Supported fields (after ``name``): ``kind``, ``width``, ``height``,
+        ``carrying_capacity``, ``anoxic``, ``moisture``, ``clay``,
+        ``cn_som``, ``cn_species``, ``initial_nh4_mm``, ``initial_no3_mm``,
+        ``flow_rate``, ``fluctuation_period``, ``fluctuation_amplitude``,
+        ``initial.<species>`` (biomass), ``substrate.<sub>.initial`` /
+        ``.bulk`` / ``.diffusion`` / ``.carbon_per_mol``,
+        ``scalar.<name>.kind`` /
+        ``.initial`` / ``.forcing`` (``diurnal`` | ``seasonal``) /
+        ``.amplitude``, and ``dispersal.<neighbor>``.  Consumed by
+        ``sim_runtime._run_ecosystem``; inert otherwise.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        name = fields.get("name", "")
+        if not name:
+            raise ParseError("#patch requires name= field", line=t.line)
+        for k, v in fields.items():
+            if k != "name":
+                prog.sim_extensions[f"patch.{name}.{k}"] = v
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:

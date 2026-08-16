@@ -118,6 +118,7 @@ In one sentence: **DNA is the source, codons are the mnemonics, the ribosome is 
 | [16-gameplay-units-upgrade.md](./16-gameplay-units-upgrade.md) | Gameplay-unit calibration plan (superseded): toy-design → physical-biology unit system |
 | [17-project-details-and-frontier-bio-applications.md](./17-project-details-and-frontier-bio-applications.md) | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples, problem→capability mapping, delivered designs |
 | [18-programmable-cell-population-simulation.md](./18-programmable-cell-population-simulation.md) | Programmable cell-population simulation: tick model, 3D, evolution line, and the delivered population roadmap designs |
+| [19-whole-organism-lifecycle-simulation.md](./19-whole-organism-lifecycle-simulation.md) | From one genome (ATCG) to life and environmental change: current-state audit of the full pipeline and a literature-grounded next-step design (multi-species/multi-population/multi-environment ecosystem spine, environmental dynamics & biogeochemistry, genome completeness, cross-scale integration) |
 ---
 
 ## 6. Positioning vs. Existing Systems
@@ -158,6 +159,9 @@ HelixLang/
 │   ├── 14-production-upgrade.md       # Production upgrade plan (historical)
 │   ├── 15-whole-cell-realism.md       # Virtual cell roadmap
 │   ├── 16-gameplay-units-upgrade.md   # Gameplay-unit calibration (superseded)
+│   ├── 17-project-details-and-frontier-bio-applications.md  # Project details + frontier bio-applications
+│   ├── 18-programmable-cell-population-simulation.md  # Programmable cell-population roadmap
+│   ├── 19-whole-organism-lifecycle-simulation.md  # ATCG→life→environment full-pipeline audit + plan
 ├── src/helixlang/                    # Compiler and runtime implementation
 │   ├── __init__.py                   # Package exports
 │   │

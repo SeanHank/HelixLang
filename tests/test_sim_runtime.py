@@ -123,6 +123,42 @@ def test_whole_cell_requires_gene():
         run(parse("#config backend=whole_cell #config ticks=2"))
 
 
+def test_whole_cell_replicon_wiring():
+    """Phase-C C2: #config sim replicons= + #gene replicon= wire onto the
+    VirtualCellConfig (constant plasmid copy, chromosome implicit)."""
+    src = """
+#promoter name=p_constitutive strength=-0.4
+#gene name=gltA promoter=p_constitutive
+ATG GCT GGT GCT TAA
+#end
+#gene name=repPTS promoter=p_constitutive replicon=pBR322
+ATG GCT GGT GCT TAA
+#end
+#media nutrient=GLC concentration=10.0
+#config backend=whole_cell
+#config sim replicons=pBR322:20,pUC19:500
+#config output=age,dna_copy_number
+#config ticks=4
+"""
+    cfg = _build_virtual_cell_config(parse(src))
+    assert cfg.replicons["pBR322"].kind == "plasmid"
+    assert cfg.replicons["pBR322"].copy_number == 20
+    assert cfg.replicons["pUC19"].copy_number == 500
+    assert cfg.gene_replicons == {"repPTS": "pBR322"}
+    # gltA is unassigned -> chromosome; repPTS carries the plasmid dosage
+    result = run(parse(src))
+    assert result is not None and result.backend == "whole_cell"
+    row = result.rows[-1]
+    assert row["dna_copy_number"]["repPTS"] == 20
+    assert row["dna_copy_number"]["gltA"] == 1
+
+
+def test_whole_cell_replicon_bad_spec_raises():
+    with pytest.raises(SimConfigError, match="name:copy"):
+        _build_virtual_cell_config(parse(
+            "#config backend=whole_cell\n#config sim replicons=pBR322\n"))
+
+
 # ============================================================================
 # W-2: fba backend (FluxBalanceAnalysis / DynamicFluxBalance)
 # ============================================================================

@@ -1,0 +1,24 @@
+# Example 42: Ecosystem evolution (invasion-fitness loop, doc/19 §5.3)
+# A chemostat consumer with a real DNA genotype (36 nt) runs the
+# evolution loop: each generation the genome is mutated (evolution.py
+# substitution spectrum), the mutant is evaluated against the resident on
+# its growth in the *same* environment the population is itself changing
+# (resident_growth vs mutant_growth), and a fitter mutant substitutes.
+# The resident/mutant comparison is largest in generation 0 (fresh
+# glucose); later generations converge on the flow-supported steady state
+# and occasional substitutions still flip `substituted` to 1.  The final
+# genome differs from the seed `ATGCTA`x6 - a genome that changed in
+# response to an environment it also changed.
+
+#species name=consumer substrate=glucose vmax=0.02 ks=0.1 cn_ratio=6 maintenance=0.0015
+ATG CTA ATG CTA ATG CTA
+ATG CTA ATG CTA ATG CTA
+#end
+
+#patch name=c kind=chemostat flow_rate=0.005 anoxic=true initial.consumer=50 initial_nh4_mm=50 substrate.glucose.initial=50 substrate.glucose.bulk=50
+
+#config backend=ecosystem
+
+#sim kind=ecosystem ticks=0 seed=7 fast_forward=true
+#sim generations=6 evaluation_ticks=50 substitution_rate=0.05 genome_length=36
+#sim output=generation,tick,consumer:resident_growth,consumer:mutant_growth,consumer:substituted

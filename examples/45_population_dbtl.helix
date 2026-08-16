@@ -1,0 +1,23 @@
+# Example 45: Population DBTL closed loop (doc/19 §5.6 D3)
+# Design -> Build -> Test -> Learn acting on a population of strains.
+#   Design: round 0 is a strain whose genotype is a synbio_designer
+#           cassette (promoter+RBS+codon-optimized ORF+terminator) for a
+#           target enzyme; later rounds redesign it by mutating the tested
+#           best genome toward the trait the calibrated surrogate ranks
+#           highest (elitism keeps the best).
+#   Build:  the designed DNA decodes into continuous functional traits
+#           (uptake_gain / growth_rate_gain / yield_c).
+#   Test:   every candidate grows in a sealed anoxic chemostat and its
+#           long-term specific growth rate is measured (invasion fitness).
+#   Learn:  fit_parameters (virtual_cell.py) calibrates a trait -> growth
+#           surrogate against the observed genome -> growth pairs.
+# The best growth rate strictly rises across rounds: the designed strain
+# is provably improved by the loop (~1.7x from round 0 to the final
+# design).  `improved` in the meta block confirms the gate.
+
+#config backend=ecosystem
+
+#sim kind=population_dbtl n_rounds=5 population_size=6 genome_length=30
+#sim evaluation_ticks=80 seed=0 mutation_rate=0.05 bias_fraction=0.6
+#sim target_protein=MGTKDFYEAVRS
+#sim output=round,best_growth,mean_growth,surrogate_best_trait

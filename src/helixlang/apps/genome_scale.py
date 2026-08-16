@@ -64,6 +64,58 @@ GLOBAL_REGULATORS = (
 #: carry intrinsic telegraph noise, Peccoud & Ycart 1995).
 NOISE_FRACTION = 0.05
 
+#: Representative RegulonDB-derived regulatory interactions among the
+#: E. coli master/global regulators and the FBA-gated core genes (doc/19
+#: §5.5 C1, ``tf_map="regulondb"``).  A curated subset of RegulonDB/
+#: EcoCyc-documented TF -> target pairs: CRP-cAMP catabolite activation,
+#: ArcA/FNR anaerobic TCA repression, FIS silencing and Lrp leucine
+#: regulation.  The full dump path is ``parse_regulondb`` (a RegulonDB
+#: network table exported as ``regulator<TAB>target<TAB>effect``).
+REGULONDB_DEMO_EDGES: tuple[tuple[str, str, float], ...] = (
+    # CRP-cAMP global catabolite activator: central-carbon activation
+    ("crp", "gltA", 1.0), ("crp", "icdA", 1.0), ("crp", "zwf", 1.0),
+    ("crp", "ptsG", 1.0), ("crp", "aceE", 1.0), ("crp", "eno", 1.0),
+    ("crp", "fba", 1.0), ("crp", "ppc", 1.0),
+    # ArcA two-component anaerobiosis repressor: TCA-cycle shutdown
+    ("arcA", "gltA", -1.0), ("arcA", "icdA", -1.0), ("arcA", "sdhA", -1.0),
+    ("arcA", "sucAB", -1.0), ("arcA", "fumA", -1.0), ("arcA", "mdh", -1.0),
+    # FNR anaerobiosis regulator: ldhA activation, TCA repression
+    ("fnr", "ldhA", 1.0), ("fnr", "fumA", -1.0), ("fnr", "sdhA", -1.0),
+    ("fnr", "sucAB", -1.0),
+    # FIS nucleoid protein: silences metabolic genes
+    ("fis", "gltA", -1.0), ("fis", "icdA", -1.0), ("fis", "aceE", -1.0),
+    # Lrp leucine-responsive regulator
+    ("lrp", "gltA", -1.0), ("lrp", "ppc", -1.0),
+)
+
+
+def parse_regulondb(text: str) -> list[tuple[str, str, float]]:
+    """Parse a RegulonDB-style network dump into +/- weighted edges.
+
+    Expected TSV columns ``regulator<TAB>target<TAB>effect`` where
+    ``effect`` is ``+``/``-`` (optionally with a magnitude, e.g. ``+0.8``).
+    ``#`` comment lines and a ``regulator`` header row are skipped.
+    """
+    edges: list[tuple[str, str, float]] = []
+    for line in str(text).splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        cols = line.split("\t")
+        if len(cols) < 3:
+            continue
+        reg, target, effect = cols[0].strip(), cols[1].strip(), cols[2].strip()
+        if reg.lower() == "regulator" and target.lower() == "target":
+            continue
+        sign = -1.0 if effect.startswith("-") else 1.0
+        magnitude = effect.lstrip("+-")
+        try:
+            weight = sign * float(magnitude) if magnitude else sign
+        except ValueError:
+            continue
+        edges.append((reg, target, weight))
+    return edges
+
 
 def b_number(i: int) -> str:
     """E. coli b-number gene name (``b0001``, ``b0002``, ...)."""
@@ -173,6 +225,7 @@ def build_genome(
     n_genes: int = DEFAULT_GENES,
     active_gene_budget: int = DEFAULT_ACTIVE_BUDGET,
     noise_seed: int | None = None,
+    regulondb: str | None = None,
 ) -> GenomeSpec:
     """Build a deterministic synthetic genome-scale GRN template.
 
@@ -181,24 +234,35 @@ def build_genome(
             ``ecoli-mg1655`` (same builder with the canonical master
             regulators wired on top).
         tf_map: ``regulon`` (hierarchical layers seeded by the literature
-            master regulators — crp/fis/lrp/hns on top) or ``random``
+            master regulators — crp/fis/lrp/hns on top), ``random``
             (pure scale-free preferential-attachment background, no
-            literatur-ordered hubs).
+            literatur-ordered hubs), or ``regulondb`` (real RegulonDB-
+            derived edges replace the synthetic attachment; see
+            ``regulondb``).  ``off`` disables the regulatory map.
         grn_mode: ``sparse`` (CSR template; the only mode implemented).
         seed: reproducibility seed for topology and initial state.
         n_genes: number of synthetic b-number genes (default 4300).
         active_gene_budget: per-cell per-tick active-gene budget.
         noise_seed: RNG seed for intrinsic (telegraph) noise on a small
             minority of genes (None = noise off).
+        regulondb: RegulonDB network dump (TSV, see
+            :func:`parse_regulondb`) used when ``tf_map="regulondb"``;
+            when None the curated :data:`REGULONDB_DEMO_EDGES` subset is
+            used.
 
     The engineered ``.helix`` layer can overlay the same gene names
     afterwards; overlapping nodes read/write the background matrix.
     """
     if grn_mode not in ("sparse", "full"):
         raise ValueError(f"grn_mode: expected 'sparse' or 'full', got {grn_mode!r}")
-    if tf_map not in ("regulon", "random", "off"):
+    if tf_map not in ("regulon", "random", "regulondb", "off"):
         raise ValueError(
-            f"tf_map: expected 'regulon'|'random'|'off', got {tf_map!r}")
+            "tf_map: expected 'regulon'|'random'|'regulondb'|'off', "
+            f"got {tf_map!r}")
+    if regulondb is not None and tf_map != "regulondb":
+        raise ValueError(
+            "regulondb= requires tf_map='regulondb' "
+            f"(got tf_map={tf_map!r})")
     rng = random.Random(seed)
     names = [b_number(i + 1) for i in range(n_genes)]
     core = _core_genes()
@@ -222,6 +286,14 @@ def build_genome(
         edges += _regulon_layer_edges(names, GLOBAL_REGULATORS[4:],
                                       fraction=0.1, weight_hi=1.2,
                                       weight_lo=0.4, rng=rng)
+    if tf_map == "regulondb":
+        # real-map arm (doc/19 §5.5 C1): RegulonDB-derived edges REPLACE
+        # the synthetic attachment; the sparse CSR machinery is kept.
+        # Edges referencing genes outside the node set are dropped.
+        dumped = (parse_regulondb(regulondb) if regulondb is not None
+                  else list(REGULONDB_DEMO_EDGES))
+        edges += [(s, t, w) for s, t, w in dumped
+                  if s in names and t in names]
     # deterministically deduplicate + drop self loops
     seen: set[tuple[str, str]] = set()
     unique: list[tuple[str, str, float]] = []
@@ -444,10 +516,12 @@ __all__ = [
     "DEFAULT_ACTIVE_BUDGET",
     "MASTER_REGULATORS",
     "GLOBAL_REGULATORS",
+    "REGULONDB_DEMO_EDGES",
     "NOISE_FRACTION",
     "b_number",
     "GenomeSpec",
     "build_genome",
+    "parse_regulondb",
     "outdegrees",
     "powerlaw_fit",
     "GenomeColony",

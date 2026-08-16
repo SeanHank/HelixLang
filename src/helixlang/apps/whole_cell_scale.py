@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import random
 import time
+from dataclasses import dataclass
 
 from helixlang.bio_data import ECOLI_CODON_USAGE
 from helixlang.central_dogma import transcribe, translate
@@ -126,7 +127,8 @@ def _cds_to_protein(dna: str) -> str:
     return _translate_orfs(dna)
 
 
-def load_genome(source: str | dict[str, str]) -> dict[str, str]:
+def load_genome(source: str | dict[str, str],
+                gff: str | None = None) -> dict[str, str]:
     """Build a whole-cell DNA genome ``{gene: CDS-with-RBS}``.
 
     ``source`` is either:
@@ -134,12 +136,18 @@ def load_genome(source: str | dict[str, str]) -> dict[str, str]:
       :func:`~helixlang.virtual_cell.encode_gene`), or
     - FASTA text (``>gene_name`` headers, DNA per record) translated
       through the central-dogma pipeline and re-encoded with an RBS so
-      the :class:`~helixlang.virtual_cell.VirtualCell` can transcribe it.
+      the :class:`~helixlang.virtual_cell.VirtualCell` can transcribe it,
+      or
+    - a full-chromosome FASTA + a GFF3 annotation table (``gff=`` text),
+      the Phase-C C1 path -- CDS features are extracted by coordinate and
+      translated, giving a ``{gene: CDS}`` genome from real sequence.
 
     Returns:
         ``dict[str, str]`` mapping gene name -> CDS DNA ready for
         transcription (the ``VirtualCell.genome`` format).
     """
+    if gff is not None:
+        return load_chromosome(str(source), gff).genome
     if not isinstance(source, dict):
         genome: dict[str, str] = {}
         name: str | None = None
@@ -164,6 +172,227 @@ def load_genome(source: str | dict[str, str]) -> dict[str, str]:
             raise ValueError("no FASTA records found in source")
         return genome
     return {g: encode_gene(p) for g, p in source.items()}
+
+
+# ============================================================================
+# GFF3 chromosome import (Phase-C C1)
+# ============================================================================
+
+#: GFF3 attribute keys tried (in order) for the CDS gene name
+_GFF_NAME_KEYS = ("gene", "locus_tag", "Name", "ID")
+
+#: DNA base complement for minus-strand CDS extraction
+_COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
+
+
+def _revcomp(dna: str) -> str:
+    """Reverse-complement a DNA string (used for minus-strand CDS)."""
+    return dna.translate(_COMPLEMENT)[::-1]
+
+
+def _unquote_attr(value: str) -> str:
+    """Decode GFF3 percent-escaped attribute values (``; = , < >``)."""
+    if "%" not in value:
+        return value
+    return (value.replace("%3B", ";").replace("%3D", "=")
+                .replace("%3C", "<").replace("%3E", ">")
+                .replace("%2C", ",").replace("%5C", "\\"))
+
+
+@dataclass(frozen=True)
+class GffFeature:
+    """One GFF3 feature row (1-based inclusive ``start``..``end``).
+
+    ``attributes`` carries the ``key=value`` table from column 9.
+    """
+
+    seqid: str
+    source: str
+    ftype: str
+    start: int
+    end: int
+    strand: str
+    attributes: dict[str, str]
+
+    @property
+    def name(self) -> str:
+        """Preferred gene name (``gene`` > ``locus_tag`` > ``Name`` > ``ID``)."""
+        for key in _GFF_NAME_KEYS:
+            if key in self.attributes:
+                return self.attributes[key]
+        return f"{self.seqid}:{self.ftype}:{self.start}-{self.end}"
+
+
+def parse_gff3(text: str) -> list[GffFeature]:
+    """Parse GFF3 rows into :class:`GffFeature` objects.
+
+    Comment lines (``#``), directives (``##``) and ``###`` row separators
+    are skipped; parsing stops at an embedded ``##FASTA`` section.
+    """
+    features: list[GffFeature] = []
+    for line in str(text).splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line == "###":
+            continue
+        if line.startswith("##FASTA"):
+            break
+        if line.startswith("##"):
+            continue
+        cols = line.split("\t")
+        if len(cols) < 8:
+            continue
+        seqid, source, ftype = cols[0], cols[1], cols[2]
+        try:
+            start, end = int(cols[3]), int(cols[4])
+        except ValueError:
+            continue
+        if start < 1 or end < start:
+            continue
+        strand = cols[6] if cols[6] in ("+", "-") else "+"
+        attributes: dict[str, str] = {}
+        if len(cols) > 8:
+            for part in cols[8].split(";"):
+                if not part:
+                    continue
+                if "=" in part:
+                    key, _, value = part.partition("=")
+                    attributes[key] = _unquote_attr(value)
+                else:
+                    attributes[part] = ""
+        features.append(GffFeature(
+            seqid=seqid, source=source, ftype=ftype, start=start,
+            end=end, strand=strand, attributes=attributes))
+    return features
+
+
+@dataclass
+class Chromosome:
+    """Whole-chromosome import: genome + GFF3 annotations (Phase-C C1).
+
+    Attributes:
+        seqid: sequence ID of the primary replicon.
+        sequence: full chromosome DNA (uppercase, ``seqid`` record).
+        chromosomes: every FASTA record (seqid -> sequence).
+        genome: gene -> CDS-with-RBS DNA (the ``VirtualCell.genome`` format).
+        cds: CDS features (merged per locus, coordinate-sorted).
+        genes: non-CDS ``gene`` features.
+        promoters: ``promoter`` features.
+        terminators: ``terminator`` features.
+        operons: ``operon`` features.
+        other: remaining feature types.
+    """
+
+    seqid: str
+    sequence: str
+    chromosomes: dict[str, str]
+    genome: dict[str, str]
+    cds: list[GffFeature]
+    genes: list[GffFeature]
+    promoters: list[GffFeature]
+    terminators: list[GffFeature]
+    operons: list[GffFeature]
+    other: list[GffFeature]
+
+    def features(self, ftype: str) -> list[GffFeature]:
+        """All features of a given GFF3 type."""
+        return [f for f in (self.cds + self.genes + self.promoters
+                            + self.terminators + self.operons + self.other)
+                if f.ftype == ftype]
+
+
+def _fasta_sequences(fasta: str) -> dict[str, str]:
+    """Parse FASTA text into ``{seqid: sequence}`` (wrapped lines joined)."""
+    sequences: dict[str, str] = {}
+    name: str | None = None
+    chunks: list[str] = []
+    for line in str(fasta).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(">"):
+            if name and chunks:
+                sequences[name] = "".join(chunks).upper()
+            name = line[1:].split()[0]
+            chunks = []
+        else:
+            chunks.append(line)
+    if name and chunks:
+        sequences[name] = "".join(chunks).upper()
+    return sequences
+
+
+def load_chromosome(fasta: str, gff: str) -> Chromosome:
+    """Load a full-chromosome FASTA + GFF3 annotation table (Phase-C C1).
+
+    CDS features are extracted by coordinate (reverse-complemented on the
+    minus strand; multi-row CDS loci sharing a ``Parent`` are merged by
+    coordinate), translated through the central-dogma pipeline and
+    re-encoded with an RBS so the
+    :class:`~helixlang.virtual_cell.VirtualCell` can transcribe them.  The
+    protein set round-trips exactly through ``proteins_of``.  Promoter,
+    terminator and operon features are kept as structured annotations for
+    the regulatory-map import (``tf_map="regulondb"``).
+
+    Args:
+        fasta: full-chromosome FASTA text (``>seqid`` headers; wrapped
+            sequence lines are concatenated).
+        gff: GFF3 text (1-based inclusive coordinates, ``+``/``-`` strand).
+
+    Returns:
+        A :class:`Chromosome` carrying ``genome`` plus the annotations.
+    """
+    sequences = _fasta_sequences(fasta)
+    if not sequences:
+        raise ValueError("no FASTA records found in chromosome source")
+    features = parse_gff3(gff)
+    if not features:
+        raise ValueError("no GFF3 features found in annotation source")
+
+    genome: dict[str, str] = {}
+    cds: list[GffFeature] = []
+    genes: list[GffFeature] = []
+    promoters: list[GffFeature] = []
+    terminators: list[GffFeature] = []
+    operons: list[GffFeature] = []
+    other: list[GffFeature] = []
+
+    segments: dict[tuple[str, str], list[GffFeature]] = {}
+    for f in features:
+        if f.ftype == "CDS":
+            parent = f.attributes.get("Parent", f.name)
+            segments.setdefault((f.seqid, parent), []).append(f)
+        elif f.ftype == "gene":
+            genes.append(f)
+        elif f.ftype == "promoter":
+            promoters.append(f)
+        elif f.ftype == "terminator":
+            terminators.append(f)
+        elif f.ftype == "operon":
+            operons.append(f)
+        else:
+            other.append(f)
+
+    for (seqid, _parent), segs in segments.items():
+        seq = sequences.get(seqid)
+        if seq is None:
+            continue
+        segs.sort(key=lambda s: s.start)
+        dna = "".join(seq[s.start - 1:s.end] for s in segs)
+        if segs[0].strand == "-":
+            dna = _revcomp(dna)
+        protein = _cds_to_protein(dna)
+        if not protein:
+            continue
+        genome[segs[0].name] = encode_gene(protein)
+        cds.extend(segs)
+
+    if not genome:
+        raise ValueError("no translatable CDS features in GFF3 source")
+    seqid = next(iter(sequences))
+    return Chromosome(
+        seqid=seqid, sequence=sequences[seqid], chromosomes=sequences,
+        genome=genome, cds=cds, genes=genes, promoters=promoters,
+        terminators=terminators, operons=operons, other=other)
 
 
 def proteins_of(genome: dict[str, str]) -> dict[str, str]:
@@ -413,7 +642,11 @@ def single_gene_ko_protocol(gene: str = "pgi", n_steps: int = 6,
 
 __all__ = [
     "WholeCellBenchmark",
+    "GffFeature",
+    "Chromosome",
     "load_genome",
+    "load_chromosome",
+    "parse_gff3",
     "proteins_of",
     "random_genome",
     "build_whole_cell",

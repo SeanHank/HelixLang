@@ -105,6 +105,27 @@ MAX_DNA_COPY_NUMBER = 32
 
 
 # ============================================================================
+# Replicon model (Phase-C C2: chromosome oriC/terC + plasmids)
+# ============================================================================
+
+@dataclass(slots=True, frozen=True)
+class RepliconSpec:
+    """One replicon: the chromosome or a plasmid (doc/19 §5.5 C2).
+
+    Attributes:
+        kind: ``"chromosome"`` (fork-driven copy number, Cooper &
+            Helmstetter) or ``"plasmid"`` (constant base copy number).
+        copy_number: base DNA copy number.  For ``"chromosome"`` this is
+            ignored (copy number is driven by replication forks); for a
+            ``"plasmid"`` it is the constant dosage each gene of that
+            replicon carries (pBR322 ~20, pUC ~500).
+    """
+
+    kind: str = "chromosome"
+    copy_number: int = 1
+
+
+# ============================================================================
 # Cell-cycle phase state machine (Phase 1: Cooper-Helmstetter timing)
 # ============================================================================
 
@@ -259,6 +280,13 @@ class VirtualCellConfig:
             one Euler step per cell tick from the current flux solution;
             history exposes ``metabolite_pools`` and
             ``overflow_secretion``.  Default False (unchanged behaviour).
+        replicons: named replicon specs (Phase-C C2).  ``"chromosome"``
+            is implicit; any other name is a plasmid whose genes carry a
+            constant base copy number instead of fork-driven dosage.
+        gene_replicons: gene -> replicon name.  Genes absent from the map
+            belong to the chromosome.  A gene on a plasmid takes its DNA
+            copy number (and therefore its expression dosage) from the
+            replicon, not from replication forks.
     """
 
     energy_init: float = INITIAL_CELL_ENERGY
@@ -296,6 +324,8 @@ class VirtualCellConfig:
     enzyme_scale: float = DEFAULT_ENZYME_SCALE
     protein_mass_fraction: float | None = None
     metabolite_pools_enabled: bool = False
+    replicons: dict[str, RepliconSpec] = field(default_factory=dict)
+    gene_replicons: dict[str, str] = field(default_factory=dict)
 
 
 class VirtualCell:
@@ -361,9 +391,30 @@ class VirtualCell:
         self._coords: dict[str, float] = {
             gene: cmap.get(gene, 0.0) for gene in self.genome
         }
-        self.dna_copy_number: dict[str, int] = {
-            gene: 1 for gene in self.genome
+        # ---- replicon assignment (Phase-C C2) ----
+        # genes not listed in ``gene_replicons`` live on the chromosome;
+        # plasmid genes carry the constant base copy number of their
+        # replicon and are excluded from fork-driven dosage.
+        self._replicons: dict[str, str] = {
+            gene: self.config.gene_replicons.get(gene, "chromosome")
+            for gene in self.genome
         }
+        self._chromosome_genes: list[str] = [
+            gene for gene in self.genome
+            if self._replicons[gene] == "chromosome"
+        ]
+        self.dna_copy_number: dict[str, int] = {}
+        for gene in self.genome:
+            replicon = self._replicons[gene]
+            if replicon == "chromosome":
+                self.dna_copy_number[gene] = 1
+                continue
+            spec = self.config.replicons.get(replicon)
+            if spec is None:
+                raise ValueError(
+                    f"unknown replicon {replicon!r} for gene {gene!r}; "
+                    "add it to VirtualCellConfig.replicons")
+            self.dna_copy_number[gene] = spec.copy_number
         #: active replication forks as ``(initiation_cell_cycle_age,
         #: progress)``; ``progress`` is the fraction (0..1) of the
         #: chromosome the fork has traversed.
@@ -409,7 +460,8 @@ class VirtualCell:
         # credit every locus that an inherited fork has already crossed
         # (origin-proximal genes carry the higher dosage at birth)
         for _, p in self.replication_forks:
-            for gene, x in self._coords.items():
+            for gene in self._chromosome_genes:
+                x = self._coords[gene]
                 if x <= p:
                     self.dna_copy_number[gene] = min(
                         MAX_DNA_COPY_NUMBER, self.dna_copy_number[gene] * 2)
@@ -438,7 +490,8 @@ class VirtualCell:
             # tau) has already traversed the region behind its origin
             p0 = min(1.0, (a - t_f) / c)
             self.replication_forks.append((t_f, p0))
-            for gene, x in self._coords.items():
+            for gene in self._chromosome_genes:
+                x = self._coords[gene]
                 if x <= p0:
                     self.dna_copy_number[gene] = min(
                         MAX_DNA_COPY_NUMBER, self.dna_copy_number[gene] * 2)
@@ -446,7 +499,8 @@ class VirtualCell:
         updated: list[tuple[float, float]] = []
         for init, p in self.replication_forks:
             new_p = min(1.0, p + dt / c)
-            for gene, x in self._coords.items():
+            for gene in self._chromosome_genes:
+                x = self._coords[gene]
                 if p < x <= new_p:
                     self.dna_copy_number[gene] = min(
                         MAX_DNA_COPY_NUMBER, self.dna_copy_number[gene] * 2)
@@ -463,7 +517,10 @@ class VirtualCell:
         next origin-firing event is shifted back by one doubling time.
         """
         cfg = self.config
-        for gene in self.dna_copy_number:
+        # plasmid genes keep their constant base copy number through
+        # division; only chromosome genes halve (each daughter inherits
+        # half of every locus's copies).
+        for gene in self._chromosome_genes:
             self.dna_copy_number[gene] = max(
                 1, self.dna_copy_number[gene] // 2)
         self.cell_cycle_age -= cfg.doubling_time_min

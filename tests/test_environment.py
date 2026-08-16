@@ -12,14 +12,23 @@ from helixlang.environment import (
     GLUCOSE_HALF_SATURATION_MM,
     OXYGEN_DIFFUSION_UM2_S,
     SITE_VOLUME_L,
+    ClimateTable,
     ConcentrationField,
+    DiurnalForcing,
     Environment,
     EnvironmentConfig,
+    ScalarField,
+    SeasonalForcing,
+    arrhenius_rate_modifier,
     atp_yield,
     crowding_diffusion_factor,
+    damm_rate,
     michaelis_menten_rate,
+    moisture_factor,
     molecules_per_site,
     monod_uptake,
+    photosynthesis_rate,
+    q10_rate_modifier,
 )
 from helixlang.units import ATP_PER_GLUCOSE
 
@@ -197,3 +206,123 @@ def test_diffusion_coefficient_sanity():
     assert GLUCOSE_DIFFUSION_UM2_S == pytest.approx(600.0)
     assert OXYGEN_DIFFUSION_UM2_S == pytest.approx(2500.0)
     assert math.log(2) > 0
+
+
+# -- temperature / moisture rate modifiers (Q10, DAMM, L10) --
+def test_q10_doubles_every_10_c():
+    assert q10_rate_modifier(25.0, 2.0, 25.0) == pytest.approx(1.0)
+    assert q10_rate_modifier(35.0, 2.0, 25.0) == pytest.approx(2.0)
+    assert q10_rate_modifier(15.0, 2.0, 25.0) == pytest.approx(0.5)
+
+
+def test_q10_scales_with_sensitivity():
+    assert q10_rate_modifier(35.0, 3.0, 25.0) == pytest.approx(3.0 ** 1.0)
+    assert q10_rate_modifier(35.0, 1.0, 25.0) == pytest.approx(1.0)
+
+
+def test_arrhenius_matches_reference_and_is_monotone():
+    assert arrhenius_rate_modifier(25.0, 60.0, 25.0) == pytest.approx(1.0)
+    hot = arrhenius_rate_modifier(40.0, 60.0, 25.0)
+    cold = arrhenius_rate_modifier(10.0, 60.0, 25.0)
+    assert hot > 1.0 > cold
+    assert hot > arrhenius_rate_modifier(35.0, 60.0, 25.0)
+
+
+def test_moisture_factor_peaks_at_optimum():
+    assert moisture_factor(0.6) == pytest.approx(1.0)
+    assert moisture_factor(0.0) == pytest.approx(0.0)
+    assert moisture_factor(1.0) == pytest.approx(0.0)
+    assert moisture_factor(0.3) < 1.0
+    assert moisture_factor(0.9) < 1.0
+
+
+def test_moisture_factor_validates_bounds():
+    assert moisture_factor(1.0) == 0.0  # saturated -> no activity
+
+
+def test_damm_multiplies_terms():
+    # v_max * S/(Ks+S) * Q10(T) * f_theta
+    assert damm_rate(2.0, 0.1, 0.1, 25.0, 0.6) == pytest.approx(1.0)
+    # half the Q10 term at 15 C -> half the rate
+    assert damm_rate(2.0, 0.1, 0.1, 15.0, 0.6) == pytest.approx(0.5)
+    # substrate half-max at Ks
+    assert damm_rate(1.0, 0.1, 0.1, 25.0, 0.6) == pytest.approx(0.5)
+
+
+def test_photosynthesis_needs_both_light_and_co2():
+    assert photosynthesis_rate(0.0, 1.0, 0.01) == pytest.approx(0.0)
+    assert photosynthesis_rate(500.0, 0.0, 0.01) == pytest.approx(0.0)
+    assert photosynthesis_rate(500.0, 1.0, 0.01) > 0.0
+    assert photosynthesis_rate(500.0, 1.0, 0.02) == pytest.approx(
+        2.0 * photosynthesis_rate(500.0, 1.0, 0.01))
+
+
+# -- scalar drivers: diurnal / seasonal / climate table --
+def test_diurnal_forcing_period_and_clamp():
+    d = DiurnalForcing(500.0, 500.0, period=1440, lo=0.0)
+    assert d(0) == pytest.approx(500.0)
+    assert d(360) == pytest.approx(1000.0)   # solar noon (quarter period)
+    assert d(720) == pytest.approx(500.0)
+    assert d(1080) == pytest.approx(0.0)     # night clamped at the floor
+    assert d(1440) == pytest.approx(500.0)   # full period repeats
+
+
+def test_diurnal_forcing_clamps_high():
+    d = DiurnalForcing(500.0, 500.0, hi=750.0)
+    assert d(360) == pytest.approx(750.0)
+
+
+def test_seasonal_forcing_year_cycle():
+    s = SeasonalForcing(20.0, 10.0, period=525600)
+    assert s(0) == pytest.approx(20.0)
+    assert s(131400) == pytest.approx(30.0)   # mid-summer
+    assert s(262800) == pytest.approx(20.0)
+    assert s(394200) == pytest.approx(10.0)   # mid-winter
+    assert s(525600) == pytest.approx(20.0)
+
+
+def test_climate_table_interpolates_and_holds_endpoints():
+    ct = ClimateTable([0, 100, 200], [0.0, 10.0, 20.0])
+    assert ct(-50) == pytest.approx(0.0)
+    assert ct(0) == pytest.approx(0.0)
+    assert ct(50) == pytest.approx(5.0)
+    assert ct(150) == pytest.approx(15.0)
+    assert ct(300) == pytest.approx(20.0)
+
+
+def test_climate_table_requires_matching_axes():
+    with pytest.raises(ValueError):
+        ClimateTable([], [1.0])
+    with pytest.raises(ValueError):
+        ClimateTable([0, 1], [1.0])
+
+
+# -- ScalarField --
+def test_scalar_field_forcing_sets_uniform_baseline():
+    f = ScalarField("light", 8, 8, "light", 0.0,
+                    DiurnalForcing(500.0, 500.0, lo=0.0))
+    f.step(360)
+    assert f.mean() == pytest.approx(1000.0)
+    assert f.get(0, 0) == pytest.approx(1000.0)
+    assert f.get(7, 7) == pytest.approx(1000.0)
+
+
+def test_scalar_field_no_forcing_is_static():
+    f = ScalarField("toxin", 4, 4, "toxin", 5.0)
+    f.step(10)
+    assert f.mean() == pytest.approx(5.0)
+
+
+def test_scalar_field_add_set_queries():
+    f = ScalarField("temperature", 3, 3, "temperature", 20.0)
+    f.add(1, 1, 5.0)
+    assert f.get(1, 1) == pytest.approx(25.0)
+    f.set(0, 0, -3.0)
+    assert f.get(0, 0) == pytest.approx(-3.0)
+    f.set_all(10.0)
+    assert f.mean() == pytest.approx(10.0)
+
+
+def test_scalar_field_invalid_dimensions():
+    with pytest.raises(ValueError):
+        ScalarField("light", 0, 4, "light", 0.0)

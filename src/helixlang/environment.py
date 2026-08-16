@@ -34,6 +34,7 @@ molecule count times 38.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from helixlang.flow import FlowField, FlowField3D
@@ -149,6 +150,122 @@ def atp_yield(glucose_molecules: float) -> float:
     return glucose_molecules * ATP_PER_GLUCOSE
 
 
+# ============================================================================
+# Temperature / moisture response of biology (L10, Saifuddin 2021 DAMM)
+# ============================================================================
+#: universal gas constant in kJ/(mol·K) (R = 8.314 J/(mol·K))
+_GAS_CONSTANT_KJ = 0.008314
+
+
+def q10_rate_modifier(temperature_c: float,
+                      q10: float = 2.0,
+                      t_ref_c: float = 25.0) -> float:
+    """Q10 temperature rate modifier ``q10**((T - T_ref)/10)``.
+
+    Q10 is the factor by which a rate increases per 10 °C: a Q10 of 2
+    doubles the rate every 10 °C.  The van't Hoff / Q10 rule (Saifuddin
+    et al. 2021, JGR Biogeosciences 126; standard soil-ecology practice
+    after CENTURY, Parton 1987) maps every temperature-dependent process
+    (uptake, division, decay, decomposition) onto a dimensionless
+    multiplier applied to its reference-temperature rate.
+
+    Args:
+        temperature_c: current temperature (°C).
+        q10: multiplicative increase per 10 °C (typical soil process
+            Q10 = 2).
+        t_ref_c: reference temperature at which the modifier is 1.
+    """
+    return float(q10 ** ((temperature_c - t_ref_c) / 10.0))
+
+
+def arrhenius_rate_modifier(temperature_c: float,
+                            activation_energy_kj_mol: float = 60.0,
+                            t_ref_c: float = 25.0) -> float:
+    """Arrhenius rate modifier ``exp(-Ea/R (1/T - 1/T_ref))``.
+
+    The full Arrhenius form used in the Dual Arrhenius-Michaelis-Menten
+    (DAMM) family of coupled C/N models (Saifuddin et al. 2021): an
+    exponential temperature term with an activation energy Ea.  With the
+    default Ea = 60 kJ/mol this matches the Q10 ≈ 2 reference value near
+    T_ref (the two coincide at 25 °C to ~1 %); it differs as temperature
+    moves away from the reference, capturing the steeper low-temperature
+    response of enzyme kinetics.
+    """
+    t_k = temperature_c + 273.15
+    t_ref_k = t_ref_c + 273.15
+    return math.exp(
+        -(activation_energy_kj_mol / _GAS_CONSTANT_KJ)
+        * (1.0 / t_k - 1.0 / t_ref_k))
+
+
+def moisture_factor(theta: float,
+                    theta_opt: float = 0.6,
+                    exponent: float = 1.5) -> float:
+    """Unimodal soil-moisture response, ``1`` at ``theta_opt``.
+
+    DAMM couples the temperature term to a moisture term (water-filled
+    pore-space fraction ``theta``): activity peaks at an optimum water
+    content and drops off on both the dry and the waterlogged side
+    (Saifuddin 2021).  The response is normalized so it equals 1 at the
+    optimum.
+
+    Args:
+        theta: water-filled pore space fraction in [0, 1].
+        theta_opt: optimum moisture fraction.
+        exponent: steepness of the moisture gate.
+    """
+    if theta <= 0.0 or theta >= 1.0:
+        return 0.0
+    if theta <= theta_opt:
+        return float((theta / theta_opt) ** exponent)
+    return float(((1.0 - theta) / (1.0 - theta_opt)) ** exponent)
+
+
+def damm_rate(v_max: float,
+              substrate_concentration: float,
+              half_saturation: float,
+              temperature_c: float,
+              moisture: float,
+              q10: float = 2.0,
+              t_ref_c: float = 25.0) -> float:
+    """Dual Arrhenius-Michaelis-Menten rate modifier (L10).
+
+    DAMM (Saifuddin et al. 2021, JGR Biogeosciences 126) multiplies a
+    Michaelis-Menten substrate term by an Arrhenius temperature term and
+    a moisture gate::
+
+        v = V_max * S/(Ks + S) * f_T(T) * f_theta(theta)
+
+    Applied as ``damm_rate / v_max`` this is the dimensionless
+    multiplier a species' Q10 and moisture response impose on every
+    temperature- and water-sensitive process.
+    """
+    return (monod_uptake(v_max, substrate_concentration, half_saturation)
+            * q10_rate_modifier(temperature_c, q10, t_ref_c)
+            * moisture_factor(moisture))
+
+
+def photosynthesis_rate(light_par: float,
+                        co2_mm: float,
+                        v_max: float,
+                        light_ks: float = 100.0,
+                        co2_ks: float = 0.05) -> float:
+    """Light-gated photoautotrophic CO2 fixation (B3, light-gated uptake).
+
+    A photosynthesis-style saturation term (Farquhar-type light
+    response reduced to a single light-saturation curve):
+
+        P = V_max * PAR/(k_light + PAR) * CO2/(k_CO2 + CO2)
+
+    ``light_par`` is photosynthetically active radiation in µmol photons
+    m⁻² s⁻¹ (full sunlight ~2000); ``co2_mm`` the local dissolved CO2
+    (mM).  Zero light -> zero fixation; this is the first step toward
+    phototrophs beyond the 37-reaction heterotrophic core (G6).
+    """
+    return (monod_uptake(v_max, light_par, light_ks)
+            * monod_uptake(1.0, co2_mm, co2_ks))
+
+
 #: CROMICS critical volume fraction above which crowding measurably
 #: alters microbial dynamics (Angeles-Martinez & Hatzimanikatis 2021,
 #: PLoS Comput Biol 17:e1009158: "cells occupy more than 14% of the
@@ -258,10 +375,14 @@ class ConcentrationField:
         d = self._d_lattice()
         if d <= 0.0:
             return
+        w, h = self.width, self.height
+        if w == 1 and h == 1:
+            # a single site has no neighbors: the Neumann Laplacian is
+            # identically zero, so skip the (costly) sub-stepping
+            return
         steps = max(1, math.ceil(d / 0.25))
         d_sub = d / steps
         grid = self.concentration
-        w, h = self.width, self.height
         for _ in range(steps):
             grid = _laplacian_step(grid, d_sub, w, h)
         self.concentration = grid
@@ -678,6 +799,189 @@ def _laplacian_step_3d(
 
 
 # ============================================================================
+# Scalar environmental drivers (B1: temperature / light / pH / toxin)
+# ============================================================================
+#: forcing callable: tick (min) -> scalar value
+ScalarForcing = Callable[[int], float]
+
+
+class DiurnalForcing:
+    """Diurnal sine forcing ``mean + amplitude * sin(2*pi*t/period + phase)``.
+
+    A single-day harmonic for light/temperature with period = 1440 min
+    (24 h).  ``phase`` shifts the peak (e.g. solar noon).  The returned
+    value is clamped to ``[lo, hi]`` when given.
+    """
+
+    def __init__(self, mean: float, amplitude: float,
+                 period: int = 1440, phase: float = 0.0,
+                 lo: float | None = None, hi: float | None = None) -> None:
+        self.mean = float(mean)
+        self.amplitude = float(amplitude)
+        self.period = int(period)
+        self.phase = float(phase)
+        self.lo = lo
+        self.hi = hi
+
+    def __call__(self, tick: int) -> float:
+        v = self.mean + self.amplitude * math.sin(
+            2.0 * math.pi * tick / self.period + self.phase)
+        if self.lo is not None:
+            v = max(float(self.lo), v)
+        if self.hi is not None:
+            v = min(float(self.hi), v)
+        return v
+
+
+class SeasonalForcing:
+    """Seasonal envelope ``mean + amplitude * sin(2*pi*t/period + phase)``.
+
+    Same harmonic as :class:`DiurnalForcing` but on the yearly period
+    (525600 min).  Composes with a diurnal term when both are attached.
+    """
+
+    def __init__(self, mean: float, amplitude: float,
+                 period: int = 525600, phase: float = 0.0) -> None:
+        self.mean = float(mean)
+        self.amplitude = float(amplitude)
+        self.period = int(period)
+        self.phase = float(phase)
+
+    def __call__(self, tick: int) -> float:
+        return self.mean + self.amplitude * math.sin(
+            2.0 * math.pi * tick / self.period + self.phase)
+
+
+class ClimateTable:
+    """Piecewise-linear climate table ``(time, value)`` -> interpolated value.
+
+    A generic (tick, value) lookup for irregular climate drivers (a
+    heatwave, a seasonal temperature curve read from data).  Values
+    before the first / after the last sample hold the endpoint value.
+    """
+
+    def __init__(self, times: list[int], values: list[float]) -> None:
+        if not times or len(times) != len(values):
+            raise ValueError("ClimateTable needs equal non-empty times/values")
+        self.times = [int(t) for t in times]
+        self.values = [float(v) for v in values]
+
+    def __call__(self, tick: int) -> float:
+        t = int(tick)
+        if t <= self.times[0]:
+            return self.values[0]
+        if t >= self.times[-1]:
+            return self.values[-1]
+        for i in range(1, len(self.times)):
+            if t <= self.times[i]:
+                t0, t1 = self.times[i - 1], self.times[i]
+                v0, v1 = self.values[i - 1], self.values[i]
+                frac = (t - t0) / (t1 - t0)
+                return v0 + frac * (v1 - v0)
+        return self.values[-1]
+
+
+class ScalarField:
+    """A non-substrate scalar field with time forcing and optional diffusion.
+
+    Unlike :class:`ConcentrationField` (a diffusing substrate), a scalar
+    driver (temperature °C, light µmol m⁻² s⁻¹, pH, toxin mg/L) is
+    *imposed* on the lattice: its baseline value comes from a forcing
+    function evaluated each tick (:class:`DiurnalForcing`,
+    :class:`SeasonalForcing`, :class:`ClimateTable`, or any callable).
+    Optional Fickian diffusion lets a scalar also spread spatially (a
+    toxin diffusing from a point source).
+
+    The field is stored as a ``height x width`` grid so per-site queries
+    (``get(x, y)``) match the substrate-field API; forcing keeps the
+    field spatially uniform unless a heterogeneous grid was set by hand.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        width: int,
+        height: int,
+        kind: str = "temperature",
+        value: float = 0.0,
+        forcing: ScalarForcing | None = None,
+        diffusion_um2_s: float = 0.0,
+    ) -> None:
+        if width <= 0 or height <= 0:
+            raise ValueError("field dimensions must be > 0")
+        self.name = name
+        self.kind = kind
+        self.width = width
+        self.height = height
+        self.diffusion_um2_s = float(diffusion_um2_s)
+        self.forcing = forcing
+        self.grid: list[list[float]] = [
+            [float(value)] * width for _ in range(height)
+        ]
+
+    def _d_lattice(self) -> float:
+        return diffusion_to_lattice(
+            self.diffusion_um2_s, DIFFUSION_DT_S, LATTICE_SPACING_UM)
+
+    def get(self, x: int, y: int) -> float:
+        if not (0 <= x < self.width and 0 <= y < self.height):
+            return 0.0
+        return self.grid[y][x]
+
+    def set(self, x: int, y: int, value: float) -> None:
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.grid[y][x] = float(value)
+
+    def set_all(self, value: float) -> None:
+        v = float(value)
+        self.grid = [[v] * self.width for _ in range(self.height)]
+
+    def add(self, x: int, y: int, amount: float) -> None:
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.grid[y][x] = self.grid[y][x] + amount
+
+    def snapshot(self) -> list[list[float]]:
+        return [row[:] for row in self.grid]
+
+    def step(self, tick: int) -> None:
+        """Advance one tick: re-apply the forcing baseline, then diffuse."""
+        if self.forcing is not None:
+            v = self.forcing(tick)
+            if self.diffusion_um2_s <= 0.0:
+                self.set_all(v)
+            else:
+                # forcing sets a uniform baseline; any hand-placed
+                # spatial structure is preserved as a perturbation
+                base = v
+                for y in range(self.height):
+                    for x in range(self.width):
+                        self.grid[y][x] = base
+        if self.diffusion_um2_s > 0.0:
+            self._diffuse()
+
+    def _diffuse(self) -> None:
+        d = self._d_lattice()
+        if d <= 0.0:
+            return
+        w, h = self.width, self.height
+        if w == 1 and h == 1:
+            return
+        steps = max(1, math.ceil(d / 0.25))
+        d_sub = d / steps
+        grid = self.grid
+        for _ in range(steps):
+            grid = _laplacian_step(grid, d_sub, w, h)
+        self.grid = grid
+
+    def mean(self) -> float:
+        total = 0.0
+        n = self.width * self.height
+        for row in self.grid:
+            total += sum(row)
+        return total / n if n else 0.0
+
+
+# ============================================================================
 # Environment
 # ============================================================================
 @dataclass(slots=True)
@@ -737,6 +1041,7 @@ class Environment:
         }
         self.flow: FlowField | None = None  # analytic/solver flow field (Design 6)
         self.flow3d: FlowField3D | None = None  # 3D flow field (Design 6 3D)
+        self.scalars: dict[str, ScalarField] = {}  # B1 scalar drivers
         self.tick = 0
 
     def set_flow(self, flow: FlowField | FlowField3D) -> None:
@@ -772,6 +1077,22 @@ class Environment:
         """Look up a substrate field by name."""
         return self.fields[name]
 
+    def add_scalar(self, name: str, field: ScalarField) -> None:
+        """Register an additional scalar driver (temperature, light, pH,
+        toxin; Phase B1)."""
+        if field.width != self.config.width or field.height != self.config.height:
+            raise ValueError(
+                f"scalar field {name!r} dimensions must match the environment")
+        self.scalars[name] = field
+
+    def get_scalar(self, name: str) -> ScalarField:
+        """Look up a scalar driver by name."""
+        return self.scalars[name]
+
+    def scalar_at(self, name: str, x: int, y: int) -> float:
+        """Scalar value (°C, µmol m⁻² s⁻¹, pH, mg/L) at (x, y)."""
+        return self.scalars[name].get(x, y)
+
     def step(self) -> None:
         """Advance the environment one tick: advect (when a flow field is
         attached), diffuse every field, then apply the flow refresh
@@ -787,6 +1108,8 @@ class Environment:
             field.diffuse()
         if self.config.flow_rate > 0.0:
             self._replenish()
+        for scalar in self.scalars.values():
+            scalar.step(self.tick)
         self.tick += 1
 
     def _replenish(self) -> None:
@@ -832,6 +1155,10 @@ __all__ = [
     "BULK_OXYGEN_MM", "BULK_GLUCOSE_MM", "SITE_VOLUME_L",
     "monod_uptake", "michaelis_menten_rate",
     "molecules_per_site", "atp_yield",
+    "q10_rate_modifier", "arrhenius_rate_modifier",
+    "moisture_factor", "damm_rate", "photosynthesis_rate",
+    "DiurnalForcing", "SeasonalForcing", "ClimateTable",
+    "ScalarField",
     "ConcentrationField", "EnvironmentConfig", "Environment",
     "ConcentrationField3D",
 ]

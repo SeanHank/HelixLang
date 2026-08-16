@@ -192,3 +192,48 @@ def test_sim_extension_point_collects_fields():
         "initial_biomass_gdw": "0.05",
     }
     assert prog.config.sim == {}
+
+
+def test_species_genome_field_and_dna_block():
+    """#species accepts the genotype as genome= or as a DNA code block.
+
+    The block form is concatenated (analogous to #gene) and lands on the
+    same ``species.<name>.genome`` extension key.
+    """
+    field_form = parse(
+        "#species name=consumer genome=ATGCTAATGCTA substrate=glucose\n")
+    assert field_form.sim_extensions["species.consumer.genome"] \
+        == "ATGCTAATGCTA"
+
+    block_form = parse(
+        "#species name=producer substrate=acetate vmax=0.012 ks=0.05\n"
+        "ATGCTAATGCTAATGCTA\n"
+        "ATGCTAATGCTAATGCTA\n"
+        "#end\n"
+        "#patch name=water kind=water\n")
+    assert block_form.sim_extensions["species.producer.genome"] \
+        == "ATGCTA" * 6
+    assert block_form.sim_extensions["species.producer.substrate"] \
+        == "acetate"
+    # the block DNA was NOT wrapped as an anonymous gene
+    assert block_form.genes == []
+
+
+def test_species_genome_field_and_block_conflict():
+    with pytest.raises(ParseError, match="not both"):
+        parse(
+            "#species name=consumer genome=ATGCTAATGCTA\n"
+            "ATGCTAATGCTA\n"
+            "#end\n")
+
+
+def test_species_block_accepts_space_and_newline_separated_codons():
+    """Space- and newline-separated codons (the #gene style) are joined
+    into the species genome exactly like a contiguous run."""
+    prog = parse(
+        "#species name=consumer substrate=glucose vmax=0.02 ks=0.1\n"
+        "ATG CTA ATG CTA ATG CTA\n"
+        "ATGCTA ATGCTA ATG CTA\n"
+        "#end\n")
+    assert prog.sim_extensions["species.consumer.genome"] == "ATGCTA" * 6
+    assert prog.genes == []

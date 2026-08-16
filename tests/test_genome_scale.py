@@ -26,11 +26,13 @@ import pytest
 
 from helixlang.apps.genome_scale import (
     MASTER_REGULATORS,
+    REGULONDB_DEMO_EDGES,
     GenomeColony,
     _core_genes,
     build_genome,
     expression_gated_biomass,
     outdegrees,
+    parse_regulondb,
     powerlaw_fit,
 )
 from helixlang.apps.whole_cell_scale import ESSENTIALITY_FLUX_TOL
@@ -220,6 +222,58 @@ class TestNetworkStructure:
         fit = powerlaw_fit([int(d) for d in deg])
         assert -4.0 < fit["slope"] < -2.0
         assert fit["r2"] > 0.9
+
+    def test_regulondb_map_replaces_synthetic_attachment(self):
+        """doc/19 §5.5 C1: tf_map='regulondb' uses only RegulonDB edges.
+
+        The curated map lands on the sparse CSR template (crp at the top
+        of the out-degree ranking, both + and - weights), and there is no
+        scale-free background: every edge is a RegulonDB interaction or a
+        core self-drive loop.
+        """
+        spec = build_genome(n_genes=4300, tf_map="regulondb", seed=7)
+        assert spec.tf_map == "regulondb"
+        assert spec.grn_mode == "sparse"
+        # every curated edge made it into the template
+        deg = outdegrees(spec)
+        assert deg["crp"] >= sum(1 for s, _, _ in REGULONDB_DEMO_EDGES
+                                 if s == "crp")
+        assert deg["arcA"] >= 1 and deg["fnr"] >= 1
+        # both activation and repression survive the import
+        assert spec.grn.data.min() < 0 < spec.grn.data.max()
+        # no Barabási-Albert background: n_edges == curated (unique, in
+        # node set) + one self-drive per core gene
+        curated = {(s, t) for s, t, _ in REGULONDB_DEMO_EDGES}
+        core = set(_core_genes())
+        expected = len(curated) + len(core)
+        assert spec.n_edges == expected
+        # crp is the top hub of the real-map template
+        top = sorted(deg.items(), key=lambda kv: -kv[1])[0][0]
+        assert top == "crp"
+
+    def test_parse_regulondb_dump_and_import(self):
+        dump = (
+            "#RegulonDB network export\n"
+            "regulator\ttarget\teffect\n"
+            "crp\tgltA\t+\n"
+            "crp\tzwf\t+0.8\n"
+            "arcA\ticdA\t-\n"
+            "fnr\tldhA\t+1.2\n"
+            "crp\tnoSuchGene\t+\n"  # dropped: not in the node set
+        )
+        edges = parse_regulondb(dump)
+        assert edges == [("crp", "gltA", 1.0), ("crp", "zwf", 0.8),
+                         ("arcA", "icdA", -1.0), ("fnr", "ldhA", 1.2),
+                         ("crp", "noSuchGene", 1.0)]
+        spec = build_genome(n_genes=4300, tf_map="regulondb",
+                            regulondb=dump, seed=7)
+        assert spec.tf_map == "regulondb"
+        # the four in-node-set edges are present; the unknown target is not
+        assert (spec.grn.data.shape[0] == 4 + len(_core_genes()))
+
+    def test_regulondb_requires_tf_map(self):
+        with pytest.raises(ValueError, match="requires tf_map='regulondb'"):
+            build_genome(n_genes=4300, tf_map="regulon", regulondb="crp\tgltA\t+\n")
 
 
 # ---------------------------------------------------------------------------

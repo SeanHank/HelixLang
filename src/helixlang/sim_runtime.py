@@ -40,6 +40,14 @@ from helixlang.apps.digital_evolution import (
     DigitalEvolutionConfig,
 )
 from helixlang.apps.dna_storage import benchmark_codecs
+from helixlang.apps.ecosystem import (
+    Ecosystem,
+    EcosystemConfig,
+    PatchConfig,
+    ScalarConfig,
+    Species,
+    SubstrateConfig,
+)
 from helixlang.apps.fate_analysis import (
     bistability_scan,
     critical_slowing_down,
@@ -53,6 +61,10 @@ from helixlang.apps.morphogen_gradient import (
 from helixlang.apps.omics_calibration import run_omics_calibration_benchmark
 from helixlang.apps.population_calibration import (
     run_population_calibration,
+)
+from helixlang.apps.population_dbtl import (
+    DbtlConfig,
+    PopulationDbtl,
 )
 from helixlang.apps.protein_evolution import guided_directed_evolution
 from helixlang.apps.spatial_dfba import SpatialDFBA, SpatialDFBAConfig
@@ -80,8 +92,10 @@ from helixlang.compiler import Compiler
 from helixlang.dna_codec import translate_dna
 from helixlang.environment import (
     ConcentrationField,
+    DiurnalForcing,
     Environment,
     EnvironmentConfig,
+    SeasonalForcing,
 )
 from helixlang.errors import SimConfigError
 from helixlang.flow import FlowField, channel_poiseuille, stagnant
@@ -112,7 +126,7 @@ from helixlang.stochastic import (
     gillespie_telegraph,
 )
 from helixlang.units import LATTICE_SPACING_UM
-from helixlang.virtual_cell import VirtualCell, VirtualCellConfig
+from helixlang.virtual_cell import RepliconSpec, VirtualCell, VirtualCellConfig
 
 __all__ = [
     "BACKENDS",
@@ -287,6 +301,33 @@ def _opt_str_list(sim: dict[str, str], key: str,
     return tuple(p.strip() for p in sim[key].split(",") if p.strip())
 
 
+def _opt_replicon_specs(sim: dict[str, str], key: str,
+                        ) -> dict[str, RepliconSpec]:
+    """Coerce ``"pBR322:20,pUC19:500"`` -> replicon specs (Phase-C C2).
+
+    Replicons declared here are plasmids (constant base copy number);
+    the chromosome replicon is implicit and fork-driven.
+    """
+    if key not in sim:
+        return {}
+    out: dict[str, RepliconSpec] = {}
+    for pair in sim[key].split(","):
+        pair = pair.strip()
+        if not pair:
+            continue
+        if ":" not in pair:
+            raise SimConfigError(
+                f"sim key {key!r}: expected 'name:copy' pairs, got {pair!r}")
+        name, _, copy_s = pair.partition(":")
+        name = name.strip()
+        copy = _coerce_int(f"{key}.{name}", copy_s.strip())
+        if copy < 1:
+            raise SimConfigError(
+                f"sim key {key!r}: copy number must be >= 1, got {copy}")
+        out[name] = RepliconSpec(kind="plasmid", copy_number=copy)
+    return out
+
+
 # ============================================================================
 # Dispatch
 # ============================================================================
@@ -429,6 +470,14 @@ def _build_virtual_cell_config(program: Program) -> VirtualCellConfig:
             cmap[g.name] = _coerce_float(
                 f"#gene {g.name} chromosome", g.fields["chromosome"])
     kwargs["chromosome_map"] = cmap
+    # replicons (Phase-C C2): #config sim replicons=name:copy,... plus
+    # per-gene replicon= assignment onto those replicons
+    kwargs["replicons"] = _opt_replicon_specs(sim, "replicons")
+    gene_replicons: dict[str, str] = {}
+    for g in program.genes:
+        if "replicon" in g.fields:
+            gene_replicons[g.name] = str(g.fields["replicon"]).strip()
+    kwargs["gene_replicons"] = gene_replicons
     # k_fold -> fold_rate_per_min (derived via the equilibrium folding
     # fraction, wiring.md §6.2)
     if "k_fold" in sim:
@@ -1483,6 +1532,316 @@ def _run_codon_usage(program: Program) -> ScoreResult:
     )
 
 
+# -- kind=ecosystem (apps/ecosystem.py, doc/19 Phases A-D) ---------------------
+
+_ECOSYSTEM_DEFAULT_COLUMNS = [
+    "tick", "generation",
+    "water:producer", "water:consumer", "water:oxygen", "water:co2",
+]
+
+
+def _group_prefixed(ext: dict[str, str], prefix: str) -> dict[str, dict[str, str]]:
+    """Group ``<prefix><name>.<attr>`` extension keys into per-name tables."""
+    groups: dict[str, dict[str, str]] = {}
+    for k, v in ext.items():
+        if not k.startswith(prefix):
+            continue
+        rest = k[len(prefix):]
+        name, _, attr = rest.partition(".")
+        if not name or not attr:
+            continue
+        groups.setdefault(name, {})[attr] = v
+    return groups
+
+
+def _split_pair(value: str, key: str) -> tuple[str, float]:
+    """``"glucose:0.02"`` -> ``("glucose", 0.02)``; else raises."""
+    if ":" not in value:
+        raise SimConfigError(
+            f"sim key {key!r}: expected '<name>:<number>', got {value!r}")
+    name, _, num = value.partition(":")
+    if not name:
+        raise SimConfigError(
+            f"sim key {key!r}: empty name in {value!r}")
+    return name, _coerce_float(f"{key}.{name}", num)
+
+
+def _build_ecosystem_species(ext: dict[str, str]) -> list[Species]:
+    """Build the ``#species`` table from ``species.<name>.<field>`` keys."""
+    groups = _group_prefixed(ext, "species.")
+    out: list[Species] = []
+    for name, attrs in sorted(groups.items()):
+        sp = Species(name=name)
+        if "genome" in attrs:
+            sp.genome = attrs["genome"]
+        if "photo" in attrs:
+            sp.photo = _coerce_bool(f"species.{name}.photo", attrs["photo"])
+        if "photo_vmax" in attrs:
+            sp.photo_vmax = _coerce_float(
+                f"species.{name}.photo_vmax", attrs["photo_vmax"])
+        if "cn_ratio" in attrs:
+            sp.cn_ratio = _coerce_float(
+                f"species.{name}.cn_ratio", attrs["cn_ratio"])
+        if "maintenance" in attrs:
+            sp.maintenance = _coerce_float(
+                f"species.{name}.maintenance", attrs["maintenance"])
+        # dotted consumption.<sub>.vmax / .ks
+        for k, v in attrs.items():
+            if not k.startswith("consumption."):
+                continue
+            sub = k[len("consumption."):]
+            subname, _, subattr = sub.partition(".")
+            if not subname:
+                continue
+            cur = sp.consumption.get(subname, (0.0, 0.1))
+            if subattr == "vmax":
+                sp.consumption[subname] = (
+                    _coerce_float(f"species.{name}.{k}", v), cur[1])
+            elif subattr == "ks":
+                sp.consumption[subname] = (
+                    cur[0], _coerce_float(f"species.{name}.{k}", v))
+        # flat substrate/vmax/ks (+ second-substrate forms)
+        for suffix, subkey in (("", "substrate"), ("2", "substrate2")):
+            if subkey not in attrs:
+                continue
+            vmax_key = f"vmax{suffix}"
+            ks_key = f"ks{suffix}"
+            sub = attrs[subkey]
+            vmax = (_coerce_float(f"species.{name}.{vmax_key}",
+                                  attrs[vmax_key])
+                    if vmax_key in attrs else 0.02)
+            ks = (_coerce_float(f"species.{name}.{ks_key}",
+                                attrs[ks_key])
+                  if ks_key in attrs else 0.1)
+            sp.consumption[sub] = (vmax, ks)
+        # secretion=sub:rate / diet=prey:eff / attack=prey:rate and their
+        # dotted ``<table>.<name>`` forms
+        for k, v in attrs.items():
+            if k == "secretion":
+                sub, rate = _split_pair(v, f"species.{name}.secretion")
+                sp.secretion[sub] = rate
+            elif k == "diet":
+                prey, eff = _split_pair(v, f"species.{name}.diet")
+                sp.diet[prey] = eff
+            elif k == "attack":
+                prey, rate = _split_pair(v, f"species.{name}.attack")
+                sp.attack_rate[prey] = rate
+            elif k.startswith("secretion."):
+                sp.secretion[k[len("secretion."):]] = _coerce_float(
+                    f"species.{name}.{k}", v)
+            elif k.startswith("diet."):
+                sp.diet[k[len("diet."):]] = _coerce_float(
+                    f"species.{name}.{k}", v)
+            elif k.startswith("attack."):
+                sp.attack_rate[k[len("attack."):]] = _coerce_float(
+                    f"species.{name}.{k}", v)
+        out.append(sp)
+    return out
+
+
+def _build_ecosystem_patches(ext: dict[str, str]) -> list[PatchConfig]:
+    """Build the ``#patch`` table from ``patch.<name>.<field>`` keys."""
+    groups = _group_prefixed(ext, "patch.")
+    out: list[PatchConfig] = []
+    for name, attrs in sorted(groups.items()):
+        pc = PatchConfig(name=name)
+        pc.kind = attrs.get("kind", pc.kind)
+        pc.width = _opt_int(attrs, "width", pc.width)
+        pc.height = _opt_int(attrs, "height", pc.height)
+        pc.carrying_capacity = _opt_float(
+            attrs, "carrying_capacity", pc.carrying_capacity)
+        pc.anoxic = _opt_bool(attrs, "anoxic", pc.anoxic)
+        pc.moisture = _opt_float(attrs, "moisture", pc.moisture)
+        pc.clay = _opt_float(attrs, "clay", pc.clay)
+        pc.cn_som = _opt_float(attrs, "cn_som", pc.cn_som)
+        pc.cn_species = _opt_float(attrs, "cn_species", pc.cn_species)
+        pc.initial_nh4_mm = _opt_float(attrs, "initial_nh4_mm", pc.initial_nh4_mm)
+        pc.initial_no3_mm = _opt_float(attrs, "initial_no3_mm", pc.initial_no3_mm)
+        pc.flow_rate = _opt_float(attrs, "flow_rate", pc.flow_rate)
+        pc.fluctuation_period = _opt_int(
+            attrs, "fluctuation_period", pc.fluctuation_period)
+        pc.fluctuation_amplitude = _opt_float(
+            attrs, "fluctuation_amplitude", pc.fluctuation_amplitude)
+        for k, v in attrs.items():
+            if k.startswith("initial."):
+                pc.initial_biomass[k[len("initial."):]] = _coerce_float(
+                    f"patch.{name}.{k}", v)
+        substrates: dict[str, SubstrateConfig] = {}
+        for k, v in attrs.items():
+            if not k.startswith("substrate."):
+                continue
+            sub = k[len("substrate."):]
+            subname, _, subattr = sub.partition(".")
+            if not subname:
+                continue
+            sc = substrates.setdefault(subname, SubstrateConfig(initial_mm=0.0))
+            if subattr == "initial":
+                sc.initial_mm = _coerce_float(f"patch.{name}.{k}", v)
+            elif subattr == "bulk":
+                sc.bulk_mm = _coerce_float(f"patch.{name}.{k}", v)
+            elif subattr == "carbon_per_mol":
+                sc.carbon_per_mol = int(_coerce_float(f"patch.{name}.{k}", v))
+            elif subattr == "diffusion":
+                sc.diffusion_um2_s = _coerce_float(f"patch.{name}.{k}", v)
+        pc.substrates.update(substrates)
+        scalars: dict[str, ScalarConfig] = {}
+        amplitudes: dict[str, float] = {}
+        for k, v in attrs.items():
+            if not k.startswith("scalar."):
+                continue
+            sub = k[len("scalar."):]
+            sname, _, sattr = sub.partition(".")
+            if not sname:
+                continue
+            scl = scalars.setdefault(sname, ScalarConfig())
+            if sattr == "kind":
+                scl.kind = v
+            elif sattr == "initial":
+                scl.initial = _coerce_float(f"patch.{name}.{k}", v)
+            elif sattr == "amplitude":
+                amplitudes[sname] = _coerce_float(f"patch.{name}.{k}", v)
+            elif sattr == "forcing":
+                forcing = v.strip().lower()
+                if forcing not in ("diurnal", "seasonal"):
+                    raise SimConfigError(
+                        f"patch {name!r} scalar {sname!r} forcing: expected "
+                        f"'diurnal' or 'seasonal', got {v!r}")
+                mean = scalars[sname].initial
+                amp = amplitudes.get(sname, mean if sname == "light" else 3.0)
+                if forcing == "diurnal":
+                    scl.forcing = DiurnalForcing(
+                        mean, amp,
+                        lo=(0.0 if sname == "light" else None))
+                else:
+                    scl.forcing = SeasonalForcing(mean, amp)
+        pc.scalars.update(scalars)
+        for k, v in attrs.items():
+            if k.startswith("dispersal."):
+                pc.dispersal[k[len("dispersal."):]] = _coerce_float(
+                    f"patch.{name}.{k}", v)
+        out.append(pc)
+    return out
+
+
+def _run_ecosystem(program: Program) -> ScoreResult:
+    """``#sim kind=ecosystem`` — multi-species/multi-patch ecosystem with
+    dispersal, biogeochemistry, environmental forcing and an invasion-fitness
+    evolution loop (doc/19 §5.3-§5.6; L1-L13).
+
+    Reads ``#sim`` keys (``ticks``/``seed``/``generations``/``fast_forward``/
+    ``community_fba``/``sample_every``/``evaluation_ticks``/...), the
+    ``#species`` table and the ``#patch`` table from ``sim_extensions``.
+    """
+    ext = program.sim_extensions
+    species = _build_ecosystem_species(ext)
+    patches = _build_ecosystem_patches(ext)
+    if not species:
+        raise SimConfigError(
+            "#sim kind=ecosystem requires at least one #species name=...")
+    if not patches:
+        raise SimConfigError(
+            "#sim kind=ecosystem requires at least one #patch name=...")
+    config = EcosystemConfig(
+        ticks=_opt_int(ext, "ticks", 4320),
+        seed=_opt_int_or_none(ext, "seed", None),
+        fast_forward=_opt_bool(ext, "fast_forward", True),
+        scheduler_max_step=_opt_int(ext, "scheduler_max_step", 480),
+        scheduler_change_threshold=_opt_float(
+            ext, "scheduler_change_threshold", 1e-4),
+        community_fba=_opt_bool(ext, "community_fba", False),
+        sample_every=_opt_int(ext, "sample_every", 1),
+        species=species,
+        patches=patches,
+        generations=_opt_int(ext, "generations", 1),
+        population_size=_opt_int(ext, "population_size", 6),
+        substitution_rate=_opt_float(ext, "substitution_rate", 0.05),
+        indel_rate=_opt_float(ext, "indel_rate", 0.0),
+        recombination_rate=_opt_float(ext, "recombination_rate", 0.0),
+        genome_length_nt=_opt_int(ext, "genome_length", 36),
+        evaluation_ticks=_opt_int(ext, "evaluation_ticks", 200),
+        evolution_enabled=_opt_bool(ext, "evolution_enabled", False),
+        stress_field=ext.get("stress_field", "toxin"),
+        stress_level=_opt_float(ext, "stress_level", 0.0),
+    )
+    eco = Ecosystem(config)
+    if config.generations > 1 or config.evolution_enabled:
+        rows = eco.run_generations()
+    else:
+        rows = eco.run()
+    columns = _select_columns(program, rows, default=(
+        list(rows[0]) if rows else _ECOSYSTEM_DEFAULT_COLUMNS))
+    meta: dict[str, Any] = {
+        "kind": "ecosystem",
+        "species": [s.name for s in species],
+        "patches": [p.name for p in patches],
+        "neutral_niche": eco.neutral_vs_niche(),
+        "summary": eco.summary(),
+    }
+    return ScoreResult(
+        backend="ecosystem", columns=columns,
+        rows=[_project(row, columns) for row in rows],
+        meta=meta,
+    )
+
+
+# -- kind=population_dbtl (apps/population_dbtl.py, doc/19 §5.6 D3) -----------
+
+def _run_population_dbtl(program: Program) -> ScoreResult:
+    """``#sim kind=population_dbtl`` — Design→Build→Test→Learn loop over a
+    population of strains (synbio_designer DNA → Ecosystem → fit_parameters).
+
+    Reads ``#sim`` keys ``n_rounds``/``population_size``/``genome_length``/
+    ``evaluation_ticks``/``seed``/``substrate``/``mutation_rate``/
+    ``bias_fraction``/``n_candidates``; the gate is a designed strain whose
+    growth strictly improves across the loop.
+    """
+    ext = program.sim_extensions
+    dbtl = PopulationDbtl(DbtlConfig(
+        n_rounds=_opt_int(ext, "n_rounds", 4),
+        population_size=_opt_int(ext, "population_size", 6),
+        genome_length_nt=_opt_int(ext, "genome_length", 30),
+        substrate=ext.get("substrate", "glucose"),
+        vmax=_opt_float(ext, "vmax", 0.02),
+        ks=_opt_float(ext, "ks", 0.1),
+        substrate_mm=_opt_float(ext, "substrate_mm", 10000.0),
+        initial_nh4_mm=_opt_float(ext, "initial_nh4_mm", 10000.0),
+        carrying_capacity=_opt_float(ext, "carrying_capacity", 1e5),
+        evaluation_ticks=_opt_int(ext, "evaluation_ticks", 80),
+        seed=_opt_int_or_none(ext, "seed", None) or 0,
+        target_protein=ext.get("target_protein", "MGTKDFYEAVRS"),
+        mutation_rate=_opt_float(ext, "mutation_rate", 0.05),
+        bias_fraction=_opt_float(ext, "bias_fraction", 0.6),
+        n_candidates=_opt_int(ext, "n_candidates", 8),
+    ))
+    result = dbtl.run()
+    rows: list[dict[str, Any]] = [
+        {
+            "round": float(r["round"]),
+            "best_growth": r["best_growth"],
+            "mean_growth": r["mean_growth"],
+            "best_genome": r["best_genome"],
+            "n_tested": float(r["n_tested"]),
+            "surrogate_best_trait": r["surrogate_best_trait"],
+        }
+        for r in result["rounds"]
+    ]
+    columns = _select_columns(program, rows, default=(
+        ["round", "best_growth", "mean_growth", "best_genome",
+         "surrogate_best_trait"]))
+    return ScoreResult(
+        backend="population_dbtl", columns=columns,
+        rows=[_project(row, columns) for row in rows],
+        meta={
+            "kind": "population_dbtl",
+            "designed_strain": result["designed_strain"],
+            "round0_growth": result["round0_growth"],
+            "final_growth": result["final_growth"],
+            "improved": result["improved"],
+            "fold_improvement": result["fold_improvement"],
+        },
+    )
+
+
 _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {
     "3d_morphology": _run_3d_morphology,
     "codec_benchmark": _run_codec_benchmark,
@@ -1491,10 +1850,12 @@ _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {
     "consortium": _run_consortium,
     "digital_evolution": _run_digital_evolution,
     "directed_evolution": _run_directed_evolution,
+    "ecosystem": _run_ecosystem,
     "fate_analysis": _run_fate_analysis,
     "morphogen_gradient": _run_morphogen_gradient,
     "omics_calibration": _run_omics_calibration,
     "population_calibration": _run_population_calibration,
+    "population_dbtl": _run_population_dbtl,
     "protein_fitness": _run_protein_fitness,
     "protein_structure": _run_protein_structure,
     "spatial_dfba": _run_spatial_dfba,

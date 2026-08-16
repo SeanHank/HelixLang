@@ -128,6 +128,36 @@ UNITS: dict[str, str] = {
 # Config and data classes
 # ============================================================================
 @dataclass(slots=True)
+class SpeciesParams:
+    """Per-species physiology knobs (Phase A1, doc/19 §5.3).
+
+    Overrides the flat :class:`PopulationConfig` energy model for one
+    species name.  Cells with ``species`` matching a key in
+    ``PopulationConfig.species_params`` use these values; otherwise the
+    population-wide defaults apply.  This is how a two-species culture
+    grows/dies per its own parameters while sharing one environment
+    (particle-based species identity, Lardon 2011 / iDynoMiCS L1).
+
+    Args:
+        energy_intake: ATP intake per tick (rich-medium baseline; scaled
+            by the local Monod factor when an environment is attached).
+        metabolic_cost: maintenance ATP per tick (Orth 2010).
+        division_threshold: energy (ATP) required to divide.
+        death_threshold: energy (ATP) below which a cell dies.
+        glucose_half_saturation_mm: Monod Ks for glucose uptake
+            (Kovárová-Kovar & Egli 1998).
+        max_glucose_uptake_mm: per-cell per-tick glucose demand cap.
+    """
+
+    energy_intake: float = ENERGY_INTAKE_PER_STEP
+    metabolic_cost: float = METABOLIC_COST_PER_STEP
+    division_threshold: float = DIVISION_ENERGY_THRESHOLD
+    death_threshold: float = DEATH_ENERGY_THRESHOLD
+    glucose_half_saturation_mm: float = 0.1
+    max_glucose_uptake_mm: float = 0.5
+
+
+@dataclass(slots=True)
 class PopulationConfig:
     """Population simulation config.
 
@@ -220,6 +250,7 @@ class PopulationConfig:
     grid_width: int = DEFAULT_GRID_WIDTH
     grid_height: int = DEFAULT_GRID_HEIGHT
     grid_depth: int = 1
+    species_params: dict[str, SpeciesParams] = field(default_factory=dict)
     division_threshold: float = DIVISION_ENERGY_THRESHOLD
     death_threshold: float = DEATH_ENERGY_THRESHOLD
     signaling_enabled: bool = True
@@ -274,6 +305,7 @@ class PopulationCell:
 
     id: int = 0
     parent_id: int | None = None
+    species: str = ""  # species / strain identity (A1; "" = default single-species clone)
     energy: float = POPULATION_CELL_INITIAL_ENERGY
     x: int = 0
     y: int = 0
@@ -412,6 +444,7 @@ def divide_cell(
     daughter_a = PopulationCell(
         id=-1,
         parent_id=cell.id,
+        species=cell.species,
         energy=half_energy,
         x=ax,
         y=ay,
@@ -429,6 +462,7 @@ def divide_cell(
     daughter_b = PopulationCell(
         id=-1,
         parent_id=cell.id,
+        species=cell.species,
         energy=half_energy,
         x=bx,
         y=by,
@@ -792,11 +826,14 @@ class CellPopulation:
             if config.signaling_enabled and self._in_bounds(cell.x, cell.y):
                 sig = self.signal_field[cell.y][cell.x]
                 quorum_sensing(cell, sig, config.signal_threshold)
+            sp = config.species_params.get(cell.species)
+            division_threshold = (sp.division_threshold if sp
+                                  else config.division_threshold)
             wants_division = (cell.flag_divide
                               if program_controls
-                              else cell.energy >= config.division_threshold)
+                              else cell.energy >= division_threshold)
             if (wants_division
-                    and cell.energy >= config.division_threshold
+                    and cell.energy >= division_threshold
                     and divisions_done < divisions_allowed):
                 a, b = divide_cell(cell, config, self.rng)
                 self._assign_genome_rows(cell, a, b)
@@ -1365,22 +1402,27 @@ class CellPopulation:
             if not cell.alive:
                 continue
             cell.age += 1
-            intake = config.energy_intake
+            sp = config.species_params.get(cell.species)
+            intake = sp.energy_intake if sp else config.energy_intake
+            cost = sp.metabolic_cost if sp else config.metabolic_cost
             if env is not None and self._in_bounds(cell.x, cell.y):
                 # Monod saturation coupling: local glucose scales the
                 # flat rich-medium intake (Kovárová-Kovar & Egli 1998),
                 # and the cell depletes the field by its demand.
                 local_s = env.glucose.get(cell.x, cell.y)
-                factor = monod_uptake(
-                    1.0, local_s, config.glucose_half_saturation_mm)
-                intake = config.energy_intake * factor
-                demand = config.max_glucose_uptake_mm * factor
+                ks = sp.glucose_half_saturation_mm if sp else config.glucose_half_saturation_mm
+                factor = monod_uptake(1.0, local_s, ks)
+                intake = intake * factor
+                demand = (sp.max_glucose_uptake_mm if sp
+                          else config.max_glucose_uptake_mm) * factor
                 env.glucose.deplete(cell.x, cell.y, demand)
-            cell.energy += intake - config.metabolic_cost
+            cell.energy += intake - cost
             if config.signaling_enabled:
                 cell.signal_emitted += SIGNAL_EMISSION_PER_STEP
                 self._emit_signal(cell)
-            if cell.energy <= config.death_threshold:
+            death_threshold = (sp.death_threshold if sp
+                               else config.death_threshold)
+            if cell.energy <= death_threshold:
                 cell.alive = False
                 deaths += 1
                 continue
@@ -1778,6 +1820,18 @@ class CellPopulation:
                 grid[c.y][c.x] += 1
         return grid
 
+    def species_counts(self) -> dict[str, int]:
+        """Alive-cell counts grouped by species (Phase A1).
+
+        The two-species coexistence gate reads this: each species'
+        count grows/dies per its own parameters while sharing one
+        environment and one lattice (Lardon 2011 iDynoMiCS particle
+        model).
+        """
+        counts: Counter[str] = Counter(
+            c.species for c in self.cells if c.alive)
+        return dict(counts)
+
     def get_signal_field(self) -> list[list[float]]:
         """Return the signal molecule concentration field (a copy)."""
         return [row[:] for row in self.signal_field]
@@ -1829,6 +1883,7 @@ class CellPopulation:
         result = asdict(stats)
         result["age_distribution"] = age_dist
         result["generation"] = self._generation
+        result["species_counts"] = self.species_counts()
         if self._genome_colony is not None:
             result["triggered_genes"] = int(
                 self._genome_colony.triggered().sum())

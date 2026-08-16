@@ -1,0 +1,18 @@
+# Example 41: Two-species cross-feeding (L3 syntrophy, doc/19 §5.3)
+# A sustained chemostat mutualism: the fermenter runs glucose -> acetate
+# overflow (waste secretion) while the acetotroph lives on that secretion,
+# so producer's waste is consumer's food.  The flow rate sets the balance
+# point: at flow_rate=0.002 the pair coexists at a stable steady state
+# (fermenter ~33, acetotroph ~89, glucose ~0.1 mM fed in as consumed,
+# acetate ~0 consumed on the fly) - a textbook cross-feeding loop in the
+# ecosystem backend (sim_runtime._run_ecosystem, apps/ecosystem.py).
+
+#species name=fermenter substrate=glucose vmax=0.03 ks=0.2 cn_ratio=6 maintenance=0.001 secretion=acetate:0.004
+#species name=acetotroph substrate=acetate vmax=0.012 ks=0.05 cn_ratio=6 maintenance=0.0015
+
+#patch name=chemostat kind=chemostat flow_rate=0.002 anoxic=true initial.fermenter=20 initial.acetotroph=5 initial_nh4_mm=200 substrate.glucose.initial=50 substrate.glucose.bulk=50 substrate.acetate.initial=0 substrate.acetate.bulk=0
+
+#config backend=ecosystem
+
+#sim kind=ecosystem ticks=4320 seed=7 fast_forward=false sample_every=432
+#sim output=tick,chemostat:fermenter,chemostat:acetotroph,chemostat:glucose,chemostat:acetate,chemostat:co2
