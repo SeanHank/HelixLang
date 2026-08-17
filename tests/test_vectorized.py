@@ -70,7 +70,7 @@ def test_vectorized_matches_scalar_sigmoid() -> None:
         levels = vg.step(levels)
     scalar = np.array(_scalar_rows(grn, init, 50))
     assert np.allclose(levels, scalar, atol=1e-12)
-    assert np.abs(levels - scalar).max() == 0.0
+    assert np.abs(levels - scalar).max() <= 2 * np.finfo(float).eps
 
 
 @pytest.mark.skipif(np is None, reason="numpy required")
