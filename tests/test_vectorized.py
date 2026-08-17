@@ -14,6 +14,7 @@ References:
 from __future__ import annotations
 
 import json
+import pathlib
 
 import pytest
 
@@ -29,7 +30,7 @@ from helixlang.vectorized import (
 try:
     import numpy as np
 except ImportError:  # pragma: no cover
-    np = None
+    np = None  # type: ignore[assignment]
 
 
 def _toggle_grn() -> GRN:
@@ -42,7 +43,7 @@ def _toggle_grn() -> GRN:
     return g
 
 
-def _scalar_rows(grn: GRN, init, n_steps: int) -> list[list[float]]:
+def _scalar_rows(grn: GRN, init: list[list[float]], n_steps: int) -> list[list[float]]:
     rows = []
     for row in init:
         gg = GRN()
@@ -133,7 +134,7 @@ def test_n_genes() -> None:
 
 def test_optional_jit_noop_without_numba() -> None:
     @optional_jit()
-    def double(x):
+    def double(x: int) -> int:
         return x * 2
     assert double(21) == 42
 
@@ -158,7 +159,7 @@ def test_iter_snapshots_streams() -> None:
     assert all(s["alive"] >= 0 for s in snaps)
 
 
-def test_iter_snapshots_interval_and_jsonl(tmp_path) -> None:
+def test_iter_snapshots_interval_and_jsonl(tmp_path: pathlib.Path) -> None:
     cfg = PopulationConfig(grid_width=10, grid_height=10,
                            energy_intake=100.0, metabolic_cost=1.0)
     pop = _MinimalPopulation(cfg)
@@ -180,9 +181,9 @@ def test_iter_snapshots_validation() -> None:
 class _MinimalPopulation:
     """Duck-typed stand-in with step()/cells for snapshot streaming."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg: PopulationConfig) -> None:
         self.config = cfg
         self.cells = [PopulationCell(id=0, energy=100.0, x=1, y=1)]
 
-    def step(self):
+    def step(self) -> dict[str, int]:
         return {"alive_count": 1}
