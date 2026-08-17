@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixlang"
-version = "2026.8.2"
+version = "2026.8.3"
 description = "A bio-genetic DSL that compiles DNA codons to bytecode and simulates biological behavior/morphology."
 readme = "README_PYPI.md"
 requires-python = ">=3.11"
@@ -20,7 +20,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4,<9", "pytest-cov>=4.1,<6"]
+dev = ["pytest>=7.4,<9", "pytest-cov>=4.1,<6", "scipy>=1.12,<2", "pytest-benchmark>=4.0,<5"]
 fast = ["numpy>=1.26,<3"]
 viz = ["matplotlib>=3.8,<4"]
 web = ["flask>=3.0,<4"]   # Web visualization frontend: python -m helixlang --serve

@@ -1,6 +1,6 @@
 """HelixLang: DNA codons → bytecode → biological simulation."""
 
-__version__ = "2026.8.2"
+__version__ = "2026.8.3"
 
 from helixlang.codon_table import (
     CILIATE_TABLE,
