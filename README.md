@@ -28,7 +28,7 @@ A domain-specific language where biological genetic material is the source, bina
 
 ## Why HelixLang?
 
-Traditional biological modeling tools treat DNA as **data** — a passive string to be analyzed. HelixLang treats DNA as **code**: every codon is an instruction, every gene is a function, every cell is a runtime.
+Traditional biological modeling tools treat DNA as **data** — a passive string to be analyzed. HelixLang treats DNA as **code**: every codon is an instruction, every gene is a function, every cell is a runtime. The result is a single language that spans the full biological hierarchy — from individual codons to whole-cell physiology to multi-species ecosystems — with a real compiler, a real bytecode VM, and 22 quantitative simulation backends.
 
 ```helix
 #gene name=hello
@@ -38,22 +38,45 @@ ATG GCT GGT TAA          # START -> BUILD_PROTEIN -> BUILD_MEMBRANE -> HALT
 
 Feed that sequence to the HelixLang compiler and you get a real bytecode program you can run, debug, and disassemble — just like Python or Java bytecode.
 
+### Project at a glance
+
+| Metric | Value |
+|--------|-------|
+| Source modules | 90 (44 top-level + 6 subpackages) |
+| Test cases | 2229 (all passing, 89% coverage) |
+| `.helix` examples | 48 (complete source) |
+| Documentation | 22 files, 13,500 lines |
+| Runtime dependencies | **zero** (all optional: numpy, biopython, flask) |
+
 ### Highlights
 
+#### Compiler & Language
+
+- ⚙️ **Full compiler pipeline** — Lexer → Parser → AST → Semantic → Compiler → Bytecode → VM, with disassembly, debugging, and `.helixc` binary serialization.
 - 🧬 **Biologically isomorphic** — language primitives map one-to-one to biological entities: codons, amino acids, genes, promoters, operons, regulators, proteins.
-- ⚙️ **Full compiler pipeline** — Lexer → Parser → AST → Semantic → Compiler → Bytecode → VM, with disassembly and debugging support.
 - 🎲 **Degeneracy as aliasing** — 64 codons map to ~30 opcodes; the third wobble position acts as an operand modifier, mirroring real biological degeneracy.
-- 🌱 **Executable life** — bytecode drives a cell simulator that emits morphology, behavior, and state.
-- 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
+- 🛠️ **Zero dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
+
+#### Simulation Runtimes
+
+- 🖥️ **22 simulation backends from one source** — `#config backend` or `#sim kind=` selects from whole-cell physiology, 3D cell colonies, static/dynamic FBA, calibration, GEM reconstruction, multi-species ecosystem, and 16 specialized backends — all from `.helix` source with `seed=` determinism and a `POST /api/sim/run` web endpoint.
+- 🧬 **Whole-cell realism** — `VirtualCell` is a physically complete virtual organism: cell-cycle phasing with scheduled **Cooper–Helmstetter chromosome replication**, true volume in µm³ with **adder** size control, chaperone-mediated protein maturation & QC, and **enzyme-constrained FBA** over intracellular pools.
+- 🧫 **Colony-scale spatial simulation** — per-cell GRN + bytecode, CROMICS cell-crowding diffusion, shoving/force mechanics, expression-gated FBA, metabolic stratification; a shared **4338-gene** sparse regulatory network across thousands of cells.
+- 🌊 **Microfluidics in the box** — lattice-Boltzmann D2Q9 (2D) and D3Q19 (3D) solvers drive medium through microfluidic channels around growing colonies: no-slip obstacles, Stokes-drag drift, Hertzian contacts, substrate advection.
+- 🌍 **Evolution with a physical body** — DNA programs evolve in real 3D space: a biological mutation spectrum mutates the source, the compiler revalidates the reading frame and recompiles, and fitness is *spatial behavior* — colony radius × core survival in an oxygen-poor colony core.
+- 🎯 **Inverse modeling** — recovers hidden biophysical parameters from noisy, lab-realistic mixed observables at both whole-cell and colony scale (Karr 2012 / Virtual Cell Challenge–style weighted fitting).
+
+#### Genome-to-Ecosystem Pipeline
+
+- 🌱 **Genome → GEM → Ecosystem end-to-end** — a single `.helix` source can specify real genomes and run multi-species, multi-population simulation starting from genes. The six-phase GEM reconstruction pipeline (`#gem`) turns genome FASTA into a functional genome-scale metabolic model, and the GEM↔Ecosystem bridge (`gem_driven=true`) feeds the reconstructed metabolic models directly into the ecosystem tick loop.
+- 🔬 **GEM reconstruction** — UniProt 3-tier functional annotation (ID mapping → NCBI BLASTP → UniProt sequence search), ~200 EC→reaction mappings, ~90 universal prokaryotic reactions, consensus bottom-up + top-down reconstruction, LP gap-filling, biomass reaction assembly, kcat prediction (60+ EC entries, organism scaling), Km estimation, GRN inference (RegulonDB PWMs + ChIP-seq evidence), FBA validation.
+- 🌍 **Multi-species ecosystem** — `#sim kind=ecosystem` with `#species`/`#patch`: Lotka-Volterra competition/predation, cross-feeding, CENTURY litter/SOM pools, C/N biogeochemistry, Q10/DAMM temperature dependence, diurnal/seasonal forcing, photoautotrophy, event-driven Scheduler, invasion-fitness evolution.
+
+#### Biology & Data
+
+- 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
 - 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
-- 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
-- 🧪 **Frontier biology** — the frontier tier turns the simulator into a quantitative model: **programmable cells**, **stochastic gene expression**, **environment-coupled Monod metabolism** with CROMICS cell-crowding diffusion, **dynamic FBA** batch / diauxic simulation, and spatial cell mechanics.
-- 🧬 **Whole-cell realism** — `VirtualCell` is a physically complete virtual organism: cell-cycle phasing with scheduled **Cooper–Helmstetter chromosome replication**, true volume in µm³ with **adder** size control, chaperone-mediated protein maturation & QC, and **enzyme-constrained FBA** over intracellular pools — closed at colony scale and calibrated from noisy, lab-style observables via the Virtual Cell Challenge calibrate→predict loop.
-- 🖥️ **One source, every runtime** — a single backend selector drives five quantitative runtimes — whole-cell physiology, 3D cell colonies, dFBA batch/diauxie curves, even inverse calibration — all straight from `.helix` source, with `#media`/`#enzyme`/`#metabolite` annotations, `seed=` determinism, `--backend`/`--json` CLI flags, and a `POST /api/sim/run` web endpoint. `backend=classic` stays the default, bit-identical.
-- 🌍 **Evolution with a physical body** — DNA programs evolve in real 3D space: a biological mutation spectrum mutates the source, the compiler revalidates the reading frame and recompiles, and fitness is *spatial behavior* — colony radius × core survival in an oxygen-poor colony core (Bosshard 2020). Codons, physics, and natural selection in a single loop.
-- 🌊 **Microfluidics in the box** — lattice-Boltzmann D2Q9 (2D) and D3Q19 (3D) solvers drive medium through microfluidic channels around growing colonies: no-slip obstacles, Stokes-drag drift, Hertzian contacts, substrate advection — and a nutrient boundary layer emerges at the colony edge on its own.
-- 🧫 **From one gene to a genome** — one `#genome` annotation builds a shared **4338-gene** sparse regulatory network; every cell is a row of the same matrix, and expression-gated FBA turns a knockout into a silent node — knock out an essential gene and the whole colony stops growing.
-- 🎯 **Calibrate the invisible** — more than simulation: **inverse modeling** recovers hidden biophysical parameters from noisy, lab-realistic mixed observables at both whole-cell and colony scale (Karr 2012 / Virtual Cell Challenge–style weighted fitting).
+- 🧪 **Frontier biology modules** — programmable cells, stochastic gene expression (telegraph-promoter Fano + Gillespie SSA), environment-coupled Monod metabolism, dynamic FBA batch/diauxic simulation, CRISPR-Cas9 guide design, epigenetics, protein structure prediction, directed evolution.
 
 ---
 
@@ -89,6 +112,9 @@ helixlang examples/01_hello_dna.helix
 
 # Disassemble the bytecode
 helixlang examples/01_hello_dna.helix --disassemble
+
+# Run a GEM reconstruction from genome FASTA
+helixlang examples/46_gem_reconstruction.helix --gem
 
 # Launch the web visualization (http://127.0.0.1:5000)
 helixlang --serve
@@ -257,6 +283,15 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `37_genome_colony.helix` | `population` (`#genome`) | 4338-gene sparse GRN colony + FBA gating |
 | `38_flow_biofilm.helix` | `population` (`#sim lbm`) | rod-cell colony inside an LBM microfluidic channel |
 | `39_lbm3d_biofilm.helix` | `population` (`#sim lbm_3d`) | D3Q19 3D flow displaced around a biofilm |
+| `40_spatial_evolution.helix` | `population` | spatial evolution: mutation + selection + drift in 2D |
+| `41_two_species_crossfeeding.helix` | `ecosystem` | two-species cross-feeding (acetate shuttle) |
+| `42_ecosystem_evolution.helix` | `ecosystem` | multi-species invasion-fitness evolution |
+| `43_diurnal_microcosm.helix` | `ecosystem` | diurnal light cycle driving photoautotrophy |
+| `44_diauxie_complete.helix` | `ecosystem` | diauxic growth in ecosystem mode |
+| `45_population_dbtl.helix` | `population_dbtl` | population DBTL data loop |
+| `46_gem_reconstruction.helix` | `gem` | genome → GEM reconstruction → GRN → kinetics pipeline |
+| `47_ecoli_gem_simulation.helix` | `gem` | E. coli full GEM simulation with inline or FASTA genome |
+| `48_ecoli_inline_dna.helix` | `gem` | E. coli K-12 MG1655 — 46 genes with real inline DNA (codon format) |
 | `11_protein_structure.helix` | `#sim kind=protein_structure` | Chou-Fasman secondary-structure report |
 | `12_multi_species.helix` | `#sim kind=codon_usage` | per-species codon adaptation index |
 | `14_synbio_designer.helix` | `#sim kind=synbio_design` | promoter→RBS→GOI→terminator cassette design |
@@ -267,7 +302,7 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `27_codec_benchmark.helix` | `#sim kind=codec_benchmark` | DNA-storage codec loss/error tolerance |
 | `28_fate_analysis.helix` | `#sim kind=fate_analysis` | toggle-switch bistability / slowing |
 | `29_directed_evolution.helix` | `#sim kind=directed_evolution` | oracle-guided GB1 protein engineering |
-| `46_gem_reconstruction.helix` | `gem` | genome → GEM reconstruction → GRN → kinetics pipeline |
+| `13_dna_storage.helix` | CLI (`--encode-dna`) | DNA data storage encoding/decoding |
 
 ```bash
 helixlang examples/10_metabolism_fba.helix --json   # machine-readable
@@ -277,6 +312,22 @@ helixlang examples/24_spatial_diauxie.helix --backend population
 
 Deterministic with `seed=`; same source parses under the classic backend
 (`backend=classic`) for a bit-identical bytecode run.
+
+### Reference data for GEM pipeline
+
+The GEM reconstruction pipeline (`#gem`) needs reference databases. Download them with the built-in script:
+
+```bash
+# Python (cross-platform: Windows / Linux / macOS)
+python scripts/download_data.py            # download everything
+python scripts/download_data.py pfam       # Pfam only
+python scripts/download_data.py ecoli      # E. coli reference only
+
+# Bash (Linux / macOS)
+bash scripts/download_data.sh
+```
+
+This downloads **Pfam-A.hmm** (~2.1 GB, CC0 public domain) from EBI and **E. coli K-12 MG1655** genome + proteome from NCBI/UniProt into the `data/` directory (gitignored).
 
 ---
 
@@ -333,9 +384,10 @@ Deterministic with `seed=`; same source parses under the classic backend
 | [protein_fitness](src/helixlang/protein_fitness.py) | Fitness oracles: BLOSUM62 conservation + ESM-2 pseudo-likelihood + variant ranking |
 | [morphology_3d](src/helixlang/morphology_3d.py) | 3D population + 3D concentration-field diffusion (6/26-connectivity) + LSystem3D |
 | [vectorized](src/helixlang/vectorized.py) | Across-cell numpy GRN step, stable cell sorting, snapshot iteration, optional jit |
-| [omics](src/helixlang/omics.py) | Spatial-omics: expression matrices → GRN states / FBA bounds, spatial atlas, heterogeneity (ARI) |
+| [omics](src/helixlang/omics/) | Spatial-omics package — expression matrices → GRN states / FBA bounds, spatial atlas, heterogeneity (ARI), omics-level calibration |
 | [virtual_cell](src/helixlang/virtual_cell.py) | Whole-cell budget model — cell-cycle phasing + Cooper–Helmstetter chromosome replication, physical volume + adder size control with threshold noise, protein maturation/QC, enzyme-constrained FBA wiring, gene encoding, `fit_parameters` inverse-variance-weighted fitting |
 | [apps/consortium](src/helixlang/apps/consortium.py) | Synthetic microbial consortium — quorum consensus vote + composition (ratio) control |
+| [apps/ecosystem](src/helixlang/apps/ecosystem.py) | Multi-species ecosystem — Lotka-Volterra, cross-feeding, CENTURY SOM pools, C/N biogeochemistry, Q10/DAMM temperature dependence, diurnal/seasonal forcing, photoautotrophy, event-driven Scheduler, invasion-fitness evolution, `gem_to_species()` bridge |
 | [apps/morphogen_gradient](src/helixlang/apps/morphogen_gradient.py) | French-flag positional information — diffusing morphogen + cross-repression thresholds (Wolpert 1969) |
 | [apps/digital_evolution](src/helixlang/apps/digital_evolution.py) | Digital organisms evolve a signal task — Wright-Fisher + Eigen error catastrophe (Avida paradigm) |
 | [apps/synbio_automation](src/helixlang/apps/synbio_automation.py) | Cello-style closed-loop automation — truth table → netlist → gates → plasmid + GenBank + SBOL3 → predicted dynamics |
@@ -347,16 +399,12 @@ Deterministic with `seed=`; same source parses under the classic backend
 | [apps/omics_calibration](src/helixlang/apps/omics_calibration.py) | Omics-level parameter calibration — CRISPRi PerturbSeq with negative-binomial noise, VCC-style log fold-change vs WT, inverse-variance weighted `fit_parameters` |
 | [apps/whole_cell_scale](src/helixlang/apps/whole_cell_scale.py) | Whole-cell scale — FASTA genome loader (RBS + bare-ORF fallback), KO→FBA gene-essentiality screening (Feist 2007 / EcoCyc) |
 | [apps/whole_cell_calibration](src/helixlang/apps/whole_cell_calibration.py) | Whole-cell calibration closure — two-stage separable fit recovering adder / k_fold / enzyme-scale / maintenance from mixed observables; adder-noise robustness via population averaging (`n_cells`) |
-| [annotation/](src/helixlang/annotation/) | Functional annotation package — DIAMOND local search (`blast.py`), EC/KEGG mapping (`ec_mapping.py`, `kegg_mapping.py`), TF detection via HMMER domain scan + heuristic fallback (`tf_detection.py`), transporter classification (`transporter.py`) |
-| [gem/](src/helixlang/gem/) | GEM reconstruction — bottom-up (`bottom_up.py`), top-down carve (`top_down.py`), consensus merge (`consensus.py`), LP gap-filling (`gapfill.py`), biomass reaction (`biomass.py`), GRN inference (`grn_inference.py`), HelixLang bridge (`bridge.py`) |
-| [kinetics/](src/helixlang/kinetics/) | Enzyme kinetics — kcat prediction (`kcat_predictor.py`), Km estimation (`km_estimator.py`) |
-| [apps/gem_pipeline](src/helixlang/apps/gem_pipeline.py) | Six-phase GEM reconstruction orchestrator — genome → annotation → GEM → GRN → kinetics → HelixLang integration |
-| [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
-| [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
-| [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
-| [type_system](src/helixlang/type_system.py) | Type checker + symbol table |
-| [debugger](src/helixlang/debugger.py) | Bytecode-level debugger (breakpoints / stepping / state inspection) |
-| [sim_runtime](src/helixlang/sim_runtime.py) | `#config backend` adapter — classic/whole_cell/population/fba/calibration/benchmark dispatch, key→dataclass coercion, `SimResult` (`to_dict`/CSV columns), determinism via `seed=` |
+| [apps/population_dbtl](src/helixlang/apps/population_dbtl.py) | Population DBTL data loop — Design-Build-Test-Learn cycle for colony-scale phenotype optimization |
+| [annotation/](src/helixlang/annotation/) | Functional annotation package — DIAMOND/UniProt 3-tier search (ID mapping → NCBI BLASTP → UniProt sequence search), EC/KEGG mapping (`ec_mapping.py`, `kegg_mapping.py`), TF detection via HMMER domain scan + RegulonDB PWMs + heuristic fallback (`tf_detection.py`), transporter classification (`transporter.py`) |
+| [gem/](src/helixlang/gem/) | GEM reconstruction — bottom-up (`bottom_up.py`), top-down universal prokaryotic carve (~90 reactions, `top_down.py`), consensus merge (`consensus.py`), LP gap-filling (`gapfill.py`), biomass reaction (`biomass.py`), GRN inference (`grn_inference.py`), HelixLang bridge (`bridge.py`), SBML export (`sbml_export.py`) |
+| [kinetics/](src/helixlang/kinetics/) | Enzyme kinetics — kcat prediction (60+ EC entries, 18 organism scaling factors, `kcat_predictor.py`), Km estimation (`km_estimator.py`) |
+| [apps/gem_pipeline](src/helixlang/apps/gem_pipeline.py) | Six-phase GEM reconstruction orchestrator — genome → annotation → GEM → GRN → kinetics → HelixLang integration; 3-tier UniProt annotation, consensus + FBA validation |
+| [apps/sim_runtime](src/helixlang/sim_runtime.py) | `#config backend` adapter — classic/whole_cell/population/fba/calibration/benchmark/gem/ecosystem dispatch, GEM↔Ecosystem bridge (`_attach_gem_to_ecosystem_species()`), key→dataclass coercion, `SimResult` (`to_dict`/CSV columns), determinism via `seed=` |
 | [server](src/helixlang/server.py) / [web/](src/helixlang/web/) | Flask REST API + visualization frontend |
 | [cli](src/helixlang/cli.py) | Command-line entry point |
 
@@ -376,7 +424,7 @@ Main REST endpoints:
 |----------|----------|
 | `POST /api/compile` | Compile source, return disassembly + AST summary |
 | `POST /api/run` | Compile and run, return trace + GRN + morphology |
-| `POST /api/sim/run` | Run a sim backend (classic/whole_cell/population/fba/calibration/benchmark) from source; returns `SimResult` JSON |
+| `POST /api/sim/run` | Run a sim backend (classic/whole_cell/population/fba/calibration/benchmark/gem/ecosystem) from source; returns `SimResult` JSON |
 | `POST /api/dna/encode` | DNA data-storage encoding (goldman / erlich) |
 | `POST /api/dna/decode` | DNA data-storage decoding |
 | `GET  /api/bio/codon-usage` | Codon usage frequency table (ecoli / yeast / human) |
@@ -417,8 +465,11 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`01-references.md`](doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers |
 | [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
 | [`16-gameplay-units-upgrade.md`](doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [`17-project-details-and-frontier-bio-applications.md`](doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–40), problem→capability mapping, delivered solution designs |
+| [`17-project-details-and-frontier-bio-applications.md`](doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–48), problem→capability mapping, delivered solution designs; GEM↔Ecosystem bridge (doc/21); baseline: 2229 tests |
 | [`18-programmable-cell-population-simulation.md`](doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
+| [`19-whole-organism-lifecycle-simulation.md`](doc/19-whole-organism-lifecycle-simulation.md) | Researchers | Full-pipeline genome→ecosystem vision: Phases A–D landed (ecosystem spine, Levins metapopulation, CENTURY SOM pools, diurnal forcing, community FBA, invasion-fitness evolution, GFF3 import, RegulonDB regulatory map, replicon model); GEM↔Ecosystem bridge landed |
+| [`20-gem-reconstruction-pipeline.md`](doc/20-gem-reconstruction-pipeline.md) | Researchers | Six-phase GEM reconstruction pipeline: genome import → functional annotation (UniProt 3-tier) → GEM reconstruction (consensus bottom-up + top-down) → GRN inference (RegulonDB PWMs + ChIP-seq) → kinetic parameter estimation (kcat + Km) → HelixLang integration; ~200 EC→reaction mappings, ~90 universal prokaryotic reactions, LP gap-filling, biomass assembly, FBA validation |
+| [`21-gem-ecosystem-bridge.md`](doc/21-gem-ecosystem-bridge.md) | Researchers | GEM↔Ecosystem bridge: `gem_to_species()` extracts metabolic parameters from FBA (vmax, ks, yield, secretion, cn_ratio, maintenance); `Species.metabolic_model` field; `Patch._growth_rate_gem()` for FBA-backed per-species growth; `gem_driven=true` flag in `#sim kind=ecosystem`; backward compatible with Monod default |
 
 ### Suggested reading order
 
@@ -445,10 +496,10 @@ ruff check src tests
 mypy
 ```
 
-- **2134 test cases** (2134 passing, 89% coverage)
+- **2229 test cases** (2229 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All `examples/*.helix` covered + Python API companions
+- All 48 `examples/*.helix` covered + Python API companions
 
 ---
 
