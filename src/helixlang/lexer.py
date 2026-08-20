@@ -35,19 +35,49 @@ class Lexer:
         self.line = 1
         self.col = 1
         self.codon_counter = 0
+        self._dna_mode = False  # True when inside a DNA block
 
     # -------- Public entry point --------
     def tokens(self) -> Iterator[Token]:
         while self.pos < len(self.src):
             c = self.src[self.pos]
             if c == '#':
-                yield from self._scan_annotation()
+                # Check for gene ID marker: #identifier (no '=' follows)
+                peek = self.src[self.pos + 1:self.pos + 30]
+                m_end = 0
+                while m_end < len(peek) and (
+                    peek[m_end].isalnum() or peek[m_end] in ('_', '.')
+                ):
+                    m_end += 1
+                if m_end > 0:
+                    gene_id = peek[:m_end]
+                    # Check if '=' appears soon (annotation) or not (gene ID)
+                    after_id = peek[m_end:m_end + 5].lstrip()
+                    if not after_id.startswith('=') and gene_id not in (
+                        "gem", "config", "sim", "end", "species", "genome",
+                        "media", "patch", "type", "enzyme", "metabolite",
+                        "regulate", "export",
+                        "gene", "promoter", "lsystem", "morphogen",
+                        "crispr", "evolve", "methylate", "histone",
+                        "transcribe", "translate", "quorum",
+                        "gff", "sequence", "table", "field",
+                    ):
+                        # Gene ID marker — emit GENE_ID token
+                        start_line, start_col = self.line, self.col
+                        for _ in range(m_end + 1):
+                            self._advance()
+                        yield Token("GENE_ID", gene_id,
+                                    start_line, start_col)
+                    else:
+                        yield from self._scan_annotation()
+                else:
+                    yield from self._scan_annotation()
             elif c in self.BASES:
+                self._dna_mode = True
                 yield from self._scan_dna()
             elif c in ' \t\r':
                 self._advance()
             elif c == '\n':
-                # Annotation blocks need NEWLINE to separate fields; ignored in DNA mode
                 yield Token("NEWLINE", "\\n", self.line, self.col)
                 self._advance(newline=True)
             else:
@@ -59,9 +89,22 @@ class Lexer:
     def _scan_dna(self) -> Iterator[Token]:
         buf: list[str] = []
         start_line, start_col = self.line, self.col
+        # Skip leading whitespace/newlines
+        while self.pos < len(self.src) and self.src[self.pos] in ' \t\r\n':
+            if self.src[self.pos] == '\n':
+                self._advance(newline=True)
+            else:
+                self._advance()
+        # Collect DNA bases, skipping whitespace/newlines between them
         while self.pos < len(self.src) and self.src[self.pos] in self.BASES:
             buf.append(self.src[self.pos])
             self._advance()
+            # Skip whitespace/newlines within DNA block
+            while self.pos < len(self.src) and self.src[self.pos] in ' \t\r\n':
+                if self.src[self.pos] == '\n':
+                    self._advance(newline=True)
+                else:
+                    self._advance()
         if len(buf) % 3 != 0:
             raise LexError(
                 f"DNA length {len(buf)} not multiple of 3",

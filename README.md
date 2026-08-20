@@ -267,6 +267,7 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `27_codec_benchmark.helix` | `#sim kind=codec_benchmark` | DNA-storage codec loss/error tolerance |
 | `28_fate_analysis.helix` | `#sim kind=fate_analysis` | toggle-switch bistability / slowing |
 | `29_directed_evolution.helix` | `#sim kind=directed_evolution` | oracle-guided GB1 protein engineering |
+| `46_gem_reconstruction.helix` | `gem` | genome → GEM reconstruction → GRN → kinetics pipeline |
 
 ```bash
 helixlang examples/10_metabolism_fba.helix --json   # machine-readable
@@ -346,6 +347,10 @@ Deterministic with `seed=`; same source parses under the classic backend
 | [apps/omics_calibration](src/helixlang/apps/omics_calibration.py) | Omics-level parameter calibration — CRISPRi PerturbSeq with negative-binomial noise, VCC-style log fold-change vs WT, inverse-variance weighted `fit_parameters` |
 | [apps/whole_cell_scale](src/helixlang/apps/whole_cell_scale.py) | Whole-cell scale — FASTA genome loader (RBS + bare-ORF fallback), KO→FBA gene-essentiality screening (Feist 2007 / EcoCyc) |
 | [apps/whole_cell_calibration](src/helixlang/apps/whole_cell_calibration.py) | Whole-cell calibration closure — two-stage separable fit recovering adder / k_fold / enzyme-scale / maintenance from mixed observables; adder-noise robustness via population averaging (`n_cells`) |
+| [annotation/](src/helixlang/annotation/) | Functional annotation package — DIAMOND local search (`blast.py`), EC/KEGG mapping (`ec_mapping.py`, `kegg_mapping.py`), TF detection via HMMER domain scan + heuristic fallback (`tf_detection.py`), transporter classification (`transporter.py`) |
+| [gem/](src/helixlang/gem/) | GEM reconstruction — bottom-up (`bottom_up.py`), top-down carve (`top_down.py`), consensus merge (`consensus.py`), LP gap-filling (`gapfill.py`), biomass reaction (`biomass.py`), GRN inference (`grn_inference.py`), HelixLang bridge (`bridge.py`) |
+| [kinetics/](src/helixlang/kinetics/) | Enzyme kinetics — kcat prediction (`kcat_predictor.py`), Km estimation (`km_estimator.py`) |
+| [apps/gem_pipeline](src/helixlang/apps/gem_pipeline.py) | Six-phase GEM reconstruction orchestrator — genome → annotation → GEM → GRN → kinetics → HelixLang integration |
 | [interop](src/helixlang/interop.py) | SBML L3V1 import → `MetabolicModel` (no cobrapy) + SBOL3 export/import round-trip |
 | [dna_codec](src/helixlang/dna_codec.py) | Goldman / Erlich DNA data-storage codec |
 | [bio_data](src/helixlang/bio_data.py) | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
@@ -382,6 +387,8 @@ Main REST endpoints:
 | `POST /api/central-dogma/coupled` | Coupled transcription-translation |
 | `POST /api/evolution/run` | Evolution simulation |
 | `POST /api/debug/*` | Bytecode debugger (breakpoints / stepping / state) |
+| `POST /api/gem/reconstruct` | GEM reconstruction from genome FASTA (6-stage pipeline) |
+| `POST /api/gem/simulate` | Simulate a reconstructed GEM model |
 
 ---
 

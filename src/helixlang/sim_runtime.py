@@ -140,6 +140,7 @@ __all__ = [
 
 BACKENDS = frozenset({
     "classic", "whole_cell", "population", "fba", "calibration", "benchmark",
+    "gem",
 })
 
 
@@ -354,6 +355,8 @@ def run(program: Program, backend: str | None = None) -> SimResult | None:
         return _run_calibration(program)
     if name == "benchmark":
         return _run_benchmark(program)
+    if name == "gem":
+        return _run_gem(program)
     raise SimConfigError(
         f"unknown backend {name!r}; expected one of "
         "classic, whole_cell, population, fba, calibration, benchmark")
@@ -1723,24 +1726,106 @@ def _build_ecosystem_patches(ext: dict[str, str]) -> list[PatchConfig]:
     return out
 
 
+def _attach_gem_to_ecosystem_species(
+    species: list[Species],
+    ext: dict[str, str],
+) -> None:
+    """Run GEM pipeline for each species with a genome and attach the
+    resulting MetabolicModel + FBA fluxes (doc/21 §3.4).
+
+    For each species where ``species.<name>.genome`` is set, this runs
+    ``run_gem_pipeline()``, extracts metabolic parameters via
+    ``gem_to_species()``, and attaches the model to the species so the
+    ecosystem tick loop can use FBA-backed growth.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from helixlang.apps.ecosystem import gem_to_species
+
+    groups = _group_prefixed(ext, "species.")
+    for sp in species:
+        attrs = groups.get(sp.name, {})
+        genome_path = attrs.get("genome", "")
+        if not genome_path:
+            continue
+
+        # Handle inline DNA (from #species DNA block → stored in genome field)
+        _tmp_fasta: Path | None = None
+        if not Path(genome_path).exists() and len(genome_path) > 10:
+            # Looks like raw sequence, write to temp FASTA
+            _tmp_fasta = Path(tempfile.mktemp(suffix=".fasta"))
+            _tmp_fasta.write_text(f">{sp.name}\n{genome_path}\n")
+            genome_path = str(_tmp_fasta)
+
+        try:
+            from helixlang.apps.gem_pipeline import run_gem_pipeline
+            result = run_gem_pipeline(
+                genome_fasta=genome_path,
+                organism=sp.name,
+                target_organism=sp.name,
+            )
+            if result.metabolic_model is not None:
+                sp.metabolic_model = result.metabolic_model
+                sp.gem_fluxes = dict(result.fba_fluxes)
+                # Extract parameters from GEM
+                params = gem_to_species(result, organism=sp.name)
+                # Update species consumption from GEM vmax/ks
+                vmax = float(params.get("vmax", 0))
+                if vmax > 0:
+                    # Map primary substrate
+                    primary = sp.preferred_substrate() or "glucose"
+                    ks = float(params.get("ks", 0.1))
+                    sp.consumption[primary] = (vmax, ks)
+                yield_c = float(params.get("yield_c", 0))
+                if yield_c > 0:
+                    sp.traits.yield_c = yield_c
+                secretion = params.get("secretion")
+                if isinstance(secretion, dict):
+                    sp.secretion.update(secretion)
+                cn_ratio = float(params.get("cn_ratio", 6.0))
+                if cn_ratio != 6.0:
+                    sp.cn_ratio = cn_ratio
+                maintenance = float(params.get("maintenance", 0.001))
+                if maintenance != 0.001:
+                    sp.maintenance = maintenance
+        except Exception:
+            pass  # non-fatal: fall back to Monod if GEM fails
+        finally:
+            if _tmp_fasta is not None:
+                _tmp_fasta.unlink(missing_ok=True)
+
+
 def _run_ecosystem(program: Program) -> ScoreResult:
     """``#sim kind=ecosystem`` — multi-species/multi-patch ecosystem with
     dispersal, biogeochemistry, environmental forcing and an invasion-fitness
     evolution loop (doc/19 §5.3-§5.6; L1-L13).
 
+    When ``gem_driven=true`` in ``#sim``, each ``#species`` with a
+    ``genome=`` field has its GEM reconstructed (doc/20) and the resulting
+    ``MetabolicModel`` + FBA fluxes are attached to the species so the
+    ecosystem tick loop uses FBA-backed growth instead of Monod kinetics
+    (doc/21 §3.3).
+
     Reads ``#sim`` keys (``ticks``/``seed``/``generations``/``fast_forward``/
-    ``community_fba``/``sample_every``/``evaluation_ticks``/...), the
-    ``#species`` table and the ``#patch`` table from ``sim_extensions``.
+    ``community_fba``/``sample_every``/``evaluation_ticks``/``gem_driven``/...),
+    the ``#species`` table and the ``#patch`` table from ``sim_extensions``.
     """
     ext = program.sim_extensions
     species = _build_ecosystem_species(ext)
     patches = _build_ecosystem_patches(ext)
+    gem_driven = _opt_bool(ext, "gem_driven", False)
     if not species:
         raise SimConfigError(
             "#sim kind=ecosystem requires at least one #species name=...")
     if not patches:
         raise SimConfigError(
             "#sim kind=ecosystem requires at least one #patch name=...")
+
+    # GEM bridge (doc/21): reconstruct metabolic models for species with genomes
+    if gem_driven:
+        _attach_gem_to_ecosystem_species(species, ext)
+
     config = EcosystemConfig(
         ticks=_opt_int(ext, "ticks", 4320),
         seed=_opt_int_or_none(ext, "seed", None),
@@ -1749,6 +1834,7 @@ def _run_ecosystem(program: Program) -> ScoreResult:
         scheduler_change_threshold=_opt_float(
             ext, "scheduler_change_threshold", 1e-4),
         community_fba=_opt_bool(ext, "community_fba", False),
+        gem_driven=gem_driven,
         sample_every=_opt_int(ext, "sample_every", 1),
         species=species,
         patches=patches,
@@ -1840,6 +1926,505 @@ def _run_population_dbtl(program: Program) -> ScoreResult:
             "fold_improvement": result["fold_improvement"],
         },
     )
+
+
+# ============================================================================
+# GEM reconstruction backend (doc/20)
+# ============================================================================
+def _run_gem(program: Program) -> SimResult:
+    """Run GEM reconstruction pipeline from #gem or #species genome data.
+
+    After reconstruction completes, builds a MetabolicModel from the
+    consensus result, sets exchange uptake bounds from the growth medium,
+    and runs FBA to predict growth rate and flux distribution.
+
+    Supports inline DNA sequences (doc/20 §12): if #gem has a DNA block
+    instead of genome=, the sequence is written to a temp FASTA file.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from helixlang.apps.gem_pipeline import run_gem_pipeline
+
+    ext = program.sim_extensions
+
+    # Priority: #gem fields > #species fields
+    genome_fasta = ext.get("gem_genome", "")
+    organism = ext.get("gem_organism", "e_coli_k12")
+    use_database = ext.get("gem_use_database", "true").lower() in ("true", "1", "yes")
+    include_spontaneous = ext.get("gem_include_spontaneous", "true").lower() in ("true", "1", "yes")
+    run_gapfill = ext.get("gem_gapfill", "true").lower() in ("true", "1", "yes")
+    target_organism = ext.get("gem_target_organism", "Escherichia coli")
+    medium_name = ext.get("gem_medium", "glucose_minimal")
+    dynamic = ext.get("gem_dynamic", "false").lower() in ("true", "1", "yes")
+    duration = float(ext.get("gem_duration", "24.0"))
+    dt = float(ext.get("gem_dt", "0.1"))
+    expression_enabled = ext.get("gem_expression", "false").lower() in ("true", "1", "yes")
+
+    # Handle inline DNA sequence (doc/20 §12)
+    inline_genome: str = ext.get("gem_inline_genome", "")
+    inline_genes_raw = ext.get("gem_inline_genes", [])
+    inline_genes: list[tuple[str, str]] = inline_genes_raw if isinstance(inline_genes_raw, list) else []
+    _tmp_fasta: Path | None = None
+    if inline_genome and not genome_fasta:
+        # Write inline DNA to a temp FASTA file
+        _tmp_fasta = Path(tempfile.mktemp(suffix=".fasta"))
+        if inline_genes and isinstance(inline_genes, list):
+            # Multi-gene FASTA: each gene gets its own header
+            lines: list[str] = []
+            for entry in inline_genes:
+                if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                    gene_id, seq = entry
+                    lines.append(f">{gene_id}\n{seq}")
+                else:
+                    lines.append(f">gene_{len(lines)}\n{entry}")
+            _tmp_fasta.write_text("\n".join(lines) + "\n")
+        else:
+            _tmp_fasta.write_text(f">{organism}\n{inline_genome}\n")
+        genome_fasta = str(_tmp_fasta)
+
+    # Fallback: check #species for genome
+    if not genome_fasta:
+        groups = _group_prefixed(ext, "species.")
+        for name, attrs in groups.items():
+            if "genome" in attrs:
+                genome_fasta = attrs["genome"]
+                if organism == "e_coli_k12":
+                    organism = name
+                break
+
+    if not genome_fasta:
+        raise SimConfigError(
+            "GEM backend requires either:\n"
+            "  #gem organism=<name> genome=<path>\n"
+            "  #gem organism=<name> (with inline DNA block)\n"
+            "  or #species name=<name> genome=<path>")
+
+    result = run_gem_pipeline(
+        genome_fasta=genome_fasta,
+        organism=organism,
+        use_database_interactions=use_database,
+        include_spontaneous=include_spontaneous,
+        run_gapfill=run_gapfill,
+        target_organism=target_organism,
+    )
+
+    # ---- Stage 6: FBA simulation ----
+    growth_rate = 0.0
+    fba_status = "skipped"
+    key_fluxes: dict[str, float] = {}
+    analysis: dict[str, Any] = {}
+    _extra_meta: dict[str, Any] = {}
+
+    if result.consensus is not None:
+        try:
+            from helixlang.gem.bridge import (
+                consensus_to_metabolic_model,
+                build_enzyme_capacity,
+                _parse_equation_to_stoich,
+            )
+            from helixlang.gem.biomass import build_biomass_reaction
+            from helixlang.metabolism import FluxBalanceAnalysis, Reaction
+
+            model = consensus_to_metabolic_model(result.consensus)
+
+            # Add gapfill reactions (exchange reactions from gap-filling)
+            if result.gapfill:
+                for rxn in result.gapfill.added_reactions:
+                    stoich = _parse_equation_to_stoich(rxn.equation)
+                    if stoich and rxn.reaction_id not in model.reactions:
+                        model.add_reaction(Reaction(
+                            id=rxn.reaction_id,
+                            name=rxn.reaction_id,
+                            stoichiometry=stoich,
+                            lower_bound=-1000.0,
+                            upper_bound=1000.0,
+                            subsystem="exchange",
+                    ))
+
+            # Add essential core reactions that bottom-up may miss
+            # (genes not in FASTA or EC mapping incomplete)
+            # NOTE: must run BEFORE transport so that core metabolites (o2,
+            # co2, etc.) exist in model.metabolites when transport reactions
+            # are checked.
+            _add_gem_core_reactions(model)
+
+            # Add transport reactions to connect exchange and internal compartments
+            _add_gem_transport_reactions(model)
+
+            # Add biomass reaction to the model
+            biomass = build_biomass_reaction(organism)
+            biomass_stoich: dict[str, float] = {}
+            for c in biomass.components:
+                # Strip compartment suffix (_c, _e, _p) to match model metabolites
+                met = c.metabolite_id
+                if met.endswith(("_c", "_e", "_p")):
+                    met = met[:-2]
+                # Only include metabolites present in the model
+                if met in model.metabolites or not model.metabolites:
+                    biomass_stoich[met] = (
+                        biomass_stoich.get(met, 0.0) + c.coefficient
+                    )
+            # Remove zero-coeff metabolites
+            biomass_stoich = {k: v for k, v in biomass_stoich.items() if abs(v) > 1e-12}
+            # Remove recycled cofactors that have no external source in the
+            # simplified model.  In full-genome models these are regenerated
+            # by biosynthesis pathways (amino-acid / nucleotide synthesis),
+            # but our reduced model (~30 reactions) lacks those pathways, so
+            # consuming nad/nadp/coa in biomass makes the LP infeasible.
+            _RECYCLED_COFACTORS = {"nad", "nadp", "coa"}
+            biomass_stoich = {
+                k: v for k, v in biomass_stoich.items()
+                if k not in _RECYCLED_COFACTORS
+            }
+            if biomass_stoich:
+                model.add_reaction(Reaction(
+                    id="BIOMASS_reaction",
+                    name="BIOMASS_reaction",
+                    stoichiometry=biomass_stoich,
+                    lower_bound=0.0,
+                    upper_bound=1000.0,
+                    subsystem="biomass",
+                ))
+                model.set_biomass("BIOMASS_reaction")
+
+            fba = FluxBalanceAnalysis(model)
+
+            # Wire expression inference if enabled (doc/20 §14)
+            _enzyme_levels: dict[str, float] = {}
+            if expression_enabled:
+                try:
+                    from helixlang.omics.expression_inference import (
+                        infer_expression,
+                        build_expression_model,
+                    )
+                    from helixlang.gem.grn_inference import GRNInferenceResult
+                    if isinstance(result.grn, GRNInferenceResult) and \
+                            result.grn.regulatory_edges:
+                        _enzyme_levels = infer_expression(
+                            grn_result=result.grn,
+                            annotations=result.annotations,
+                        )
+                        fba.set_enzyme_levels(_enzyme_levels)
+                except Exception as exc:
+                    result.warnings.append(
+                        f"Expression inference skipped: {exc}")
+
+            # Wire enzyme constraints if kcat predictions exist AND we
+            # have expression data (enzyme levels).  Without expression
+            # data the enzyme_levels dict is empty, causing _build_and_solve
+            # to cap every enzyme-gated reaction at ub = kc * 0 = 0,
+            # which flips glycolysis/TCA to the reverse direction and
+            # produces garbage FBA results.
+            if result.kcat_predictions and _enzyme_levels:
+                try:
+                    from helixlang.gem.bridge import build_enzyme_capacity
+                    ec = build_enzyme_capacity(
+                        result.consensus,
+                        result.kcat_predictions,
+                    )
+                    fba.set_enzyme_capacity(ec)
+                except Exception as exc:
+                    result.warnings.append(
+                        f"Enzyme capacity setup skipped: {exc}")
+
+            # Set exchange uptake bounds from medium preset or #media
+            _set_gem_medium(fba, medium_name, program, model)
+
+            if dynamic:
+                # ---- Dynamic FBA path (doc/20 §15) ----
+                from helixlang.metabolism import (
+                    DynamicFluxBalance, DynamicFBAConfig,
+                )
+                dyn_cfg = DynamicFBAConfig(
+                    dt_h=dt,
+                    initial_biomass_gdw=0.01,
+                    initial_glucose_mm=10.0,
+                    initial_acetate_mm=0.0,
+                )
+                batch = DynamicFluxBalance(model, config=dyn_cfg, fba=fba)
+                n_steps = max(1, int(duration / dt))
+                dyn_trajectory: list[dict] = []
+                for _ in range(n_steps):
+                    dyn_trajectory.append(batch.step())
+                # Summarise dynamic results
+                if dyn_trajectory:
+                    final_biomass = dyn_trajectory[-1].get(
+                        "biomass", dyn_trajectory[-1].get("total_biomass", 0.0))
+                    growth_rate = dyn_trajectory[-1].get(
+                        "growth_rate", dyn_trajectory[-1].get("mu", 0.0))
+                    key_fluxes = {
+                        k: round(v, 4)
+                        for k, v in dyn_trajectory[-1].items()
+                        if isinstance(v, (int, float)) and abs(v) > 1e-6
+                    }
+                else:
+                    final_biomass = 0.0
+                    growth_rate = 0.0
+                    key_fluxes = {}
+                fba_status = "ok"
+                _extra_meta["dynamic"] = True
+                _extra_meta["duration_h"] = duration
+                _extra_meta["dt_h"] = dt
+                _extra_meta["final_biomass"] = final_biomass
+                _extra_meta["trajectory_steps"] = len(dyn_trajectory)
+            else:
+                # ---- Static FBA path ----
+                fluxes = fba.solve(objective="biomass", maximize=True)
+                analysis = fba.analyze()
+                growth_rate = analysis.get("growth_rate_per_hour", 0.0)
+                key_fluxes = {
+                    k: round(v, 4)
+                    for k, v in analysis.get("key_fluxes", {}).items()
+                    if abs(v) > 1e-6
+                }
+                fba_status = "ok"
+        except Exception as exc:
+            fba_status = f"failed: {exc}"
+            result.warnings.append(f"FBA simulation failed: {exc}")
+
+    # Build output rows from pipeline stages
+    columns = [
+        "stage", "status", "genes_annotated", "reactions_total",
+        "grn_edges", "kcat_predictions", "km_estimates",
+    ]
+    rows: list[dict[str, Any]] = [
+        {
+            "stage": "annotation",
+            "status": "ok" if result.annotated_genes > 0 else "failed",
+            "genes_annotated": result.annotated_genes,
+            "reactions_total": 0,
+            "grn_edges": 0,
+            "kcat_predictions": 0,
+            "km_estimates": 0,
+        },
+        {
+            "stage": "reconstruction",
+            "status": "ok" if result.consensus else "failed",
+            "genes_annotated": result.annotated_genes,
+            "reactions_total": result.final_reaction_count,
+            "grn_edges": 0,
+            "kcat_predictions": 0,
+            "km_estimates": 0,
+        },
+        {
+            "stage": "grn",
+            "status": "ok" if result.grn else "skipped",
+            "genes_annotated": result.annotated_genes,
+            "reactions_total": result.final_reaction_count,
+            "grn_edges": result.grn.total_edges if result.grn else 0,
+            "kcat_predictions": 0,
+            "km_estimates": 0,
+        },
+        {
+            "stage": "kinetics",
+            "status": "ok",
+            "genes_annotated": result.annotated_genes,
+            "reactions_total": result.final_reaction_count,
+            "grn_edges": result.grn.total_edges if result.grn else 0,
+            "kcat_predictions": len(result.kcat_predictions),
+            "km_estimates": len(result.km_estimates),
+        },
+        {
+            "stage": "fba_simulation",
+            "status": fba_status,
+            "genes_annotated": result.annotated_genes,
+            "reactions_total": result.final_reaction_count,
+            "grn_edges": result.grn.total_edges if result.grn else 0,
+            "kcat_predictions": len(result.kcat_predictions),
+            "km_estimates": len(result.km_estimates),
+        },
+    ]
+
+    return SimResult(
+        backend="gem",
+        columns=columns,
+        rows=rows,
+        meta={
+            "organism": organism,
+            "medium": medium_name,
+            "stages_completed": result.stages_completed,
+            "growth_rate_per_hour": round(growth_rate, 4),
+            "biomass_yield": round(analysis.get("biomass_per_glucose", 0.0), 4),
+            "key_fluxes": key_fluxes,
+            "warnings": result.warnings,
+            "errors": result.errors,
+            "summary": result.summary(),
+            **_extra_meta,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Medium presets: metabolite -> uptake rate (mmol/gDW/h)
+# ---------------------------------------------------------------------------
+_MEDIUM_PRESETS: dict[str, dict[str, float]] = {
+    "glucose_minimal": {
+        "glc-D_e": 10.0,
+        "o2_e": 20.0,
+        "nh4_e": 1000.0,
+        "pi_e": 1000.0,
+        "h2o_e": 1000.0,
+        "h_e": 1000.0,
+    },
+    "lb": {
+        "glc-D_e": 10.0,
+        "o2_e": 20.0,
+        "nh4_e": 1000.0,
+        "pi_e": 1000.0,
+        "h2o_e": 1000.0,
+        "h_e": 1000.0,
+        "phe-L_e": 0.5,
+        "trp-L_e": 0.5,
+        "cys-L_e": 0.5,
+        "met-L_e": 0.5,
+        "tyr-L_e": 0.5,
+        "leu-L_e": 0.5,
+        "ile-L_e": 0.5,
+        "val-L_e": 0.5,
+        "ala-L_e": 0.5,
+        "gly_e": 0.5,
+        "ser-L_e": 0.5,
+        "thr-L_e": 0.5,
+        "asp-L_e": 0.5,
+        "glu-L_e": 0.5,
+        "gln-L_e": 0.5,
+        "arg-L_e": 0.5,
+        "lys-L_e": 0.5,
+        "his-L_e": 0.5,
+        "pro-L_e": 0.5,
+    },
+}
+
+
+def _set_gem_medium(
+    fba: Any,
+    medium_name: str,
+    program: Program,
+    model: Any,
+) -> None:
+    """Set exchange uptake bounds on a FluxBalanceAnalysis model.
+
+    If ``medium_name`` is a known preset, use it directly.
+    If ``medium_name`` is ``custom``, read ``#media`` annotations.
+    Otherwise fall back to ``glucose_minimal``.
+    """
+    if medium_name in _MEDIUM_PRESETS:
+        uptake = _MEDIUM_PRESETS[medium_name]
+    elif medium_name == "custom" and program.media:
+        uptake = {m.nutrient: m.concentration for m in program.media}
+    else:
+        uptake = _MEDIUM_PRESETS["glucose_minimal"]
+
+    for met, rate in uptake.items():
+        # Only set if the exchange reaction exists in the model
+        if fba.model.reactions:
+            fba.set_uptake(met, rate)
+
+
+def _add_gem_transport_reactions(model: Any) -> None:
+    """Add transport reactions connecting extracellular exchange to internal metabolites.
+
+    The gapfill adds exchange reactions using ``_e`` metabolites, but internal
+    reactions use bare names (no compartment suffix).  Transport reactions
+    bridge the two compartments so FBA can route flux from uptake into
+    central metabolism.
+    """
+    from helixlang.metabolism import Reaction
+
+    # Map: exchange metabolite -> internal metabolite + transport reaction ID
+    # Glucose: glc-D_e -> g6p (transport + hexokinase combined)
+    # Oxygen: o2_e -> (used in respiration, no single internal target)
+    # Ammonium: nh4_e -> (used in amino acid biosynthesis)
+    # Phosphate: pi_e -> pi (already connected via internal pi)
+    # Water: h2o_e -> h2o (already connected via internal h2o)
+    transport_reactions = [
+        ("GLCtex", {"glc-D_e": -1.0, "g6p": 1.0}),
+        ("NH4t", {"nh4_e": -1.0, "nh4": 1.0}),
+        ("PIt2r", {"pi_e": -1.0, "pi": 1.0}),
+        ("H2Ot", {"h2o_e": -1.0, "h2o": 1.0}),
+        ("O2t", {"o2_e": -1.0, "o2": 1.0}),
+        ("CO2t", {"co2": -1.0, "co2_e": 1.0}),
+    ]
+
+    # Ensure EX_co2_e exchange reaction exists (CO2 export to environment)
+    if "EX_co2_e" not in model.reactions and "co2_e" in model.metabolites:
+        from helixlang.metabolism import Reaction as _Rxn
+        model.add_reaction(_Rxn(
+            id="EX_co2_e", name="CO2 exchange",
+            stoichiometry={"co2_e": -1.0},
+            lower_bound=0.0, upper_bound=1000.0,
+            subsystem="exchange",
+        ))
+    elif "EX_co2_e" not in model.reactions and "co2_e" not in model.metabolites:
+        # co2_e doesn't exist yet; create it so CO2t + EX_co2_e work
+        model.metabolites.add("co2_e")
+        from helixlang.metabolism import Reaction as _Rxn
+        model.add_reaction(_Rxn(
+            id="EX_co2_e", name="CO2 exchange",
+            stoichiometry={"co2_e": -1.0},
+            lower_bound=0.0, upper_bound=1000.0,
+            subsystem="exchange",
+        ))
+
+    for rxn_id, stoich in transport_reactions:
+        met_set = set(stoich.keys()) & model.metabolites
+        if len(met_set) >= 2:
+            if rxn_id not in model.reactions:
+                filtered = {k: v for k, v in stoich.items() if k in model.metabolites}
+                if filtered:
+                    model.add_reaction(Reaction(
+                        id=rxn_id,
+                        name=rxn_id,
+                        stoichiometry=filtered,
+                        lower_bound=-1000.0,
+                        upper_bound=1000.0,
+                        subsystem="transport",
+                    ))
+
+
+def _add_gem_core_reactions(model: Any) -> None:
+    """Add essential core reactions that bottom-up may miss.
+
+    Some critical reactions (respiratory chain, TCA cycle links) may not be
+    picked up by bottom-up reconstruction because the genes are not in the
+    input FASTA or the EC mapping is incomplete.  This function adds them
+    if their metabolites are all present in the model.
+    """
+    from helixlang.metabolism import Reaction
+
+    core_reactions = [
+        # TCA cycle: aconitase (citrate ↔ isocitrate via cis-aconitate)
+        ("ACONa", {"cit": -1.0, "acon-C": 1.0, "h2o": 1.0}),
+        ("ACONb", {"acon-C": -1.0, "h2o": -1.0, "icit": 1.0}),
+        # Isocitrate dehydrogenase (TCA: isocitrate → α-ketoglutarate)
+        ("ICDH", {"icit": -1.0, "nadp": -1.0, "akg": 1.0, "co2": 1.0, "nadph": 1.0}),
+        # Succinate dehydrogenase (TCA cycle link: succ → fum)
+        ("SDH", {"succ": -1.0, "fum": 1.0}),
+        # Glycolysis: phosphoglycerate mutase (3pg ↔ 2pg)
+        ("PGM", {"3pg": -1.0, "2pg": 1.0}),
+        # NADH dehydrogenase / respiratory chain (NADH → NAD regeneration)
+        ("CYTBD", {"nadh": -1.0, "o2": -0.5, "nad": 1.0, "h2o": 0.5}),
+        # Transhydrogenase (NADPH ↔ NADP regeneration for biomass)
+        ("THD2", {"nadph": -1.0, "nad": -1.0, "nadp": 1.0, "nadh": 1.0}),
+    ]
+
+    for rxn_id, stoich in core_reactions:
+        # Remove existing reaction with same id if present
+        if rxn_id in model.reactions:
+            del model.reactions[rxn_id]
+        # Ensure all metabolites exist in the model
+        for met in stoich:
+            if met not in model.metabolites:
+                model.metabolites.add(met)
+        model.add_reaction(Reaction(
+            id=rxn_id,
+            name=rxn_id,
+            stoichiometry=stoich,
+            lower_bound=-1000.0,
+            upper_bound=1000.0,
+            subsystem="core",
+        ))
 
 
 _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {

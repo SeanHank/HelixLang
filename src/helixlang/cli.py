@@ -93,6 +93,15 @@ def main(argv: list[str] | None = None) -> int:
                    help="--compile without embedding the precompiled chunk")
     p.add_argument("--no-source", action="store_true",
                    help="--compile without embedding the original source")
+    # GEM reconstruction pipeline (doc/20)
+    p.add_argument("--gem", action="store_true",
+                   help="run GEM reconstruction pipeline from #species genome data")
+    p.add_argument("--dynamic", action="store_true",
+                   help="use dynamic FBA (time-course) mode with GEM backend")
+    p.add_argument("--duration", metavar="HOURS", type=float, default=24.0,
+                   help="simulation duration in hours for --dynamic mode (default: 24)")
+    p.add_argument("--dt", metavar="HOURS", type=float, default=0.1,
+                   help="time step in hours for --dynamic mode (default: 0.1)")
     args = p.parse_args(argv)
 
     # ----- Web mode -----
@@ -205,7 +214,16 @@ def main(argv: list[str] | None = None) -> int:
     # ----- Simulation backends (wiring.md §9) -----
     if args.ticks is not None:
         program.config.ticks = args.ticks
-    effective_backend = args.backend or program.config.backend
+    # --gem flag forces GEM backend
+    if args.gem:
+        effective_backend = "gem"
+    else:
+        effective_backend = args.backend or program.config.backend
+    # Wire --dynamic through sim_extensions
+    if args.dynamic:
+        program.sim_extensions["gem_dynamic"] = "true"
+        program.sim_extensions["gem_duration"] = str(args.duration)
+        program.sim_extensions["gem_dt"] = str(args.dt)
     if not args.disassemble and (
             program.sim_extensions.get("kind") in _SIM_BACKENDS
             or effective_backend != "classic"):

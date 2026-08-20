@@ -2,7 +2,7 @@
 
 ## Current-State Audit and Next-Step Design
 
-Status: **assessment + design, Phases A–D landed** (2026-08). This document
+Status: **assessment + design, Phases A–D landed; GEM↔Ecosystem bridge landed** (2026-08). This document
 is an audit of how far the
 codebase already goes toward the end-to-end vision — *starting from the
 complete genetic code (ATCG) of an organism and simulating its entire life and
@@ -12,7 +12,7 @@ the literature citations already used across the project (full list in §10).
 The design plan in §5 is grounded in the multi-species / multi-population /
 multi-environment modeling literature (mapping table in §5.2).
 
-Target version: 2026.8.2 (45 `.helix` examples, 72 test files, quality gates
+Target version: 2026.8.3 (48 `.helix` examples, 72 test files, quality gates
 `ruff check src tests` + `mypy` + `pytest --cov-fail-under=80`).
 
 Landing (Phases A–D): `apps/ecosystem.py` `Species`/`Patch`/`Ecosystem` spine
@@ -623,10 +623,24 @@ turnover, energy flow, trophic efficiency, the O₂/CO₂/temperature
 trajectories, the fitness axes, the neutral-vs-niche label, and the changed
 genomes — i.e., **a single run in which complete ATCG genomes, through their
 own life processes, change a multi-patch environment, and that changed
-environment selects the next generation’s genomes.** Every hop of that loop
+environment selects the next generation's genomes.** Every hop of that loop
 already exists in the codebase today except the ecology layer and the
 environmental dynamics; this plan adds those two layers (grounded in the
 methods of §5.2) and the integration spine to run the loop end to end.
+
+### 8.1 GEM↔Ecosystem bridge (doc/21, landed)
+
+The bridge closes the final integration gap: a single `.helix` source can now
+specify `#species name=ecoli genome=ecoli.fasta` alongside `#sim kind=ecosystem gem_driven=true`,
+and the system automatically:
+
+1. Runs the GEM pipeline (doc/20, 6 stages) on each species' genome
+2. Extracts metabolic parameters (vmax, ks, yield_c, secretion, cn_ratio, maintenance) from the FBA solution
+3. Attaches the `MetabolicModel` to each `Species`
+4. Uses FBA-backed growth (`Patch._growth_rate_gem()`) instead of Monod kinetics in the tick loop
+5. Falls back to Monod if the GEM pipeline fails or `gem_driven=false`
+
+**Landed files:** `apps/ecosystem.py` (`gem_to_species()`, `Species.metabolic_model`, `_growth_rate_gem()`, `EcosystemConfig.gem_driven`); `sim_runtime.py` (`_attach_gem_to_ecosystem_species()`, `_run_ecosystem()` wired). **Tests:** all 2233 pass; mypy clean.
 
 ---
 

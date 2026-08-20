@@ -1156,12 +1156,19 @@ class FluxBalanceAnalysis:
                 # an EX reaction involves only 1 metabolite; its sign
                 # determines the direction
                 for met, coef in rxn.stoichiometry.items():
-                    if met in self.uptake_limits and coef > 0:
-                        # coef > 0 means the reaction "produces" this
-                        # metabolite (i.e. uptake); set_uptake explicitly
-                        # overrides the upper bound (default 0 -> enables
-                        # uptake)
-                        ub = self.uptake_limits[met]
+                    if met in self.uptake_limits:
+                        if coef > 0:
+                            # coef > 0 means the reaction "produces" this
+                            # metabolite (i.e. uptake); set_uptake explicitly
+                            # overrides the upper bound (default 0 -> enables
+                            # uptake)
+                            ub = self.uptake_limits[met]
+                        elif coef < 0:
+                            # coef < 0 means the reaction "consumes" this
+                            # metabolite (i.e. secretion). A negative flux
+                            # value represents uptake, so clamp the lower
+                            # bound to -uptake_limit.
+                            lb = max(lb, -self.uptake_limits[met])
             # MOMENT enzyme capacity: v_i <= kcat_i * E_i * enzyme_scale
             if ec is not None and rid in ec.kcat:
                 kc = ec.kcat[rid]
@@ -1169,14 +1176,16 @@ class FluxBalanceAnalysis:
                     e_level: float | None = None
                     for gene, rids in ec.gene_to_reactions.items():
                         if rid in rids:
-                            # a reaction gated by several genes (complex /
-                            # sequential enzymes) is limited by the minimum
-                            # subunit abundance (conservative MOMENT rule)
-                            if e_level is None:
-                                e_level = self.enzyme_levels.get(gene, 0.0)
-                            else:
-                                e_level = min(
-                                    e_level, self.enzyme_levels.get(gene, 0.0))
+                         # a reaction gated by several genes (complex /
+                             # sequential enzymes) is limited by the minimum
+                             # subunit abundance (conservative MOMENT rule)
+                         if e_level is None:
+                             _default = 1.0 if not self.enzyme_levels else 0.0
+                             e_level = self.enzyme_levels.get(gene, _default)
+                         else:
+                             _default = 1.0 if not self.enzyme_levels else 0.0
+                             e_level = min(
+                                 e_level, self.enzyme_levels.get(gene, _default))
                     if e_level is not None:
                         cap = kc * e_level * ec.enzyme_scale
                         ub = min(ub, cap)
@@ -1274,13 +1283,15 @@ class FluxBalanceAnalysis:
         sol = self.last_solution or {}
         bm_rxn = self.model.biomass_reaction
         biomass_flux = sol.get(bm_rxn, 0.0) if bm_rxn else 0.0
-        glc_uptake = sol.get("EX_glc", 0.0)
+        # Try both naming conventions: "EX_glc" (core model) and "EX_glc_e"
+        # (gapfill / GEM-reconstructed models that use _e suffix metabolites)
+        glc_uptake = sol.get("EX_glc", 0.0) or sol.get("EX_glc_e", 0.0)
 
-        # byproducts
+        # byproducts (try both naming conventions)
         byproducts = {
-            "lactate": sol.get("EX_lac", 0.0),
-            "acetate": sol.get("EX_ac", 0.0),
-            "co2": sol.get("EX_co2", 0.0),
+            "lactate": sol.get("EX_lac", 0.0) or sol.get("EX_lac_e", 0.0),
+            "acetate": sol.get("EX_ac", 0.0) or sol.get("EX_ac_e", 0.0),
+            "co2": sol.get("EX_co2", 0.0) or sol.get("EX_co2_e", 0.0),
         }
 
         # key fluxes (representative reactions picked per subsystem)
@@ -1297,8 +1308,10 @@ class FluxBalanceAnalysis:
             v = abs(sol.get(rid, 0.0))
             subsystem_flux[rxn.subsystem] = subsystem_flux.get(rxn.subsystem, 0.0) + v
 
-        # biomass/glucose ratio
-        bg_ratio = (biomass_flux / glc_uptake) if glc_uptake > 1e-9 else 0.0
+        # biomass/glucose ratio (glc_uptake is negative for uptake via
+        # coef=-1 exchange convention; use abs for yield calculation)
+        abs_glc = abs(glc_uptake)
+        bg_ratio = (biomass_flux / abs_glc) if abs_glc > 1e-9 else 0.0
 
         # energy balance: ATP production = substrate-level
         # phosphorylation + oxidative phosphorylation
@@ -1350,6 +1363,7 @@ _EX_BIOMASS = "EX_biomass"
 # acetate exchange + PTA/ACK + glyoxylate-shunt reaction ids for the
 # acetate-switch activation (Wolfe 2005, MMBR 69:12-50)
 _EX_AC = "EX_ac"
+_EX_O2 = "EX_o2"
 _ICL = "ICL"
 _MAS = "MAS"
 _ACS = "ACS"
@@ -1390,6 +1404,37 @@ def activate_acetate_switch(model: MetabolicModel) -> None:
             reactions[rid].upper_bound = 1000.0
     if _EX_AC in reactions:
         reactions[_EX_AC].lower_bound = -10.0
+
+
+@dataclass
+class DynamicSimulationResult:
+    """Time-course trajectory from dFBA (doc/20 §15.6)."""
+    time_points: list[float] = field(default_factory=list)
+    biomass: list[float] = field(default_factory=list)
+    substrates: dict[str, list[float]] = field(default_factory=dict)
+    byproducts: dict[str, list[float]] = field(default_factory=dict)
+    growth_rates: list[float] = field(default_factory=list)
+    fluxes: list[dict[str, float]] = field(default_factory=list)
+    final_biomass: float = 0.0
+    doubling_time: float = 0.0
+    diauxic_shift: bool | None = None
+
+
+@dataclass
+class FeedEvent:
+    """Nutrient feeding event for fed-batch simulation (doc/20 §16.2).
+
+    Attributes
+    ----------
+    time_h : when to apply the feed (hours)
+    metabolite : exchange metabolite id (e.g. "EX_glc")
+    amount_mmol : mmol of substrate to add per unit volume
+    dilution : volume dilution factor (0 = no dilution, typical for fed-batch)
+    """
+    time_h: float
+    metabolite: str
+    amount_mmol: float
+    dilution: float = 0.0
 
 
 @dataclass(slots=True)
@@ -1438,6 +1483,15 @@ class DynamicFBAConfig:
     min_biomass: float = 1e-9
     acetate_switch: bool = False
     acetate_switch_threshold_mm: float = 0.5
+    # Multi-substrate support (doc/20 §15.4)
+    initial_oxygen_mm: float = 20.0
+    oxygen_half_saturation_mm: float = 0.02
+    max_oxygen_uptake: float = 20.0
+    # Fed-batch / chemostat mode (doc/20 §16)
+    feed_events: list[FeedEvent] = field(default_factory=list)
+    chemostat: bool = False
+    chemostat_dilution_rate: float = 0.0  # h^-1 (0 = batch mode)
+    chemostat_feed_concentrations: dict[str, float] = field(default_factory=dict)
 
 
 class DynamicFluxBalance:
@@ -1524,8 +1578,10 @@ class DynamicFluxBalance:
         self.byproducts_mm: dict[str, float] = {
             pool: (cfg.initial_acetate_mm if pool == "acetate" else 0.0)
             for pool in self._byproduct_pools}
+        self.byproducts_mm.setdefault("oxygen", cfg.initial_oxygen_mm)
         self.history: list[dict[str, float]] = []
         self.last_fluxes: dict[str, float] = {}
+        self._feed_events_applied: set[int] = set()
 
     def set_state(self,
                   biomass_gdw: float | None = None,
@@ -1549,6 +1605,21 @@ class DynamicFluxBalance:
         return (cfg.max_glucose_uptake * glucose_mm
                 / (cfg.glucose_half_saturation_mm + glucose_mm))
 
+    def oxygen_uptake_bound(self, oxygen_mm: float) -> float:
+        """Michaelis-Menten oxygen-uptake bound (multi-substrate dFBA)."""
+        cfg = self.config
+        if oxygen_mm <= 0.0:
+            return 0.0
+        return (cfg.max_oxygen_uptake * oxygen_mm
+                / (cfg.oxygen_half_saturation_mm + oxygen_mm))
+
+    def _set_oxygen_uptake_bound(self, oxygen_mm: float) -> None:
+        """Set the EX_o2 upper bound from the oxygen pool (MM kinetics)."""
+        if _EX_O2 not in self.fba.model.reactions:
+            return
+        bound = self.oxygen_uptake_bound(oxygen_mm)
+        self.fba.model.reactions[_EX_O2].upper_bound = bound
+
     def _apply_bounds(self, bounds: dict[str, float]) -> None:
         """Apply dynamic reaction-bound overrides for the next LP solve.
 
@@ -1560,6 +1631,58 @@ class DynamicFluxBalance:
                 self.fba.set_uptake("GLC", float(bound))
             elif rid in self.fba.model.reactions:
                 self.fba.model.reactions[rid].upper_bound = float(bound)
+
+    # -------- feed events & chemostat (doc/20 §16) --------
+
+    def _apply_feed_events(self) -> None:
+        """Apply any scheduled feed events at the current time."""
+        cfg = self.config
+        for idx, evt in enumerate(cfg.feed_events):
+            if idx in self._feed_events_applied:
+                continue
+            if self.time_h >= evt.time_h:
+                if evt.metabolite == _EX_GLC:
+                    self.glucose_mm += evt.amount_mmol
+                elif evt.metabolite == _EX_O2:
+                    o2 = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
+                    self.byproducts_mm["oxygen"] = o2 + evt.amount_mmol
+                elif evt.metabolite == _EX_AC:
+                    ac = self.byproducts_mm.get("acetate", cfg.initial_acetate_mm)
+                    self.byproducts_mm["acetate"] = ac + evt.amount_mmol
+                if evt.dilution > 0.0:
+                    factor = 1.0 - evt.dilution
+                    self.biomass_gdw *= factor
+                    self.glucose_mm *= factor
+                    for pool in self._byproduct_pools:
+                        if pool in self.byproducts_mm:
+                            self.byproducts_mm[pool] *= factor
+                self._feed_events_applied.add(idx)
+
+    def _apply_chemostat_step(self, dt_h: float) -> None:
+        """Apply chemostat dilution and continuous feeding (doc/20 §16.3).
+
+        The chemostat replaces a fraction (dilution_rate * dt) of the
+        culture volume with fresh medium at each time step.
+        """
+        cfg = self.config
+        if not cfg.chemostat or cfg.chemostat_dilution_rate <= 0.0:
+            return
+        dilution_per_step = cfg.chemostat_dilution_rate * dt_h
+        factor = 1.0 - dilution_per_step
+        self.biomass_gdw *= factor
+        self.glucose_mm *= factor
+        for pool in self._byproduct_pools:
+            if pool in self.byproducts_mm:
+                self.byproducts_mm[pool] *= factor
+        for met, conc in cfg.chemostat_feed_concentrations.items():
+            if met == "glucose" or met == _EX_GLC:
+                self.glucose_mm += dilution_per_step * conc
+            elif met == "oxygen" or met == _EX_O2:
+                o2 = self.byproducts_mm.get("oxygen", 0.0)
+                self.byproducts_mm["oxygen"] = o2 + dilution_per_step * conc
+            elif met == "acetate" or met == _EX_AC:
+                ac = self.byproducts_mm.get("acetate", 0.0)
+                self.byproducts_mm["acetate"] = ac + dilution_per_step * conc
 
     # -------- integration --------
 
@@ -1574,8 +1697,13 @@ class DynamicFluxBalance:
         dt = cfg.dt_h if dt_h is None else dt_h
         S = self.glucose_mm
         self.fba.set_uptake("GLC", self.uptake_bound(S))
+        if _EX_O2 in self.fba.model.reactions:
+            o2_pool = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
+            self._set_oxygen_uptake_bound(o2_pool)
         if cfg.acetate_switch:
             self._apply_acetate_switch_bounds(S, dt)
+        self._apply_feed_events()
+        self._apply_chemostat_step(dt)
         if self.bound_override is not None:
             self._apply_bounds(self.bound_override(self.time_h, self))
         sol = self.fba.solve()
@@ -1647,6 +1775,11 @@ class DynamicFluxBalance:
         removed = min(v_glc * X * dt, S)
         self.biomass_gdw = X + mu * X * dt
         self.glucose_mm = S - removed
+        if _EX_O2 in self.fba.model.reactions:
+            v_o2 = sol.get(_EX_O2, 0.0)
+            o2_pool = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
+            o2_removed = min(v_o2 * X * dt, o2_pool)
+            self.byproducts_mm["oxygen"] = max(0.0, o2_pool - o2_removed)
         for rid, pool in self._byproduct_ex.items():
             v = sol.get(rid, 0.0)
             dP = v * X * dt
@@ -1668,6 +1801,8 @@ class DynamicFluxBalance:
         }
         for pool in self._byproduct_pools:
             entry[pool] = self.byproducts_mm[pool]
+        if "oxygen" in self.byproducts_mm:
+            entry["oxygen"] = self.byproducts_mm["oxygen"]
         self.history.append(entry)
         return entry
 
@@ -1709,6 +1844,28 @@ class DynamicFluxBalance:
     def last(self) -> dict[str, float]:
         """Latest history entry."""
         return self.history[-1]
+
+    def to_simulation_result(self) -> DynamicSimulationResult:
+        """Convert history to DynamicSimulationResult."""
+        result = DynamicSimulationResult()
+        for entry in self.history:
+            result.time_points.append(entry.get("time", 0.0))
+            result.biomass.append(entry.get("biomass", entry.get("total_biomass", 0.0)))
+            result.growth_rates.append(entry.get("growth_rate", entry.get("mu", 0.0)))
+            # Collect substrate/byproduct data
+            for k, v in entry.items():
+                if isinstance(v, (int, float)):
+                    if k.startswith("total_"):
+                        name = k[6:]
+                        result.substrates.setdefault(name, []).append(v)
+        if result.biomass:
+            result.final_biomass = result.biomass[-1]
+        if len(result.biomass) >= 2 and result.biomass[0] > 0:
+            # Estimate doubling time from growth curve
+            import math
+            if result.final_biomass > result.biomass[0]:
+                result.doubling_time = math.log(2) / max(result.growth_rates[-1], 1e-10)
+        return result
 
     # -------- environment coupling --------
 
@@ -1946,6 +2103,8 @@ __all__ = [
     # solvers
     "FluxBalanceAnalysis",
     "DynamicFBAConfig",
+    "FeedEvent",
+    "DynamicSimulationResult",
     "DynamicFluxBalance",
     "MetabolicProxy",
     # simplex

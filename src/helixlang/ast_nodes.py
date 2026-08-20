@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -153,4 +154,4 @@ class Program:
     enzymes: list[EnzymeDecl] = field(default_factory=list)
     pools: list[PoolDecl] = field(default_factory=list)
     # Open #sim key=value extension point (forward-compatible long-tail hook)
-    sim_extensions: dict[str, str] = field(default_factory=dict)
+    sim_extensions: dict[str, Any] = field(default_factory=dict)

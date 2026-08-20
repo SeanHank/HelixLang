@@ -1,0 +1,31 @@
+# ==============================================================================
+# Example 47: E. coli K-12 MG1655 Genome-Scale Metabolic Model Simulation
+# ==============================================================================
+#
+# This example reconstructs and simulates the metabolism of Escherichia coli
+# K-12 MG1655 using the GEM pipeline. All gene sequences are real E. coli
+# MG1655 sequences from NCBI RefSeq NC_000913.3.
+#
+# The pipeline performs:
+#   Stage 1: Genome import (protein FASTA with real E. coli sequences)
+#   Stage 2: Functional annotation (EC numbers, KEGG KOs)
+#   Stage 3: Metabolic network reconstruction (bottom-up + top-down + consensus)
+#   Stage 4: GRN inference (TF detection + regulatory interactions)
+#   Stage 5: Kinetic parameter estimation (kcat/Km from EC class medians)
+#   Stage 6: Gap-filling + Flux Balance Analysis (FBA)
+#
+# Input: E. coli MG1655 core metabolism proteome (46 real proteins)
+#        covering glycolysis, TCA cycle, pentose phosphate, fermentation,
+#        anaplerotic reactions, and global transcriptional regulators.
+#
+# Growth medium: glucose minimal (10 mmol/L glucose, 20 mmol/L O2)
+# Expected growth rate: ~0.35 h^-1 (consistent with E. coli in minimal medium)
+#
+# Reference: Orth et al. (2011) E. coli genome-scale metabolic model.
+# ==============================================================================
+
+#gem organism=e_coli_k12 genome=data/ecoli_core_genome.fasta medium=glucose_minimal use_database=true include_spontaneous=true gapfill=true dynamic=true duration=24.0 dt=0.1 expression=true target_organism=Escherichia coli
+
+#config backend=gem ticks=1
+
+#sim output=stage,status,genes_annotated,reactions_total,grn_edges,kcat_predictions,km_estimates

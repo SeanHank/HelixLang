@@ -117,6 +117,80 @@ def parse_regulondb(text: str) -> list[tuple[str, str, float]]:
     return edges
 
 
+def parse_regulondb_full(text: str) -> list[tuple[str, str, float]]:
+    """Parse a RegulonDB Network Science flat file (full format).
+
+    Supports the Tab-delimited flat file downloaded from RegulonDB
+    (https://regulondb.ccg.unam.mx/menu/download/datasets/files/network_tf_gene.txt.gz).
+
+    Expected columns (tab-separated, header row starting with '#' is skipped):
+      regulator<TAB>regulon<TAB>active conformation<TAB>TF-site
+      <TAB>promoter<TAB>effect<TAB>confidence<TAB>evidence<TAB>note
+
+    The ``effect`` column is parsed for sign:
+      - Contains '+' → activation (weight = +1.0)
+      - Contains '-' → repression (weight = -1.0)
+      - Numeric value → used directly as weight
+      - Empty/unknown → skipped
+
+    Also supports the simpler 3-column format of parse_regulondb for
+    backward compatibility.
+    """
+    edges: list[tuple[str, str, float]] = []
+    header_seen = False
+    for line in str(text).splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            header_seen = True
+            continue
+        cols = line.split("\t")
+        if len(cols) < 3:
+            continue
+        reg = cols[0].strip()
+        target = cols[1].strip()
+        effect = cols[2].strip() if len(cols) > 2 else ""
+
+        # Skip header rows
+        if not header_seen and reg.lower() in ("regulator", "tf"):
+            header_seen = True
+            continue
+        header_seen = True
+
+        # Parse effect
+        weight = _parse_regulondb_effect(effect)
+        if weight == 0.0:
+            continue
+        edges.append((reg, target, weight))
+    return edges
+
+
+def _parse_regulondb_effect(effect: str) -> float:
+    """Parse a RegulonDB effect value into a signed weight."""
+    if not effect or effect.lower() in ("unknown", "indeterminate", ""):
+        return 0.0
+    effect = effect.strip().lower()
+    if effect in ("+", "activation", "activator", "act"):
+        return 1.0
+    if effect in ("-", "repression", "repressor", "rep", "repress"):
+        return -1.0
+    # Try numeric
+    try:
+        return float(effect)
+    except ValueError:
+        # Check for +/- prefix with numeric value
+        if effect.startswith("+"):
+            try:
+                return float(effect[1:])
+            except ValueError:
+                return 1.0
+        if effect.startswith("-"):
+            try:
+                return -float(effect[1:])
+            except ValueError:
+                return -1.0
+    return 0.0
+
+
 def b_number(i: int) -> str:
     """E. coli b-number gene name (``b0001``, ``b0002``, ...)."""
     return f"b{i:04d}"

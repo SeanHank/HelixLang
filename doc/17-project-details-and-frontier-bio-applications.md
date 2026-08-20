@@ -4,8 +4,8 @@ This document collects the design and implementation sections of the HelixLang w
 what happens when a program is compiled and run (§3), the software architecture (§4),
 worked examples (§5), how the toolset maps onto frontier biology problems (§8), and the
 per-problem solution designs that were delivered (§9). Each section is self-contained.
-Writing date: 2026-08 · Baseline: 2134 tests, ≈89% coverage, `ruff` + `mypy` clean
-(revision 2026.8.2).
+Writing date: 2026-08 · Baseline: 2233 tests, ≈89% coverage, `ruff` + `mypy` clean
+(revision 2026.8.3 — GEM↔Ecosystem bridge landed, doc/21).
 
 ## Table of Contents
 
@@ -163,6 +163,8 @@ the §9 solution designs, the three extension directions, and the §13 designs o
 | `genome_scale.py` | Genome-scale GRN builder + colony closure: ~4300-ORF per-cell GRN + FBA gating (doc/18 §13 Design 5) |
 | `whole_cell_scale.py` | Whole-genome scale: FASTA genome loading + KO→FBA gene essentiality screening |
 | `whole_cell_calibration.py` | Whole-cell parameter calibration loop: invert adder/k_fold/enzyme_scale/maintenance from mixed observables (growth curve + protein abundance + cell size + biomass flux) (Karr 2012 DREAM8 weighted fitting, aligned with Virtual Cell Challenge 2025) |
+| `gem_pipeline.py` | GEM reconstruction pipeline (doc/20): 6-stage genome→annotation→GRN→kinetics→model→FBA; `run_gem_pipeline()` orchestrates bottom-up + top-down + consensus + gapfill + expression inference |
+| `ecosystem.py` | Multi-species multi-patch ecosystem (doc/19): `Species`/`Patch`/`Ecosystem` spine, Monod uptake, Lotka-Volterra predation, CENTURY litter/SOM pools, community FBA, event-driven `Scheduler`, invasion-fitness evolution loop; **GEM↔Ecosystem bridge** (doc/21): `gem_to_species()`, `Species.metabolic_model`, `Patch._growth_rate_gem()` for FBA-backed growth when `gem_driven=true` |
 
 - `dna_codec.py`: Goldman rotated-key encoding (≈5.05 trits/byte) and Erlich DNA Fountain
   (≈1.57 bit/nt, near the Shannon limit).

@@ -76,6 +76,7 @@ class Parser:
                     "genome": self._parse_genome,
                     "species": self._parse_species,
                     "patch": self._parse_patch,
+                    "gem": self._parse_gem,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -85,8 +86,52 @@ class Parser:
                     raise ParseError(f"unknown annotation #{t.value}",
                                      line=t.line, col=t.col)
                 handler(prog)
+                # After #gem, consume any inline DNA block (GENE_ID + CODON)
+                if t.value == "gem" and self._peek() and \
+                        self._peek().kind in ("GENE_ID", "CODON", "NEWLINE"):
+                    # Skip leading NEWLINEs
+                    while self._peek() and self._peek().kind == "NEWLINE":
+                        self._advance()
+                    # We're in an inline DNA block — collect genes + sequences
+                    gene_entries: list[list[str]] = []
+                    current_gene_id: str | None = None
+                    codons: list[str] = []
+                    while self._peek().kind in ("GENE_ID", "CODON", "NEWLINE"):
+                        if self._peek().kind == "NEWLINE":
+                            self._advance()
+                            continue
+                        if self._peek().kind == "GENE_ID":
+                            if codons:
+                                gene_entries.append([
+                                    current_gene_id or f"gene_{len(gene_entries)}",
+                                    "".join(codons),
+                                ])
+                                codons = []
+                            gt = self._advance()
+                            current_gene_id = gt.value
+                        else:
+                            ct = self._advance()
+                            codons.append(ct.value)
+                    if codons:
+                        gene_entries.append([
+                            current_gene_id or f"gene_{len(gene_entries)}",
+                            "".join(codons),
+                        ])
+                    if gene_entries:
+                        prog.sim_extensions["gem_inline_genes"] = gene_entries
+                        prog.sim_extensions["gem_inline_genome"] = "".join(
+                            s for _, s in gene_entries
+                        )
+                    # Consume #end if present
+                    if self._peek() and self._peek().kind == "ANNOT_END":
+                        self._advance()
+                    # Consume trailing NEWLINE
+                    if self._peek() and self._peek().kind == "NEWLINE":
+                        self._advance()
             elif t.kind == "CODON":
                 prog.genes.append(self._wrap_anon_gene())
+            elif t.kind == "NEWLINE":
+                pass  # skip blank lines
             else:
                 raise ParseError(f"unexpected token {t.kind} ({t.value!r})",
                                  line=t.line, col=t.col)
@@ -425,6 +470,100 @@ class Parser:
             if k != "name":
                 prog.sim_extensions[f"species.{name}.{k}"] = v
 
+    def _parse_gem(self, prog: Program) -> None:
+        """Parse #gem organism=... [genome=... | DNA block].
+
+        GEM reconstruction pipeline declaration (doc/20 §6.5).
+        Fields are namespaced into ``Program.sim_extensions`` under ``gem_``:
+
+            #gem organism=e_coli_k12 genome=genome.fasta
+            #gem organism=b_subtilis use_database=true include_spontaneous=true
+
+        **Inline DNA support** (doc/20 §12): the genome can be given as a
+        DNA code block (ATCG sequences) instead of a ``genome=`` file path:
+
+            #gem organism=e_coli_k12
+            ATGAAACGCATTAGCACCACCATTACCACCACCATCAC...
+            #end
+
+        The DNA block is concatenated and stored as ``gem_inline_genome``
+        (a FASTA-formatted string written to a temp file at runtime).
+
+        Supported fields: ``organism`` (organism identifier),
+        ``genome`` (path to genome FASTA file),
+        ``use_database`` (use known regulatory interactions, default true),
+        ``include_spontaneous`` (include spontaneous reactions, default true),
+        ``gapfill`` (run gap-filling, default true),
+        ``target_organism`` (target organism for BRENDA lookup),
+        ``medium`` (growth medium preset: ``glucose_minimal``, ``lb``, or
+        ``custom`` to use ``#media`` annotations; default ``glucose_minimal`),
+        ``dynamic`` (enable dFBA, default false),
+        ``duration`` (simulation hours, default 24.0),
+        ``dt`` (time step hours, default 0.1),
+        ``expression`` (enable expression inference, default false).
+
+        Setting ``#config backend=gem`` triggers the pipeline automatically;
+        using ``#gem`` alone is inert unless the backend is ``gem``.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if "organism" not in fields:
+            raise ParseError(
+                "#gem requires organism= field", line=t.line)
+
+            # Inline DNA support: if no genome= field and DNA follows
+            if "genome" not in fields and self._peek().kind in ("CODON", "GENE_ID"):
+                # Collect DNA sequences, tracking gene IDs from #gene_id markers
+                gene_entries: list[list[str]] = []
+                current_gene_id: str | None = None
+                codons: list[str] = []
+
+                while self._peek().kind in ("CODON", "GENE_ID"):
+                    if self._peek().kind == "GENE_ID":
+                        # Save previous gene if any
+                        if codons:
+                            seq = "".join(codons)
+                            gene_entries.append([
+                                current_gene_id or f"gene_{len(gene_entries)}",
+                                seq,
+                            ])
+                        codons = []
+                    gt = self._advance()
+                    current_gene_id = gt.value
+                else:  # CODON
+                    ct = self._advance()
+                    codons.append(ct.value)
+
+            # Save last gene
+            if codons:
+                seq = "".join(codons)
+                gene_entries.append([
+                    current_gene_id or f"gene_{len(gene_entries)}",
+                    seq,
+                ])
+
+            if gene_entries:
+                # Multiple genes: store as structured list
+                fields["inline_genome"] = "".join(
+                    seq for _, seq in gene_entries
+                )
+                # Store gene list in sim_extensions directly (Any-typed)
+                prog.sim_extensions["gem_inline_genes"] = gene_entries
+            else:
+                fields["inline_genome"] = ""
+
+            if self._peek().kind == "ANNOT_END":
+                self._advance()
+
+        if "genome" in fields and self._peek().kind == "CODON":
+            raise ParseError(
+                f"#gem {fields['organism']}: use either a genome= field or "
+                "a DNA code block, not both", line=t.line)
+
+        # Store all fields under gem_ prefix
+        for k, v in fields.items():
+            prog.sim_extensions[f"gem_{k}"] = v
+
     def _parse_patch(self, prog: Program) -> None:
         """Parse #patch name=... (doc/19 §5.3 A2; multi-environment, G10).
 
@@ -539,8 +678,16 @@ class Parser:
                     return fields
                 raise ParseError("unexpected EOF inside annotation block",
                                  line=t.line, col=t.col)
-            else:
+            elif t.kind == "CODON":
                 # CODON stream begins (gene block)
+                return fields
+            elif t.kind == "GENE_ID":
+                # Gene marker inside DNA block — return to caller
+                return fields
+            elif t.kind == "NEWLINE":
+                self._advance()
+            else:
+                # Unknown token — return to caller
                 return fields
         return fields
 

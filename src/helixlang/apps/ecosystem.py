@@ -36,6 +36,7 @@ import random
 import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from helixlang.environment import (
     ConcentrationField,
@@ -130,6 +131,11 @@ class Species:
         maintenance: per-tick biomass fraction respired (maintenance +
             natural mortality).
         traits: continuous functional traits (A4).
+        metabolic_model: optional GEM from doc/20 pipeline; when set
+            and ``gem_driven=True``, growth uses FBA instead of Monod.
+        gem_fluxes: FBA optimal fluxes (from GEM pipeline Stage 6).
+        gem_kcat: per-reaction kcat predictions.
+        gem_km: per-reaction Km estimates.
     """
 
     name: str
@@ -143,6 +149,10 @@ class Species:
     cn_ratio: float = 6.0
     maintenance: float = 0.001
     traits: SpeciesTraitParams = field(default_factory=SpeciesTraitParams)
+    metabolic_model: object | None = field(default=None, repr=False)
+    gem_fluxes: dict[str, float] = field(default_factory=dict)
+    gem_kcat: dict[str, float] = field(default_factory=dict)
+    gem_km: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.genome:
@@ -152,6 +162,141 @@ class Species:
         if self.consumption:
             return next(iter(self.consumption))
         return None
+
+
+# ============================================================================
+# GEM → Species bridge (doc/21 §3.1)
+# ============================================================================
+
+# Mapping of GEM exchange reaction prefixes to ecosystem substrate names
+_EXCHANGE_SUBSTRATE_MAP: dict[str, str] = {
+    "EX_glc__D_e": "glucose", "EX_glc_e": "glucose",
+    "EX_ac_e": "acetate", "EX_acald_e": "acetaldehyde",
+    "EX_etoh_e": "ethanol", "EX_lac__D_e": "lactate",
+    "EX_pyr_e": "pyruvate", "EX_succ_e": "succinate",
+    "EX_fum_e": "fumarate", "EX_mal__L_e": "malate",
+    "EX_cit_e": "citrate", "EX_for_e": "formate",
+    "EX_co2_e": "co2", "EX_o2_e": "oxygen",
+    "EX_nh4_e": "ammonia", "EX_pi_e": "phosphate",
+}
+
+# Reverse mapping: ecosystem substrate -> GEM exchange metabolite
+_ECOSYSTEM_TO_GEM_EXCHANGE: dict[str, str] = {
+    "glucose": "glc-D_e", "acetate": "ac_e", "oxygen": "o2_e",
+    "co2": "co2_e", "ammonia": "nh4_e", "phosphate": "pi_e",
+    "ethanol": "etoh_e", "lactate": "lac-D_e", "pyruvate": "pyr_e",
+    "succinate": "succ_e", "formate": "for_e", "citrate": "cit_e",
+}
+
+
+def gem_to_species(
+    pipeline_result: object,
+    organism: str = "e_coli_k12",
+    medium: str = "glucose_minimal",
+) -> dict[str, Any]:
+    """Extract ecosystem-compatible parameters from a GEM pipeline result.
+
+    Reads FBA fluxes, kcat predictions, and Km estimates from a
+    ``GemPipelineResult`` and returns a dict suitable for populating a
+    ``Species`` via ``Species.from_gem_params()``.
+
+    Returns dict with keys: vmax, ks, yield_c, secretion, cn_ratio,
+    maintenance.
+    """
+    from helixlang.annotation.ec_mapping import ECOLI_CORE_EC_REACTIONS
+
+    fluxes: dict[str, float] = {}
+    kcat_map: dict[str, float] = {}
+    km_map: dict[str, float] = {}
+
+    # Extract from GemPipelineResult attributes
+    if hasattr(pipeline_result, "fba_fluxes"):
+        fluxes = dict(pipeline_result.fba_fluxes)
+    if hasattr(pipeline_result, "kcat_predictions"):
+        for kp in pipeline_result.kcat_predictions:
+            if hasattr(kp, "reaction_id") and hasattr(kp, "kcat"):
+                kcat_map[kp.reaction_id] = kp.kcat
+    if hasattr(pipeline_result, "km_estimates"):
+        km_map = dict(pipeline_result.km_estimates)
+
+    # Determine vmax from glucose exchange flux
+    vmax = 0.0
+    ks = 0.1
+    for ex_id, substrate in _EXCHANGE_SUBSTRATE_MAP.items():
+        if substrate == "glucose" and ex_id in fluxes:
+            # FBA flux is negative for uptake; take absolute value
+            vmax = abs(fluxes[ex_id])
+            break
+    # Also check metabolite-based naming
+    if vmax == 0.0:
+        for rxn_id, flux in fluxes.items():
+            if "glc" in rxn_id.lower() and flux < 0:
+                vmax = abs(flux)
+                break
+    if vmax == 0.0:
+        vmax = 0.02  # fallback default
+
+    # Estimate Km from the glucose exchange reaction
+    for rxn_id, km_val in km_map.items():
+        if "glc" in rxn_id.lower():
+            ks = km_val
+            break
+
+    # Compute yield from biomass flux / glucose uptake
+    growth_rate = 0.0
+    if hasattr(pipeline_result, "growth_rate"):
+        growth_rate = pipeline_result.growth_rate
+    yield_c = 0.5  # default
+    if vmax > 0 and growth_rate > 0:
+        # growth_rate is in 1/h; vmax is mmol/gDW/h
+        # yield = growth_rate / (vmax * carbon_per_substrate)
+        # For glucose (6C): yield = mu / (vmax * 6)
+        yield_c = min(0.7, max(0.1, growth_rate / (vmax * 6.0)))
+
+    # Detect secretion (non-zero export fluxes)
+    secretion: dict[str, float] = {}
+    for rxn_id, flux in fluxes.items():
+        if flux > 1e-6:  # positive flux = export
+            substrate = _EXCHANGE_SUBSTRATE_MAP.get(rxn_id, "")
+            if substrate and substrate not in ("co2", "oxygen",
+                                                "ammonia", "phosphate"):
+                secretion[substrate] = flux * 0.01  # scale to per-biomass-C
+
+    # Estimate cn_ratio from biomass reaction if available
+    cn_ratio = 6.0
+    if hasattr(pipeline_result, "biomass_reaction"):
+        bm = pipeline_result.biomass_reaction
+        if bm is not None and hasattr(bm, "components"):
+            c_total = 0.0
+            n_total = 0.0
+            for comp in bm.components:
+                met = comp.metabolite_id.lower() if hasattr(comp, "metabolite_id") else ""
+                coeff = comp.coefficient if hasattr(comp, "coefficient") else 0.0
+                if coeff < 0:  # consumed
+                    if any(m in met for m in ("atp", "nad", "nadp", "coa")):
+                        continue  # skip cofactors
+                    if "c" in met and "n" not in met:
+                        c_total += abs(coeff)
+                    elif "n" in met:
+                        n_total += abs(coeff)
+            if n_total > 0:
+                cn_ratio = max(3.0, min(15.0, c_total / n_total))
+
+    # Maintenance from ATPM reaction
+    maintenance = 0.001
+    if "ATPM" in fluxes and fluxes["ATPM"] > 0:
+        # ATPM flux is mmol/gDW/h; convert to per-tick fraction
+        # assuming ~10 mmol ATP/gDW/h maintenance ≈ 0.001 per tick
+        maintenance = min(0.01, fluxes["ATPM"] * 0.0001)
+
+    return {
+        "vmax": vmax,
+        "ks": ks,
+        "yield_c": yield_c,
+        "secretion": secretion,
+        "cn_ratio": cn_ratio,
+        "maintenance": maintenance,
+    }
 
 
 #: carbon atoms per molecule for common substrates (used for the C
@@ -257,6 +402,8 @@ class EcosystemConfig:
         stress_field: patch scalar name used to gate stress tolerance
             selection.
         stress_level: applied toxin/heat stress for selection tests.
+        gem_driven: when True, species with a ``metabolic_model`` use
+            FBA-backed growth instead of Monod kinetics.
     """
 
     ticks: int = 1000
@@ -265,6 +412,7 @@ class EcosystemConfig:
     scheduler_max_step: int = 480
     scheduler_change_threshold: float = 1e-4
     community_fba: bool = False
+    gem_driven: bool = False
     sample_every: int = 1
     species: list[Species] = field(default_factory=list)
     patches: list[PatchConfig] = field(default_factory=list)
@@ -753,9 +901,11 @@ class Patch:
     """
 
     def __init__(self, config: PatchConfig,
-                 species: dict[str, Species]) -> None:
+                 species: dict[str, Species],
+                 gem_driven: bool = False) -> None:
         self.config = config
         self.species = species
+        self.gem_driven = gem_driven
         w, h = config.width, config.height
         self.fields: dict[str, ConcentrationField] = {}
         self.scalars: dict[str, ScalarField] = {}
@@ -990,8 +1140,12 @@ class Patch:
                     bx = row[x]
                     if bx <= 0.0:
                         continue
-                    g_c, comps = self._growth_rate(
-                        sp, bx, x, y, t_mod, moisture, fluct, light)
+                    if self.gem_driven and sp.metabolic_model is not None:
+                        g_c, comps = self._growth_rate_gem(
+                            sp, bx, x, y, t_mod, moisture, fluct, light)
+                    else:
+                        g_c, comps = self._growth_rate(
+                            sp, bx, x, y, t_mod, moisture, fluct, light)
                     g_c *= temp_ok
                     # N-limited growth (Redfield / Liebig): the new
                     # biomass needs N at the species C:N ratio, drawn
@@ -1089,6 +1243,72 @@ class Patch:
                 components.append(("__photo__", 1, rate))
                 g_c += rate
         return g_c, components
+
+    def _growth_rate_gem(
+        self, sp: Species, bx: float, x: int, y: int,
+        t_mod: float, moisture: float, fluct: float, light: float,
+    ) -> tuple[float, list]:
+        """FBA-backed growth rate for a GEM-equipped species (doc/21 §3.3).
+
+        Solves a per-site FBA with exchange bounds set from local
+        substrate concentrations, then returns the biomass flux as the
+        growth rate.  Falls back to Monod if FBA is infeasible.
+        """
+        from helixlang.metabolism import FluxBalanceAnalysis, MetabolicModel
+
+        if sp.metabolic_model is None or not isinstance(sp.metabolic_model, MetabolicModel):
+            return self._growth_rate(sp, bx, x, y, t_mod, moisture,
+                                     fluct, light)
+        model = sp.metabolic_model
+
+        try:
+            fba = FluxBalanceAnalysis(model)
+
+            # Set exchange bounds from local substrate concentrations
+            for sub, (vmax_ks, ks_val) in sp.consumption.items():
+                field = self.fields.get(sub)
+                if field is None:
+                    continue
+                conc = field.get(x, y) * fluct
+                # Map ecosystem substrate name to GEM exchange metabolite
+                gem_met = _ECOSYSTEM_TO_GEM_EXCHANGE.get(sub, sub)
+                # Uptake = min(Monod rate, vmax)
+                uptake = monod_uptake(vmax_ks, conc, ks_val)
+                rate = uptake * t_mod * moisture * sp.traits.uptake_gain
+                fba.set_uptake(gem_met, max(0.0, rate))
+
+            # Solve for biomass
+            bm_rxn = model.biomass_reaction
+            if bm_rxn and bm_rxn in model.reactions:
+                fluxes = fba.solve(objective=bm_rxn)
+                bm_flux = fluxes.get(bm_rxn, 0.0)
+            else:
+                # Try BIOMASS_reaction as fallback
+                fluxes = fba.solve(objective="BIOMASS_reaction")
+                bm_flux = fluxes.get("BIOMASS_reaction", 0.0)
+
+            g_c = max(0.0, bm_flux * sp.traits.growth_rate_gain)
+
+            # Build components list from exchange fluxes for C accounting
+            components: list[tuple] = []
+            for rxn_id, flux in fluxes.items():
+                if rxn_id.startswith("EX_") and flux > 1e-8:
+                    substrate = ""
+                    for ex_id, sub_name in _EXCHANGE_SUBSTRATE_MAP.items():
+                        if rxn_id == ex_id:
+                            substrate = sub_name
+                            break
+                    if substrate and substrate in self.fields:
+                        cpm = self._cpm(substrate)
+                        components.append((substrate, cpm, flux))
+
+            if g_c > 0:
+                return g_c, components
+        except Exception:
+            pass  # fall through to Monod
+
+        return self._growth_rate(sp, bx, x, y, t_mod, moisture,
+                                 fluct, light)
 
     def _apply_growth(self, sp: Species, bx: float, x: int, y: int,
                       comps: list, g: float, g_c: float,
@@ -1258,7 +1478,8 @@ class Ecosystem:
         if not self.species_map:
             raise ValueError("Ecosystem needs at least one Species")
         self.patches: list[Patch] = [
-            Patch(pc, self.species_map) for pc in self.config.patches]
+            Patch(pc, self.species_map, gem_driven=self.config.gem_driven)
+            for pc in self.config.patches]
         if not self.patches:
             raise ValueError("Ecosystem needs at least one Patch")
         self.scheduler = Scheduler(
@@ -1496,7 +1717,7 @@ class Ecosystem:
         species = [mutant if s.name == name else s for s in cfg.species]
         clone = Ecosystem(EcosystemConfig(
             ticks=0, seed=cfg.seed, fast_forward=False,
-            community_fba=cfg.community_fba,
+            community_fba=cfg.community_fba, gem_driven=cfg.gem_driven,
             species=species, patches=cfg.patches))
         # copy current biomass/fields into the clone
         by_name = {p.config.name: p for p in self.patches}
@@ -1583,4 +1804,5 @@ __all__ = [
     "century_k_per_min", "CenturyPools", "NitrogenCycle",
     "CommunityFBA", "Scheduler", "Patch", "Ecosystem",
     "phototroph", "heterotroph", "acetotroph", "water_patch",
+    "gem_to_species",
 ]

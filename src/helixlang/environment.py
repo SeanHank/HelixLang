@@ -985,6 +985,16 @@ class ScalarField:
 # Environment
 # ============================================================================
 @dataclass(slots=True)
+class FeedEvent:
+    """Nutrient feeding event for fed-batch simulation (doc/20 §16.2)."""
+
+    time: float              # hours
+    metabolite: str          # e.g., "glc-D_e"
+    concentration: float     # mmol/L added
+    volume_fraction: float = 0.0  # dilution factor
+
+
+@dataclass(slots=True)
 class EnvironmentConfig:
     """Environment configuration.
 

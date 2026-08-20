@@ -46,6 +46,7 @@ from helixlang.metabolism import (
     ECOLI_CORE_MODEL,
     DynamicFBAConfig,
     DynamicFluxBalance,
+    DynamicSimulationResult,
     FluxBalanceAnalysis,
     MetabolicModel,
     Reaction,
@@ -107,6 +108,7 @@ __all__ = [
     "LSystem3D", "Point3D",
     # flux balance analysis
     "MetabolicModel", "Reaction", "ECOLI_CORE_MODEL",
-    "FluxBalanceAnalysis", "DynamicFBAConfig", "DynamicFluxBalance",
+    "FluxBalanceAnalysis", "DynamicFBAConfig", "DynamicSimulationResult",
+    "DynamicFluxBalance",
     "__version__",
 ]

@@ -1,0 +1,15 @@
+# Example 43: GEM reconstruction pipeline (doc/20)
+# Reconstruct a genome-scale metabolic model from a FASTA genome file.
+# The pipeline runs six stages:
+#   Stage 1: Genome import
+#   Stage 2: Functional annotation (DIAMOND blastp + EC/KO mapping)
+#   Stage 3: Metabolic network reconstruction (bottom-up + top-down)
+#   Stage 4: GRN inference (TF detection + regulatory interactions)
+#   Stage 5: Kinetic parameter estimation (kcat + Km)
+#   Stage 6: Integration and validation
+
+#gem organism=e_coli_k12 genome=genome.fasta use_database=true include_spontaneous=true gapfill=true
+
+#config backend=gem ticks=1
+
+#sim output=stage,status,genes_annotated,reactions_total,grn_edges,kcat_predictions,km_estimates

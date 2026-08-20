@@ -1286,6 +1286,101 @@ def create_app() -> Flask:
                 for b in debugger.list_breakpoints()],
         })
 
+    # ------------------------------------------------------------------
+    # GEM reconstruction API (doc/20 §9.7)
+    # ------------------------------------------------------------------
+    @app.post("/api/gem/reconstruct")
+    def api_gem_reconstruct():
+        """Run GEM reconstruction pipeline from genome FASTA.
+
+        Body: { "fasta": "<path or inline FASTA>", "organism": "e_coli_k12",
+                "use_database": true, "gapfill": true }
+        Returns: { "ok": true, "stages_completed": 6, "reactions": N, ... }
+        """
+        from helixlang.apps.gem_pipeline import run_gem_pipeline
+
+        body = request.get_json(force=True, silent=True) or {}
+        fasta = body.get("fasta", "")
+        organism = body.get("organism", "e_coli_k12")
+        if not fasta:
+            return jsonify({"ok": False, "error": "fasta field required"}), 400
+
+        try:
+            result = run_gem_pipeline(
+                genome_fasta=fasta,
+                organism=organism,
+                use_database_interactions=body.get("use_database", True),
+                include_spontaneous=body.get("include_spontaneous", True),
+                run_gapfill=body.get("gapfill", True),
+                target_organism=body.get("target_organism", "Escherichia coli"),
+            )
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+        return jsonify({
+            "ok": True,
+            "stages_completed": result.stages_completed,
+            "annotated_genes": result.annotated_genes,
+            "reactions_total": result.final_reaction_count,
+            "grn_edges": result.grn.total_edges if result.grn else 0,
+            "kcat_predictions": len(result.kcat_predictions),
+            "km_estimates": len(result.km_estimates),
+            "warnings": result.warnings,
+            "errors": result.errors,
+            "summary": result.summary(),
+        })
+
+    @app.post("/api/gem/simulate")
+    def api_gem_simulate():
+        """Run a GEM-reconstructed model simulation.
+
+        Body: { "fasta": "<path>", "organism": "e_coli_k12",
+                "ticks": 100, "output": "csv" }
+        Returns: SimResult payload (columns + rows + meta).
+        """
+        from helixlang.apps.gem_pipeline import run_gem_pipeline
+
+        body = request.get_json(force=True, silent=True) or {}
+        fasta = body.get("fasta", "")
+        organism = body.get("organism", "e_coli_k12")
+        if not fasta:
+            return jsonify({"ok": False, "error": "fasta field required"}), 400
+
+        try:
+            result = run_gem_pipeline(
+                genome_fasta=fasta,
+                organism=organism,
+            )
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+        # Build SimResult-like output
+        columns = [
+            "stage", "status", "genes_annotated", "reactions_total",
+            "grn_edges", "kcat_predictions", "km_estimates",
+        ]
+        rows = [
+            {"stage": "annotation", "status": "ok",
+             "genes_annotated": result.annotated_genes,
+             "reactions_total": 0, "grn_edges": 0,
+             "kcat_predictions": 0, "km_estimates": 0},
+            {"stage": "reconstruction", "status": "ok",
+             "genes_annotated": result.annotated_genes,
+             "reactions_total": result.final_reaction_count,
+             "grn_edges": 0, "kcat_predictions": 0, "km_estimates": 0},
+            {"stage": "kinetics", "status": "ok",
+             "genes_annotated": result.annotated_genes,
+             "reactions_total": result.final_reaction_count,
+             "grn_edges": result.grn.total_edges if result.grn else 0,
+             "kcat_predictions": len(result.kcat_predictions),
+             "km_estimates": len(result.km_estimates)},
+        ]
+        return jsonify({
+            "ok": True, "backend": "gem",
+            "columns": columns, "rows": rows,
+            "meta": {"summary": result.summary()},
+        })
+
     @app.errorhandler(HelixError)
     def handle_helix_error(e):
         # User/input errors (lexical/syntactic/semantic/compile/runtime/bio): 4xx

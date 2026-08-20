@@ -555,7 +555,13 @@ def _encode_program_body(w: _Writer, prog: Program) -> None:
     w.u16(len(ext))
     for k, v in ext:
         w.str_(k)
-        w.str_(v)
+        if isinstance(v, str):
+            w.u8(0x00)
+            w.str_(v)
+        else:
+            import json
+            w.u8(0x01)
+            w.str_(json.dumps(v))
 
 
 def _decode_program(data: bytes) -> Program:
@@ -719,7 +725,16 @@ def _decode_pools(r: _Reader, prog: Program) -> None:
 def _decode_ext(r: _Reader, prog: Program) -> None:
     for _ in range(r._count("sim_extensions")):  # noqa: SLF001
         k = r.str_()
-        v = r.str_()
+        tag = r.u8()
+        v_raw = r.str_()
+        if tag == 0x01:
+            import json
+            try:
+                v = json.loads(v_raw)
+            except (json.JSONDecodeError, ValueError):
+                v = v_raw
+        else:
+            v = v_raw
         prog.sim_extensions[k] = v
 
 
@@ -1115,8 +1130,47 @@ def decompile(program: Program) -> str:
         parts.append(f"{k}={cfg.sim[k]}")
     lines.append("#config " + " ".join(parts))
 
+    _INLINE_GENE_KEYS = {"gem_inline_genes", "gem_inline_genome"}
     for k in sorted(program.sim_extensions):
+        if k in _INLINE_GENE_KEYS:
+            continue
         lines.append(f"#sim {k}={program.sim_extensions[k]}")
+
+    # Output inline gene DNA blocks inside a #gem block (doc/20 §12)
+    inline_genes = program.sim_extensions.get("gem_inline_genes")
+    if isinstance(inline_genes, list) and inline_genes:
+        # Find gem parameters from sim_extensions
+        gem_params = []
+        for k in ("gem_organism", "gem_medium", "gem_use_database",
+                   "gem_include_spontaneous", "gem_gapfill",
+                   "gem_target_organism", "gem_dynamic", "gem_duration",
+                   "gem_dt", "gem_expression"):
+            v = program.sim_extensions.get(k, "")
+            if v:
+                param_name = k[4:]  # strip "gem_" prefix
+                gem_params.append(f"{param_name}={v}")
+        if gem_params:
+            lines.append("#gem " + " ".join(gem_params))
+        else:
+            lines.append("#gem organism=e_coli_k12")
+
+        for entry in inline_genes:
+            if isinstance(entry, (list, tuple)) and len(entry) == 2:
+                gene_id, seq = entry
+                lines.append(f"#{gene_id}")
+                seq_upper = str(seq).upper()
+                codons = [seq_upper[i:i+3] for i in range(0, len(seq_upper), 3)]
+                current_line = ""
+                for codon in codons:
+                    test = (current_line + " " + codon) if current_line else codon
+                    if len(test) > 78:
+                        lines.append(current_line)
+                        current_line = codon
+                    else:
+                        current_line = test
+                if current_line:
+                    lines.append(current_line)
+        lines.append("#end")
 
     return "\n".join(lines) + "\n"
 
