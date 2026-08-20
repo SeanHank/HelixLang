@@ -120,11 +120,11 @@ def _annotate_from_fasta(
     # Step 2: Try DIAMOND blastp if database available
     if diamond_db and proteins:
         try:
-            from helixlang.annotation.blast import run_diamond
-
             # Write proteins to temp FASTA for DIAMOND
             import tempfile
             from pathlib import Path
+
+            from helixlang.annotation.blast import run_diamond
 
             tmp_fasta = Path(tempfile.mktemp(suffix=".fasta"))
             with open(tmp_fasta, "w") as fh:
@@ -362,8 +362,8 @@ def _annotate_via_ncbi_blast(
     import json
     import tempfile
     import time
-    import urllib.request
     import urllib.parse
+    import urllib.request
     from pathlib import Path
 
     annotations: dict[str, GeneAnnotation] = {}
@@ -727,8 +727,8 @@ def run_gem_pipeline(
     # Stage 6: Integration — build MetabolicModel, run FBA
     try:
         from helixlang.gem.bridge import (
-            consensus_to_metabolic_model,
             build_enzyme_capacity,
+            consensus_to_metabolic_model,
         )
         from helixlang.metabolism import FluxBalanceAnalysis, Reaction
 

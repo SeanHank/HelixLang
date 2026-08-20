@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from helixlang.annotation import GeneAnnotation
-    from helixlang.gem.grn_inference import GRNInferenceResult, RegulatoryEdge
+    from helixlang.gem.grn_inference import GRNInferenceResult
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -221,7 +221,6 @@ def infer_expression_at_time(
     # mRNA and protein levels are assumed proportional to enzyme levels
     # at steady state (proportionality absorbed into degradation rates)
     mrna = {g: v for g, v in enzyme_levels.items()}
-    protein = {g: v for g, v in enzyme_levels.items()}
 
     return ExpressionState(
         gene_levels=enzyme_levels,

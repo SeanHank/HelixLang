@@ -203,7 +203,6 @@ def gem_to_species(
     Returns dict with keys: vmax, ks, yield_c, secretion, cn_ratio,
     maintenance.
     """
-    from helixlang.annotation.ec_mapping import ECOLI_CORE_EC_REACTIONS
 
     fluxes: dict[str, float] = {}
     kcat_map: dict[str, float] = {}

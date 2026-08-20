@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-
 # Standard codon table (NCBI translation table 11)
 _CODON_TABLE: dict[str, str] = {
     "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",

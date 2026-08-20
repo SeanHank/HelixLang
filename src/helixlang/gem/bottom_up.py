@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 
 from helixlang.annotation import GeneAnnotation
 from helixlang.annotation.ec_mapping import (
-    ECReactionDB, build_ec_db, REACTION_EQUATIONS,
+    REACTION_EQUATIONS,
+    ECReactionDB,
+    build_ec_db,
 )
 from helixlang.annotation.kegg_mapping import KOReactionDB, build_ko_db
 

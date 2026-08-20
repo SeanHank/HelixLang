@@ -7,7 +7,6 @@ from helixlang.gem.biomass import (
     list_available_templates,
 )
 from helixlang.gem.bottom_up import GPRRule, bottom_up_reconstruct
-from helixlang.gem.sbml_export import export_sbml, model_to_sbml_string
 from helixlang.gem.bridge import (
     build_enzyme_capacity,
     consensus_to_metabolic_model,
@@ -16,6 +15,7 @@ from helixlang.gem.bridge import (
 from helixlang.gem.consensus import consensus_merge
 from helixlang.gem.gapfill import GapfillPool, GapfillResult, gapfill, lp_gapfill
 from helixlang.gem.grn_inference import RegulatoryEdge, infer_grn
+from helixlang.gem.sbml_export import export_sbml, model_to_sbml_string
 from helixlang.gem.top_down import top_down_reconstruct
 from helixlang.gem.validation import (
     GemValidationResult,

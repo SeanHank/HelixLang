@@ -60,7 +60,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # GLYCOLYSIS / GLUCONEOGENESIS
     # ======================================================================
-    "1.1.1.1":   ["EXCH_glyc3p"],           # alcohol dehydrogenase
+    "1.1.1.1":   ["EXCH_glyc3p", "ADHEr"],    # alcohol dehydrogenase
     "1.1.1.27":  ["LDH_D"],                  # lactate dehydrogenase
     "2.7.1.1":   ["HEX1"],                   # hexokinase / glucokinase
     "2.7.1.11":  ["PFK"],                    # phosphofructokinase
@@ -68,7 +68,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "2.7.2.3":   ["PGK"],                    # phosphoglycerate kinase
     "4.1.2.13":  ["FBA"],                    # fructose-bisP aldolase
     "4.1.2.14":  ["FBA"],                    # tagatose-bisP aldolase
-    "4.2.1.11":  ["ENO"],                    # enolase
+    "4.2.1.11":  ["ENO", "PFL"],             # enolase / pyruvate formate-lyase
     "5.3.1.1":   ["TPI"],                    # triosephosphate isomerase
     "5.3.1.9":   ["PGI"],                    # glucose-6-phosphate isomerase
     "5.4.2.12":  ["PGM"],                    # phosphoglycerate mutase
@@ -80,7 +80,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     "2.3.3.1":   ["CS"],                     # citrate synthase
     "4.2.1.3":   ["ACONa", "ACONb"],         # aconitase
-    "1.1.1.40":  ["ICDH"],                   # isocitrate dehydrogenase
+    "1.1.1.40":  ["ICDH", "ME1", "ME2"],    # isocitrate dehydrogenase / malic enzyme
     "1.2.4.2":   ["AKGDH"],                  # 2-oxoglutarate dehydrogenase E1
     "6.2.1.4":   ["SUCD1"],                  # succinyl-CoA synthetase (ADP)
     "6.2.1.5":   ["SUCD1"],                  # succinyl-CoA synthetase (GDP)
@@ -96,7 +96,6 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "1.8.1.4":   ["G3PD1", "G3PD2"],         # dihydrolipoamide dehydrogenase (E3)
     "4.1.1.31":  ["PPC"],                    # PEP carboxylase
     "4.1.1.32":  ["PPCK"],                   # PEP carboxykinase
-    "1.1.1.40":  ["ME1", "ME2"],             # malic enzyme (NADP/NAD)
     "6.4.1.1":   ["PC"],                     # pyruvate carboxylase
     "2.3.3.9":   ["MS"],                     # malate synthase (glyoxylate)
     "4.1.3.1":   ["ICL"],                    # isocitrate lyase (glyoxylate)
@@ -115,19 +114,17 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "4.1.1.39":  ["PGD"],                    # ribulose-5-phosphate 3-epimerase
     "5.1.3.1":   ["RPE"],                    # ribulose-5-phosphate 3-epimerase
     "5.1.3.3":   ["RPI"],                    # ribose-5-phosphate isomerase
-    "2.2.1.1":   ["TKT1", "TKT2"],           # transketolase
+    "2.2.1.1":   ["TKT1", "TKT2", "PHGDH"], # transketolase / phosphoglycerate dehydrogenase
     "2.2.1.2":   ["TALA"],                   # transaldolase
 
     # ======================================================================
     # FERMENTATION
     # ======================================================================
     "1.2.1.10":  ["ACALD"],                  # acetaldehyde dehydrogenase (acetylating)
-    "2.3.1.8":   ["PTAr"],                   # phosphate acetyltransferase
+    "2.3.1.8":   ["PTAr", "ACOATA"],        # phosphate acetyltransferase / acetyl-CoA C-acyltransferase
     "2.3.1.54":  ["PTAr"],                   # phosphate acetyltransferase (alternate)
     "2.7.2.1":   ["ACKr"],                   # acetate kinase
     "6.2.1.1":   ["ACS"],                    # acetyl-CoA synthetase
-    "1.1.1.1":   ["ADHEr"],                  # alcohol dehydrogenase (ethanol)
-    "4.2.1.11":  ["PFL"],                    # pyruvate formate-lyase
     "1.2.1.5":   ["PFL"],                    # pyruvate formate-lyase activating enzyme
 
     # ======================================================================
@@ -137,28 +134,26 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "2.6.1.1":   ["ASPTA"],                  # aspartate aminotransferase
     "4.3.1.1":   ["ASPC"],                   # aspartate ammonia-lyase (aspartase)
     "1.4.1.1":   ["GDH"],                    # glutamate dehydrogenase (NAD)
-    "1.4.1.2":   ["GDH"],                    # glutamate dehydrogenase (NADP)
+    "1.4.1.2":   ["GDH", "GDH_NADP"],       # glutamate dehydrogenase (NADP)
     "2.6.1.16":  ["GLUTRS"],                 # glutamyl-tRNA synthetase
     "6.3.1.2":   ["GLNS"],                   # glutamine synthetase
     "3.5.1.2":   ["GLNDR"],                  # glutaminase
     "4.1.1.15":  ["GOGAT"],                  # glutamate synthase (NADPH)
     "4.3.1.19":  ["THRA"],                   # threonine ammonia-lyase
-    "2.6.1.42":  ["BCAT"],                   # branched-chain amino acid aminotransferase
+    "2.6.1.42":  ["BCAT", "ILVT"],           # branched-chain amino acid aminotransferase
 
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Serine / Glycine / Cysteine
     # ======================================================================
-    "2.2.1.1":   ["PHGDH"],                  # phosphoglycerate dehydrogenase (→ serine)
     "3.1.3.13":  ["PSP"],                    # phosphoserine phosphatase
-    "2.5.1.19":  ["SHMT"],                   # serine hydroxymethyltransferase
-    "1.4.4.2":  ["GLYCL"],                   # glycine cleavage system P-protein
-    "4.2.1.20":  ["TRPS1"],                  # tryptophan synthase (β-subunit)
+    "2.5.1.19":  ["SHMT", "SHIKK"],         # serine hydroxymethyltransferase / shikimate kinase
+    "1.4.4.2":   ["GLYCL"],                  # glycine cleavage system P-protein
+    "4.2.1.20":  ["TRPS1", "TRPS2"],         # tryptophan synthase (α + β subunits)
     "4.2.99.20": ["TRPS2"],                  # tryptophan synthase (α-subunit)
 
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Aromatic amino acids (shikimate)
     # ======================================================================
-    "2.5.1.19":  ["SHIKK"],                  # shikimate kinase
     "4.2.3.4":   ["ADCS"],                   # 3-dehydroquinate synthase
     "4.2.1.10":  ["DHQS"],                   # 3-dehydroquinate dehydratase
     "1.1.1.25":  ["SHIKD"],                  # shikimate dehydrogenase
@@ -167,7 +162,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Histidine
     # ======================================================================
-    "4.1.3.-":   ["HISB"],                   # imidazolglycerol-phosphate synthase
+    "4.1.3.-":   ["HISB", "TRPE"],           # imidazolglycerol-phosphate synthase / indole-3-glycerol phosphate synthase
     "2.4.2.-":   ["HISD"],                   # histidinol-phosphate phosphatase
     "1.1.1.23":  ["HISH"],                   # histidinol dehydrogenase
 
@@ -178,28 +173,24 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "2.3.1.46":  ["HSK"],                    # homoserine O-succinyltransferase
     "4.2.99.9":  ["MGLY"],                   # cystathionine gamma-lyase
     "2.5.1.6":   ["METS"],                   # methionine adenosyltransferase
-    "4.2.1.18":  ["MGLY"],                   # cystathionine gamma-synthase
+    "4.2.1.18":  ["MGLY", "ILVC"],           # cystathionine gamma-synthase / dihydroxyacid dehydratase
 
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Leucine / Isoleucine / Valine
     # ======================================================================
     "1.2.1.11":  ["ILVDA"],                  # acetolactate synthase (ALS)
-    "4.2.1.18":  ["ILVC"],                   # dihydroxyacid dehydratase
-    "2.6.1.42":  ["ILVT"],                   # branched-chain amino acid aminotransferase
     "1.1.1.86":  ["ILVH"],                   # ketol-acid reductoisomerase
 
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Tryptophan / Phenylalanine / Tyrosine
     # ======================================================================
-    "4.1.3.-":   ["TRPE"],                   # indole-3-glycerol phosphate synthase
-    "4.2.1.20":  ["TRPS1", "TRPS2"],         # tryptophan synthase
     "2.5.1.54":  ["PHEA"],                   # phenylalanine ammonia-lyase
     "1.14.16.1": ["TYR3"],                   # tyrosine 3-monooxygenase
 
     # ======================================================================
     # AMINO ACID BIOSYNTHESIS — Arginine / Proline
     # ======================================================================
-    "6.3.5.5":   ["ARGSS"],                  # argininosuccinate synthetase
+    "6.3.5.5":   ["ARGSS", "CAD"],           # argininosuccinate synthetase / carbamoyl-phosphate synthetase
     "4.3.2.1":   ["ARGSL"],                  # argininosuccinate lyase
     "1.2.1.38":  ["ACSD"],                   # N-acetylglutamate synthase
     "1.2.1.41":  ["PRODH"],                  # proline dehydrogenase
@@ -227,28 +218,23 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # NUCLEOTIDE METABOLISM — Pyrimidine biosynthesis
     # ======================================================================
-    "6.3.5.5":   ["CAD"],                    # carbamoyl-phosphate synthetase (aspartate)
     "2.1.3.2":   ["ASPCT"],                  # aspartate carbamoyltransferase
     "3.5.2.3":   ["DIOD"],                   # dihydroorotase
     "1.3.5.2":   ["DHODH"],                  # dihydroorotate dehydrogenase
     "2.4.2.10":  ["OPRT"],                   # orotate phosphoribosyltransferase
-    "4.1.1.23":  ["OMPDC"],                  # orotidine-5'-phosphate decarboxylase
-    "2.7.4.-":   ["UMPK"],                   # uridylate kinase
-    "2.7.4.-":   ["NDPK"],                   # nucleoside-diphosphate kinase
-    "4.1.1.23":  ["UMPS"],                   # UMP synthase
+    "4.1.1.23":  ["OMPDC", "UMPS"],          # orotidine-5'-phosphate decarboxylase / UMP synthase
+    "2.7.4.-":   ["UMPK", "NDPK"],           # uridylate kinase / nucleoside-diphosphate kinase
 
     # ======================================================================
     # NUCLEOTIDE INTERCONVERSIONS
     # ======================================================================
     "2.4.2.14":  ["GMPS"],                   # GMP synthase
-    "1.17.4.1":  ["RNR"],                    # ribonucleotide reductase (NDP → dNDP)
     "3.1.3.5":   ["5NT"],                    # 5'-nucleotidase
     "3.1.3.31":  ["P5N"],                    # uridine nucleotidase
 
     # ======================================================================
     # FATTY ACID METABOLISM
     # ======================================================================
-    "2.3.1.8":   ["ACOATA"],                 # acetyl-CoA C-acyltransferase (β-oxidation)
     "1.1.1.35":  ["HAD"],                    # 3-hydroxyacyl-CoA dehydrogenase
     "4.2.1.17":  ["ECAD"],                   # enoyl-CoA hydratase
     "1.3.8.1":   ["ACADL"],                  # short-chain acyl-CoA dehydrogenase
@@ -272,7 +258,6 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # COFACTOR BIOSYNTHESIS — NAD / NADP
     # ======================================================================
-    "1.4.1.2":   ["GDH_NADP"],               # glutamate dehydrogenase (NADP)
     "2.4.2.12":  ["NMNAT"],                  # nicotinate-nucleotide adenylyltransferase
     "1.6.5.1":   ["NQO"],                    # NAD(P)H dehydrogenase (quinone)
     "6.3.1.5":   ["NADSYN"],                 # NAD+ synthetase
@@ -284,7 +269,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     "2.5.1.9":   ["FMNAT"],                  # FMN adenylyltransferase
     "1.5.5.1":   ["ETF"],                    # electron-transferring-flavoprotein dehydrogenase
-    "2.5.1.18":  ["GSPS"],                   # glutathione synthetase
+    "2.5.1.18":  ["GSPS", "GST"],            # glutathione synthetase / glutathione S-transferase
 
     # ======================================================================
     # COFACTOR BIOSYNTHESIS — CoA
@@ -315,8 +300,7 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # CELL WALL / PEPTIDOGLYCAN
     # ======================================================================
-    "6.3.2.-":   ["MURC"],                   # UDP-N-acetylmuramate—L-alanine ligase
-    "6.3.2.-":   ["MURD"],                   # D-alanine—D-alanine ligase
+    "6.3.2.-":   ["MURC", "MURD"],           # UDP-N-acetylmuramate ligase / D-alanine ligase
     "6.3.2.8":   ["MURF"],                   # UDP-N-acetylmuramoylalanyl-D-glutamyl-2,6-diaminopimelate—D-alanyl-D-alanine ligase
     "2.3.2.-":   ["MURG"],                   # UDP-N-acetylglucosamine—N-acetylmuramyl-pentapeptide transferase
     "4.1.1.-":   ["MURA"],                   # UDP-N-acetylenolpyruvoylglucosamine reductase
@@ -324,23 +308,15 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     # ======================================================================
     # TRANSPORT REACTIONS
     # ======================================================================
-    "2.7.1.69":  ["GLCpts"],                  # PTS system (glucose-specific)
-    "7.2.2.-":   ["ABC_glc"],                 # ABC transporter (glucose)
-    "7.2.2.-":   ["ABC_lac"],                 # ABC transporter (lactose)
-    "2.7.1.69":  ["PTS_man"],                 # PTS system (mannose)
-    "7.2.2.-":   ["ABC_rib"],                 # ABC transporter (ribose)
-    "7.2.2.-":   ["ABC_xyl"],                 # ABC transporter (xylose)
-    "7.2.2.-":   ["ABC_gal"],                 # ABC transporter (galactose)
-    "3.6.3.-":   ["PIT"],                     # phosphate transporter
-    "3.6.3.-":   ["NTP"],                     # nitrate transporter
-    "3.6.3.-":   ["NHA"],                     # sodium/proton antiporter
+    "2.7.1.69":  ["GLCpts", "PTS_man"],      # PTS system (glucose / mannose)
+    "7.2.2.-":   ["ABC_glc", "ABC_lac", "ABC_rib", "ABC_xyl", "ABC_gal"],  # ABC transporters
+    "3.6.3.-":   ["PIT", "NTP", "NHA"],      # phosphate / nitrate / Na+/H+ transporters
 
     # ======================================================================
     # ENERGY METABOLISM
     # ======================================================================
     "7.1.1.1":   ["NADH_D1"],                 # NADH dehydrogenase (complex I)
-    "7.1.1.9":   ["CYTBD"],                   # cytochrome bc1 (complex III)
-    "7.1.1.9":   ["CYTBD"],                   # cytochrome oxidase (complex IV)
+    "7.1.1.9":   ["CYTBD"],                   # cytochrome bd oxidase (complex IV)
     "7.1.2.2":   ["ATPS4r"],                  # F1F0 ATP synthase
     "7.1.2.1":   ["NADHDH"],                  # NADH dehydrogenase (alternative)
     "1.18.1.2":  ["FNR"],                     # ferredoxin-NADP+ reductase
@@ -353,7 +329,6 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "1.15.1.1":  ["SOD"],                     # superoxide dismutase (Mn)
     "1.8.1.2":   ["GRX"],                     # glutathione reductase (NADPH)
     "1.8.4.2":   ["GRX"],                     # glutathione reductase
-    "2.5.1.18":  ["GST"],                     # glutathione S-transferase
 
     # ======================================================================
     # DNA / RNA METABOLISM
@@ -370,7 +345,6 @@ ECOLI_CORE_EC_REACTIONS: dict[str, list[str]] = {
     "3.2.1.23":  ["BGL1"],                    # beta-glucosidase
     "3.5.1.1":   ["ASNA"],                    # asparaginase
     "3.1.3.1":   ["G6PP"],                    # glucose-6-phosphatase
-    "3.1.3.13":  ["PSP"],                     # phosphoserine phosphatase
     "1.2.7.1":   ["PFK"],                     # pyrophosphate-dependent PFK
     "3.6.1.1":   ["PPK"],                     # inorganic diphosphatase
     "2.7.4.3":   ["ADK"],                     # adenylate kinase

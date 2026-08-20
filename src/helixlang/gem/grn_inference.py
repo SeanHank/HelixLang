@@ -215,7 +215,6 @@ def _predict_motifs(
     position-specific nucleotide frequencies in known binding sites.
     """
     import hashlib
-    import math
     from pathlib import Path
 
     edges: list[RegulatoryEdge] = []
@@ -460,7 +459,6 @@ def _predict_motifs(
         # Level 1: PWM scanning (if nucleotide sequence available)
         if pwm_data and upstream_seqs:
             pwm_consensus = str(pwm_data["consensus"])
-            pwm_len = int(str(pwm_data["length"]))
             pwm_min = float(str(pwm_data["min_score"]))
             tf_upstream = upstream_seqs.get(tf_id, "")
 
@@ -586,7 +584,6 @@ def _score_pwm(sequence: str, consensus: str) -> float:
     Returns a score in bits; higher = better match.
     Uses a log-odds scoring scheme based on IUPAC ambiguity codes.
     """
-    import re
 
     seq = sequence.upper().replace("U", "T")
 

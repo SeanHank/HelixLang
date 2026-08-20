@@ -27,7 +27,7 @@ def _esc(text: str) -> str:
 
 def _sbml_header(model_id: str, organism_name: str) -> str:
     """Return the opening <sbml> element with XMLNS and layout namespaces."""
-    now = datetime.datetime.now(datetime.timezone.utc).strftime(
+    now = datetime.datetime.now(datetime.UTC).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     org_attr = (
@@ -168,7 +168,7 @@ def _parameter_list(model: MetabolicModel) -> str:
 # Reactions
 # ---------------------------------------------------------------------------
 
-def _reaction_element(model: MetabolicModel, rxn: "Reaction") -> str:
+def _reaction_element(model: MetabolicModel, rxn: Reaction) -> str:
     """Return a single <reaction> XML element with stoichiometry."""
     reversible = rxn.lower_bound < 0
 
@@ -197,7 +197,7 @@ def _reaction_element(model: MetabolicModel, rxn: "Reaction") -> str:
 
     # Kinetic bounds
     lines.append('        <kineticLaw>')
-    lines.append(f'          <math xmlns="http://www.w3.org/2008/05/mathml">')
+    lines.append('          <math xmlns="http://www.w3.org/2008/05/mathml">')
     lines.append('            <ci> flux </ci>')
     lines.append('          </math>')
     lines.append('          <listOfLocalParameters>')
@@ -245,22 +245,22 @@ def _gpr_annotations(model: MetabolicModel) -> str:
             f'      <reaction id="{_esc(rxn.id)}">'
         )
         lines.append(
-            f'        <annotation>'
+            '        <annotation>'
         )
         lines.append(
-            f'          <rxn:GPR xmlns:rxn="http://helixlang.org/sbml/gpr">'
+            '          <rxn:GPR xmlns:rxn="http://helixlang.org/sbml/gpr">'
         )
         lines.append(
             f'            <rxn:subsystem>{_esc(rxn.subsystem)}</rxn:subsystem>'
         )
         lines.append(
-            f'          </rxn:GPR>'
+            '          </rxn:GPR>'
         )
         lines.append(
-            f'        </annotation>'
+            '        </annotation>'
         )
         lines.append(
-            f'      </reaction>'
+            '      </reaction>'
         )
     lines.append(
         '    </listOfReactions>',

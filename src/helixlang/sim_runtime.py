@@ -2018,12 +2018,12 @@ def _run_gem(program: Program) -> SimResult:
 
     if result.consensus is not None:
         try:
-            from helixlang.gem.bridge import (
-                consensus_to_metabolic_model,
-                build_enzyme_capacity,
-                _parse_equation_to_stoich,
-            )
             from helixlang.gem.biomass import build_biomass_reaction
+            from helixlang.gem.bridge import (
+                _parse_equation_to_stoich,
+                build_enzyme_capacity,
+                consensus_to_metabolic_model,
+            )
             from helixlang.metabolism import FluxBalanceAnalysis, Reaction
 
             model = consensus_to_metabolic_model(result.consensus)
@@ -2094,11 +2094,10 @@ def _run_gem(program: Program) -> SimResult:
             _enzyme_levels: dict[str, float] = {}
             if expression_enabled:
                 try:
+                    from helixlang.gem.grn_inference import GRNInferenceResult
                     from helixlang.omics.expression_inference import (
                         infer_expression,
-                        build_expression_model,
                     )
-                    from helixlang.gem.grn_inference import GRNInferenceResult
                     if isinstance(result.grn, GRNInferenceResult) and \
                             result.grn.regulatory_edges:
                         _enzyme_levels = infer_expression(
@@ -2134,7 +2133,8 @@ def _run_gem(program: Program) -> SimResult:
             if dynamic:
                 # ---- Dynamic FBA path (doc/20 §15) ----
                 from helixlang.metabolism import (
-                    DynamicFluxBalance, DynamicFBAConfig,
+                    DynamicFBAConfig,
+                    DynamicFluxBalance,
                 )
                 dyn_cfg = DynamicFBAConfig(
                     dt_h=dt,
@@ -2170,7 +2170,7 @@ def _run_gem(program: Program) -> SimResult:
                 _extra_meta["trajectory_steps"] = len(dyn_trajectory)
             else:
                 # ---- Static FBA path ----
-                fluxes = fba.solve(objective="biomass", maximize=True)
+                fba.solve(objective="biomass", maximize=True)
                 analysis = fba.analyze()
                 growth_rate = analysis.get("growth_rate_per_hour", 0.0)
                 key_fluxes = {
