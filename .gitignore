@@ -55,3 +55,9 @@ ENV/
 *.ppm
 *.png.bak
 helixlang.egg-info/
+
+# Reference databases
+data/
+
+# Stale artifacts
+-
