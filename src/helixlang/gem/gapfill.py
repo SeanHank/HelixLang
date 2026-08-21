@@ -166,13 +166,24 @@ def _build_model_from_consensus(consensus: ConsensusResult) -> MetabolicModel:
         stoich = _parse_equation_to_stoich(rxn.equation)
         if not stoich:
             continue
+        # Exchange reactions (EX_ prefix, single extracellular metabolite)
+        # must have subsystem="exchange" so that DynamicFluxBalance.apply_uptake
+        # can find and constrain their bounds.  They always need lb=-1000
+        # to allow import from the environment regardless of confidence.
+        is_exchange = rxn.reaction_id.startswith("EX_") and len(stoich) == 1
+        if is_exchange:
+            subsystem = "exchange"
+            lb = -1000.0
+        else:
+            subsystem = "gem_reconstructed"
+            lb = -1000.0 if rxn.confidence >= 0.6 else 0.0
         model.add_reaction(Reaction(
             id=rxn.reaction_id,
             name=rxn.reaction_id,
             stoichiometry=stoich,
-            lower_bound=-1000.0 if rxn.confidence >= 0.6 else 0.0,
+            lower_bound=lb,
             upper_bound=1000.0,
-            subsystem="gem_reconstructed",
+            subsystem=subsystem,
         ))
     if consensus.reactions:
         model.set_biomass(consensus.reactions[0].reaction_id)
@@ -263,7 +274,7 @@ def gapfill(
                     id=candidate["id"],
                     name=candidate["id"],
                     stoichiometry=stoich,
-                    lower_bound=0.0,
+                    lower_bound=-1000.0,
                     upper_bound=1000.0,
                     subsystem="exchange",
                 )

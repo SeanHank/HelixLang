@@ -750,3 +750,25 @@ def test_species_params_split_growth_rates():
     # fast grew ~exponentially (2^14 of 1 cell after 20 ticks)
     assert counts["fast"] == 16384
     assert counts["slow"] == 512
+
+
+def test_dfba_metabolic_model_config():
+    """PopulationConfig.metabolic_model overrides the default ECOLI_CORE_MODEL."""
+    from copy import deepcopy
+    from helixlang.metabolism import ECOLI_CORE_MODEL, Reaction
+    # Create a minimal model with a single exchange + biomass-like reaction
+    model = deepcopy(ECOLI_CORE_MODEL)
+    env = Environment(EnvironmentConfig(
+        width=4, height=4, glucose_initial_mm=10.0,
+        oxygen_initial_mm=0.25, glucose_diffusion_um2_s=20.0,
+        oxygen_diffusion_um2_s=20.0))
+    cfg = PopulationConfig(
+        grid_width=4, grid_height=4, environment=env,
+        dfba_enabled=True, division_threshold=1e9,
+        metabolic_model=model)
+    pop = CellPopulation(_dfba_cells(1, 2, 2), cfg)
+    pop.step()
+    cell = pop.cells[0]
+    # The batch should have used the passed-in model (deep-copied)
+    assert cell.dfba is not None
+    assert cell.dfba.fba.model is not ECOLI_CORE_MODEL  # deep-copied

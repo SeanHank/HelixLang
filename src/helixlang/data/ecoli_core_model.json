@@ -1,7 +1,7 @@
 {
   "name": "E. coli core metabolic model (simplified)",
   "source": "Orth 2010 Mol Syst Biol 6:390 (iJO1366 simplified)",
-  "description": "Glycolysis + TCA + PPP + fermentation + respiration + biomass + glyoxylate shunt (aceA/aceB, off by default). ~38 reactions.",
+  "description": "Glycolysis + TCA + PPP + fermentation + respiration (simplified, no explicit O2) + biomass + glyoxylate shunt (aceA/aceB, off by default). ~42 reactions. Biomass uses simplified precursor set; use build_functional_model() for full iML1515-compatible biomass with explicit O2 consumption.",
   "biomass_reaction": "BIOMASS",
   "reactions": [
     {
@@ -310,7 +310,7 @@
     },
     {
       "id": "NADH_OX",
-      "name": "NADH oxidation + oxidative phosphorylation (P/O=1.5)",
+      "name": "NADH oxidation + oxidative phosphorylation (P/O=1.5, simplified)",
       "stoichiometry": {"NADH": -1.0, "ADP": -1.5, "NAD": 1.0, "ATP": 1.5},
       "lower_bound": 0.0,
       "upper_bound": 1000.0,
@@ -326,7 +326,7 @@
     },
     {
       "id": "FADH2_OX",
-      "name": "FADH2 oxidation + oxidative phosphorylation (P/O=0.5)",
+      "name": "FADH2 oxidation + oxidative phosphorylation (P/O=0.5, simplified)",
       "stoichiometry": {"FADH2": -1.0, "ADP": -0.5, "FAD": 1.0, "ATP": 0.5},
       "lower_bound": 0.0,
       "upper_bound": 1000.0,
@@ -334,7 +334,7 @@
     },
     {
       "id": "BIOMASS",
-      "name": "Biomass objective function (simplified)",
+      "name": "Biomass objective function (simplified core model, feasible precursor set)",
       "stoichiometry": {
         "G6P": -1.496,
         "R5P": -0.362,

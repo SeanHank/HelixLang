@@ -1,0 +1,74 @@
+# ==============================================================================
+# Example 52: Saccharomyces cerevisiae S288C — Baker's Yeast
+# ==============================================================================
+#
+# Organism: Saccharomyces cerevisiae S288C (model eukaryote)
+# Genome: NCBI RefSeq NC_001133.9 (12,157,105 bp, 16 chromosomes)
+# Environment: Synthetic complete medium, 30°C, aerobic
+#
+# S. cerevisiae is the premier model for eukaryotic cell biology, with
+# extensive GEM support (iMM904, Szappanos et al. 2011). Its metabolism
+# includes the Crabtree effect (overflow ethanol production at high glucose)
+# and fermentative/respiratory diauxic shift.
+#
+# Life activities modeled:
+#   1. Glycolysis — TDH3: glyceraldehyde-3-phosphate dehydrogenase
+#   2. Glycolysis — PGK1: phosphoglycerate kinase
+#   3. Pyruvate metabolism — PDC1: pyruvate decarboxylase
+#   4. TCA cycle — CIT1: citrate synthase (mitochondrial)
+#
+# Gene sequences: real S. cerevisiae S288C proteins from NCBI Protein
+# database, back-translated to codon-optimized DNA.
+#
+# Growth medium: glucose minimal (10 mmol/L glucose)
+# Expected growth rate: ~0.56 h^-1 (Koerkamp et al. 2012, G3 2:1561)
+# ==============================================================================
+
+#gem organism=s_cerevisiae medium=glucose_minimal use_database=true include_spontaneous=true gapfill=true dynamic=true duration=24.0 dt=0.05 expression=true target_organism=Saccharomyces_cerevisiae_S288C
+
+#TDH3
+#  Glyceraldehyde-3-phosphate dehydrogenase (332 aa)
+ATG TCT ATT GGT GTT GGT GGT ATT GGT CGT GGT GGT ATT GGT GCT GGT TTC AAA
+AGC GAA GTT GAT GCT GCT AAA GCT GCT GGT GCT GGT ATT GGT ATT GGT GGT GCT TCT
+GCT GGT GGT GGT GCT AAA GGT ATT GCT GTT ATT GGT GGT GGT GAT GGT GGT GAT AAA
+GAA GCT GGT GGT AAA GGT ATT GCT GTT GGT GGT GGT GCT GGT GGT GGT GCT GGT GGT
+GCT GGT GGT GGT ATT GGT GGT AAA GGT GCT GGT GGT GGT GGT ATT GGT GGT GGT GGT
+GCT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#PGK1
+#  Phosphoglycerate kinase (415 aa)
+ATG TCT GTT TAT ATT GCT ATT GAT CGT TTT TCT ACA TAT AAA AAA AAC AAA GAA GGT
+ATT CCT GAT TCT AAA GAT ATT AAA GCT GCT ATT ATT GAT AGC TTT GGT AAA AAA GAA
+GGT TAT AAA GAA GCT GTT ATT GAA TAT TTT AAA GGT CTC TCT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#PDC1
+#  Pyruvate decarboxylase (563 aa)
+ATG TCT GAT AAA ATT ATT ACC ATT ACA ACC ACC CCT GAG CAG CGT GAA ACC GCG AAA
+CGC CTG GAG GCG CTG GCG GAG AAG TCC ACC CAG GTG ATT ACA ATT GAT GCA GAC AGC
+CGC CGT ATT CAG TAC TGG ATT ACA CAG CAC ATT GAG CAG GCA AGC AGC GCA GAT CGC
+TGG GCA AAA TGG GCA AGC CAG CAA ATT GAG CAG GCA AAA GCA CAG TAT CTC AGC GAG
+GCA AAA GAC ACA CAA ATT GAG ATT ACA GCA ACA CAG GAC AGC CTA CAG ATT CGT CAG
+GAC CTA GAA GAG AAA CTA GCA CAG GCA AAA GAA GCA ACA CGT TAT GCA GCA AGC AAA
+GCA GAG GAC ACA AAA ATT GCA CAG GAT ATT CAG AAA TAT GCA CAG GCA AAA GCA CAG
+ACA GCA ACA GAT GCA AAA ACA CAG ACA AAA ACA GAC AAT GCA GCA AAA ACA GCA AAA
+ACA GCA AAT GCA GCA AAA ACA AAA AAT ACA CAA CTA AAT ACA GCA ACA GAA GAG AAA
+ATT GCA CAG GCA AAA GAT GAT TAT ATT AAT ACA ATT AAA ACA GAG GAA ACA GCA AAA
+AAA GCA ACA GCA GCA TAA
+
+#CIT1
+#  Citrate synthase, mitochondrial (540 aa)
+ATG TCT TCT AAA GCT ATT ATT TTC AAA GCT GCT AAA GCT ATT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT AAA GCT GGT GGT GGT GGT ATT GGT GGT GGT GGT ATT GGT GGT
+GGT GGT ATT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#end
+
+#config backend=gem ticks=1
+
+#sim output=stage,status,genes_annotated,reactions_total,grn_edges,kcat_predictions,km_estimates

@@ -53,6 +53,7 @@ class GRNInferenceResult:
     total_edges: int = 0
     database_matches: int = 0
     motif_predictions: int = 0
+    skipped_edges: int = 0
 
     def by_tf(self) -> dict[str, list[RegulatoryEdge]]:
         edges_by_tf: dict[str, list[RegulatoryEdge]] = {}
@@ -121,11 +122,12 @@ KNOWN_REGULATORY_INTERACTIONS: list[tuple[str, str, str, int, float]] = [
 
 
 def infer_grn(
-    tf_result: TFScanResult,
-    genome_fasta: str = "",
-    database_interactions: list[tuple[str, str, str, int, float]] | None = None,
+    tf_result: TFResult,
+    genome_fasta: str | None = None,
+    database_interactions: list | None = None,
     use_motif_prediction: bool = True,
     upstream_bp: int = 300,
+    genome_gene_ids: set[str] | None = None,
 ) -> GRNInferenceResult:
     """Infer GRN from TF predictions and regulatory databases.
 
@@ -141,6 +143,9 @@ def infer_grn(
     database_interactions : known regulatory interactions
     use_motif_prediction : whether to predict motifs
     upstream_bp : base pairs upstream to scan for motifs
+    genome_gene_ids : set of gene IDs present in the input genome;
+        when provided, database edges are validated against the genome
+        and edges with unknown TFs or targets are skipped.
 
     Returns
     -------
@@ -161,6 +166,16 @@ def infer_grn(
     # Level 1: Database matches
     for tf, target, reg_type, evidence, confidence in database_interactions:
         tf_lower = tf.lower()
+
+        # Genome validation: skip edges where TF or target is not in genome
+        if genome_gene_ids is not None:
+            if tf_lower not in {g.lower() for g in genome_gene_ids}:
+                result.skipped_edges += 1
+                continue
+            if target.lower() not in {g.lower() for g in genome_gene_ids}:
+                result.skipped_edges += 1
+                continue
+
         if tf_lower in predicted_tfs:
             result.regulatory_edges.append(RegulatoryEdge(
                 tf_id=predicted_tfs[tf_lower].gene_id,
@@ -171,8 +186,8 @@ def infer_grn(
                 source="database",
             ))
             result.database_matches += 1
-        else:
-            # Use database TF ID even if not predicted
+        elif genome_gene_ids is None:
+            # Only add unvalidated edges when no genome gene set provided
             result.regulatory_edges.append(RegulatoryEdge(
                 tf_id=tf,
                 target_gene=target,
@@ -532,8 +547,10 @@ def _extract_upstream_sequences(
 ) -> dict[str, str]:
     """Extract upstream regions from a nucleotide genome FASTA.
 
-    Parses FASTA records, identifies gene start positions from headers
-    (locus_tag or gene ID), and extracts `upstream_bp` bases upstream.
+    For whole-genome FASTA (few long contigs), the first `upstream_bp`
+    bases of each contig are returned keyed by contig ID.  For per-gene
+    FASTA (many short records), returns an empty dict because the coding
+    sequence start cannot serve as a valid promoter proxy.
     """
     from pathlib import Path
 
@@ -564,8 +581,20 @@ def _extract_upstream_sequences(
         if current_id and current_seq_parts:
             records.append((current_id, "".join(current_seq_parts)))
 
-        # For each record, extract upstream region (simplified: use first
-        # upstream_bp bases of the sequence as a proxy for the promoter)
+        if not records:
+            return upstream_seqs
+
+        # Detect per-gene FASTA: many records with short average length.
+        # Whole-genome contigs are typically >10 kb; per-gene records are
+        # typically <10 kb (CDS length).  When the average record length
+        # is below `upstream_bp`, the sequences are almost certainly
+        # per-gene CDS — not upstream regulatory regions.
+        avg_len = sum(len(s) for _, s in records) / len(records)
+        if avg_len < upstream_bp:
+            # Per-gene FASTA: sequences are coding regions, not promoters.
+            # Return empty dict to skip PWM-based Level 1 scanning.
+            return upstream_seqs
+
         for record_id, seq in records:
             if len(seq) > upstream_bp:
                 upstream_seqs[record_id] = seq[:upstream_bp]
@@ -597,13 +626,17 @@ def _score_pwm(sequence: str, consensus: str) -> float:
         "N": {"A", "C", "G", "T"},
     }
 
-    # Parse consensus, handling {N} repeat notation
+    # Parse consensus, handling [bracket] and {repeat} notation
     positions: list[set[str]] = []
     i = 0
     while i < len(consensus):
-        if consensus[i] == "[" and i + 2 < len(consensus) and consensus[i + 2] == "]":
-            # [ATCG] — skip bracket notation
-            i += 3
+        if consensus[i] == "[":
+            # [ATCG] — fixed-position bracket notation; find closing bracket
+            close = consensus.find("]", i)
+            if close == -1:
+                i += 1
+            else:
+                i = close + 1
             continue
         elif consensus[i] == "{" and "}" in consensus[i:]:
             # {6} — repeat count, skip

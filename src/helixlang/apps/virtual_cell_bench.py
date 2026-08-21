@@ -303,7 +303,7 @@ def run_whole_cell_benchmark() -> dict:
     fba = DynamicFluxBalance(
         model=ECOLI_CORE_MODEL,
         config=DynamicFBAConfig(
-            dt_h=0.25, initial_biomass_gdw=0.05, initial_glucose_mm=10.0))
+            dt_h=0.05, initial_biomass_gdw=0.05, initial_glucose_mm=10.0))
     mu_max = max(e["growth_rate"] for e in fba.run(duration_h=2.0))
     doubling_h = math.log(2.0) / mu_max
     doubling_err = abs(doubling_h - BATCH_DOUBLING_REFERENCE_H) / (

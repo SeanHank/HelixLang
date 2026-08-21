@@ -26,7 +26,7 @@
 # Expected growth rate: ~0.35 h^-1
 # ==============================================================================
 
-#gem organism=e_coli_k12 medium=glucose_minimal use_database=true include_spontaneous=true gapfill=true dynamic=true duration=24.0 dt=0.1 expression=true target_organism=Escherichia coli
+#gem organism=e_coli_k12 medium=glucose_minimal use_database=true include_spontaneous=true gapfill=true dynamic=true duration=24.0 dt=0.05 expression=true target_organism=Escherichia coli
 
 #gltA
 ATG TCT CAG CAA ATT CGT GTG GCG CTG AAT GTA GAG CTT GGT AGT CGC CAG ACA TTG

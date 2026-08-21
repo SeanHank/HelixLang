@@ -271,7 +271,7 @@ class PopulationConfig:
     program_controlled_division: bool = False
     trace_streaming: bool = False
     dfba_enabled: bool = False
-    dfba_dt_h: float = 0.25
+    dfba_dt_h: float = 0.05
     dfba_energy_scale: float = 1.25e8
     dfba_initial_biomass_gdw: float = 0.05
     dfba_glucose_half_saturation_mm: float = 0.1
@@ -291,6 +291,9 @@ class PopulationConfig:
     fluid_viscosity_mpas: float = 1.0    # medium viscosity (mPa·s, water ~1)
     lbm: object | None = None            # Level-2 LBM solver (apps.lattice_boltzmann)
     flow_substeps: int = 1               # LBM ticks per population tick
+    metabolic_model: object | None = None  # reconstructed GEM (MetabolicModel);
+                                           # when set, dFBA uses this instead of
+                                           # the hardcoded ECOLI_CORE_MODEL
 
 
 @dataclass(slots=True)
@@ -1552,8 +1555,9 @@ class CellPopulation:
         levels matrix.
         """
         config = self.config
+        base_model = config.metabolic_model or ECOLI_CORE_MODEL
         dfba = DynamicFluxBalance(
-            model=copy.deepcopy(ECOLI_CORE_MODEL),
+            model=copy.deepcopy(base_model),
             config=DynamicFBAConfig(
                 dt_h=dt_h,
                 initial_biomass_gdw=config.dfba_initial_biomass_gdw,

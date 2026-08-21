@@ -580,3 +580,115 @@ def test_ecosystem_requires_species_and_patches():
         Ecosystem(EcosystemConfig(species=[], patches=[water_patch("w")]))
     with pytest.raises(ValueError):
         Ecosystem(EcosystemConfig(species=[heterotroph("c")], patches=[]))
+
+
+# ============================================================================
+# GEM-driven ecosystem (doc/21 bridge)
+# ============================================================================
+
+def _gem_species() -> Species:
+    """Species backed by ECOLI_CORE_MODEL for GEM-driven tests."""
+    from helixlang.metabolism import ECOLI_CORE_MODEL
+    sp = Species(
+        name="ecoli_gem",
+        consumption={"glucose": (0.02, 0.1)},
+        cn_ratio=6.0,
+        maintenance=0.002,
+        metabolic_model=ECOLI_CORE_MODEL,
+    )
+    return sp
+
+
+def test_gem_to_species_extracts_parameters():
+    """gem_to_species extracts vmax, ks, yield_c from a pipeline result."""
+    from helixlang.apps.ecosystem import gem_to_species
+
+    class _FakeResult:
+        fba_fluxes = {"EX_glc_e": -10.0, "EX_ac_e": 2.0, "ATPM": 8.0}
+        growth_rate = 0.87
+        kcat_predictions = []
+        km_estimates = {"EX_glc_e": 0.15}
+        biomass_reaction = None
+
+    params = gem_to_species(_FakeResult(), organism="e_coli_k12")
+    assert params["vmax"] == pytest.approx(10.0, abs=0.01)
+    assert params["ks"] == pytest.approx(0.15, abs=0.01)
+    assert 0.1 <= params["yield_c"] <= 0.7
+    assert params["max_growth_rate"] == pytest.approx(0.87)
+    assert params["secretion"].get("acetate", 0) > 0
+
+
+def test_gem_to_species_fallback_defaults():
+    """gem_to_species returns safe defaults when pipeline data is sparse."""
+    from helixlang.apps.ecosystem import gem_to_species
+
+    class _EmptyResult:
+        fba_fluxes = {}
+        growth_rate = 0.0
+        kcat_predictions = []
+        km_estimates = {}
+        biomass_reaction = None
+
+    params = gem_to_species(_EmptyResult(), organism="unknown_org")
+    assert params["vmax"] == pytest.approx(0.02)
+    assert params["ks"] == pytest.approx(0.1)
+    assert params["yield_c"] == pytest.approx(0.5)
+
+
+def test_growth_rate_gem_returns_fba_flux():
+    """_growth_rate_gem returns FBA biomass flux (scaled to per-tick)."""
+    sp = _gem_species()
+    pc = PatchConfig(
+        name="p", kind="chemostat", width=1, height=1, flow_rate=0.0,
+        anoxic=True, initial_biomass={"ecoli_gem": 100.0},
+        substrates={"glucose": SubstrateConfig(initial_mm=10.0, bulk_mm=10.0)},
+    )
+    eco = Ecosystem(EcosystemConfig(
+        ticks=0, species=[sp], patches=[pc], gem_driven=True))
+    patch = eco.patches[0]
+    # Direct call to _growth_rate_gem
+    g_c, comps = patch._growth_rate_gem(
+        sp, 100.0, 0, 0, 1.0, 1.0, 1.0, 0.0)
+    assert g_c > 0.0, "FBA should produce positive growth with glucose"
+    assert len(comps) > 0, "Should have at least one substrate component"
+
+
+def test_growth_rate_gem_falls_back_to_monod():
+    """When metabolic_model is not a MetabolicModel, falls back to Monod."""
+    sp = Species(
+        name="fake",
+        consumption={"glucose": (0.02, 0.1)},
+        cn_ratio=6.0, maintenance=0.002,
+        metabolic_model="not_a_model",
+    )
+    pc = PatchConfig(
+        name="p", kind="chemostat", width=1, height=1, flow_rate=0.0,
+        anoxic=True, initial_biomass={"fake": 100.0},
+        substrates={"glucose": SubstrateConfig(initial_mm=10.0, bulk_mm=10.0)},
+    )
+    eco = Ecosystem(EcosystemConfig(
+        ticks=0, species=[sp], patches=[pc], gem_driven=True))
+    patch = eco.patches[0]
+    g_c, comps = patch._growth_rate_gem(
+        sp, 100.0, 0, 0, 1.0, 1.0, 1.0, 0.0)
+    # Should fall back to Monod and return a positive rate
+    assert g_c > 0.0
+
+
+def test_gem_driven_ecosystem_runs():
+    """Full ecosystem run with gem_driven=True completes without error."""
+    sp = _gem_species()
+    pc = PatchConfig(
+        name="p", kind="chemostat", width=1, height=1, flow_rate=0.001,
+        anoxic=True, initial_biomass={"ecoli_gem": 10.0},
+        substrates={"glucose": SubstrateConfig(initial_mm=5.0, bulk_mm=5.0)},
+    )
+    cfg = EcosystemConfig(
+        ticks=50, seed=42, fast_forward=False,
+        species=[sp], patches=[pc], gem_driven=True, sample_every=10)
+    eco = Ecosystem(cfg)
+    rows = eco.run()
+    assert eco.tick == 50
+    assert len(rows) >= 1
+    bio = rows[-1].get("p:ecoli_gem", 0.0)
+    assert bio > 0.0, "Biomass should persist after 50 ticks"

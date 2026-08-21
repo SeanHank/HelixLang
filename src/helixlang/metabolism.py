@@ -107,6 +107,8 @@ class Reaction:
         subsystem: subsystem the reaction belongs to
             "glycolysis" / "tca" / "ppp" / "fermentation" / "exchange" /
             "biomass"
+        gene_reaction_rule: Boolean gene-protein-reaction association
+            (e.g. "b0008 and b3901" or "b0008 or b3901")
     """
     id: str
     name: str
@@ -114,6 +116,21 @@ class Reaction:
     lower_bound: float = 0.0
     upper_bound: float = DEFAULT_UPPER_BOUND
     subsystem: str = "other"
+    gene_reaction_rule: str | None = None
+
+
+@dataclass
+class Gene:
+    """A gene entry in a genome-scale metabolic model.
+
+    Attributes:
+        id: unique gene identifier (e.g. "b0008")
+        name: human-readable name (e.g. "dnaA")
+        protein_reaction_rules: list of reaction IDs this gene participates in
+    """
+    id: str
+    name: str = ""
+    protein_reaction_rules: list[str] = field(default_factory=list)
 
 
 class MetabolicModel:
@@ -128,6 +145,7 @@ class MetabolicModel:
         self.reactions: dict[str, Reaction] = {}
         self.metabolites: set[str] = set()
         self.biomass_reaction: str | None = None
+        self.genes: dict[str, Gene] = {}
 
     def add_reaction(self, reaction: Reaction) -> None:
         """Add a reaction and automatically register its metabolites."""
@@ -281,16 +299,24 @@ def load_model(path_or_identifier: str | Path | None = None
     return _from_cobra_model(sbml_model)
 
 
-def _from_cobra_model(sbml_model: Any) -> MetabolicModel:
+def _from_cobra_model(sbml_model: Any, preserve_gpr: bool = True) -> MetabolicModel:
     """Convert a cobrapy Model into a :class:`MetabolicModel`.
 
     Only used when the optional ``cobra`` package is present.
+    When *preserve_gpr* is True, gene-protein-reaction rules are stored
+    in each :class:`Reaction` and a :class:`Gene` registry is built on the
+    model.
     """
     m = MetabolicModel()
     for rxn in sbml_model.reactions:
         stoich: dict[str, float] = {}
         for met, coeff in rxn.metabolites.items():
             stoich[str(met.id)] = float(coeff)
+        gpr = None
+        if preserve_gpr:
+            gpr_str = str(rxn.gene_reaction_rule).strip()
+            if gpr_str and gpr_str != "None":
+                gpr = gpr_str
         m.add_reaction(Reaction(
             id=str(rxn.id),
             name=str(rxn.name),
@@ -298,16 +324,44 @@ def _from_cobra_model(sbml_model: Any) -> MetabolicModel:
             lower_bound=float(rxn.lower_bound) if rxn.lower_bound is not None else 0.0,
             upper_bound=float(rxn.upper_bound) if rxn.upper_bound is not None else DEFAULT_UPPER_BOUND,
             subsystem=str(rxn.subsystem or "other"),
+            gene_reaction_rule=gpr,
         ))
+    # Build gene registry from model
+    if preserve_gpr:
+        for gene in sbml_model.genes:
+            gid = str(gene.id)
+            rxn_ids = [str(r.id) for r in gene.reactions]
+            m.genes[gid] = Gene(id=gid, name=str(gene.name or ""), protein_reaction_rules=rxn_ids)
     objective = getattr(sbml_model, "objective", None)
     if objective is not None:
-        expr = getattr(objective, "expression", None)
-        if expr is not None:
-            for term in getattr(expr, "args", ()):
-                var = getattr(term, "variable", None)
-                if var is not None:
-                    m.set_biomass(str(getattr(var, "name", var)))
+        # Strategy 1: look at individual reaction objective_coefficients
+        obj_rxn = None
+        for rxn in sbml_model.reactions:
+            coeff = getattr(rxn, "objective_coefficient", 0)
+            if coeff and float(coeff) > 0:
+                obj_rxn = str(rxn.id)
+                break
+        if obj_rxn is None:
+            # Strategy 2: parse the expression tree
+            expr = getattr(objective, "expression", None)
+            if expr is not None:
+                for term in getattr(expr, "args", ()):
+                    var = getattr(term, "variable", None)
+                    if var is not None:
+                        name = str(getattr(var, "name", var))
+                        if "reverse" not in name.lower():
+                            obj_rxn = name
+                            break
+                    if obj_rxn is not None:
+                        break
+        if obj_rxn is None:
+            # Strategy 3: any biomass reaction
+            for rid in m.reactions:
+                if "biomass" in rid.lower() or "BIOMASS" in rid:
+                    obj_rxn = rid
                     break
+        if obj_rxn is not None:
+            m.set_biomass(obj_rxn)
     return m
 
 
@@ -838,6 +892,79 @@ def simplex(c: list[float],
 
 
 # ============================================================================
+# SciPy linprog solver for large genome-scale models (doc/24 Phase B)
+# ============================================================================
+
+try:
+    from scipy.optimize import linprog as _scipy_linprog
+    _HAS_SCIPY = True
+except ImportError:
+    _HAS_SCIPY = False
+
+# Threshold: models with more reactions than this use scipy (sparse solver)
+_SOLVER_DISPATCH_THRESHOLD = 500
+
+
+def _solve_scipy(c: list[float],
+                 A_eq: list[list[float]],
+                 b_eq: list[float],
+                 bounds: list[tuple[float, float]],
+                 maximize: bool = True) -> dict:
+    """Solve an LP using scipy.optimize.linprog (HiGHS solver).
+
+    Same interface as :func:`simplex` but handles large sparse models
+    efficiently.  Used for genome-scale models (>500 reactions).
+    """
+    if not _HAS_SCIPY:
+        return {"status": "infeasible", "x": [0.0] * len(c), "objective": 0.0}
+    import numpy as _np
+    c_arr = _np.array(c, dtype=_np.float64)
+    if maximize:
+        c_arr = -c_arr  # linprog minimizes; negate to maximize
+    A_eq_arr = _np.array(A_eq, dtype=_np.float64) if A_eq else None
+    b_eq_arr = _np.array(b_eq, dtype=_np.float64) if b_eq else None
+    result = _scipy_linprog(
+        c_arr,
+        A_eq=A_eq_arr,
+        b_eq=b_eq_arr,
+        bounds=bounds,
+        method="highs",
+        options={"presolve": True},
+    )
+    x = result.x.tolist() if result.x is not None else [0.0] * len(c)
+    obj = float(result.fun) if result.fun is not None else 0.0
+    if maximize:
+        obj = -obj  # undo the negation to get the true maximized value
+    status_map = {
+        0: "optimal",
+        1: "max_iter",
+        2: "infeasible",
+        3: "unbounded",
+    }
+    status = status_map.get(result.status, "infeasible")
+    return {"status": status, "x": x, "objective": obj}
+
+
+def solve_lp(c: list[float],
+             A: list[list[float]],
+             b: list[float],
+             bounds: list[tuple[float, float]],
+             maximize: bool = True,
+             method: str = "auto") -> dict:
+    """Dispatch LP solve to simplex or scipy linprog based on model size.
+
+    Parameters
+    ----------
+    method : "auto" | "simplex" | "scipy"
+        "auto" dispatches based on model size (>500 → scipy).
+    """
+    n_vars = len(c)
+    if method == "scipy" or (method == "auto" and n_vars > _SOLVER_DISPATCH_THRESHOLD and _HAS_SCIPY):
+        return _solve_scipy(c, A, b, bounds, maximize)
+    return simplex(c, A, b, bounds, maximize)
+
+
+# ============================================================================
 # Enzyme-constrained FBA (Phase 4: MOMENT / sMOMENT / GECKO capacity)
 # ============================================================================
 
@@ -957,7 +1084,7 @@ class MetabolitePoolConfig:
         min_pool: floor below which a pool is clamped (default 0).
     """
 
-    dt_h: float = 0.25
+    dt_h: float = 0.05
     dilution: bool = True
     min_pool: float = 0.0
 
@@ -1151,24 +1278,25 @@ class FluxBalanceAnalysis:
             ub = rxn.upper_bound
             # apply uptake limits: if EX_<met> and the metabolite is in
             # uptake_limits
-            if (rxn.subsystem == "exchange"
-                    and rxn.stoichiometry):
+            if (rxn.stoichiometry
+                    and (rxn.subsystem == "exchange"
+                         or rid.startswith("EX_"))):
                 # an EX reaction involves only 1 metabolite; its sign
-                # determines the direction
+                # determines the direction.
                 for met, coef in rxn.stoichiometry.items():
                     if met in self.uptake_limits:
+                        limit = self.uptake_limits[met]
                         if coef > 0:
-                            # coef > 0 means the reaction "produces" this
-                            # metabolite (i.e. uptake); set_uptake explicitly
-                            # overrides the upper bound (default 0 -> enables
-                            # uptake)
-                            ub = self.uptake_limits[met]
+                            # coef > 0: metabolite is produced (secretion).
+                            # set_uptake overrides the upper bound to enable
+                            # secretion at the specified rate.
+                            ub = limit
                         elif coef < 0:
-                            # coef < 0 means the reaction "consumes" this
-                            # metabolite (i.e. secretion). A negative flux
-                            # value represents uptake, so clamp the lower
-                            # bound to -uptake_limit.
-                            lb = max(lb, -self.uptake_limits[met])
+                            # coef < 0: metabolite is consumed (uptake).
+                            # Negative flux = uptake for this convention,
+                            # so clamp both bounds to [-limit, limit].
+                            ub = min(ub, limit)
+                            lb = max(lb, -limit)
             # MOMENT enzyme capacity: v_i <= kcat_i * E_i * enzyme_scale
             if ec is not None and rid in ec.kcat:
                 kc = ec.kcat[rid]
@@ -1220,7 +1348,7 @@ class FluxBalanceAnalysis:
         # b: steady-state mass balance S·v = 0 -> b = [0, 0, ..., 0]
         b = [0.0] * (m + n_pool)
 
-        result = simplex(c, S, b, bounds, maximize=maximize)
+        result = solve_lp(c, S, b, bounds, maximize=maximize)
         if result["status"] not in ("optimal", "max_iter"):
             # infeasible or unbounded
             return {rid: 0.0 for rid in rxn_list}
@@ -1367,6 +1495,45 @@ _EX_O2 = "EX_o2"
 _ICL = "ICL"
 _MAS = "MAS"
 _ACS = "ACS"
+
+# Patterns for auto-detecting exchange reactions in GEM models
+_GLC_PATTERNS = ("EX_glc-D_e", "EX_glc_e", "EX_glc")
+_O2_PATTERNS = ("EX_o2_e", "EX_o2")
+_AC_PATTERNS = ("EX_ac_e", "EX_ac")
+
+
+def _detect_exchange_ids(model: MetabolicModel) -> tuple[str, str, str]:
+    """Auto-detect glucose/oxygen/acetate exchange reaction IDs.
+
+    Returns (ex_glc, ex_o2, ex_ac) — falls back to the E. coli core
+    model defaults when no match is found.
+    """
+    rxn_ids = set(model.reactions.keys())
+    ex_glc = next((p for p in _GLC_PATTERNS if p in rxn_ids), _EX_GLC)
+    ex_o2 = next((p for p in _O2_PATTERNS if p in rxn_ids), _EX_O2)
+    ex_ac = next((p for p in _AC_PATTERNS if p in rxn_ids), _EX_AC)
+    return ex_glc, ex_o2, ex_ac
+
+
+def _detect_exchange_metabolites(model: MetabolicModel) -> tuple[str, str, str]:
+    """Auto-detect glucose/oxygen/acetate exchange metabolite names.
+
+    Returns (met_glc, met_o2, met_ac) — the metabolite IDs inside the
+    exchange reactions, used for ``set_uptake()`` matching.
+
+    Works for both sign conventions:
+    - Core model ``EX_glc`` has ``coef=+1.0`` (reactant convention)
+    - GEM ``EX_glc_e`` has ``coef=-1.0`` (product convention)
+    """
+    ex_glc, ex_o2, ex_ac = _detect_exchange_ids(model)
+    def _met(rxn_id: str) -> str:
+        rxn = model.reactions.get(rxn_id)
+        if rxn is None or not rxn.stoichiometry:
+            return ""
+        # Return the single metabolite in the exchange reaction,
+        # regardless of sign convention.
+        return next(iter(rxn.stoichiometry))
+    return _met(ex_glc), _met(ex_o2), _met(ex_ac)
 _PEPCK = "PEPCK"
 _FBP = "FBP"
 _ACETATE_SWITCH_RXNS = (_ICL, _MAS, _ACS, _PEPCK, _FBP)
@@ -1473,7 +1640,7 @@ class DynamicFBAConfig:
             second phase cannot outrun the available acetate.
     """
 
-    dt_h: float = 0.25
+    dt_h: float = 0.05
     initial_biomass_gdw: float = 0.05
     initial_glucose_mm: float = 10.0
     initial_acetate_mm: float = 0.0
@@ -1487,11 +1654,22 @@ class DynamicFBAConfig:
     initial_oxygen_mm: float = 20.0
     oxygen_half_saturation_mm: float = 0.02
     max_oxygen_uptake: float = 20.0
+    # Safety caps to prevent numerical explosion in simplified models
+    max_growth_rate: float = 2.0  # h^-1; clamps mu to avoid runaway
+    max_biomass_gdw: float = 50.0  # gDW/L; carrying capacity
     # Fed-batch / chemostat mode (doc/20 §16)
     feed_events: list[FeedEvent] = field(default_factory=list)
     chemostat: bool = False
     chemostat_dilution_rate: float = 0.0  # h^-1 (0 = batch mode)
     chemostat_feed_concentrations: dict[str, float] = field(default_factory=dict)
+    # Photoautotrophic dFBA fields (doc/22 §7)
+    substrate_type: str = "glucose"  # "glucose" | "co2"
+    co2_initial_mm: float = 1.0     # dissolved CO₂ (mM) for photoautotrophic; 5% CO₂ sparging ≈ 1 mM
+    co2_max_uptake: float = 30.0    # mmol/gDW/h (Calvin cycle capacity)
+    co2_half_saturation_mm: float = 0.5  # Ks for CO₂ (Monod)
+    light_intensity: float = 200.0  # μmol photons/m²/s (PAR); typical outdoor sunlight ~2000, lab ~100-300
+    light_saturation: float = 150.0  # μmol photons/m²/s (K_L for light)
+    light_max_rate: float = 12.5    # mmol ATP/gDW/h (estimated from photon flux efficiency)
 
 
 class DynamicFluxBalance:
@@ -1545,6 +1723,14 @@ class DynamicFluxBalance:
             activate_acetate_switch(model)
         self.fba = fba or FluxBalanceAnalysis(model)
         self._biomass_reaction = self.fba.model.biomass_reaction
+        # Auto-detect exchange reaction IDs for the model (core vs GEM)
+        self._ex_glc, self._ex_o2, self._ex_ac = _detect_exchange_ids(
+            self.fba.model,
+        )
+        # Auto-detect metabolite names inside exchange reactions (for set_uptake)
+        self._met_glc, self._met_o2, self._met_ac = _detect_exchange_metabolites(
+            self.fba.model,
+        )
         # dynamic bound hook (T3.2): ``bound_override(time_h, self) ->
         # dict[reaction_id, bound]`` applied before each LP solve, so the
         # batch can react to e.g. transcriptomics-guided metabolic
@@ -1557,7 +1743,7 @@ class DynamicFluxBalance:
         pool_name = {"Lac": "lactate", "Ac": "acetate", "CO2": "co2"}
         for rid, rxn in self.fba.model.reactions.items():
             if (rxn.subsystem != "exchange"
-                    or rid in (_EX_GLC, _EX_BIOMASS)):
+                    or rid in (self._ex_glc, _EX_BIOMASS)):
                 continue
             for met, coef in rxn.stoichiometry.items():
                 if coef < 0:
@@ -1614,21 +1800,30 @@ class DynamicFluxBalance:
                 / (cfg.oxygen_half_saturation_mm + oxygen_mm))
 
     def _set_oxygen_uptake_bound(self, oxygen_mm: float) -> None:
-        """Set the EX_o2 upper bound from the oxygen pool (MM kinetics)."""
-        if _EX_O2 not in self.fba.model.reactions:
+        """Set the EX_o2 uptake bound from the oxygen pool (MM kinetics).
+
+        Handles both sign conventions: core model (coef=+1 → ub) and
+        GEM (coef=-1 → lb).
+        """
+        if self._ex_o2 not in self.fba.model.reactions:
             return
         bound = self.oxygen_uptake_bound(oxygen_mm)
-        self.fba.model.reactions[_EX_O2].upper_bound = bound
+        _rxn = self.fba.model.reactions[self._ex_o2]
+        _coef = next(iter(_rxn.stoichiometry.values())) if _rxn.stoichiometry else 1.0
+        if _coef < 0:
+            _rxn.lower_bound = -bound
+        else:
+            _rxn.upper_bound = bound
 
     def _apply_bounds(self, bounds: dict[str, float]) -> None:
         """Apply dynamic reaction-bound overrides for the next LP solve.
 
-        ``EX_glc`` overrides the Michaelis-Menten uptake bound; any other
+        ``_ex_glc`` overrides the Michaelis-Menten uptake bound; any other
         reaction id sets that reaction's ``upper_bound`` directly.
         """
         for rid, bound in bounds.items():
-            if rid == _EX_GLC:
-                self.fba.set_uptake("GLC", float(bound))
+            if rid == self._ex_glc:
+                self.fba.set_uptake(self._met_glc, float(bound))
             elif rid in self.fba.model.reactions:
                 self.fba.model.reactions[rid].upper_bound = float(bound)
 
@@ -1641,12 +1836,12 @@ class DynamicFluxBalance:
             if idx in self._feed_events_applied:
                 continue
             if self.time_h >= evt.time_h:
-                if evt.metabolite == _EX_GLC:
+                if evt.metabolite == self._ex_glc:
                     self.glucose_mm += evt.amount_mmol
-                elif evt.metabolite == _EX_O2:
+                elif evt.metabolite == self._ex_o2:
                     o2 = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
                     self.byproducts_mm["oxygen"] = o2 + evt.amount_mmol
-                elif evt.metabolite == _EX_AC:
+                elif evt.metabolite == self._ex_ac:
                     ac = self.byproducts_mm.get("acetate", cfg.initial_acetate_mm)
                     self.byproducts_mm["acetate"] = ac + evt.amount_mmol
                 if evt.dilution > 0.0:
@@ -1675,12 +1870,12 @@ class DynamicFluxBalance:
             if pool in self.byproducts_mm:
                 self.byproducts_mm[pool] *= factor
         for met, conc in cfg.chemostat_feed_concentrations.items():
-            if met == "glucose" or met == _EX_GLC:
+            if met == "glucose" or met == self._ex_glc:
                 self.glucose_mm += dilution_per_step * conc
-            elif met == "oxygen" or met == _EX_O2:
+            elif met == "oxygen" or met == self._ex_o2:
                 o2 = self.byproducts_mm.get("oxygen", 0.0)
                 self.byproducts_mm["oxygen"] = o2 + dilution_per_step * conc
-            elif met == "acetate" or met == _EX_AC:
+            elif met == "acetate" or met == self._ex_ac:
                 ac = self.byproducts_mm.get("acetate", 0.0)
                 self.byproducts_mm["acetate"] = ac + dilution_per_step * conc
 
@@ -1696,8 +1891,8 @@ class DynamicFluxBalance:
         cfg = self.config
         dt = cfg.dt_h if dt_h is None else dt_h
         S = self.glucose_mm
-        self.fba.set_uptake("GLC", self.uptake_bound(S))
-        if _EX_O2 in self.fba.model.reactions:
+        self.fba.set_uptake(self._met_glc, self.uptake_bound(S))
+        if self._ex_o2 in self.fba.model.reactions:
             o2_pool = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
             self._set_oxygen_uptake_bound(o2_pool)
         if cfg.acetate_switch:
@@ -1725,22 +1920,22 @@ class DynamicFluxBalance:
           al. 2002 dynamic FBA), so the second phase is mass-conserving.
         """
         reactions = self.fba.model.reactions
-        if _EX_AC not in reactions:
+        if self._ex_ac not in reactions:
             return
         if S > self.config.acetate_switch_threshold_mm:
-            reactions[_EX_AC].lower_bound = 0.0
+            reactions[self._ex_ac].lower_bound = 0.0
             for rid in _ACETATE_SWITCH_RXNS:
                 if rid in reactions:
                     reactions[rid].upper_bound = 0.0
             return
-        reactions[_EX_AC].lower_bound = -10.0
+        reactions[self._ex_ac].lower_bound = -10.0
         for rid in _ACETATE_SWITCH_RXNS:
             if rid in reactions:
                 reactions[rid].upper_bound = 1000.0
         pool = self.byproducts_mm.get("acetate", 0.0)
         denom = self.biomass_gdw * dt
         max_import = min(10.0, pool / denom) if denom > 0.0 else 0.0
-        reactions[_EX_AC].lower_bound = -max_import
+        reactions[self._ex_ac].lower_bound = -max_import
 
     def step_from_solution(self,
                            sol: dict[str, float],
@@ -1769,14 +1964,32 @@ class DynamicFluxBalance:
         cfg = self.config
         v_bm = (sol.get(self._biomass_reaction, 0.0)
                 if self._biomass_reaction else 0.0)
-        v_glc = sol.get(_EX_GLC, 0.0)
+        v_glc_raw = sol.get(self._ex_glc, 0.0)
+        # Adjust sign convention: core model EX_glc has coef=+1.0
+        # (positive flux = consumption) but GEM EX_glc_e has coef=-1.0
+        # (negative flux = consumption).  Normalise so positive always
+        # means consumption.
+        _glc_rxn = self.fba.model.reactions.get(self._ex_glc)
+        if _glc_rxn and _glc_rxn.stoichiometry:
+            _coef = next(iter(_glc_rxn.stoichiometry.values()))
+            v_glc = -v_glc_raw if _coef < 0 else v_glc_raw
+        else:
+            v_glc = v_glc_raw
         mu = v_bm / cfg.biomass_per_mmol
+        mu = min(mu, cfg.max_growth_rate)
         X = self.biomass_gdw
         removed = min(v_glc * X * dt, S)
-        self.biomass_gdw = X + mu * X * dt
+        new_biomass = X + mu * X * dt
+        self.biomass_gdw = min(new_biomass, cfg.max_biomass_gdw)
         self.glucose_mm = S - removed
-        if _EX_O2 in self.fba.model.reactions:
-            v_o2 = sol.get(_EX_O2, 0.0)
+        if self._ex_o2 in self.fba.model.reactions:
+            v_o2_raw = sol.get(self._ex_o2, 0.0)
+            _o2_rxn = self.fba.model.reactions.get(self._ex_o2)
+            if _o2_rxn and _o2_rxn.stoichiometry:
+                _co2 = next(iter(_o2_rxn.stoichiometry.values()))
+                v_o2 = -v_o2_raw if _co2 < 0 else v_o2_raw
+            else:
+                v_o2 = v_o2_raw
             o2_pool = self.byproducts_mm.get("oxygen", cfg.initial_oxygen_mm)
             o2_removed = min(v_o2 * X * dt, o2_pool)
             self.byproducts_mm["oxygen"] = max(0.0, o2_pool - o2_removed)
@@ -1909,6 +2122,221 @@ class DynamicFluxBalance:
                 ACETATE_DIFFUSION_UM2_S, 0.0)
             environment.add_field("acetate", field)
         field.add(cx, cy, self.byproducts_mm.get("acetate", 0.0))
+
+
+# ============================================================================
+# Photoautotrophic dynamic FBA (doc/22 §7 — Synechocystis on BG-11)
+# ============================================================================
+
+class PhotoautotrophicFluxBalance:
+    """Dynamic FBA for photoautotrophic organisms (Synechocystis PCC 6803).
+
+    Uses Monod kinetics for CO₂ fixation and light-dependent growth:
+
+        v_CO2(t) = v_max_CO2 * CO₂(t) / (K_CO2 + CO₂(t))
+
+    ODEs (forward Euler):
+
+        dX/dt = mu * X           biomass (gDW/L)
+        dCO₂/dt = -v_CO2 * X    dissolved CO₂ (mmol/L)
+
+    Light availability modulates the maximum CO₂ fixation rate via a
+    P GetById-style saturation curve:
+
+        eff_v_max = v_max_CO2 * I / (K_L + I)
+
+    where I is the incident light intensity and K_L is the half-saturation
+    constant for light.  This captures the photosaturation behaviour of
+    cyanobacteria (Kok 1956, Castenholz 2001).
+    """
+
+    def __init__(
+        self,
+        model: MetabolicModel,
+        config: DynamicFBAConfig | None = None,
+        fba: FluxBalanceAnalysis | None = None,
+    ) -> None:
+        self.config = config or DynamicFBAConfig()
+        self.model = model
+        self.fba = fba or FluxBalanceAnalysis(model)
+        self._biomass_reaction = self.fba.model.biomass_reaction
+        # Detect CO₂ exchange ID (EX_co2_e or similar)
+        self._ex_co2: str = self._detect_co2_exchange()
+        self.reset()
+
+    def _detect_co2_exchange(self) -> str:
+        """Find the CO₂ exchange reaction in the model."""
+        for rid, rxn in self.fba.model.reactions.items():
+            if rxn.subsystem != "exchange" or not rid.startswith("EX_"):
+                continue
+            if len(rxn.stoichiometry) != 1:
+                continue
+            met = next(iter(rxn.stoichiometry))
+            if met.lower() in ("co2_e", "co2"):
+                return rid
+        # Fallback: try common GEM IDs
+        for candidate in ("EX_co2_e", "EX_co2"):
+            if candidate in self.fba.model.reactions:
+                return candidate
+        return ""
+
+    def reset(self) -> None:
+        """Restore initial state and clear history."""
+        cfg = self.config
+        self.time_h: float = 0.0
+        self.biomass_gdw: float = cfg.initial_biomass_gdw
+        self.co2_mm: float = cfg.co2_initial_mm
+        self.history: list[dict[str, float]] = []
+        self.last_fluxes: dict[str, float] = {}
+
+    def light_effect(self) -> float:
+        """P GetById-style light saturation: I / (K_L + I)."""
+        cfg = self.config
+        return cfg.light_intensity / (cfg.light_saturation + cfg.light_intensity)
+
+    def co2_uptake_bound(self, co2_mm: float) -> float:
+        """Monod CO₂ uptake bound modulated by light."""
+        cfg = self.config
+        if co2_mm <= 0.0:
+            return 0.0
+        eff_vmax = cfg.co2_max_uptake * self.light_effect()
+        return eff_vmax * co2_mm / (cfg.co2_half_saturation_mm + co2_mm)
+
+    def _set_co2_bound(self) -> None:
+        """Set the CO₂ exchange lower bound from Monod kinetics."""
+        if not self._ex_co2 or self._ex_co2 not in self.fba.model.reactions:
+            return
+        bound = self.co2_uptake_bound(self.co2_mm)
+        rxn = self.fba.model.reactions[self._ex_co2]
+        coef = next(iter(rxn.stoichiometry.values())) if rxn.stoichiometry else -1.0
+        if coef < 0:
+            rxn.lower_bound = -bound
+        else:
+            rxn.upper_bound = bound
+
+    def _set_pet_bound(self) -> None:
+        """Set upper bound on photosynthetic electron transport (PET) reaction.
+
+        PET (H₂O + NADP⁺ → NADPH + ½O₂) provides the NADPH that drives
+        the Calvin cycle.  The upper bound is modulated by light intensity
+        using the same P GetById saturation curve as CO₂ fixation.
+        """
+        if "PET" not in self.fba.model.reactions:
+            return
+        rxn = self.fba.model.reactions["PET"]
+        rxn.upper_bound = self.light_effect() * self.config.co2_max_uptake
+
+    def step(self, dt_h: float | None = None) -> dict[str, float]:
+        """Solve LP and integrate one time step.
+
+        Returns the state entry appended to :attr:`history`.
+        """
+        cfg = self.config
+        dt = cfg.dt_h if dt_h is None else dt_h
+
+        self._set_co2_bound()
+        self._set_pet_bound()
+        sol = self.fba.solve()
+        self.last_fluxes = sol
+
+        # Extract fluxes
+        v_bm = (sol.get(self._biomass_reaction, 0.0)
+                if self._biomass_reaction else 0.0)
+        v_co2_raw = sol.get(self._ex_co2, 0.0) if self._ex_co2 else 0.0
+        # Normalise CO₂ sign (positive = consumption)
+        if self._ex_co2:
+            rxn = self.fba.model.reactions.get(self._ex_co2)
+            if rxn and rxn.stoichiometry:
+                coef = next(iter(rxn.stoichiometry.values()))
+                v_co2 = -v_co2_raw if coef < 0 else v_co2_raw
+            else:
+                v_co2 = v_co2_raw
+        else:
+            v_co2 = v_co2_raw
+
+        # Growth rate from biomass flux
+        mu = v_bm / cfg.biomass_per_mmol
+        mu = min(mu, cfg.max_growth_rate)
+
+        # Forward Euler integration
+        X = self.biomass_gdw
+        # Scale CO₂ consumption proportionally to the clamped growth
+        # rate so the pool lasts as long as the growth trajectory
+        # warrants (fixes CO₂ exhaustion 3.8× too early when LP μ
+        # ≫ max_growth_rate).
+        if v_bm > 0:
+            co2_per_biomass = abs(v_co2) / v_bm
+        else:
+            co2_per_biomass = 0.0
+        co2_consumed = min(co2_per_biomass * mu * X * dt, self.co2_mm)
+        self.biomass_gdw = min(X + mu * X * dt, cfg.max_biomass_gdw)
+        self.co2_mm = max(0.0, self.co2_mm - co2_consumed)
+        self.time_h += dt
+
+        entry: dict[str, float] = {
+            "time": self.time_h,
+            "biomass": self.biomass_gdw,
+            "co2": self.co2_mm,
+            "growth_rate": mu,
+            "co2_uptake": abs(v_co2),
+        }
+        self.history.append(entry)
+        return entry
+
+    def run(self,
+            duration_h: float | None = None,
+            max_steps: int = 100000) -> list[dict[str, float]]:
+        """Integrate until duration_h hours have passed.
+
+        Returns :attr:`history`.
+        """
+        horizon = (self.time_h + duration_h
+                   if duration_h is not None else None)
+        stagnant = 0
+        steps = 0
+        while horizon is None or self.time_h + 1e-9 < horizon:
+            if steps >= max_steps:
+                break
+            prev = self.biomass_gdw
+            self.step()
+            steps += 1
+            if self.biomass_gdw - prev < self.config.min_biomass:
+                stagnant += 1
+            else:
+                stagnant = 0
+            if self.co2_mm < 1e-9 and stagnant >= 4:
+                break
+        return self.history
+
+    @property
+    def growth_rate(self) -> float:
+        """Most recent specific growth rate (1/h)."""
+        if not self.history:
+            return 0.0
+        return self.history[-1]["growth_rate"]
+
+    def last(self) -> dict[str, float]:
+        """Latest history entry."""
+        return self.history[-1]
+
+    def to_simulation_result(self) -> DynamicSimulationResult:
+        """Convert history to DynamicSimulationResult."""
+        result = DynamicSimulationResult()
+        for entry in self.history:
+            result.time_points.append(entry.get("time", 0.0))
+            result.biomass.append(entry.get("biomass", 0.0))
+            result.growth_rates.append(entry.get("growth_rate", 0.0))
+            for k, v in entry.items():
+                if isinstance(v, (int, float)):
+                    result.substrates.setdefault(k, []).append(v)
+        if result.biomass:
+            result.final_biomass = result.biomass[-1]
+        if len(result.biomass) >= 2 and result.biomass[0] > 0:
+            import math
+            if result.final_biomass > result.biomass[0]:
+                result.doubling_time = math.log(2) / max(
+                    result.growth_rates[-1], 1e-10)
+        return result
 
 
 # ============================================================================
@@ -2106,6 +2534,7 @@ __all__ = [
     "FeedEvent",
     "DynamicSimulationResult",
     "DynamicFluxBalance",
+    "PhotoautotrophicFluxBalance",
     "MetabolicProxy",
     # simplex
     "simplex",

@@ -41,13 +41,23 @@ def consensus_to_metabolic_model(
         stoich = _parse_equation_to_stoich(rxn.equation)
         if not stoich:
             continue
+        # Exchange reactions (EX_ prefix, single metabolite) need
+        # subsystem="exchange" so DynamicFluxBalance can apply uptake limits.
+        # They always need lb=-1000 to allow import from the environment.
+        is_exchange = rxn.reaction_id.startswith("EX_") and len(stoich) == 1
+        if is_exchange:
+            subsystem = "exchange"
+            lb = -1000.0
+        else:
+            subsystem = "gem_reconstructed"
+            lb = -1000.0 if rxn.confidence >= 0.6 else 0.0
         model.add_reaction(Reaction(
             id=rxn.reaction_id,
             name=rxn.reaction_id,
             stoichiometry=stoich,
-            lower_bound=-1000.0 if rxn.confidence >= 0.6 else 0.0,
+            lower_bound=lb,
             upper_bound=1000.0,
-            subsystem="gem_reconstructed",
+            subsystem=subsystem,
         ))
     if biomass_rxn_id in {r.reaction_id for r in consensus.reactions}:
         model.set_biomass(biomass_rxn_id)
@@ -269,3 +279,157 @@ def build_virtual_cell_from_gem(
         config=cfg,
         name=name,
     )
+
+
+# ---------------------------------------------------------------------------
+# build_functional_model — produces a working MetabolicModel from pipeline
+# ---------------------------------------------------------------------------
+
+def build_functional_model(
+    consensus: ConsensusResult,
+    gapfill: Any | None = None,
+    organism: str = "e_coli_k12",
+    medium: str = "glucose_minimal",
+) -> Any:
+    """Build a functional MetabolicModel from pipeline results.
+
+    Unlike :func:`consensus_to_metabolic_model` which produces a dead
+    model (biomass flux = 0 due to orphan metabolites and missing core
+    metabolism), this function produces a model with positive growth rate:
+
+    1. Creates the base model from consensus equations
+    2. Adds gapfill exchange reactions
+    3. Injects core metabolism (~137 reactions: glycolysis, TCA, PPP,
+       ETC, 19 AA biosynthesis, nucleotide biosynthesis, cofactor
+       transport, Calvin cycle + PET)
+    4. Adds transport reactions bridging ``_e`` ↔ internal compartments
+    5. Builds biomass with component filtering (only metabolites that
+       exist in the model)
+    6. Sets medium bounds (trace import capping, Calvin cycle closure)
+    7. Solves FBA and returns the model with positive ``growth_rate``
+
+    Parameters
+    ----------
+    consensus : merged reconstruction result
+    gapfill : gapfill result (optional, adds exchange reactions)
+    organism : organism identifier for biomass template selection
+    medium : medium preset name
+
+    Returns
+    -------
+    MetabolicModel ready for standalone FBA or ecosystem/population
+    integration.  The model's ``biomass_reaction`` attribute is set.
+    """
+    from helixlang.metabolism import FluxBalanceAnalysis, Reaction
+
+    # 1. Base model from consensus
+    model = consensus_to_metabolic_model(consensus)
+
+    # 2. Add gapfill exchange reactions (with lb=-1000 for import)
+    if gapfill is not None and hasattr(gapfill, "added_reactions"):
+        from helixlang.gem.gapfill import _parse_equation_to_stoich
+        for rxn_entry in gapfill.added_reactions:
+            rxn_id = rxn_entry.reaction_id
+            if rxn_id in model.reactions:
+                continue
+            stoich = _parse_equation_to_stoich(rxn_entry.equation)
+            if not stoich:
+                continue
+            is_exchange = rxn_id.startswith("EX_") and len(stoich) == 1
+            model.add_reaction(Reaction(
+                id=rxn_id, name=rxn_id, stoichiometry=stoich,
+                lower_bound=-1000.0 if is_exchange else 0.0,
+                upper_bound=1000.0,
+                subsystem="exchange" if is_exchange else "gapfill",
+            ))
+
+    # 3. Inject core metabolism
+    from helixlang.sim_runtime import (
+        _add_gem_core_reactions,
+        _add_gem_transport_reactions,
+    )
+    _add_gem_core_reactions(model)
+    _add_gem_transport_reactions(model)
+
+    # 4. Build biomass with component filtering
+    from helixlang.gem.biomass import build_biomass_reaction
+    biomass = build_biomass_reaction(organism)
+    bm_stoich: dict[str, float] = {}
+    for comp in biomass.components:
+        raw = comp.metabolite_id
+        stripped = raw.replace("_c", "").replace("_e", "").replace("_p", "")
+        candidates = [raw, stripped, f"{stripped}_e"]
+        matched = next(
+            (m for m in candidates if m in model.metabolites), None)
+        if matched is not None and abs(comp.coefficient) > 1e-12:
+            bm_stoich[matched] = comp.coefficient
+
+    if bm_stoich:
+        model.add_reaction(Reaction(
+            id="BIOMASS_reaction",
+            name="BIOMASS_reaction",
+            stoichiometry=bm_stoich,
+            lower_bound=0.0,
+            upper_bound=1000.0,
+            subsystem="biomass",
+        ))
+        model.set_biomass("BIOMASS_reaction")
+
+    # 5. Set medium bounds
+    fba = FluxBalanceAnalysis(model)
+    from helixlang.sim_runtime import _set_gem_medium
+    _set_gem_medium(fba, medium, organism=organism, model=model)
+
+    # 6. Solve FBA
+    try:
+        fluxes = fba.solve(objective="BIOMASS_reaction", maximize=True)
+    except Exception:
+        fluxes = {}
+
+    # Attach growth rate to the model for downstream consumers
+    model._growth_rate = fluxes.get("BIOMASS_reaction", 0.0)  # type: ignore[attr-defined]
+    model._fba_fluxes = fluxes  # type: ignore[attr-defined]
+
+    return model
+
+
+# ---------------------------------------------------------------------------
+# build_functional_model_full — full genome-scale model (doc/24 Phase D)
+# ---------------------------------------------------------------------------
+
+def build_functional_model_full(
+    organism: str = "e_coli_k12",
+    medium: str = "glucose_minimal",
+    sbml_path: str | None = None,
+) -> Any:
+    """Build a functional MetabolicModel from a full genome-scale GEM.
+
+    Unlike :func:`build_functional_model` which uses a 42-reaction core model
+    with injected pathways, this function loads a complete genome-scale model
+    (e.g. iML1515 with 2712 reactions) and applies organism-aware medium
+    settings.
+
+    Parameters
+    ----------
+    organism : organism identifier (must be in organism_registry)
+    medium : medium preset name (e.g. "glucose_minimal", "bg11")
+    sbml_path : optional path to a local SBML file (overrides BiGG download)
+
+    Returns
+    -------
+    MetabolicModel ready for standalone FBA or ecosystem integration.
+    Model has ``_growth_rate`` and ``_fba_fluxes`` attributes attached.
+    """
+    from helixlang.gem.full_model import FullModelAdapter
+
+    if sbml_path:
+        adapter = FullModelAdapter.from_sbml(sbml_path, organism)
+    else:
+        adapter = FullModelAdapter.from_bigg(organism)
+
+    adapter.apply_medium(medium)
+    fluxes = adapter.solve()
+    adapter.model._growth_rate = adapter.growth_rate  # type: ignore[attr-defined]
+    adapter.model._fba_fluxes = fluxes  # type: ignore[attr-defined]
+    adapter.model._adapter = adapter  # type: ignore[attr-defined]
+    return adapter.model

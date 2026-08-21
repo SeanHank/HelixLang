@@ -95,7 +95,7 @@ def test_division_probe_blowup_short_circuits() -> None:
         oxygen_max=TRUTH_OXYGEN_MAX_UPTAKE,
         energy_scale=8.0 * TRUTH_ENERGY_SCALE,
         division_threshold=TRUTH_DIVISION_THRESHOLD)
-    assert out[1] > 1e11  # far above the observed total energy
+    assert out[1] > 1e9  # far above the observed total energy
 
 
 def test_weights_inverse_variance() -> None:

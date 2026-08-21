@@ -44,7 +44,7 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 |--------|-------|
 | Source modules | 90 (44 top-level + 6 subpackages) |
 | Test cases | 2229 (all passing, 89% coverage) |
-| `.helix` examples | 48 (complete source) |
+| `.helix` examples | 49 (complete source) |
 | Documentation | 22 files, 13,500 lines |
 | Runtime dependencies | **zero** (all optional: numpy, biopython, flask) |
 
@@ -292,6 +292,7 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `46_gem_reconstruction.helix` | `gem` | genome → GEM reconstruction → GRN → kinetics pipeline |
 | `47_ecoli_gem_simulation.helix` | `gem` | E. coli full GEM simulation with inline or FASTA genome |
 | `48_ecoli_inline_dna.helix` | `gem` | E. coli K-12 MG1655 — 46 genes with real inline DNA (codon format) |
+| `49_synechocystis_cyanobacteria.helix` | `gem` | Synechocystis PCC 6803 — 7 photosynthesis/circadian genes, freshwater photic zone |
 | `11_protein_structure.helix` | `#sim kind=protein_structure` | Chou-Fasman secondary-structure report |
 | `12_multi_species.helix` | `#sim kind=codon_usage` | per-species codon adaptation index |
 | `14_synbio_designer.helix` | `#sim kind=synbio_design` | promoter→RBS→GOI→terminator cassette design |
@@ -499,7 +500,7 @@ mypy
 - **2229 test cases** (2229 passing, 89% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 48 `examples/*.helix` covered + Python API companions
+- All 49 `examples/*.helix` covered + Python API companions
 
 ---
 

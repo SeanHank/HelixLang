@@ -1,0 +1,40 @@
+# ==============================================================================
+# Example 50: Multi-Species Ecosystem — E. coli + Synechocystis
+# ==============================================================================
+#
+# This example demonstrates the build_multi_species_ecosystem() API
+# (doc/22 §18, Phase I) by simulating a mixed heterotroph + phototroph
+# ecosystem in a shared chemostat environment.
+#
+# Species:
+#   1. E. coli K-12 MG1655 — heterotroph consuming glucose
+#   2. Synechocystis PCC 6803 — photoautotroph fixing CO₂
+#
+# The ecosystem uses GEM-driven growth (gem_driven=True) so each species'
+# growth rate is determined by FBA solved from its metabolic model.
+#
+# Cross-feeding: E. coli produces CO₂ (from respiration) which Synechocystis
+# can fix via the Calvin cycle. Synechocystis produces O₂ (from photosystem II)
+# which E. coli requires for aerobic respiration.
+#
+# Expected behavior:
+#   - Both species grow from their initial biomass
+#   - Glucose is consumed by E. coli
+#   - CO₂ is consumed by Synechocystis
+#   - O₂ is produced by Synechocystis, consumed by E. coli
+#   - Ecosystem reaches a steady state or coexistence
+# ==============================================================================
+
+#species name=ecoli genome=ecoli_k12 substrate=glucose vmax=0.02 ks=0.1
+#species name=synecho genome=synechocystis substrate=co2 photo=true photo_vmax=0.01
+
+#patch name=env kind=chemostat width=5 height=5 flow_rate=0.001
+#  initial.biomass ecoli=10.0 synecho=5.0
+#  substrate glucose initial=10.0 bulk=10.0 carbon_per_mol=6
+#  substrate co2 initial=5.0 bulk=5.0 carbon_per_mol=1
+#  substrate oxygen initial=0.25 bulk=0.25 carbon_per_mol=0
+#end
+
+#config backend=ecosystem ticks=500 gem_driven=true
+
+#sim output=tick,biomass_ecoli,biomass_synecho,glucose,co2,oxygen

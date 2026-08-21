@@ -48,10 +48,16 @@ from helixlang.environment import (
 )
 from helixlang.evolution import mutate
 from helixlang.metabolism import simplex
+from helixlang.units import TIME_TICK_MIN
 
 # ============================================================================
 # Genotype -> phenotype (A4: continuous trait axes, Ferriere & Legendre 2013)
 # ============================================================================
+
+# Conversion factor: FBA fluxes are in mmol/gDW/h (or 1/h for biomass).
+# The ecosystem ticks are minutes (TIME_TICK_MIN == 1.0), so FBA rates
+# must be scaled by _H_PER_TICK to match per-tick conventions.
+_H_PER_TICK: float = TIME_TICK_MIN / 60.0
 
 _NT_BITS: dict[str, tuple[int, int]] = {
     "A": (0, 0), "C": (0, 1), "G": (1, 0), "T": (1, 1),
@@ -89,6 +95,7 @@ class SpeciesTraitParams:
     tolerance: float = 0.5          # stress (toxin/pH/heat) tolerance (0..1)
     q10: float = 2.0                # Q10 temperature sensitivity (1.5..3.0)
     switching_cost: float = 0.05    # growth penalty for a metabolic switch (0..0.5)
+    max_growth_rate: float = 2.0    # h^-1; organism-specific cap (doc/20 §15)
 
     def from_genome(self, genome: str) -> SpeciesTraitParams:
         bits = _bit_vector(genome)
@@ -201,7 +208,7 @@ def gem_to_species(
     ``Species`` via ``Species.from_gem_params()``.
 
     Returns dict with keys: vmax, ks, yield_c, secretion, cn_ratio,
-    maintenance.
+    maintenance, max_growth_rate.
     """
 
     fluxes: dict[str, float] = {}
@@ -288,6 +295,17 @@ def gem_to_species(
         # assuming ~10 mmol ATP/gDW/h maintenance ≈ 0.001 per tick
         maintenance = min(0.01, fluxes["ATPM"] * 0.0001)
 
+    # Organism-specific growth rate caps (h^-1, literature values)
+    _ORG_MAX_GROWTH: dict[str, float] = {
+        "e_coli": 0.87, "e_coli_k12": 0.87,
+        "synechocystis": 0.14, "synechocystis_pcc6803": 0.14,
+        "b_subtilis": 0.58, "s_cerevisiae": 0.56, "s_aureus": 0.69,
+        "m_tuberculosis": 0.03, "p_aeruginosa": 0.53,
+        "k_pneumoniae": 0.53, "l_lactis": 0.57,
+    }
+    _org_key = organism.lower().replace(" ", "_").replace(".", "")
+    max_mu = _ORG_MAX_GROWTH.get(_org_key, _ORG_MAX_GROWTH.get("e_coli", 0.87))
+
     return {
         "vmax": vmax,
         "ks": ks,
@@ -295,6 +313,7 @@ def gem_to_species(
         "secretion": secretion,
         "cn_ratio": cn_ratio,
         "maintenance": maintenance,
+        "max_growth_rate": max_mu,
     }
 
 
@@ -1252,6 +1271,11 @@ class Patch:
         Solves a per-site FBA with exchange bounds set from local
         substrate concentrations, then returns the biomass flux as the
         growth rate.  Falls back to Monod if FBA is infeasible.
+
+        Unit note: FBA fluxes are in mmol/gDW/h (or 1/h for biomass).
+        The ecosystem ticks are minutes (``TIME_TICK_MIN == 1.0``), so
+        FBA rates are scaled by ``_H_PER_TICK`` to match the per-tick
+        conventions used by the Monod-based ``_growth_rate`` path.
         """
         from helixlang.metabolism import FluxBalanceAnalysis, MetabolicModel
 
@@ -1263,7 +1287,9 @@ class Patch:
         try:
             fba = FluxBalanceAnalysis(model)
 
-            # Set exchange bounds from local substrate concentrations
+            # Set exchange bounds from local substrate concentrations.
+            # Monod uptake is in per-tick (per-minute) units; FBA
+            # expects mmol/gDW/h, so we scale up by _H_PER_TICK.
             for sub, (vmax_ks, ks_val) in sp.consumption.items():
                 field = self.fields.get(sub)
                 if field is None:
@@ -1271,10 +1297,9 @@ class Patch:
                 conc = field.get(x, y) * fluct
                 # Map ecosystem substrate name to GEM exchange metabolite
                 gem_met = _ECOSYSTEM_TO_GEM_EXCHANGE.get(sub, sub)
-                # Uptake = min(Monod rate, vmax)
                 uptake = monod_uptake(vmax_ks, conc, ks_val)
                 rate = uptake * t_mod * moisture * sp.traits.uptake_gain
-                fba.set_uptake(gem_met, max(0.0, rate))
+                fba.set_uptake(gem_met, max(0.0, rate / _H_PER_TICK))
 
             # Solve for biomass
             bm_rxn = model.biomass_reaction
@@ -1286,9 +1311,13 @@ class Patch:
                 fluxes = fba.solve(objective="BIOMASS_reaction")
                 bm_flux = fluxes.get("BIOMASS_reaction", 0.0)
 
-            g_c = max(0.0, bm_flux * sp.traits.growth_rate_gain)
+            # Convert FBA 1/h to per-tick (per-minute) specific growth
+            g_c = max(0.0, bm_flux * _H_PER_TICK * sp.traits.growth_rate_gain)
+            # Cap at organism-specific maximum (doc/20 §15)
+            g_c = min(g_c, sp.traits.max_growth_rate)
 
-            # Build components list from exchange fluxes for C accounting
+            # Build components list from exchange fluxes for C accounting.
+            # Exchange fluxes are mmol/gDW/h; scale to per-tick.
             components: list[tuple] = []
             for rxn_id, flux in fluxes.items():
                 if rxn_id.startswith("EX_") and flux > 1e-8:
@@ -1299,7 +1328,8 @@ class Patch:
                             break
                     if substrate and substrate in self.fields:
                         cpm = self._cpm(substrate)
-                        components.append((substrate, cpm, flux))
+                        components.append((substrate, cpm,
+                                           flux * _H_PER_TICK))
 
             if g_c > 0:
                 return g_c, components
@@ -1804,4 +1834,147 @@ __all__ = [
     "CommunityFBA", "Scheduler", "Patch", "Ecosystem",
     "phototroph", "heterotroph", "acetotroph", "water_patch",
     "gem_to_species",
+    "build_multi_species_ecosystem",
 ]
+
+
+# ============================================================================
+# Multi-species ecosystem from genomes (doc/22 §18, Phase I)
+# ============================================================================
+
+def build_multi_species_ecosystem(
+    species_genomes: dict[str, str],
+    medium: str = "glucose_minimal",
+    ticks: int = 1000,
+    width: int = 10,
+    height: int = 10,
+    flow_rate: float = 0.001,
+    initial_biomass: float = 10.0,
+    substrate_initial_mm: float = 10.0,
+    substrate_bulk_mm: float = 10.0,
+    gem_dt: float = 0.05,
+) -> Ecosystem:
+    """Build an ecosystem from genome FASTA files.
+
+    For each species:
+    1. Run GEM pipeline → functional MetabolicModel
+    2. Extract Monod parameters via gem_to_species
+    3. Create Species with metabolic_model attached
+    4. Build Ecosystem with gem_driven=True
+
+    Parameters
+    ----------
+    species_genomes:
+        Mapping of ``name → FASTA_path``.
+    medium:
+        GEM medium preset (``"glucose_minimal"``, ``"bg11"``, etc.).
+    ticks:
+        Number of ecosystem tick-loop iterations.
+    width, height:
+        Patch grid dimensions.
+    flow_rate:
+        Chemostat dilution rate.
+    initial_biomass:
+        Initial biomass (gDW/L) seeded per species.
+    substrate_initial_mm, substrate_bulk_mm:
+        Initial and bulk substrate concentration (mM).
+    gem_dt:
+        Time step (h) passed to the GEM pipeline for dFBA.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from helixlang.apps.gem_pipeline import run_gem_pipeline
+
+    species_list: list[Species] = []
+    substrates: dict[str, SubstrateConfig] = {}
+
+    for name, fasta_path in species_genomes.items():
+        # Handle inline DNA sequences (not file paths)
+        _tmp_fasta: Path | None = None
+        _path = fasta_path
+        if not Path(_path).exists() and len(_path) > 10:
+            _tmp_fasta = Path(tempfile.mktemp(suffix=".fasta"))
+            _tmp_fasta.write_text(f">{name}\n{_path}\n")
+            _path = str(_tmp_fasta)
+
+        try:
+            result = run_gem_pipeline(
+                genome_fasta=_path,
+                organism=name,
+                medium=medium,
+            )
+        finally:
+            if _tmp_fasta is not None:
+                _tmp_fasta.unlink(missing_ok=True)
+
+        params = gem_to_species(result, organism=name, medium=medium)
+
+        # Detect primary substrate from fluxes
+        primary_sub = "glucose"
+        fluxes = dict(result.fba_fluxes) if result.fba_fluxes else {}
+        for rxn_id, flux in fluxes.items():
+            if flux < 0 and "co2" in rxn_id.lower():
+                primary_sub = "co2"
+                break
+
+        # Build consumption dict
+        consumption: dict[str, tuple[float, float]] = {}
+        vmax = float(params.get("vmax", 0))
+        ks = float(params.get("ks", 0.1))
+        if vmax > 0:
+            consumption[primary_sub] = (vmax, ks)
+
+        # Photoautotrophs
+        is_photo = primary_sub == "co2"
+
+        sp = Species(
+            name=name,
+            metabolic_model=result.metabolic_model,
+            consumption=consumption,
+            photo=is_photo,
+            photo_vmax=0.01 if is_photo else 0.0,
+            cn_ratio=float(params.get("cn_ratio", 6.0)),
+            maintenance=float(params.get("maintenance", 0.002)),
+            traits=SpeciesTraitParams(
+                yield_c=float(params.get("yield_c", 0.5)),
+                max_growth_rate=float(params.get("max_growth_rate", 0.87)),
+            ),
+            gem_fluxes=fluxes,
+        )
+        # Propagate secretion from FBA
+        secretion = params.get("secretion")
+        if isinstance(secretion, dict):
+            sp.secretion.update(secretion)
+
+        species_list.append(sp)
+
+        # Register substrate if not yet present
+        if primary_sub not in substrates:
+            is_co2 = primary_sub == "co2"
+            substrates[primary_sub] = SubstrateConfig(
+                initial_mm=substrate_initial_mm if not is_co2 else 5.0,
+                bulk_mm=substrate_bulk_mm if not is_co2 else 5.0,
+                carbon_per_mol=1 if is_co2 else 6,
+            )
+
+    if not species_list:
+        raise ValueError("species_genomes must contain at least one entry")
+
+    patch = PatchConfig(
+        name="env",
+        kind="chemostat",
+        width=width,
+        height=height,
+        flow_rate=flow_rate,
+        initial_biomass={sp.name: initial_biomass for sp in species_list},
+        substrates=substrates,
+    )
+
+    cfg = EcosystemConfig(
+        ticks=ticks,
+        species=species_list,
+        patches=[patch],
+        gem_driven=True,
+    )
+    return Ecosystem(cfg)

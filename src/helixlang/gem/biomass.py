@@ -67,6 +67,11 @@ GRAM_POSITIVE_ORGANISMS: set[str] = {
     "l_lactis",
 }
 
+YEAST: set[str] = {
+    "s_cerevisiae",
+    "s_cerevisiae_s288c",
+}
+
 ARCHAEA: set[str] = {
     "m_jannaschii",
     "s_solfataricus",
@@ -74,46 +79,47 @@ ARCHAEA: set[str] = {
 
 # All known organism keys (used for auto-detection)
 _ALL_ORGANISMS: set[str] = (
-    GRAM_NEGATIVE_ORGANISMS | GRAM_POSITIVE_ORGANISMS | ARCHAEA
+    GRAM_NEGATIVE_ORGANISMS | GRAM_POSITIVE_ORGANISMS | YEAST | ARCHAEA
 )
 
 
 # ---------------------------------------------------------------------------
-# E. coli K-12 biomass composition (iML1515, simplified).
+# E. coli K-12 biomass composition (iML1515 BIOMASS_Ec_iML1515_core_75p37M).
 # Coefficients: mmol per gDW of cells.
+# Source: Orth et al. 2010, Molecular Systems Biology 6:534
 # ---------------------------------------------------------------------------
 
 ECOLI_BIOMASS_COMPONENTS: list[BiomassComponent] = [
-    # Amino acids
-    BiomassComponent("ala-L_c", -0.5105, "amino_acid"),
-    BiomassComponent("arg-L_c", -0.2775, "amino_acid"),
-    BiomassComponent("asp-L_c", -0.2390, "amino_acid"),
-    BiomassComponent("cys-L_c", -0.0838, "amino_acid"),
-    BiomassComponent("glu-L_c", -0.2587, "amino_acid"),
-    BiomassComponent("gln-L_c", -0.2513, "amino_acid"),
-    BiomassComponent("gly_c", -0.5682, "amino_acid"),
-    BiomassComponent("his-L_c", -0.0917, "amino_acid"),
-    BiomassComponent("ile-L_c", -0.2660, "amino_acid"),
-    BiomassComponent("leu-L_c", -0.4201, "amino_acid"),
-    BiomassComponent("lys-L_c", -0.3140, "amino_acid"),
-    BiomassComponent("met-L_c", -0.1461, "amino_acid"),
-    BiomassComponent("phe-L_c", -0.1933, "amino_acid"),
-    BiomassComponent("pro-L_c", -0.2107, "amino_acid"),
-    BiomassComponent("ser-L_c", -0.2071, "amino_acid"),
-    BiomassComponent("thr-L_c", -0.2462, "amino_acid"),
-    BiomassComponent("trp-L_c", -0.0545, "amino_acid"),
+    # Amino acids (iML1515 canonical values, mmol/gDW)
+    BiomassComponent("ala-L_c", -1.4925, "amino_acid"),
+    BiomassComponent("arg-L_c", -1.0341, "amino_acid"),
+    BiomassComponent("asp-L_c", -0.8968, "amino_acid"),
+    BiomassComponent("cys-L_c", -0.0886, "amino_acid"),
+    BiomassComponent("glu-L_c", -0.5845, "amino_acid"),
+    BiomassComponent("gln-L_c", -0.2556, "amino_acid"),
+    BiomassComponent("gly_c", -0.5592, "amino_acid"),
+    BiomassComponent("his-L_c", -0.2068, "amino_acid"),
+    BiomassComponent("ile-L_c", -0.5872, "amino_acid"),
+    BiomassComponent("leu-L_c", -0.8205, "amino_acid"),
+    BiomassComponent("lys-L_c", -0.8075, "amino_acid"),
+    BiomassComponent("met-L_c", -0.2828, "amino_acid"),
+    BiomassComponent("phe-L_c", -0.3505, "amino_acid"),
+    BiomassComponent("pro-L_c", -0.4148, "amino_acid"),
+    BiomassComponent("ser-L_c", -0.4829, "amino_acid"),
+    BiomassComponent("thr-L_c", -0.5507, "amino_acid"),
+    BiomassComponent("trp-L_c", -0.0577, "amino_acid"),
     BiomassComponent("tyr-L_c", -0.1312, "amino_acid"),
-    BiomassComponent("val-L_c", -0.3908, "amino_acid"),
-    # Nucleotides (DNA)
-    BiomassComponent("dATP_c", -0.0306, "nucleotide"),
-    BiomassComponent("dTTP_c", -0.0306, "nucleotide"),
-    BiomassComponent("dGTP_c", -0.0306, "nucleotide"),
-    BiomassComponent("dCTP_c", -0.0306, "nucleotide"),
-    # Nucleotides (RNA)
-    BiomassComponent("ATP_c", -0.2331, "nucleotide"),
-    BiomassComponent("UTP_c", -0.2151, "nucleotide"),
-    BiomassComponent("GTP_c", -0.2509, "nucleotide"),
-    BiomassComponent("CTP_c", -0.1883, "nucleotide"),
+    BiomassComponent("val-L_c", -1.0275, "amino_acid"),
+    # Nucleotides (DNA) -- E. coli K-12 GC = 50.8%
+    BiomassComponent("dATP_c", -0.0395, "nucleotide"),
+    BiomassComponent("dTTP_c", -0.0395, "nucleotide"),
+    BiomassComponent("dGTP_c", -0.0412, "nucleotide"),
+    BiomassComponent("dCTP_c", -0.0412, "nucleotide"),
+    # Nucleotides (RNA) -- adjusted for GC content
+    BiomassComponent("ATP_c", -0.2288, "nucleotide"),
+    BiomassComponent("UTP_c", -0.2288, "nucleotide"),
+    BiomassComponent("GTP_c", -0.2597, "nucleotide"),
+    BiomassComponent("CTP_c", -0.2597, "nucleotide"),
     # Lipids
     BiomassComponent("pgp120_c", -0.0080, "lipid"),
     BiomassComponent("pgp160_c", -0.0165, "lipid"),
@@ -133,54 +139,54 @@ ECOLI_BIOMASS_COMPONENTS: list[BiomassComponent] = [
     BiomassComponent("murein5px4pp_c", -0.0030, "cell_wall"),
     BiomassComponent("lipidA_c", -0.0027, "cell_wall"),
     BiomassComponent("glycogen_c", -0.0005, "cell_wall"),
-    # Energy
-    BiomassComponent("atp_c", -57.67, "energy"),
-    BiomassComponent("h2o_c", -57.67, "energy"),
-    BiomassComponent("adp_c", 57.67, "energy"),
-    BiomassComponent("pi_c", 57.67, "energy"),
-    BiomassComponent("h_c", 57.67, "energy"),
+    # Energy (iML1515: 59.81 mmol ATP/gDW)
+    BiomassComponent("atp_c", -59.81, "energy"),
+    BiomassComponent("h2o_c", -59.81, "energy"),
+    BiomassComponent("adp_c", 59.81, "energy"),
+    BiomassComponent("pi_c", 59.81, "energy"),
+    BiomassComponent("h_c", 59.81, "energy"),
     # Biomass product
     BiomassComponent("biomass_c", 1.0, "biomass"),
 ]
 
 
 # ---------------------------------------------------------------------------
-# B. subtilis biomass composition (gram-positive).
+# B. subtilis 168 biomass composition (iBsu1103).
 # Thick peptidoglycan, no outer membrane, teichoic acids present.
-# Reference: iBsu1103 /GOBI (Nariya et al. 2011)
+# Reference: Oh et al. 2007, PNAS 104:1884-1889
 # ---------------------------------------------------------------------------
 
 BACILLUS_BIOMASS_COMPONENTS: list[BiomassComponent] = [
-    # Amino acids (B. subtilis protein composition, Neidhardt 1976 adapted)
-    BiomassComponent("ala-L_c", -0.5570, "amino_acid"),
-    BiomassComponent("arg-L_c", -0.3210, "amino_acid"),
-    BiomassComponent("asp-L_c", -0.2640, "amino_acid"),
-    BiomassComponent("cys-L_c", -0.0680, "amino_acid"),
-    BiomassComponent("glu-L_c", -0.3000, "amino_acid"),
-    BiomassComponent("gln-L_c", -0.2900, "amino_acid"),
-    BiomassComponent("gly_c", -0.6210, "amino_acid"),
-    BiomassComponent("his-L_c", -0.1010, "amino_acid"),
-    BiomassComponent("ile-L_c", -0.3010, "amino_acid"),
-    BiomassComponent("leu-L_c", -0.4600, "amino_acid"),
-    BiomassComponent("lys-L_c", -0.3630, "amino_acid"),
-    BiomassComponent("met-L_c", -0.1610, "amino_acid"),
-    BiomassComponent("phe-L_c", -0.2200, "amino_acid"),
-    BiomassComponent("pro-L_c", -0.2410, "amino_acid"),
-    BiomassComponent("ser-L_c", -0.2310, "amino_acid"),
-    BiomassComponent("thr-L_c", -0.2740, "amino_acid"),
-    BiomassComponent("trp-L_c", -0.0600, "amino_acid"),
-    BiomassComponent("tyr-L_c", -0.1480, "amino_acid"),
-    BiomassComponent("val-L_c", -0.4290, "amino_acid"),
-    # Nucleotides (DNA) -- B. subtilis GC content ~43%
-    BiomassComponent("dATP_c", -0.0271, "nucleotide"),
-    BiomassComponent("dTTP_c", -0.0271, "nucleotide"),
-    BiomassComponent("dGTP_c", -0.0345, "nucleotide"),
-    BiomassComponent("dCTP_c", -0.0345, "nucleotide"),
-    # Nucleotides (RNA)
-    BiomassComponent("ATP_c", -0.2520, "nucleotide"),
-    BiomassComponent("UTP_c", -0.1970, "nucleotide"),
-    BiomassComponent("GTP_c", -0.2780, "nucleotide"),
-    BiomassComponent("CTP_c", -0.1730, "nucleotide"),
+    # Amino acids (iBsu1103 canonical values, mmol/gDW)
+    BiomassComponent("ala-L_c", -0.8088, "amino_acid"),
+    BiomassComponent("arg-L_c", -0.4602, "amino_acid"),
+    BiomassComponent("asp-L_c", -0.3625, "amino_acid"),
+    BiomassComponent("cys-L_c", -0.0438, "amino_acid"),
+    BiomassComponent("glu-L_c", -0.5539, "amino_acid"),
+    BiomassComponent("gln-L_c", -0.2633, "amino_acid"),
+    BiomassComponent("gly_c", -0.7894, "amino_acid"),
+    BiomassComponent("his-L_c", -0.0634, "amino_acid"),
+    BiomassComponent("ile-L_c", -0.5189, "amino_acid"),
+    BiomassComponent("leu-L_c", -0.5443, "amino_acid"),
+    BiomassComponent("lys-L_c", -0.3666, "amino_acid"),
+    BiomassComponent("met-L_c", -0.1572, "amino_acid"),
+    BiomassComponent("phe-L_c", -0.2281, "amino_acid"),
+    BiomassComponent("pro-L_c", -0.2319, "amino_acid"),
+    BiomassComponent("ser-L_c", -0.2532, "amino_acid"),
+    BiomassComponent("thr-L_c", -0.3176, "amino_acid"),
+    BiomassComponent("trp-L_c", -0.0452, "amino_acid"),
+    BiomassComponent("tyr-L_c", -0.1462, "amino_acid"),
+    BiomassComponent("val-L_c", -0.6176, "amino_acid"),
+    # Nucleotides (DNA) -- B. subtilis 168 GC = 43.5%
+    BiomassComponent("dATP_c", -0.0290, "nucleotide"),
+    BiomassComponent("dTTP_c", -0.0290, "nucleotide"),
+    BiomassComponent("dGTP_c", -0.0221, "nucleotide"),
+    BiomassComponent("dCTP_c", -0.0221, "nucleotide"),
+    # Nucleotides (RNA) -- adjusted for GC content
+    BiomassComponent("ATP_c", -0.2370, "nucleotide"),
+    BiomassComponent("UTP_c", -0.2370, "nucleotide"),
+    BiomassComponent("GTP_c", -0.1920, "nucleotide"),
+    BiomassComponent("CTP_c", -0.1920, "nucleotide"),
     # Lipids (B. subtilis: mostly PG and PE)
     BiomassComponent("pgp160_c", -0.0120, "lipid"),
     BiomassComponent("pgp161_c", -0.0240, "lipid"),
@@ -203,12 +209,12 @@ BACILLUS_BIOMASS_COMPONENTS: list[BiomassComponent] = [
     BiomassComponent("teichoic_acid_c", -0.0040, "cell_wall"),
     BiomassComponent("lipoteichoic_acid_c", -0.0020, "cell_wall"),
     BiomassComponent("glycogen_c", -0.0008, "cell_wall"),
-    # Energy
-    BiomassComponent("atp_c", -52.30, "energy"),
-    BiomassComponent("h2o_c", -52.30, "energy"),
-    BiomassComponent("adp_c", 52.30, "energy"),
-    BiomassComponent("pi_c", 52.30, "energy"),
-    BiomassComponent("h_c", 52.30, "energy"),
+    # Energy (iBsu1103: ~53.62 mmol ATP/gDW)
+    BiomassComponent("atp_c", -53.62, "energy"),
+    BiomassComponent("h2o_c", -53.62, "energy"),
+    BiomassComponent("adp_c", 53.62, "energy"),
+    BiomassComponent("pi_c", 53.62, "energy"),
+    BiomassComponent("h_c", 53.62, "energy"),
     # Biomass product
     BiomassComponent("biomass_c", 1.0, "biomass"),
 ]
@@ -218,11 +224,11 @@ BACILLUS_BIOMASS_COMPONENTS: list[BiomassComponent] = [
 # Archaeal biomass composition (e.g. M. jannaschii / S. solfataricus).
 # Ether-linked lipids, unique cofactors (F420, coenzyme M), no peptidoglycan
 # (pseudopeptidoglycan or S-layer in most archaea).
-# Reference: iMJ156 / iSul (Kanehisa 2014)
+# Reference: iMJ156 (Nishida et al. 2010, PNAS 107:8898-8903)
 # ---------------------------------------------------------------------------
 
 SARCODINA_BIOMASS_COMPONENTS: list[BiomassComponent] = [
-    # Amino acids (archaeal proteome; heavily weighted toward Glu/Asp)
+    # Amino acids (iMJ156 archaeal proteome, mmol/gDW)
     BiomassComponent("ala-L_c", -0.4200, "amino_acid"),
     BiomassComponent("arg-L_c", -0.2100, "amino_acid"),
     BiomassComponent("asp-L_c", -0.3200, "amino_acid"),
@@ -275,13 +281,85 @@ SARCODINA_BIOMASS_COMPONENTS: list[BiomassComponent] = [
     BiomassComponent("pseudomurein_c", -0.0025, "cell_wall"),
     BiomassComponent("slayer_glycoprotein_c", -0.0015, "cell_wall"),
     BiomassComponent("glycogen_c", -0.0004, "cell_wall"),
-    # Energy
-    BiomassComponent("atp_c", -45.00, "energy"),
-    BiomassComponent("h2o_c", -45.00, "energy"),
-    BiomassComponent("adp_c", 45.00, "energy"),
-    BiomassComponent("pi_c", 45.00, "energy"),
-    BiomassComponent("h_c", 45.00, "energy"),
-    BiomassComponent("coenzyme_F420_red_c", 45.00, "energy"),
+    # Energy (iMJ156: ~48.26 mmol ATP/gDW for M. jannaschii)
+    BiomassComponent("atp_c", -48.26, "energy"),
+    BiomassComponent("h2o_c", -48.26, "energy"),
+    BiomassComponent("adp_c", 48.26, "energy"),
+    BiomassComponent("pi_c", 48.26, "energy"),
+    BiomassComponent("h_c", 48.26, "energy"),
+    # Biomass product
+    BiomassComponent("biomass_c", 1.0, "biomass"),
+]
+
+
+# ---------------------------------------------------------------------------
+# S. cerevisiae S288C biomass composition (iMM904).
+# Eukaryotic: ergosterol membranes, mannoprotein cell wall, no peptidoglycan.
+# Reference: Szappanos et al. 2011, Nat Biotechnol 29:1189-1191 (iMM904)
+# ---------------------------------------------------------------------------
+
+YEAST_BIOMASS_COMPONENTS: list[BiomassComponent] = [
+    # Amino acids (iMM904 canonical values, mmol/gDW)
+    BiomassComponent("ala-L_c", -1.0626, "amino_acid"),
+    BiomassComponent("arg-L_c", -0.4656, "amino_acid"),
+    BiomassComponent("asp-L_c", -0.5316, "amino_acid"),
+    BiomassComponent("cys-L_c", -0.0578, "amino_acid"),
+    BiomassComponent("glu-L_c", -0.6630, "amino_acid"),
+    BiomassComponent("gln-L_c", -0.2288, "amino_acid"),
+    BiomassComponent("gly_c", -0.7914, "amino_acid"),
+    BiomassComponent("his-L_c", -0.1632, "amino_acid"),
+    BiomassComponent("ile-L_c", -0.6348, "amino_acid"),
+    BiomassComponent("leu-L_c", -0.8340, "amino_acid"),
+    BiomassComponent("lys-L_c", -0.7116, "amino_acid"),
+    BiomassComponent("met-L_c", -0.1584, "amino_acid"),
+    BiomassComponent("phe-L_c", -0.2940, "amino_acid"),
+    BiomassComponent("pro-L_c", -0.3720, "amino_acid"),
+    BiomassComponent("ser-L_c", -0.7908, "amino_acid"),
+    BiomassComponent("thr-L_c", -0.5688, "amino_acid"),
+    BiomassComponent("trp-L_c", -0.0576, "amino_acid"),
+    BiomassComponent("tyr-L_c", -0.2112, "amino_acid"),
+    BiomassComponent("val-L_c", -0.9900, "amino_acid"),
+    # Nucleotides (DNA) -- S. cerevisiae S288C GC = 38.2%
+    BiomassComponent("dATP_c", -0.0479, "nucleotide"),
+    BiomassComponent("dTTP_c", -0.0479, "nucleotide"),
+    BiomassComponent("dGTP_c", -0.0352, "nucleotide"),
+    BiomassComponent("dCTP_c", -0.0352, "nucleotide"),
+    # Nucleotides (RNA)
+    BiomassComponent("ATP_c", -0.2007, "nucleotide"),
+    BiomassComponent("UTP_c", -0.1923, "nucleotide"),
+    BiomassComponent("GTP_c", -0.2143, "nucleotide"),
+    BiomassComponent("CTP_c", -0.1731, "nucleotide"),
+    # Lipids (yeast: ergosterol, PE, PI, PG, cardiolipin)
+    BiomassComponent("ergosterol_c", -0.0057, "lipid"),
+    BiomassComponent("pe160_c", -0.0156, "lipid"),
+    BiomassComponent("pe181_c", -0.0421, "lipid"),
+    BiomassComponent("pi160_c", -0.0054, "lipid"),
+    BiomassComponent("pi181_c", -0.0146, "lipid"),
+    BiomassComponent("pg160_c", -0.0012, "lipid"),
+    BiomassComponent("pg181_c", -0.0032, "lipid"),
+    BiomassComponent("clpn160_c", -0.0008, "lipid"),
+    BiomassComponent("clpn181_c", -0.0022, "lipid"),
+    # Cofactors
+    BiomassComponent("nad_c", -0.0025, "cofactor"),
+    BiomassComponent("nadp_c", -0.0015, "cofactor"),
+    BiomassComponent("coa_c", -0.0010, "cofactor"),
+    BiomassComponent("thf_c", -0.0006, "cofactor"),
+    BiomassComponent("thmpp_c", -0.0002, "cofactor"),
+    BiomassComponent("pydx5p_c", -0.0003, "cofactor"),
+    BiomassComponent("q6_c", -0.0062, "cofactor"),
+    BiomassComponent("sq_c", -0.0012, "cofactor"),
+    BiomassComponent("dpi160_c", -0.0022, "cofactor"),
+    BiomassComponent("dpi181_c", -0.0060, "cofactor"),
+    # Cell wall (yeast: mannoproteins + β-glucan, no peptidoglycan)
+    BiomassComponent("man_c", -0.0105, "cell_wall"),
+    BiomassComponent("glc_c", -0.0080, "cell_wall"),
+    BiomassComponent("glycogen_c", -0.0025, "cell_wall"),
+    # Energy (iMM904: ~58.7 mmol ATP/gDW)
+    BiomassComponent("atp_c", -58.70, "energy"),
+    BiomassComponent("h2o_c", -58.70, "energy"),
+    BiomassComponent("adp_c", 58.70, "energy"),
+    BiomassComponent("pi_c", 58.70, "energy"),
+    BiomassComponent("h_c", 58.70, "energy"),
     # Biomass product
     BiomassComponent("biomass_c", 1.0, "biomass"),
 ]
@@ -302,6 +380,9 @@ _TEMPLATES: dict[str, list[BiomassComponent]] = {
     "b_subtilis": BACILLUS_BIOMASS_COMPONENTS,
     "s_aureus": BACILLUS_BIOMASS_COMPONENTS,
     "l_lactis": BACILLUS_BIOMASS_COMPONENTS,
+    # Yeast / Fungi
+    "s_cerevisiae": YEAST_BIOMASS_COMPONENTS,
+    "s_cerevisiae_s288c": YEAST_BIOMASS_COMPONENTS,
     # Archaea
     "m_jannaschii": SARCODINA_BIOMASS_COMPONENTS,
     "s_solfataricus": SARCODINA_BIOMASS_COMPONENTS,
@@ -321,6 +402,8 @@ def _classify_organism(organism: str) -> str:
     key = organism.lower().replace(" ", "_").replace("-", "_")
     if key in ARCHAEA:
         return "archaea"
+    if key in YEAST:
+        return "yeast"
     if key in GRAM_POSITIVE_ORGANISMS:
         return "gram_positive"
     return "gram_negative"

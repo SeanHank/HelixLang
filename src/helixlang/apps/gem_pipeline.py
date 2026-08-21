@@ -586,6 +586,7 @@ def run_gem_pipeline(
     target_organism: str = "Escherichia coli",
     gff3_path: str | None = None,
     diamond_db: str | None = None,
+    medium: str = "glucose_minimal",
 ) -> GemPipelineResult:
     """Execute the complete six-stage GEM reconstruction pipeline.
 
@@ -708,9 +709,9 @@ def run_gem_pipeline(
 
             # Get substrate for Km estimation
             substrate = ""
-            if ann and ann.ec_numbers:
+            if gene_ann and gene_ann.ec_numbers:
                 # Try to infer substrate from EC class
-                substrate = _infer_substrate_from_ec(ann.ec_numbers[0])
+                substrate = _infer_substrate_from_ec(gene_ann.ec_numbers[0])
 
             km_estimates[rxn_id] = estimate_km(
                 rxn_id,
@@ -724,84 +725,50 @@ def run_gem_pipeline(
     except Exception as exc:
         result.warnings.append(f"Stage 5 failed (non-fatal): {exc}")
 
-    # Stage 6: Integration — build MetabolicModel, run FBA
+    # Stage 6: Integration — build functional MetabolicModel, run FBA
     try:
         from helixlang.gem.bridge import (
             build_enzyme_capacity,
-            consensus_to_metabolic_model,
+            build_functional_model,
         )
-        from helixlang.metabolism import FluxBalanceAnalysis, Reaction
 
         result.biomass_reaction = build_biomass_reaction(organism)
 
         if result.consensus and result.consensus.reactions:
-            # Merge gapfilled reactions into consensus before building model
-            if result.gapfill and result.gapfill.added_reactions:
-                for gap_rxn in result.gapfill.added_reactions:
-                    if gap_rxn.reaction_id not in {
-                        r.reaction_id for r in result.consensus.reactions
-                    }:
-                        result.consensus.reactions.append(gap_rxn)
-
-            model = consensus_to_metabolic_model(result.consensus)
+            # Build a functional model with core metabolism, transport,
+            # and filtered biomass (Phase F of doc/22)
+            model = build_functional_model(
+                consensus=result.consensus,
+                gapfill=result.gapfill,
+                organism=organism,
+                medium=medium,
+            )
             result.metabolic_model = model
 
-            # Add biomass reaction from template
-            bm = result.biomass_reaction
-            bm_rxn_id = "BIOMASS_reaction"
-            if bm is not None and hasattr(bm, "components"):
-                bm_stoich: dict[str, float] = {}
-                for comp in bm.components:
-                    # Strip compartment suffix (_c, _e, _p) to match
-                    # reaction metabolite names (reactions use bare names)
-                    met = comp.metabolite_id
-                    if met.endswith("_c"):
-                        met = met[:-2]
-                    elif met.endswith("_e"):
-                        met = met[:-2]
-                    elif met.endswith("_p"):
-                        met = met[:-2]
-                    bm_stoich[met] = comp.coefficient
-                if bm_stoich and bm_rxn_id not in model.reactions:
-                    model.add_reaction(Reaction(
-                        id=bm_rxn_id,
-                        name="BIOMASS_reaction",
-                        stoichiometry=bm_stoich,
-                        lower_bound=0.0,
-                        upper_bound=1000.0,
-                        subsystem="biomass",
-                    ))
-                    model.set_biomass(bm_rxn_id)
-
-            fba = FluxBalanceAnalysis(model)
-
-            # Set uptake limits based on environment
-            # Exchange reactions use _e suffix metabolites (e.g., glc-D_e)
-            fba.set_uptake("glc-D_e", 10.0)
-            fba.set_uptake("o2_e", 20.0)
-            fba.set_uptake("nh4_e", 1000.0)
-            fba.set_uptake("pi_e", 1000.0)
+            # Read growth rate and fluxes from the model
+            result.growth_rate = getattr(model, "_growth_rate", 0.0)
+            result.fba_fluxes = getattr(model, "_fba_fluxes", {})
 
             # Wire enzyme capacity if we have kcat predictions
-            if result.kcat_predictions:
+            if result.kcat_predictions and result.consensus:
+                from helixlang.metabolism import FluxBalanceAnalysis
+                fba = FluxBalanceAnalysis(model)
                 enzyme_cap = build_enzyme_capacity(
                     result.consensus,
                     result.kcat_predictions,
                     enzyme_scale=1.0,
                 )
                 fba.set_enzyme_capacity(enzyme_cap)
-
-            try:
-                fluxes = fba.solve(objective="biomass")
-                result.fba_fluxes = fluxes
-                result.fba_analysis = fba.analyze()
-                result.growth_rate = result.fba_analysis.get(
-                    "growth_rate_per_hour", 0.0
-                )
-            except Exception as fba_exc:
-                result.warnings.append(
-                    f"FBA solve failed (non-fatal): {fba_exc}"
-                )
+                # Re-solve with enzyme capacity
+                try:
+                    fluxes = fba.solve(
+                        objective=model.biomass_reaction)
+                    result.fba_fluxes = fluxes
+                    result.growth_rate = max(
+                        0.0, fluxes.get(
+                            model.biomass_reaction or "", 0.0))
+                except Exception:
+                    pass  # keep the non-enzyme-capacity result
 
         result.stages_completed = 6
     except Exception as exc:

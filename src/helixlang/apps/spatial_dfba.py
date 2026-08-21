@@ -76,7 +76,7 @@ class SpatialDFBAConfig:
     inlet_glucose_mm: float | None = 5.0
     initial_biomass_gdw: float = 0.05
     max_biomass_gdw: float | None = None
-    dt_h: float = 0.25
+    dt_h: float = 0.05
     max_glucose_uptake: float | None = None
     seed: int | None = None
 

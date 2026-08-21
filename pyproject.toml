@@ -24,7 +24,7 @@ dev = ["pytest>=7.4,<9", "pytest-cov>=4.1,<6", "scipy>=1.12,<2", "pytest-benchma
 fast = ["numpy>=1.26,<3"]
 viz = ["matplotlib>=3.8,<4"]
 web = ["flask>=3.0,<4"]   # Web visualization frontend: python -m helixlang --serve
-bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2"]   # Physical DNA codec + IUPAC validation
+bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2", "cobra>=0.26,<1"]   # Physical DNA codec + IUPAC validation + genome-scale metabolic models
 
 [project.scripts]
 helixlang = "helixlang.cli:main"

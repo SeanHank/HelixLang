@@ -1,0 +1,52 @@
+{
+  "48": {
+    "organism": "e_coli_k12",
+    "medium": "glucose_minimal",
+    "stages_completed": 6,
+    "growth_rate_per_hour": 0.5363,
+    "biomass_yield": 0.0,
+    "key_fluxes": {
+      "time": 8.25,
+      "biomass": 0.7877,
+      "glucose": 0.0372,
+      "growth_rate": 0.5363,
+      "glucose_uptake": 3.0122,
+      "o2_e": 12.5228,
+      "h2o_e": 1388.3371,
+      "h_e": 46.5122,
+      "val-L_e": 6.6318,
+      "his-L_e": 0.0843,
+      "oxygen": 16.0801
+    },
+    "warnings": [],
+    "errors": [],
+    "summary": "GEM Pipeline Summary\n========================================\nGenes annotated:    46\nReactions (bottom): 5\nReactions (top):    1\nReactions (final):  58\nGenes in model:     5\nGRN edges:          44\nk_cat predictions:  6\nKm estimates:       6\nGrowth rate (h\u207b\u00b9): 0.5363\nStages completed:   6/6",
+    "dynamic": true,
+    "duration_h": 24.0,
+    "dt_h": 0.05,
+    "final_biomass": 0.7876661699103182,
+    "trajectory_steps": 480
+  },
+  "49": {
+    "organism": "synechocystis_pcc6803",
+    "medium": "bg11",
+    "stages_completed": 6,
+    "growth_rate_per_hour": 0.14,
+    "biomass_yield": 0.0,
+    "key_fluxes": {
+      "time": 22.75,
+      "biomass": 0.239,
+      "co2": 0.0138,
+      "growth_rate": 0.14,
+      "co2_uptake": 1.2727
+    },
+    "warnings": [],
+    "errors": [],
+    "summary": "GEM Pipeline Summary\n========================================\nGenes annotated:    7\nReactions (bottom): 5\nReactions (top):    1\nReactions (final):  58\nGenes in model:     5\nGRN edges:          44\nk_cat predictions:  6\nKm estimates:       6\nGrowth rate (h\u207b\u00b9): 0.5363\nStages completed:   6/6",
+    "dynamic": true,
+    "duration_h": 48.0,
+    "dt_h": 0.05,
+    "final_biomass": 0.2390061641609988,
+    "trajectory_steps": 960
+  }
+}

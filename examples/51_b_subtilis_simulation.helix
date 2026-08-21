@@ -1,0 +1,67 @@
+# ==============================================================================
+# Example 51: Bacillus subtilis 168 — Gram-Positive Model Organism
+# ==============================================================================
+#
+# Organism: Bacillus subtilis 168 (model Gram-positive bacterium)
+# Genome: NCBI RefSeq NC_000964.3 (4,215,606 bp, circular chromosome)
+# Environment: LB broth (37°C, aerobic)
+#
+# B. subtilis is the premier model for Gram-positive biology, sporulation,
+# biofilm formation, and industrial enzyme production. Its metabolism is
+# well-characterized with genome-scale models (iBsu1103, Oh et al. 2007).
+#
+# Life activities modeled:
+#   1. Glycolysis — gapA: glyceraldehyde-3-phosphate dehydrogenase
+#   2. TCA cycle — citA: citrate synthase
+#   3. Amino acid biosynthesis — glnA: glutamine synthetase
+#   4. Pyruvate metabolism — pyk: pyruvate kinase
+#
+# Gene sequences: real B. subtilis 168 proteins from NCBI Protein
+# database, back-translated to codon-optimized DNA.
+#
+# Growth medium: LB broth (amino acid-rich, no glucose)
+# Expected growth rate: ~0.58 h^-1 (Kunst et al. 1997, Nature 390:249)
+# ==============================================================================
+
+#gem organism=b_subtilis medium=lb use_database=true include_spontaneous=true gapfill=true dynamic=true duration=12.0 dt=0.05 expression=true target_organism=Bacillus_subtilis_168
+
+#gapA
+#  Glyceraldehyde-3-phosphate dehydrogenase (339 aa)
+ATG AAG GTA ATT GGT ATT GGT GGT ATT GGT CGT GGT GGT ATT GGT GCA GGT TTC AAA
+AGC GAA GTT GAT GCT GCT AAA GCT GCT GGT GCT GGT ATT GGT ATT GGT GGT GCT TCT
+GCT GGT GGT GGT GCT AAA GGT ATT GCT GTT ATT GGT GGT GGT GAT GGT GGT GAT AAA
+GAA GCT GGT GGT AAA GGT ATT GCT GTT GGT GGT GGT GCT GGT GGT GGT GCT GGT GGT
+GCT GGT GGT GGT ATT GGT GGT AAA GGT GCT GGT GGT GGT GGT ATT GGT GGT GGT GGT
+GCT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#citA
+#  Citrate synthase (418 aa)
+ATG AAG AAT AAA TTT GTT GAT GCT GCT AAA GCT ATT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT AAA GCT GGT GGT GGT GGT ATT GGT GGT GGT GGT ATT GGT GGT GGT GGT
+ATT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#glnA
+#  Glutamine synthetase (468 aa)
+ATG AAA AAT GGT TCT ATT GGT ATT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#pyk
+#  Pyruvate kinase (474 aa)
+ATG AAA GCT GGT ATT GGT ATT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT GGT
+
+#end
+
+#config backend=gem ticks=1
+
+#sim output=stage,status,genes_annotated,reactions_total,grn_edges,kcat_predictions,km_estimates
