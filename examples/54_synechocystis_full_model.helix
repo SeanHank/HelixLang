@@ -1,0 +1,62 @@
+// Example 54: Synechocystis iJN678 Full Genome-Scale Model
+// doc/24 Phase F — demonstrates photoautotrophic growth using
+// a full 863-reaction GEM with Calvin cycle, photosynthesis,
+// and light reactions.
+//
+// This model grows on CO₂ + light (BG-11 medium), producing
+// O₂ as a byproduct. Growth rate: ~0.25 h⁻¹ (full model).
+//
+// Requirements: pip install cobra (or pip install helixlang[bio])
+
+#organism syn6803 {
+    genome "Synechocystis sp. PCC 6803"
+    type cyanobacterium
+    metabolic_model "iJN678"
+}
+
+#cell syn_pop {
+    organism syn6803
+    count 500
+
+    #media {
+        co2 1000.0 mM
+        no3 1000.0 mM
+        nh4 1000.0 mM
+        pi 1000.0 mM
+        h2o 1000.0 mM
+        photon 100.0 mM
+    }
+
+    #gem {
+        use_full_model true
+        biomass_reaction "BIOMASS_Ec_SynAuto"
+    }
+
+    #growth {
+        method fba
+        objective biomass
+    }
+
+    #photoautotrophy {
+        light_max_rate 12.5
+        co2_initial 10.0 mM
+        co2_max_uptake 50.0
+    }
+}
+
+#environment env {
+    patches 1
+    spatial false
+
+    #timeline {
+        duration 48 h
+        dt 0.05 h
+        output every 2 h
+    }
+}
+
+#run {
+    environment env
+    cells syn_pop
+    log "syn_full_model.log"
+}
