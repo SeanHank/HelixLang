@@ -1054,6 +1054,8 @@ class EnzymeCapacity:
     Attributes:
         gene_to_reactions: gene -> reaction ids (reactions gated by E_i).
         kcat: reaction_id -> turnover capacity (flux per enzyme unit).
+        km: reaction_id -> Michaelis constant (substrate concentration at
+            half-maximal velocity, mM).  Used by Monod-style uptake.
         enzyme_scale: global kcat rescaling (the Phase-5 calibration hook).
         protein_mass_fraction: optional global enzyme-pool budget P (g/gDW);
             ``None`` disables the sMOMENT pool row.
@@ -1062,6 +1064,7 @@ class EnzymeCapacity:
     """
     gene_to_reactions: dict[str, tuple[str, ...]]
     kcat: dict[str, float] = field(default_factory=dict)
+    km: dict[str, float] = field(default_factory=dict)
     enzyme_scale: float = 1.0
     protein_mass_fraction: float | None = None
     enzyme_mw: dict[str, float] = field(default_factory=dict)
@@ -1182,6 +1185,49 @@ class MetabolitePool:
                 if coef < 0.0 and met != "Biomass":
                     out[met] = out.get(met, 0.0) + v
         return out
+
+
+# ============================================================================
+# Enzyme activity correction: temperature + pH (doc/25 Phase VIII, G8)
+# ============================================================================
+
+def enzyme_correction(
+    temperature_c: float,
+    ph: float,
+    ea_kj_mol: float = 50.0,
+    t_opt_c: float = 37.0,
+    ph_opt: float = 7.0,
+    ph_width: float = 2.0,
+) -> float:
+    """Calculate enzyme activity correction from temperature and pH.
+
+    Uses Arrhenius for temperature and Gaussian for pH:
+
+    * f(T) = exp(-Ea/R * (1/T - 1/T_opt))  (capped at 1.0)
+    * f(pH) = exp(-(pH - pH_opt)^2 / (2 * ph_width^2))
+
+    Returns a multiplier in [0, 1] where 1.0 = optimal conditions.
+
+    Parameters
+    ----------
+    temperature_c : environmental temperature (deg C)
+    ph : environmental pH
+    ea_kj_mol : activation energy (kJ/mol, default 50 typical for enzymes)
+    t_opt_c : optimal temperature (deg C, default 37 for mesophiles)
+    ph_opt : optimal pH (default 7.0)
+    ph_width : pH tolerance window / Gaussian sigma (default 2.0)
+    """
+    import math
+
+    R = 8.314e-3  # gas constant in kJ/(mol*K)
+    T = temperature_c + 273.15
+    T_opt = t_opt_c + 273.15
+    # Arrhenius correction (capped at 1.0 at optimal)
+    arr = math.exp(-ea_kj_mol / R * (1.0 / T - 1.0 / T_opt))
+    arr = min(arr, 1.0)
+    # pH Gaussian correction
+    ph_factor = math.exp(-(ph - ph_opt) ** 2 / (2.0 * ph_width ** 2))
+    return arr * ph_factor
 
 
 # ============================================================================

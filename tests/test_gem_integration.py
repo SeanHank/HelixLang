@@ -448,7 +448,10 @@ class TestPipelineEcosystemBridge:
     def test_growth_rate_gem_with_pipeline_model(self, ecoli_core_fasta):
         """_growth_rate_gem works with a pipeline-produced MetabolicModel."""
         from helixlang.apps.ecosystem import (
-            Ecosystem, EcosystemConfig, PatchConfig, Species,
+            Ecosystem,
+            EcosystemConfig,
+            PatchConfig,
+            Species,
             SubstrateConfig,
         )
         from helixlang.apps.gem_pipeline import run_gem_pipeline
@@ -486,12 +489,14 @@ class TestPipelinePopulationBridge:
 
     def test_population_dfba_with_pipeline_model(self, ecoli_core_fasta):
         """CellPopulation uses pipeline-produced model for dFBA."""
+        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.environment import Environment, EnvironmentConfig
         from helixlang.metabolism import ECOLI_CORE_MODEL, MetabolicModel
         from helixlang.population import (
-            CellPopulation, PopulationCell, PopulationConfig,
+            CellPopulation,
+            PopulationCell,
+            PopulationConfig,
         )
-        from helixlang.environment import Environment, EnvironmentConfig
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
 
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,

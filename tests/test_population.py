@@ -755,7 +755,8 @@ def test_species_params_split_growth_rates():
 def test_dfba_metabolic_model_config():
     """PopulationConfig.metabolic_model overrides the default ECOLI_CORE_MODEL."""
     from copy import deepcopy
-    from helixlang.metabolism import ECOLI_CORE_MODEL, Reaction
+
+    from helixlang.metabolism import ECOLI_CORE_MODEL
     # Create a minimal model with a single exchange + biomass-like reaction
     model = deepcopy(ECOLI_CORE_MODEL)
     env = Environment(EnvironmentConfig(

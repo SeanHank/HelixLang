@@ -1,54 +1,168 @@
-// Example 53: E. coli iML1515 Full Genome-Scale Model
-// doc/24 Phase F — demonstrates using a full 2712-reaction GEM
-// instead of the 42-reaction core model.
-//
-// This example loads the complete iML1515 model from BiGG,
-// applies glucose_minimal medium, and runs FBA to get the
-// optimal growth rate (~0.87 h⁻¹ on original bounds, ~0.82 with
-// O₂ capped at 20 mmol/gDW/h).
-//
-// Requirements: pip install cobra (or pip install helixlang[bio])
+# ==============================================================================
+# Example 53: Escherichia coli K-12 MG1655 - Full GEM + Real Gene Sequences
+# ==============================================================================
+#
+# Organism: Escherichia coli K-12 MG1655 (model Gram-negative bacterium)
+# Model: iML1515 from BiGG Models (Monk et al. 2017, Nat Biotechnol 35:1079)
+#   2712 reactions, 1877 metabolites, 1516 genes
+#
+# Literature reference values (aerobic M9 glucose, 37°C):
+#   Growth rate:        0.61-0.81 h⁻¹ (Fischer et al. 2004; Wisconsin MG1655 data)
+#   Doubling time:      63-74 min
+#   Glucose uptake:     8.5 mmol/gDW/h (Fischer et al. 2004)
+#   Mean across strains: 0.80 ± 0.12 h⁻¹ (Diss et al. 2017, Cell Systems)
+#
+# Design:
+#   1. FULL MODEL LOADING (use_full_model=true):
+#      The complete iML1515 network is loaded from BiGG as the base.
+#
+#   2. DIRECT DSL GENE/ENZYME DEFINITIONS (#gene + #enzyme with kcat/km):
+#      Key glycolysis genes are defined inline with experimentally measured
+#      kinetic parameters (kcat from BRENDA/EcoliWiki, km from literature).
+#
+#   3. DIRECT DSL REACTION DEFINITIONS (#reaction):
+#      A simplified glycolysis pathway is declared to demonstrate how users
+#      can define custom reactions without a pre-built model file.
+#
+#   4. ENVIRONMENT PARAMETERS (patch blocks):
+#      Glucose minimal medium at 37C, pH 7.0, aerobic
+#
+# Gene sequences: Real CDS from NCBI/UniProt (back-translated with E. coli codon usage)
+#   pgi  (P0A6T1): 549 aa, 1650 bp - Glucose-6-phosphate isomerase
+#   pfkA (P0A796): 320 aa, 963 bp  - ATP-dependent 6-phosphofructokinase
+#   gapA (P0A9B5): 331 aa, 996 bp  - Glyceraldehyde-3-phosphate dehydrogenase
+#   pykF (P0AD61): 470 aa, 1413 bp - Pyruvate kinase I
+#
+# Kinetic parameters (measured / literature):
+#   pgi  (PGI):            kcat=1200 s^-1, km=0.3 mM (G6P)
+#   pfkA (PFK):            kcat=246 s^-1, km=0.07 mM (F6P)
+#   gapA (GAPDH):          kcat=470 s^-1, km=0.09 mM (G3P)
+#   pykF (pyruvate kinase): kcat=510 s^-1, km=0.31 mM (PEP)
+#
+# ==============================================================================
 
-#organism e_coli_k12 {
-    genome "E. coli K-12 MG1655"
-    type prokaryote
-    metabolic_model "iML1515"
-}
+#gem organism=e_coli_k12 medium=glucose_minimal use_full_model=true include_spontaneous=true
 
-#cell ecoli_pop {
-    organism e_coli_k12
-    count 1000
+#gene name=pgi
+  ATG AAA AAC ATT AAC CCG ACC CAG ACC GCG GCG TGG CAG GCG CTG CAG AAA CAT TTT
+  GAT GAA ATG AAA GAT GTG ACC ATT GCG GAT CTG TTT GCG AAA GAT GGT GAT CGT TTT
+  AGC AAA TTT AGC GCG ACC TTT GAT GAT CAG ATG CTG GTG GAT TAT AGC AAA AAC CGT
+  ATT ACC GAA GAA ACC CTG GCG AAA CTG CAG GAT CTG GCG AAA GAA TGC GAT CTG GCG
+  GGT GCG ATT AAA AGC ATG TTT AGC GGT GAA AAA ATT AAC CGT ACC GAA AAC CGT GCG
+  GTG CTG CAT GTG GCG CTG CGT AAC CGT AGC AAC ACC CCG ATT CTG GTG GAT GGT AAA
+  GAT GTG ATG CCG GAA GTG AAC GCG GTG CTG GAA AAA ATG AAA ACC TTT AGC GAA GCG
+  ATT ATT AGC GGT GAA TGG AAA GGT TAT ACC GGT AAA GCG ATT ACC GAT GTG GTG AAC
+  ATT GGT ATT GGT GGT AGC GAT CTG GGT CCG TAT ATG GTG ACC GAA GCG CTG CGT CCG
+  TAT AAA AAC CAT CTG AAC ATG CAT TTT GTG AGC AAC GTG GAT GGT ACC CAT ATT GCG
+  GAA GTG CTG AAA AAA GTG AAC CCG GAA ACC ACC CTG TTT CTG GTG GCG AGC AAA ACC
+  TTT ACC ACC CAG GAA ACC ATG ACC AAC GCG CAT AGC GCG CGT GAT TGG TTT CTG AAA
+  GCG GCG GGT GAT GAA AAA CAT GTG GCG AAA CAT TTT GCG GCG CTG AGC ACC AAC GCG
+  AAA GCG GTG GGT GAA TTT GGT ATT GAT ACC GCG AAC ATG TTT GAA TTT TGG GAT TGG
+  GTG GGT GGT CGT TAT AGC CTG TGG AGC GCG ATT GGT CTG AGC ATT GTG CTG AGC ATT
+  GGT TTT GAT AAC TTT GTG GAA CTG CTG AGC GGT GCG CAT GCG ATG GAT AAA CAT TTT
+  AGC ACC ACC CCG GCG GAA AAA AAC CTG CCG GTG CTG CTG GCG CTG ATT GGT ATT TGG
+  TAT AAC AAC TTT TTT GGT GCG GAA ACC GAA GCG ATT CTG CCG TAT GAT CAG TAT ATG
+  CAT CGT TTT GCG GCG TAT TTT CAG CAG GGT AAC ATG GAA AGC AAC GGT AAA TAT GTG
+  GAT CGT AAC GGT AAC GTG GTG GAT TAT CAG ACC GGT CCG ATT ATT TGG GGT GAA CCG
+  GGT ACC AAC GGT CAG CAT GCG TTT TAT CAG CTG ATT CAT CAG GGT ACC AAA ATG GTG
+  CCG TGC GAT TTT ATT GCG CCG GCG ATT ACC CAT AAC CCG CTG AGC GAT CAT CAT CAG
+  AAA CTG CTG AGC AAC TTT TTT GCG CAG ACC GAA GCG CTG GCG TTT GGT AAA AGC CGT
+  GAA GTG GTG GAA CAG GAA TAT CGT GAT CAG GGT AAA GAT CCG GCG ACC CTG GAT TAT
+  GTG GTG CCG TTT AAA GTG TTT GAA GGT AAC CGT CCG ACC AAC AGC ATT CTG CTG CGT
+  GAA ATT ACC CCG TTT AGC CTG GGT GCG CTG ATT GCG CTG TAT GAA CAT AAA ATT TTT
+  ACC CAG GGT GTG ATT CTG AAC ATT TTT ACC TTT GAT CAG TGG GGT GTG GAA CTG GGT
+  AAA CAG CTG GCG AAC CGT ATT CTG CCG GAA CTG AAA GAT GAT AAA GAA ATT AGC AGC
+  CAT GAT AGC AGC ACC AAC GGT CTG ATT AAC CGT TAT AAA GCG TGG CGT GGT TAA
+#end
 
-    #media {
-        glucose 10.0 mM
-        o2 20.0 mM
-        nh4 1000.0 mM
-        pi 1000.0 mM
-    }
+#gene name=pfkA
+  ATG ATT AAA AAA ATT GGT GTG CTG ACC AGC GGT GGT GAT GCG CCG GGT ATG AAC GCG
+  GCG ATT CGT GGT GTG GTG CGT AGC GCG CTG ACC GAA GGT CTG GAA GTG ATG GGT ATT
+  TAT GAT GGT TAT CTG GGT CTG TAT GAA GAT CGT ATG GTG CAG CTG GAT CGT TAT AGC
+  GTG AGC GAT ATG ATT AAC CGT GGT GGT ACC TTT CTG GGT AGC GCG CGT TTT CCG GAA
+  TTT CGT GAT GAA AAC ATT CGT GCG GTG GCG ATT GAA AAC CTG AAA AAA CGT GGT ATT
+  GAT GCG CTG GTG GTG ATT GGT GGT GAT GGT AGC TAT ATG GGT GCG ATG CGT CTG ACC
+  GAA ATG GGT TTT CCG TGC ATT GGT CTG CCG GGT ACC ATT GAT AAC GAT ATT AAA GGT
+  ACC GAT TAT ACC ATT GGT TTT TTT ACC GCG CTG AGC ACC GTG GTG GAA GCG ATT GAT
+  CGT CTG CGT GAT ACC AGC AGC AGC CAT CAG CGT ATT AGC GTG GTG GAA GTG ATG GGT
+  CGT TAT TGC GGT GAT CTG ACC CTG GCG GCG GCG ATT GCG GGT GGT TGC GAA TTT GTG
+  GTG GTG CCG GAA GTG GAA TTT AGC CGT GAA GAT CTG GTG AAC GAA ATT AAA GCG GGT
+  ATT GCG AAA GGT AAA AAA CAT GCG ATT GTG GCG ATT ACC GAA CAT ATG TGC GAT GTG
+  GAT GAA CTG GCG CAT TTT ATT GAA AAA GAA ACC GGT CGT GAA ACC CGT GCG ACC GTG
+  CTG GGT CAT ATT CAG CGT GGT GGT AGC CCG GTG CCG TAT GAT CGT ATT CTG GCG AGC
+  CGT ATG GGT GCG TAT GCG ATT GAT CTG CTG CTG GCG GGT TAT GGT GGT CGT TGC GTG
+  GGT ATT CAG AAC GAA CAG CTG GTG CAT CAT GAT ATT ATT GAT GCG ATT GAA AAC ATG
+  AAA CGT CCG TTT AAA GGT GAT TGG CTG GAT TGC GCG AAA AAA CTG TAT TAA
+#end
 
-    #gem {
-        use_full_model true
-    }
+#gene name=gapA
+  ATG ACC ATT AAA GTG GGT ATT AAC GGT TTT GGT CGT ATT GGT CGT ATT GTG TTT CGT
+  GCG GCG CAG AAA CGT AGC GAT ATT GAA ATT GTG GCG ATT AAC GAT CTG CTG GAT GCG
+  GAT TAT ATG GCG TAT ATG CTG AAA TAT GAT AGC ACC CAT GGT CGT TTT GAT GGT ACC
+  GTG GAA GTG AAA GAT GGT CAT CTG ATT GTG AAC GGT AAA AAA ATT CGT GTG ACC GCG
+  GAA CGT GAT CCG GCG AAC CTG AAA TGG GAT GAA GTG GGT GTG GAT GTG GTG GCG GAA
+  GCG ACC GGT CTG TTT CTG ACC GAT GAA ACC GCG CGT AAA CAT ATT ACC GCG GGT GCG
+  AAA AAA GTG GTG ATG ACC GGT CCG AGC AAA GAT AAC ACC CCG ATG TTT GTG AAA GGT
+  GCG AAC TTT GAT AAA TAT GCG GGT CAG GAT ATT GTG AGC AAC GCG AGC TGC ACC ACC
+  AAC TGC CTG GCG CCG CTG GCG AAA GTG ATT AAC GAT AAC TTT GGT ATT ATT GAA GGT
+  CTG ATG ACC ACC GTG CAT GCG ACC ACC GCG ACC CAG AAA ACC GTG GAT GGT CCG AGC
+  CAT AAA GAT TGG CGT GGT GGT CGT GGT GCG AGC CAG AAC ATT ATT CCG AGC AGC ACC
+  GGT GCG GCG AAA GCG GTG GGT AAA GTG CTG CCG GAA CTG AAC GGT AAA CTG ACC GGT
+  ATG GCG TTT CGT GTG CCG ACC CCG AAC GTG AGC GTG GAT CTG ACC GTG CGT CTG GAA
+  AAA GCG GCG ACC TAT GAA CAG ATT AAA GCG GCG GTG AAA GCG GCG GCG GAA GGT GAA
+  ATG AAA GGT GTG CTG GGT TAT ACC GAA GAT GAT GTG GTG AGC ACC GAT TTT AAC GGT
+  GAA GTG TGC ACC AGC GTG TTT GAT GCG AAA GCG GGT ATT GCG CTG AAC GAT AAC TTT
+  GTG AAA CTG GTG AGC TGG TAT GAT AAC GAA ACC GGT TAT AGC AAC AAA GTG CTG GAT
+  CTG ATT GCG CAT ATT AGC AAA TAA
+#end
 
-    #growth {
-        method fba
-        objective biomass
-    }
-}
+#gene name=pykF
+  ATG AAA AAA ACC AAA ATT GTG TGC ACC ATT GGT CCG AAA ACC GAA AGC GAA GAA ATG
+  CTG GCG AAA ATG CTG GAT GCG GGT ATG AAC GTG ATG CGT CTG AAC TTT AGC CAT GGT
+  GAT TAT GCG GAA CAT GGT CAG CGT ATT CAG AAC CTG CGT AAC GTG ATG AGC AAA ACC
+  GGT AAA ACC GCG GCG ATT CTG CTG GAT ACC AAA GGT CCG GAA ATT CGT ACC ATG AAA
+  CTG GAA GGT GGT AAC GAT GTG AGC CTG AAA GCG GGT CAG ACC TTT ACC TTT ACC ACC
+  GAT AAA AGC GTG ATT GGT AAC AGC GAA ATG GTG GCG GTG ACC TAT GAA GGT TTT ACC
+  ACC GAT CTG AGC GTG GGT AAC ACC GTG CTG GTG GAT GAT GGT CTG ATT GGT ATG GAA
+  GTG ACC GCG ATT GAA GGT AAC AAA GTG ATT TGC AAA GTG CTG AAC AAC GGT GAT CTG
+  GGT GAA AAC AAA GGT GTG AAC CTG CCG GGT GTG AGC ATT GCG CTG CCG GCG CTG GCG
+  GAA AAA GAT AAA CAG GAT CTG ATT TTT GGT TGC GAA CAG GGT GTG GAT TTT GTG GCG
+  GCG AGC TTT ATT CGT AAA CGT AGC GAT GTG ATT GAA ATT CGT GAA CAT CTG AAA GCG
+  CAT GGT GGT GAA AAC ATT CAT ATT ATT AGC AAA ATT GAA AAC CAG GAA GGT CTG AAC
+  AAC TTT GAT GAA ATT CTG GAA GCG AGC GAT GGT ATT ATG GTG GCG CGT GGT GAT CTG
+  GGT GTG GAA ATT CCG GTG GAA GAA GTG ATT TTT GCG CAG AAA ATG ATG ATT GAA AAA
+  TGC ATT CGT GCG CGT AAA GTG GTG ATT ACC GCG ACC CAG ATG CTG GAT AGC ATG ATT
+  AAA AAC CCG CGT CCG ACC CGT GCG GAA GCG GGT GAT GTG GCG AAC GCG ATT CTG GAT
+  GGT ACC GAT GCG GTG ATG CTG AGC GGT GAA AGC GCG AAA GGT AAA TAT CCG CTG GAA
+  GCG GTG AGC ATT ATG GCG ACC ATT TGC GAA CGT ACC GAT CGT GTG ATG AAC AGC CGT
+  CTG GAA TTT AAC AAC GAT AAC CGT AAA CTG CGT ATT ACC GAA GCG GTG TGC CGT GGT
+  GCG GTG GAA ACC GCG GAA AAA CTG GAT GCG CCG CTG ATT GTG GTG GCG ACC CAG GGT
+  GGT AAA AGC GCG CGT GCG GTG CGT AAA TAT TTT CCG GAT GCG ACC ATT CTG GCG CTG
+  ACC ACC AAC GAA AAA ACC GCG CAT CAG CTG GTG CTG AGC AAA GGT GTG GTG CCG CAG
+  CTG GTG AAA GAA ATT ACC AGC ACC GAT GAT TTT TAT CGT CTG GGT AAA GAA CTG GCG
+  CTG CAG AGC GGT CTG GCG CAT AAA GGT GAT GTG GTG GTG ATG GTG AGC GGT GCG CTG
+  GTG CCG AGC GGT ACC ACC AAC ACC GCG AGC GTG CAT GTG CTG TAA
+#end
 
-#environment env {
-    patches 1
-    spatial false
+#enzyme gene=pgi reaction=PGI kcat=1200 km=0.3
+#enzyme gene=pfkA reaction=PFK kcat=246 km=0.07
+#enzyme gene=gapA reaction=GAPD kcat=470 km=0.09
+#enzyme gene=pykF reaction=PYK kcat=510 km=0.31
 
-    #timeline {
-        duration 10 h
-        dt 0.05 h
-        output every 1 h
-    }
-}
+#reaction id=PGI name=PGI substrate=g6p product=f6p lower_bound=-1000 upper_bound=1000 subsystem=glycolysis reversible=true
+#reaction id=PFK name=PFK substrate=f6p product=fdp lower_bound=0 upper_bound=1000 subsystem=glycolysis
+#reaction id=GAPD name=GAPDH substrate=g3p product=13dpg lower_bound=-1000 upper_bound=1000 subsystem=glycolysis reversible=true
+#reaction id=PYK name=Pyruvate_kinase substrate=pep product=pyr lower_bound=0 upper_bound=1000 subsystem=glycolysis
 
-#run {
-    environment env
-    cells ecoli_pop
-    log "ecoli_full_model.log"
-}
+#species name=ecoli use_full_model=true substrate=glucose vmax=0.877 ks=0.01 photo=false cn_ratio=4.8 maintenance=0.0008
+
+#patch name=lab_flask kind=chemostat width=1 height=1 temperature=37.0 ph=7.0 flow_rate=0.0 initial_nh4_mm=18.7 initial_no3_mm=0.0
+#patch name=lab_flask initial.ecoli=0.1
+#patch name=lab_flask substrate.glucose.initial=10.0 substrate.glucose.bulk=10.0 substrate.glucose.carbon_per_mol=6
+#patch name=lab_flask substrate.oxygen.initial=200.0 substrate.oxygen.bulk=200.0 substrate.oxygen.carbon_per_mol=0
+#patch name=lab_flask substrate.co2.initial=0.1 substrate.co2.bulk=0.1 substrate.co2.carbon_per_mol=1
+#patch name=lab_flask substrate.acetate.initial=0.0 substrate.acetate.bulk=0.0 substrate.acetate.carbon_per_mol=2
+
+#config backend=ecosystem ticks=480 gem_driven=true
+
+#sim output=tick,lab_flask:ecoli,lab_flask:glucose,lab_flask:oxygen,lab_flask:co2,lab_flask:acetate

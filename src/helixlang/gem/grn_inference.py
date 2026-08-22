@@ -19,13 +19,14 @@ class EvidenceLevel(Enum):
 
 @dataclass
 class RegulatoryEdge:
-    """A single regulatory interaction: TF → target gene."""
+    """A single regulatory interaction: TF -> target gene."""
 
     tf_id: str
     target_gene: str
     regulation_type: str  # "activation", "repression"
     evidence_level: EvidenceLevel
     confidence: float = 0.5
+    target_reaction: str | None = None  # GPR-mapped metabolic reaction
     motif_score: float = 0.0
     motif_positions: list[tuple[int, int]] = field(default_factory=list)
     source: str = ""  # database, literature reference, etc.
@@ -122,7 +123,7 @@ KNOWN_REGULATORY_INTERACTIONS: list[tuple[str, str, str, int, float]] = [
 
 
 def infer_grn(
-    tf_result: TFResult,
+    tf_result: TFScanResult,
     genome_fasta: str | None = None,
     database_interactions: list | None = None,
     use_motif_prediction: bool = True,

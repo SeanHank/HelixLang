@@ -356,6 +356,9 @@ class BioInstructionDispatcher:
                 "edit_type": result.edit_type,
                 "off_targets": len(result.off_targets),
             })
+            # Phase X: mark GEM dirty if target gene is in GPR map (doc/25 G10)
+            if result.success and target in vm._gem_gpr_map:
+                vm._gem_dirty = True
         except (ValueError, KeyError, RuntimeError) as exc:
             # Edit failed (e.g. no PAM site, position out of bounds, unknown Cas variant) — record rather than silently swallowing the error
             vm._crispr_edits.append({
@@ -385,6 +388,33 @@ class BioInstructionDispatcher:
             "mutations": len(mutations),
             "mutation_list": mutations[:5],  # keep only the first 5 entries
         })
+        # Phase X: mark GEM dirty if target gene is in GPR map (doc/25 G10)
+        if mutations and target in vm._gem_gpr_map:
+            vm._gem_dirty = True
+
+    def _update_enzyme_levels_from_edits(self) -> None:
+        """Update enzyme kcat from CRISPR/evolve edits on GEM genes (doc/25 G10).
+
+        For each successful edit targeting a gene in the GPR map:
+        - Frameshift/deletion: set kcat to 0 (gene knockout)
+        - Substitution: reduce kcat by 30% (conservative estimate)
+        """
+        vm = self._vm
+        for edit in vm._crispr_edits:
+            if not edit.get("success", False):
+                continue
+            gene = edit.get("target", "")
+            reactions = vm._gem_gpr_map.get(gene, [])
+            if not reactions:
+                continue
+            edit_type = edit.get("edit_type", "substitution")
+            for rxn_id in reactions:
+                if edit_type in ("frameshift", "deletion", "nonsense"):
+                    vm._enzyme_kcat[rxn_id] = 0.0
+                elif edit_type == "substitution":
+                    cur = vm._enzyme_kcat.get(rxn_id, 1.0)
+                    vm._enzyme_kcat[rxn_id] = cur * 0.7
+        vm._gem_dirty = False
 
     def _handle_methylate(self, inst: BioInstruction) -> None:
         """Handle the #methylate instruction: DNA methylation represses gene expression."""
@@ -495,6 +525,12 @@ class CellVM:
         self._crispr_edits: list[dict] = []          # CRISPR edit records
         self._epigenetic_marks: list[dict] = []      # epigenetic modification records
         self._evolution_history: list[dict] = []     # evolution event records
+        # Phase X: GEM evolution feedback (doc/25 G10)
+        self._gem_dirty: bool = False                # True after CRISPR/evolve on GEM gene
+        self._gem_gpr_map: dict[str, list[str]] = {} # gene -> [reaction_ids] GPR associations
+        self._enzyme_kcat: dict[str, float] = {}     # reaction -> kcat (updated by edits)
+        self._metabolic_model = None                  # MetabolicModel reference
+        self._growth_rate_gem: float = 0.0            # FBA-predicted growth rate
         # Runtime regulation / binding / signal event records (opcode effects)
         self._regulation_events: list[dict] = []     # OP_REGULATE edge changes
         self._binding_events: list[dict] = []        # OP_BIND protein-DNA bindings
@@ -564,6 +600,19 @@ class CellVM:
             if self.program.config.use_central_dogma:
                 # P0-1.2: central dogma pipeline
                 self._process_bio_instructions()
+                # Phase X: re-solve FBA if GEM was modified (doc/25 G10)
+                if self._gem_dirty and self._metabolic_model is not None:
+                    self._dispatcher._update_enzyme_levels_from_edits()
+                    try:
+                        from helixlang.metabolism import FluxBalanceAnalysis
+                        fba = FluxBalanceAnalysis(self._metabolic_model)
+                        if self._enzyme_kcat:
+                            fba.set_uptake("glc-D_e", 10.0)
+                        fluxes = fba.solve()
+                        bm = self._metabolic_model.biomass_reaction
+                        self._growth_rate_gem = fluxes.get(bm, 0.0) if bm else 0.0
+                    except Exception:
+                        pass
                 self._transcribe_translate()
                 self._flush_morphology()
                 self._feedback()
@@ -574,6 +623,17 @@ class CellVM:
                 for g in triggered:
                     self._call_gene(g)
                 self._execute_pending()
+                # Phase X: re-solve FBA if GEM was modified (doc/25 G10)
+                if self._gem_dirty and self._metabolic_model is not None:
+                    self._dispatcher._update_enzyme_levels_from_edits()
+                    try:
+                        from helixlang.metabolism import FluxBalanceAnalysis
+                        fba = FluxBalanceAnalysis(self._metabolic_model)
+                        fluxes = fba.solve()
+                        bm = self._metabolic_model.biomass_reaction
+                        self._growth_rate_gem = fluxes.get(bm, 0.0) if bm else 0.0
+                    except Exception:
+                        pass
                 self._flush_morphology()
                 self._feedback()
                 self._snapshot()

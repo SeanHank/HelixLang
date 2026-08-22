@@ -56,7 +56,7 @@ class Lexer:
                     if not after_id.startswith('=') and gene_id not in (
                         "gem", "config", "sim", "end", "species", "genome",
                         "media", "patch", "type", "enzyme", "metabolite",
-                        "regulate", "export",
+                        "regulate", "export", "reaction",
                         "gene", "promoter", "lsystem", "morphogen",
                         "crispr", "evolve", "methylate", "histone",
                         "transcribe", "translate", "quorum",

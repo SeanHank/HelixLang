@@ -53,6 +53,7 @@ from helixlang.ast_nodes import (
     PoolDecl,
     Program,
     Promoter,
+    ReactionDecl,
     Regulation,
 )
 from helixlang.bytecode import Chunk
@@ -97,6 +98,7 @@ _TAG_MORPHOGEN = 0x07
 _TAG_MEDIA = 0x08
 _TAG_ENZYME = 0x09
 _TAG_POOL = 0x0A
+_TAG_REACTION = 0x0B
 _TAG_CONFIG = 0x0B
 _TAG_BIO_INSTR = 0x0C
 _TAG_PROGRAM = 0x0D
@@ -544,6 +546,21 @@ def _encode_program_body(w: _Writer, prog: Program) -> None:
         w.str_(enz.gene)
         w.str_(enz.reaction)
         w.opt_f64(enz.kcat)
+        w.opt_f64(enz.km)
+    # reactions
+    w.u16(len(prog.reactions))
+    for rxn in prog.reactions:
+        w.u8(_TAG_REACTION)
+        w.str_(rxn.id)
+        w.str_(rxn.name)
+        w.str_(rxn.substrate)
+        w.f64(rxn.substrate_coeff)
+        w.str_(rxn.product)
+        w.f64(rxn.product_coeff)
+        w.f64(rxn.lower_bound)
+        w.f64(rxn.upper_bound)
+        w.str_(rxn.subsystem)
+        w.bool_(rxn.reversible)
     # pools
     w.u16(len(prog.pools))
     for pl in prog.pools:
@@ -586,6 +603,7 @@ def _decode_program_body(r: _Reader, prog: Program) -> None:
     _decode_types(r, prog)
     _decode_media(r, prog)
     _decode_enzymes(r, prog)
+    _decode_reactions(r, prog)
     _decode_pools(r, prog)
     _decode_ext(r, prog)
 
@@ -710,8 +728,30 @@ def _decode_enzymes(r: _Reader, prog: Program) -> None:
         gene = r.str_()
         reaction = r.str_()
         kcat = r.opt_f64()
+        km = r.opt_f64()
         prog.enzymes.append(EnzymeDecl(gene=gene, reaction=reaction,
-                                       kcat=kcat))
+                                       kcat=kcat, km=km))
+
+
+def _decode_reactions(r: _Reader, prog: Program) -> None:
+    for _ in range(r._count("reactions")):  # noqa: SLF001
+        _read_tag(r, _TAG_REACTION)
+        rxn_id = r.str_()
+        name = r.str_()
+        substrate = r.str_()
+        substrate_coeff = r.f64()
+        product = r.str_()
+        product_coeff = r.f64()
+        lower_bound = r.f64()
+        upper_bound = r.f64()
+        subsystem = r.str_()
+        reversible = r.bool_()
+        prog.reactions.append(ReactionDecl(
+            id=rxn_id, name=name, substrate=substrate,
+            substrate_coeff=substrate_coeff, product=product,
+            product_coeff=product_coeff, lower_bound=lower_bound,
+            upper_bound=upper_bound, subsystem=subsystem,
+            reversible=reversible))
 
 
 def _decode_pools(r: _Reader, prog: Program) -> None:
@@ -1104,7 +1144,21 @@ def decompile(program: Program) -> str:
         s = f"#enzyme gene={enz.gene} reaction={enz.reaction}"
         if enz.kcat is not None:
             s += f" kcat={_fmt_float(enz.kcat)}"
+        if enz.km is not None:
+            s += f" km={_fmt_float(enz.km)}"
         lines.append(s)
+
+    for rxn in program.reactions:
+        parts = [f"id={rxn.id}"]
+        if rxn.name:
+            parts.append(f"name={rxn.name}")
+        parts.append(f"substrate={rxn.substrate} product={rxn.product}")
+        parts.append(f"lower_bound={_fmt_float(rxn.lower_bound)} upper_bound={_fmt_float(rxn.upper_bound)}")
+        if rxn.subsystem:
+            parts.append(f"subsystem={rxn.subsystem}")
+        if rxn.reversible:
+            parts.append("reversible=true")
+        lines.append("#reaction " + " ".join(parts))
 
     for pl in program.pools:
         lines.append(f"#metabolite name={pl.name} init={_fmt_float(pl.init)}")

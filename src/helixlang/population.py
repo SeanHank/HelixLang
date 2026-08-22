@@ -44,6 +44,7 @@ from helixlang.metabolism import (
     ECOLI_CORE_MODEL,
     DynamicFBAConfig,
     DynamicFluxBalance,
+    MetabolicModel,
 )
 from helixlang.morphology_3d import LSystem3D
 from helixlang.units import (
@@ -1555,7 +1556,11 @@ class CellPopulation:
         levels matrix.
         """
         config = self.config
-        base_model = config.metabolic_model or ECOLI_CORE_MODEL
+        base_model: MetabolicModel | None = (
+            config.metabolic_model
+            if isinstance(config.metabolic_model, MetabolicModel)
+            else ECOLI_CORE_MODEL
+        )
         dfba = DynamicFluxBalance(
             model=copy.deepcopy(base_model),
             config=DynamicFBAConfig(

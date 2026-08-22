@@ -140,7 +140,7 @@ __all__ = [
 
 BACKENDS = frozenset({
     "classic", "whole_cell", "population", "fba", "calibration", "benchmark",
-    "gem",
+    "gem", "ecosystem",
 })
 
 
@@ -357,6 +357,8 @@ def run(program: Program, backend: str | None = None) -> SimResult | None:
         return _run_benchmark(program)
     if name == "gem":
         return _run_gem(program)
+    if name == "ecosystem":
+        return _run_ecosystem(program)
     raise SimConfigError(
         f"unknown backend {name!r}; expected one of "
         "classic, whole_cell, population, fba, calibration, benchmark")
@@ -541,6 +543,7 @@ def _enzyme_capacity(program: Program,
     if program.enzymes:
         gene_to_reactions: dict[str, list[str]] = {}
         kcat: dict[str, float] = {}
+        km: dict[str, float] = {}
         for e in program.enzymes:
             gene_to_reactions.setdefault(e.gene, []).append(e.reaction)
             if e.kcat is not None:
@@ -548,12 +551,44 @@ def _enzyme_capacity(program: Program,
             else:
                 kcat.setdefault(e.reaction,
                                 ECOLI_CORE_KCAT.get(e.reaction, 1.0))
+            if e.km is not None:
+                km[e.reaction] = e.km
         return EnzymeCapacity(
             {g: tuple(rs) for g, rs in gene_to_reactions.items()},
-            kcat=kcat, enzyme_scale=scale, protein_mass_fraction=mass)
+            kcat=kcat, km=km, enzyme_scale=scale,
+            protein_mass_fraction=mass)
     return EnzymeCapacity(
         dict(ECOLI_CORE_GENE_REACTIONS), kcat=dict(ECOLI_CORE_KCAT),
         enzyme_scale=scale, protein_mass_fraction=mass)
+
+
+def _build_model_from_reactions(program: Program) -> MetabolicModel | None:
+    """Build a MetabolicModel from DSL #reaction declarations.
+
+    Returns a MetabolicModel if at least one #reaction block is present,
+    otherwise None (caller should fall back to a loaded model).
+    """
+    if not program.reactions:
+        return None
+    from helixlang.metabolism import MetabolicModel
+    from helixlang.metabolism import Reaction as Rxn
+    model = MetabolicModel()
+    for decl in program.reactions:
+        stoich: dict[str, float] = {}
+        if decl.substrate:
+            stoich[decl.substrate] = decl.substrate_coeff
+        if decl.product:
+            stoich[decl.product] = decl.product_coeff
+        rxn = Rxn(
+            id=decl.id,
+            name=decl.name,
+            stoichiometry=stoich,
+            lower_bound=decl.lower_bound,
+            upper_bound=decl.upper_bound,
+            subsystem=decl.subsystem,
+        )
+        model.add_reaction(rxn)
+    return model
 
 
 def _run_static_fba(program: Program, fba: FluxBalanceAnalysis) -> FluxResult:
@@ -1661,6 +1696,8 @@ def _build_ecosystem_patches(ext: dict[str, str]) -> list[PatchConfig]:
         pc.initial_nh4_mm = _opt_float(attrs, "initial_nh4_mm", pc.initial_nh4_mm)
         pc.initial_no3_mm = _opt_float(attrs, "initial_no3_mm", pc.initial_no3_mm)
         pc.flow_rate = _opt_float(attrs, "flow_rate", pc.flow_rate)
+        pc.temperature_c = _opt_float(attrs, "temperature", pc.temperature_c)
+        pc.ph = _opt_float(attrs, "ph", pc.ph)
         pc.fluctuation_period = _opt_int(
             attrs, "fluctuation_period", pc.fluctuation_period)
         pc.fluctuation_amplitude = _opt_float(
@@ -1734,7 +1771,8 @@ def _attach_gem_to_ecosystem_species(
     resulting MetabolicModel + FBA fluxes (doc/21 §3.4).
 
     For each species where ``species.<name>.genome`` is set, this runs
-    ``run_gem_pipeline()``, extracts metabolic parameters via
+    ``run_gem_pipeline()`` (bottom-up) or ``build_functional_model_full()``
+    (when ``use_full_model=true``), extracts metabolic parameters via
     ``gem_to_species()``, and attaches the model to the species so the
     ecosystem tick loop can use FBA-backed growth.
     """
@@ -1747,6 +1785,64 @@ def _attach_gem_to_ecosystem_species(
     for sp in species:
         attrs = groups.get(sp.name, {})
         genome_path = attrs.get("genome", "")
+        use_full = attrs.get("use_full_model", "false").lower() in (
+            "true", "1", "yes")
+
+        # Full-model path (doc/24): load pre-built BiGG model directly
+        # when use_full_model=true and no genome path is given.
+        if use_full and not genome_path:
+            try:
+                from helixlang.gem.bridge import build_functional_model_full
+                from helixlang.metabolism import FluxBalanceAnalysis
+
+                medium_name = ext.get("gem_medium", "glucose_minimal")
+                # Try the DSL gem_organism first, then sp.name
+                gem_org = ext.get("gem_organism", "")
+                org_candidates = ([gem_org] if gem_org else []) + [
+                    sp.name, sp.name.replace(" ", "_"),
+                ]
+                model = None
+                for org in org_candidates:
+                    if not org:
+                        continue
+                    try:
+                        model = build_functional_model_full(
+                            organism=org, medium=medium_name)
+                        break
+                    except Exception:
+                        continue
+                if model is None:
+                    continue
+                sp.metabolic_model = model
+                fba = FluxBalanceAnalysis(model)
+                fluxes = fba.solve()
+                sp.gem_fluxes = dict(fluxes) if fluxes else {}
+                params = gem_to_species(type("R", (), {
+                    "metabolic_model": model,
+                    "fba_fluxes": sp.gem_fluxes,
+                    "consensus": None,
+                })(), organism=org)
+                vmax = float(params.get("vmax", 0))
+                if vmax > 0:
+                    primary = sp.preferred_substrate() or "glucose"
+                    ks = float(params.get("ks", 0.1))
+                    sp.consumption[primary] = (vmax, ks)
+                # Add oxygen as consumed substrate for FBA exchange
+                # bounds so the FBA solver caps growth by O2 availability.
+                if "oxygen" not in sp.consumption and not sp.photo:
+                    sp.consumption["oxygen"] = (0.5, 0.01)
+                max_mu = float(params.get("max_growth_rate", 0.87))
+                mgr_str = attrs.get("max_growth_rate", "")
+                if mgr_str:
+                    try:
+                        max_mu = float(mgr_str)
+                    except ValueError:
+                        pass
+                sp.traits.max_growth_rate = max_mu
+            except Exception:
+                pass
+            continue
+
         if not genome_path:
             continue
 
@@ -1790,6 +1886,12 @@ def _attach_gem_to_ecosystem_species(
                 if maintenance != 0.001:
                     sp.maintenance = maintenance
                 max_mu = float(params.get("max_growth_rate", 0.87))
+                mgr_str = attrs.get("max_growth_rate", "")
+                if mgr_str:
+                    try:
+                        max_mu = float(mgr_str)
+                    except ValueError:
+                        pass
                 sp.traits.max_growth_rate = max_mu
         except Exception:
             pass  # non-fatal: fall back to Monod if GEM fails
@@ -1814,6 +1916,14 @@ def _run_ecosystem(program: Program) -> ScoreResult:
     the ``#species`` table and the ``#patch`` table from ``sim_extensions``.
     """
     ext = program.sim_extensions
+    # Merge #config sim params into ext so ecosystem can read them
+    merged = dict(program.config.sim)
+    merged.update(ext)
+    ext = merged
+    # Propagate program.config.ticks (set by CLI --ticks or #config ticks=)
+    # into ext so the ecosystem uses the user-requested tick count.
+    if program.config.ticks is not None:
+        ext["ticks"] = str(program.config.ticks)
     species = _build_ecosystem_species(ext)
     patches = _build_ecosystem_patches(ext)
     gem_driven = _opt_bool(ext, "gem_driven", False)
@@ -1930,6 +2040,159 @@ def _run_population_dbtl(program: Program) -> ScoreResult:
     )
 
 
+# ---------------------------------------------------------------------------
+# _run_gem_full_model — full genome-scale model path (doc/24)
+# ---------------------------------------------------------------------------
+
+def _run_gem_full_model(
+    organism: str,
+    medium_name: str,
+    dynamic: bool,
+    duration: float,
+    dt: float,
+    medium_override: dict[str, float] | None = None,
+    max_growth_rate: float | None = None,
+) -> SimResult:
+    """Run FBA on a full genome-scale model from BiGG (doc/24).
+
+    This is the early-exit path for ``#gem ... use_full_model=true``.
+    It loads a pre-built GEM (e.g. iML1515, iJN678) via
+    :func:`build_functional_model_full`, applies medium, and runs
+    static or dynamic FBA — skipping genome reconstruction entirely.
+    """
+    from helixlang.gem.bridge import build_functional_model_full
+    from helixlang.metabolism import FluxBalanceAnalysis
+
+    max_mu = _ORGANISM_MAX_GROWTH_RATE.get(organism, _ORGANISM_MAX_GROWTH_RATE["default"])
+    if max_growth_rate is not None:
+        max_mu = max_growth_rate
+
+    try:
+        model = build_functional_model_full(
+            organism=organism,
+            medium=medium_name,
+        )
+
+        # doc/25 Phase E: apply medium_override on full model
+        if medium_override:
+            for rid, rxn in model.reactions.items():
+                if rxn.subsystem == "exchange" and rid.startswith("EX_"):
+                    if len(rxn.stoichiometry) == 1:
+                        met = next(iter(rxn.stoichiometry))
+                        if met in medium_override:
+                            coef = rxn.stoichiometry[met]
+                            rate = medium_override[met]
+                            if coef < 0:
+                                rxn.lower_bound = -abs(rate)
+                            else:
+                                rxn.upper_bound = abs(rate)
+
+        fba = FluxBalanceAnalysis(model)
+
+        growth_rate = 0.0
+        fba_status = "skipped"
+        key_fluxes: dict[str, float] = {}
+        analysis: dict[str, Any] = {}
+        _extra_meta: dict[str, Any] = {}
+
+        if dynamic and medium_name in ("bg11", "photoautotrophic"):
+            from helixlang.metabolism import (
+                DynamicFBAConfig,
+                PhotoautotrophicFluxBalance,
+            )
+            photo_cfg = DynamicFBAConfig(
+                substrate_type="co2",
+                dt_h=dt,
+                initial_biomass_gdw=0.01,
+                co2_initial_mm=10.0,
+                co2_max_uptake=50.0,
+                co2_half_saturation_mm=0.5,
+                max_growth_rate=max_mu,
+                max_biomass_gdw=50.0,
+            )
+            batch = PhotoautotrophicFluxBalance(
+                model=model, config=photo_cfg, fba=fba)
+            n_steps = max(1, int(duration / dt))
+            dyn_trajectory: list[dict] = []
+            for _ in range(n_steps):
+                dyn_trajectory.append(batch.step())
+            if dyn_trajectory:
+                growth_rate = max(
+                    e.get("growth_rate", 0.0) for e in dyn_trajectory)
+                _end = dyn_trajectory[-1]
+                for e in reversed(dyn_trajectory):
+                    if e.get("co2", 0.0) > 0.01 and e.get("growth_rate", 0.0) > 1e-6:
+                        _end = e
+                        break
+                key_fluxes = {
+                    k: round(v, 4)
+                    for k, v in _end.items()
+                    if isinstance(v, (int, float)) and abs(v) > 1e-6
+                }
+            fba_status = "ok"
+            _extra_meta["dynamic"] = True
+            _extra_meta["duration_h"] = duration
+            _extra_meta["dt_h"] = dt
+        else:
+            fba.solve(objective="biomass", maximize=True)
+            analysis = fba.analyze()
+            growth_rate = analysis.get("growth_rate_per_hour", 0.0)
+            growth_rate = min(growth_rate, max_mu)
+            key_fluxes = {
+                k: round(v, 4)
+                for k, v in analysis.get("key_fluxes", {}).items()
+                if abs(v) > 1e-6
+            }
+            fba_status = "ok"
+
+        n_rxns = len(model.reactions)
+
+        return SimResult(
+            backend="gem",
+            columns=["stage", "status", "reactions_total", "growth_rate"],
+            rows=[
+                {
+                    "stage": "full_model_load",
+                    "status": "ok",
+                    "reactions_total": n_rxns,
+                    "growth_rate": round(growth_rate, 4),
+                },
+                {
+                    "stage": "fba_simulation",
+                    "status": fba_status,
+                    "reactions_total": n_rxns,
+                    "growth_rate": round(growth_rate, 4),
+                },
+            ],
+            meta={
+                "organism": organism,
+                "medium": medium_name,
+                "use_full_model": True,
+                "reactions_total": n_rxns,
+                "growth_rate_per_hour": round(growth_rate, 4),
+                "key_fluxes": key_fluxes,
+                **_extra_meta,
+            },
+        )
+    except Exception as exc:
+        return SimResult(
+            backend="gem",
+            columns=["stage", "status", "error"],
+            rows=[{
+                "stage": "full_model_load",
+                "status": "failed",
+                "error": str(exc),
+            }],
+            meta={
+                "organism": organism,
+                "medium": medium_name,
+                "use_full_model": True,
+                "growth_rate_per_hour": 0.0,
+                "errors": [str(exc)],
+            },
+        )
+
+
 # ============================================================================
 # GEM reconstruction backend (doc/20)
 # ============================================================================
@@ -1963,6 +2226,29 @@ def _run_gem(program: Program) -> SimResult:
     dt = float(ext.get("gem_dt", "0.05"))
     expression_enabled = ext.get("gem_expression", "false").lower() in ("true", "1", "yes")
 
+    # doc/25 Phase E: medium_override — comma-separated met:value pairs
+    # that override individual metabolite uptake rates in the preset.
+    medium_override_str = ext.get("gem_medium_override", "")
+    medium_override: dict[str, float] = {}
+    if medium_override_str:
+        for pair in medium_override_str.split(","):
+            pair = pair.strip()
+            if ":" in pair:
+                met, val = pair.split(":", 1)
+                try:
+                    medium_override[met.strip()] = float(val.strip())
+                except ValueError:
+                    pass
+
+    # doc/25 Phase F: max_growth_rate DSL override
+    _max_growth_rate_override: float | None = None
+    _mgr_str = ext.get("gem_max_growth_rate", "")
+    if _mgr_str:
+        try:
+            _max_growth_rate_override = float(_mgr_str)
+        except ValueError:
+            pass
+
     # Handle inline DNA sequence (doc/20 §12)
     inline_genome: str = ext.get("gem_inline_genome", "")
     inline_genes_raw = ext.get("gem_inline_genes", [])
@@ -1984,6 +2270,22 @@ def _run_gem(program: Program) -> SimResult:
         else:
             _tmp_fasta.write_text(f">{organism}\n{inline_genome}\n")
         genome_fasta = str(_tmp_fasta)
+
+    use_full = ext.get("gem_use_full_model", "false").lower() in ("true", "1", "yes")
+
+    # ---- Full-model early path (doc/24) ----
+    # When use_full_model=true, skip genome reconstruction entirely and
+    # load a pre-built genome-scale model from BiGG instead.
+    if use_full:
+        return _run_gem_full_model(
+            organism=organism,
+            medium_name=medium_name,
+            dynamic=dynamic,
+            duration=duration,
+            dt=dt,
+            medium_override=medium_override or None,
+            max_growth_rate=_max_growth_rate_override,
+        )
 
     # Fallback: check #species for genome
     if not genome_fasta:
@@ -2096,14 +2398,34 @@ def _run_gem(program: Program) -> SimResult:
                 try:
                     from helixlang.gem.grn_inference import GRNInferenceResult
                     from helixlang.omics.expression_inference import (
+                        ExpressionModel,
                         infer_expression,
                     )
                     if isinstance(result.grn, GRNInferenceResult) and \
                             result.grn.regulatory_edges:
+                        # Collect DSL expression_level overrides from #gene
+                        _expr_overrides: dict[str, float] = {}
+                        for g in program.genes:
+                            elvl = g.fields.get("expression_level")
+                            if elvl is not None:
+                                try:
+                                    _expr_overrides[g.name] = float(elvl)
+                                except ValueError:
+                                    pass
+                        # Build expression model with DSL overrides
+                        _expr_model = ExpressionModel()
+                        if _expr_overrides:
+                            for gid, lvl in _expr_overrides.items():
+                                _expr_model.promoter_strength[gid] = lvl
+                                _expr_model.rbs_strength[gid] = 1.0
                         _enzyme_levels = infer_expression(
                             grn_result=result.grn,
                             annotations=result.annotations,
+                            model=_expr_model if _expr_overrides else None,
                         )
+                        # Apply DSL overrides directly (take precedence
+                        # over inferred values)
+                        _enzyme_levels.update(_expr_overrides)
                         fba.set_enzyme_levels(_enzyme_levels)
                 except Exception as exc:
                     result.warnings.append(
@@ -2122,13 +2444,39 @@ def _run_gem(program: Program) -> SimResult:
                         result.consensus,
                         result.kcat_predictions,
                     )
+                    # Phase C: apply DSL #enzyme kcat overrides (doc/25 G3)
+                    for e_decl in program.enzymes:
+                        if e_decl.kcat is not None and e_decl.reaction in ec.kcat:
+                            ec.kcat[e_decl.reaction] = e_decl.kcat
                     fba.set_enzyme_capacity(ec)
                 except Exception as exc:
                     result.warnings.append(
                         f"Enzyme capacity setup skipped: {exc}")
 
+            # Phase VII: GRN -> FBA closed loop (doc/25 G7)
+            # Apply regulatory edges as FBA bounds: repressed genes reduce
+            # reaction upper bounds; activated genes ensure minimum flux.
+            if result.grn is not None and result.grn.regulatory_edges:
+                try:
+                    from helixlang.gem.bridge import apply_regulatory_bounds
+                    _gpr_map: dict[str, list[str]] = {}
+                    if result.consensus is not None:
+                        for rxn_id, genes in getattr(
+                                result.consensus, "gene_reaction_rules",
+                                {}).items():
+                            if isinstance(genes, list):
+                                for g in genes:
+                                    _gpr_map.setdefault(g, []).append(rxn_id)
+                    _n = apply_regulatory_bounds(
+                        model, result.grn.regulatory_edges, _gpr_map)
+                    _extra_meta["grn_bounds_applied"] = _n
+                except Exception as exc:
+                    result.warnings.append(
+                        f"GRN regulatory bounds skipped: {exc}")
+
             # Set exchange uptake bounds from medium preset or #media
-            _set_gem_medium(fba, medium_name, program, model)
+            _set_gem_medium(fba, medium_name, program, model,
+                            medium_override=medium_override or None)
 
             # Determine organism-specific growth rate cap
             _org_key = organism.lower().replace(" ", "_").replace(".", "")
@@ -2136,6 +2484,9 @@ def _run_gem(program: Program) -> SimResult:
                 _org_key,
                 _ORGANISM_MAX_GROWTH_RATE["default"],
             )
+            # doc/25 Phase F: DSL max_growth_rate override
+            if _max_growth_rate_override is not None:
+                max_mu = _max_growth_rate_override
             # Determine initial substrate from medium preset
             _medium_uptake = _MEDIUM_PRESETS.get(
                 medium_name, _MEDIUM_PRESETS["glucose_minimal"])
@@ -2169,8 +2520,8 @@ def _run_gem(program: Program) -> SimResult:
                     # reflect post-substrate-depletion stationary phase
                     # (doc/22 §6 Step 6: target 0.7–0.9 h⁻¹).
                     growth_rate = max(
-                        entry.get("growth_rate", entry.get("mu", 0.0))
-                        for entry in dyn_trajectory
+                        _row.get("growth_rate", _row.get("mu", 0.0))
+                        for _row in dyn_trajectory
                     )
                     # Find the last trajectory entry where substrate
                     # (glucose) is still available AND the model is
@@ -2181,10 +2532,10 @@ def _run_gem(program: Program) -> SimResult:
                     _glucose_key = "glucose"
                     _gr_key = "growth_rate"
                     _end_entry = dyn_trajectory[-1]
-                    for entry in reversed(dyn_trajectory):
-                        if (entry.get(_glucose_key, 0.0) > 0.01
-                                and entry.get(_gr_key, 0.0) > 1e-6):
-                            _end_entry = entry
+                    for _row in reversed(dyn_trajectory):
+                        if (_row.get(_glucose_key, 0.0) > 0.01
+                                and _row.get(_gr_key, 0.0) > 1e-6):
+                            _end_entry = _row
                             break
                     final_biomass = _end_entry.get(
                         "biomass", _end_entry.get("total_biomass", 0.0))
@@ -2228,10 +2579,10 @@ def _run_gem(program: Program) -> SimResult:
                     max_growth_rate=max_mu,
                     max_biomass_gdw=50.0,
                 )
-                batch = PhotoautotrophicFluxBalance(
+                batch = PhotoautotrophicFluxBalance(  # type: ignore[assignment]
                     model=model, config=photo_cfg, fba=fba)
                 n_steps = max(1, int(duration / dt))
-                dyn_trajectory: list[dict] = []
+                dyn_trajectory = []
                 for _ in range(n_steps):
                     dyn_trajectory.append(batch.step())
                 if dyn_trajectory:
@@ -2240,8 +2591,8 @@ def _run_gem(program: Program) -> SimResult:
                     # reflect post-CO₂-depletion stationary phase
                     # (doc/22 §7.5: target 0.14 h⁻¹ during growth).
                     growth_rate = max(
-                        entry.get("growth_rate", 0.0)
-                        for entry in dyn_trajectory
+                        _row.get("growth_rate", 0.0)
+                        for _row in dyn_trajectory
                     )
                     # Find the last entry where CO₂ is still available
                     # for productive growth AND the model is actively
@@ -2249,10 +2600,10 @@ def _run_gem(program: Program) -> SimResult:
                     _co2_key = "co2"
                     _gr_key = "growth_rate"
                     _end_entry = dyn_trajectory[-1]
-                    for entry in reversed(dyn_trajectory):
-                        if (entry.get(_co2_key, 0.0) > 0.01
-                                and entry.get(_gr_key, 0.0) > 1e-6):
-                            _end_entry = entry
+                    for _row in reversed(dyn_trajectory):
+                        if (_row.get(_co2_key, 0.0) > 0.01
+                                and _row.get(_gr_key, 0.0) > 1e-6):
+                            _end_entry = _row
                             break
                     final_biomass = _end_entry.get("biomass", 0.0)
                     key_fluxes = {
@@ -2467,12 +2818,17 @@ def _set_gem_medium(
     program: Program | None = None,
     model: Any = None,
     organism: str = "e_coli_k12",
+    medium_override: dict[str, float] | None = None,
 ) -> None:
     """Set exchange uptake bounds on a FluxBalanceAnalysis model.
 
     If ``medium_name`` is a known preset, use it directly.
     If ``medium_name`` is ``custom``, read ``#media`` annotations.
     Otherwise fall back to ``glucose_minimal``.
+
+    ``medium_override`` (doc/25 Phase E): dict of
+    ``metabolite_id -> uptake_rate`` that overrides individual entries
+    in the preset (e.g. ``{"fe3_e": 0.5, "co2_e": 500}``).
 
     Non-essential exchange reactions (amino acids, nucleotides, organic
     acids) are capped at ``_TRACE_IMPORT_UB`` mmol/gDW/h — a small rate
@@ -2481,11 +2837,15 @@ def _set_gem_medium(
     full rate.
     """
     if medium_name in _MEDIUM_PRESETS:
-        uptake = _MEDIUM_PRESETS[medium_name]
+        uptake = dict(_MEDIUM_PRESETS[medium_name])
     elif medium_name == "custom" and program is not None and program.media:
         uptake = {m.nutrient: m.concentration for m in program.media}
     else:
-        uptake = _MEDIUM_PRESETS.get(medium_name, _MEDIUM_PRESETS["glucose_minimal"])
+        uptake = dict(_MEDIUM_PRESETS.get(medium_name, _MEDIUM_PRESETS["glucose_minimal"]))
+
+    # doc/25 Phase E: apply medium_override on top of preset
+    if medium_override:
+        uptake.update(medium_override)
 
     _TRACE_IMPORT_UB = 0.1  # mmol/gDW/h trace cap for non-essential imports
 

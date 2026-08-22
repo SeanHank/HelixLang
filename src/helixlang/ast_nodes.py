@@ -92,6 +92,22 @@ class EnzymeDecl:
     gene: str
     reaction: str
     kcat: float | None = None
+    km: float | None = None
+
+
+@dataclass(slots=True)
+class ReactionDecl:
+    """Direct reaction definition (#reaction) for DSL-authored metabolic networks."""
+    id: str
+    name: str = ""
+    substrate: str = ""
+    substrate_coeff: float = -1.0
+    product: str = ""
+    product_coeff: float = 1.0
+    lower_bound: float = 0.0
+    upper_bound: float = 1000.0
+    subsystem: str = "other"
+    reversible: bool = False
 
 
 @dataclass(slots=True)
@@ -152,6 +168,7 @@ class Program:
     # Simulation-library declarations (consumed by sim_runtime, inert under classic)
     media: list[MediaDecl] = field(default_factory=list)
     enzymes: list[EnzymeDecl] = field(default_factory=list)
+    reactions: list[ReactionDecl] = field(default_factory=list)
     pools: list[PoolDecl] = field(default_factory=list)
     # Open #sim key=value extension point (forward-compatible long-tail hook)
     sim_extensions: dict[str, Any] = field(default_factory=dict)

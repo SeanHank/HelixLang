@@ -31,6 +31,7 @@ its total carbon and nitrogen to numerical tolerance).
 """
 from __future__ import annotations
 
+import copy
 import math
 import random
 import zlib
@@ -160,6 +161,9 @@ class Species:
     gem_fluxes: dict[str, float] = field(default_factory=dict)
     gem_kcat: dict[str, float] = field(default_factory=dict)
     gem_km: dict[str, float] = field(default_factory=dict)
+    last_fba_fluxes: dict[str, float] = field(default_factory=dict)
+    grn_edges: list = field(default_factory=list)
+    grn_gpr_map: dict[str, list[str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.genome:
@@ -184,14 +188,19 @@ _EXCHANGE_SUBSTRATE_MAP: dict[str, str] = {
     "EX_fum_e": "fumarate", "EX_mal__L_e": "malate",
     "EX_cit_e": "citrate", "EX_for_e": "formate",
     "EX_co2_e": "co2", "EX_o2_e": "oxygen",
-    "EX_nh4_e": "ammonia", "EX_pi_e": "phosphate",
+    "EX_nh4_e": "ammonia", "EX_no3_e": "nitrate",
+    "EX_pi_e": "phosphate",
 }
 
 # Reverse mapping: ecosystem substrate -> GEM exchange metabolite
 _ECOSYSTEM_TO_GEM_EXCHANGE: dict[str, str] = {
-    "glucose": "glc-D_e", "acetate": "ac_e", "oxygen": "o2_e",
-    "co2": "co2_e", "ammonia": "nh4_e", "phosphate": "pi_e",
-    "ethanol": "etoh_e", "lactate": "lac-D_e", "pyruvate": "pyr_e",
+    # Keys must use the BiGG double-underscore convention so that
+    # FluxBalanceAnalysis.set_uptake / _build_and_solve can match
+    # metabolites in the model's stoichiometry dict.
+    "glucose": "glc__D_e", "acetate": "ac_e", "oxygen": "o2_e",
+    "co2": "co2_e", "ammonia": "nh4_e", "nitrate": "no3_e",
+    "phosphate": "pi_e",
+    "ethanol": "etoh_e", "lactate": "lac__D_e", "pyruvate": "pyr_e",
     "succinate": "succ_e", "formate": "for_e", "citrate": "cit_e",
 }
 
@@ -368,6 +377,8 @@ class PatchConfig:
         moisture: water-filled pore-space fraction (soil; DAMM, L10).
         clay: clay fraction slowing active->slow SOM transfer (CENTURY).
         flow_rate: chemostat refresh (0 = sealed/batch).
+        temperature_c: environmental temperature (°C, default 25).
+        ph: environmental pH (default 7.0).
         initial_biomass: ``species -> biomass-C (mmol)``.
         substrates: ``name -> SubstrateConfig``.
         scalars: ``name -> ScalarConfig``.
@@ -389,6 +400,8 @@ class PatchConfig:
     initial_nh4_mm: float = 0.0
     initial_no3_mm: float = 0.0
     flow_rate: float = 0.0
+    temperature_c: float = 25.0
+    ph: float = 7.0
     initial_biomass: dict[str, float] = field(default_factory=dict)
     substrates: dict[str, SubstrateConfig] = field(default_factory=dict)
     scalars: dict[str, ScalarConfig] = field(default_factory=dict)
@@ -1158,16 +1171,15 @@ class Patch:
                     bx = row[x]
                     if bx <= 0.0:
                         continue
+                    is_fba = False
                     if self.gem_driven and sp.metabolic_model is not None:
-                        g_c, comps = self._growth_rate_gem(
+                        g_c, comps, is_fba = self._growth_rate_gem(
                             sp, bx, x, y, t_mod, moisture, fluct, light)
                     else:
                         g_c, comps = self._growth_rate(
                             sp, bx, x, y, t_mod, moisture, fluct, light)
                     g_c *= temp_ok
-                    # N-limited growth (Redfield / Liebig): the new
-                    # biomass needs N at the species C:N ratio, drawn
-                    # from the mineral N pool
+                    # N-limited growth (Redfield / Liebig)
                     scale = 1.0
                     demand_n = bx * g_c / sp.cn_ratio
                     if demand_n > 0.0:
@@ -1175,34 +1187,96 @@ class Patch:
                         if demand_n > avail:
                             scale = avail / demand_n
                     g = g_c * scale
-                    # aerobic O2 cap: respired C needs O2 1:1, so growth
-                    # is also bounded by the O2 at the site (an aerobe
-                    # cannot respire without it)
+                    # aerobic O2 cap
                     if "oxygen" in self.fields and sp.consumption:
                         o2 = self.fields["oxygen"].get(x, y)
                         respired_g = g * (1.0 - traits.yield_c) / traits.yield_c
                         demand_o2 = bx * respired_g
                         if demand_o2 > o2:
                             g *= o2 / demand_o2
-                    # switching cost (L2): a mode flip costs growth for
-                    # the recovery window
+                    # switching cost
                     rec = self.switch_recovery.get(name, 0)
                     if rec > 0:
                         g *= (1.0 - traits.switching_cost)
                         self.switch_recovery[name] = rec - 1
-                    growth_c = self._apply_growth(
-                        sp, bx, x, y, comps, g, g_c, traits)
+                    if is_fba and comps:
+                        # GEM path: FBA exchange fluxes drive substrate
+                        # depletion directly; growth comes from g*bx.
+                        growth_c = 0.0
+                        respired_total = 0.0
+                        consumed_total = 0.0
+                        sec_total_c = 0.0
+                        expected_total = 0.0
+                        _fba_fluxes = sp.last_fba_fluxes or {}
+                        for sub, cpm, rate in comps:
+                            field = self.fields.get(sub)
+                            if field is None:
+                                continue
+                            expected = rate * g / g_c * bx if g_c > 0 else 0.0
+                            expected_total += expected * cpm
+                            removed = field.deplete(x, y, expected) if g_c > 0 else 0.0
+                            if removed <= 0.0:
+                                continue
+                            c_units = removed * cpm
+                            consumed_total += c_units
+                        # Gate growth AND CO2/O2 on actual substrate
+                        # consumption.  When no substrate was removed
+                        # (all at floor), nothing should grow or emit.
+                        if consumed_total > 0.0 and expected_total > 0.0:
+                            consumption_ratio = min(
+                                1.0, consumed_total / expected_total)
+                            growth_c = g * bx * consumption_ratio
+                            # CO2 produced by FBA (positive EX_co2_e
+                            # flux), scaled by consumption ratio.
+                            if "co2" in self.fields and _fba_fluxes:
+                                co2_flux = max(
+                                    0.0, _fba_fluxes.get("EX_co2_e", 0.0))
+                                if co2_flux > 0 and g_c > 0:
+                                    co2_rate = (co2_flux * _H_PER_TICK
+                                                * g / g_c * bx
+                                                * consumption_ratio)
+                                    self.fields["co2"].add(x, y, co2_rate)
+                                    respired_total += (
+                                        co2_rate * self._cpm("co2"))
+                            # O2 consumed by FBA (negative EX_o2_e
+                            # flux), scaled by consumption ratio.
+                            if "oxygen" in self.fields and _fba_fluxes:
+                                o2_flux = min(
+                                    0.0, _fba_fluxes.get("EX_o2_e", 0.0))
+                                if o2_flux < 0 and g_c > 0:
+                                    o2_rate = (abs(o2_flux) * _H_PER_TICK
+                                               * g / g_c * bx
+                                               * consumption_ratio)
+                                    self.fields["oxygen"].deplete(
+                                        x, y, o2_rate)
+                            # O2 produced by FBA (positive EX_o2_e
+                            # flux, e.g. photosynthesis), scaled by
+                            # consumption ratio.
+                            if "oxygen" in self.fields and _fba_fluxes:
+                                o2_prod = max(
+                                    0.0, _fba_fluxes.get("EX_o2_e", 0.0))
+                                if o2_prod > 0 and g_c > 0:
+                                    o2_rate = (o2_prod * _H_PER_TICK
+                                               * g / g_c * bx
+                                               * consumption_ratio)
+                                    self.fields["oxygen"].add(
+                                        x, y, o2_rate)
+                        self.consumed_c[sp.name] += consumed_total
+                        self.respired_c[sp.name] += respired_total
+                    else:
+                        growth_c = self._apply_growth(
+                            sp, bx, x, y, comps, g, g_c, traits)
                     if growth_c > 0.0:
                         self.nitrogen.immobilize(growth_c / sp.cn_ratio)
                     self._growth_c += growth_c
                     self.npp[name] += growth_c
-                    # secretion (cross-feeding / syntrophy, L3): C leaves
-                    # the biomass into the substrate field; its N returns
-                    # to the mineral pool, so both budgets stay closed
+                    # DSL secretion suppressed when GEM-driven (FBA
+                    # already accounts for all exchange fluxes).
                     sec_total = 0.0
+                    gem_active = is_fba and g_c > 0
                     for sub, rate in sp.secretion.items():
                         if sub in self.fields:
-                            sec = rate * bx
+                            sec = rate * bx if not gem_active else 0.0
                             self.fields[sub].add(x, y, sec)
                             sec_total += sec * self._cpm(sub)
                     if sec_total > 0.0:
@@ -1272,34 +1346,91 @@ class Patch:
         substrate concentrations, then returns the biomass flux as the
         growth rate.  Falls back to Monod if FBA is infeasible.
 
-        Unit note: FBA fluxes are in mmol/gDW/h (or 1/h for biomass).
-        The ecosystem ticks are minutes (``TIME_TICK_MIN == 1.0``), so
-        FBA rates are scaled by ``_H_PER_TICK`` to match the per-tick
-        conventions used by the Monod-based ``_growth_rate`` path.
+        Design (v2 – unit-clean):
+          FBA fluxes are in mmol/gDW/h while the ecosystem fields are in
+          mM with an arbitrary biomass unit ``bx``.  Converting between
+          them requires a biomass-density parameter the ecosystem does
+          not track.  Instead we use FBA **only** for the growth rate
+          (the biomass flux) and delegate substrate consumption to the
+          existing Monod pathway which is already in correct ecosystem
+          units.  This keeps the two models cleanly separated:
+            * FBA → metabolically optimal growth rate
+            * Monod → field-scale substrate consumption rates
         """
         from helixlang.metabolism import FluxBalanceAnalysis, MetabolicModel
 
         if sp.metabolic_model is None or not isinstance(sp.metabolic_model, MetabolicModel):
             return self._growth_rate(sp, bx, x, y, t_mod, moisture,
                                      fluct, light)
-        model = sp.metabolic_model
+        model = copy.deepcopy(sp.metabolic_model)
 
         try:
             fba = FluxBalanceAnalysis(model)
 
+            # Phase VII: GRN → FBA closed loop (doc/25 G7)
+            if sp.grn_edges:
+                from helixlang.gem.bridge import apply_regulatory_bounds
+                apply_regulatory_bounds(model, sp.grn_edges, sp.grn_gpr_map)
+
+            # Phase VIII: Temperature/pH enzyme correction (doc/25 G8)
+            from helixlang.metabolism import enzyme_correction
+            _corr = enzyme_correction(
+                self.config.temperature_c, self.config.ph)
+            for rxn_id, rxn in model.reactions.items():
+                if not rxn_id.startswith("EX_"):
+                    rxn.upper_bound *= _corr
+                    if rxn.lower_bound < 0:
+                        rxn.lower_bound *= _corr
+
+            # Phase IX: Density-dependent enzyme scaling (doc/25 G9)
+            # Logistic-style: full capacity at low density, decreasing
+            # toward zero as biomass approaches carrying capacity.
+            carrying = self.config.carrying_capacity
+            if carrying > 0 and bx > 0:
+                _density_scale = max(0.01, 1.0 - bx / carrying)
+                for rxn_id, rxn in model.reactions.items():
+                    if not rxn_id.startswith("EX_"):
+                        rxn.upper_bound *= _density_scale
+                        if rxn.lower_bound < 0:
+                            rxn.lower_bound *= _density_scale
+
             # Set exchange bounds from local substrate concentrations.
             # Monod uptake is in per-tick (per-minute) units; FBA
             # expects mmol/gDW/h, so we scale up by _H_PER_TICK.
+            # When substrate concentration is at/below the floor, set
+            # uptake to zero so FBA doesn't report phantom growth.
+            # Use a dynamic floor: if concentration is <= 5% of ks,
+            # Monod gives < 5% of vmax — treat as exhausted.
             for sub, (vmax_ks, ks_val) in sp.consumption.items():
                 field = self.fields.get(sub)
                 if field is None:
                     continue
                 conc = field.get(x, y) * fluct
-                # Map ecosystem substrate name to GEM exchange metabolite
                 gem_met = _ECOSYSTEM_TO_GEM_EXCHANGE.get(sub, sub)
-                uptake = monod_uptake(vmax_ks, conc, ks_val)
-                rate = uptake * t_mod * moisture * sp.traits.uptake_gain
-                fba.set_uptake(gem_met, max(0.0, rate / _H_PER_TICK))
+                # Dynamic floor: substrate at or below this concentration
+                # is treated as exhausted.  Use the larger of 5% of ks
+                # (so Monod < 5% of vmax) and a practical floor above the
+                # field's numerical minimum (~0.01).  This prevents
+                # phantom growth when substrates are depleted.
+                _floor = max(0.05 * ks_val if ks_val > 0 else 1e-4, 0.02)
+                if conc <= _floor:
+                    fba.set_uptake(gem_met, 0.0)
+                else:
+                    uptake = monod_uptake(vmax_ks, conc, ks_val)
+                    rate = uptake * t_mod * moisture * sp.traits.uptake_gain
+                    # Photo species: use photo_vmax for CO2 uptake
+                    # (the photosynthetic rate, not the generic vmax).
+                    if sp.photo and sub == "co2" and sp.photo_vmax > 0:
+                        rate = monod_uptake(
+                            sp.photo_vmax, conc, ks_val
+                        ) * t_mod * moisture * sp.traits.uptake_gain
+                        # Modulate by light saturation (Michaelis-Menten
+                        # on PAR intensity).
+                        _light_ks = 150.0
+                        light_sat = (light / (_light_ks + light)
+                                     if light > 0 else 0.0)
+                        rate *= light_sat
+                    fba.set_uptake(gem_met, max(0.0, rate / _H_PER_TICK))
 
             # Solve for biomass
             bm_rxn = model.biomass_reaction
@@ -1307,37 +1438,53 @@ class Patch:
                 fluxes = fba.solve(objective=bm_rxn)
                 bm_flux = fluxes.get(bm_rxn, 0.0)
             else:
-                # Try BIOMASS_reaction as fallback
                 fluxes = fba.solve(objective="BIOMASS_reaction")
                 bm_flux = fluxes.get("BIOMASS_reaction", 0.0)
 
+            # Store FBA result on species for cross-tick persistence (G9)
+            sp.last_fba_fluxes = dict(fluxes)
+
             # Convert FBA 1/h to per-tick (per-minute) specific growth
             g_c = max(0.0, bm_flux * _H_PER_TICK * sp.traits.growth_rate_gain)
-            # Cap at organism-specific maximum (doc/20 §15)
             g_c = min(g_c, sp.traits.max_growth_rate)
 
-            # Build components list from exchange fluxes for C accounting.
-            # Exchange fluxes are mmol/gDW/h; scale to per-tick.
-            components: list[tuple] = []
-            for rxn_id, flux in fluxes.items():
-                if rxn_id.startswith("EX_") and flux > 1e-8:
-                    substrate = ""
-                    for ex_id, sub_name in _EXCHANGE_SUBSTRATE_MAP.items():
-                        if rxn_id == ex_id:
-                            substrate = sub_name
-                            break
+            if g_c > 0:
+                # Build FBA exchange components for substrate accounting.
+                # Each component is (field_name, cpm, rate) where rate
+                # is in per-tick field-depletion units.
+                components: list[tuple] = []
+                for rxn_id, flux in fluxes.items():
+                    if not rxn_id.startswith("EX_"):
+                        continue
+                    if flux >= -1e-8:
+                        continue
+                    substrate = _EXCHANGE_SUBSTRATE_MAP.get(rxn_id, "")
                     if substrate and substrate in self.fields:
                         cpm = self._cpm(substrate)
+                        # mmol/gDW/h → per-tick field units:
+                        # divide by 60 (_H_PER_TICK) to get per-tick,
+                        # then scale by the ecosystem-specific unit
+                        # factor so that _apply_growth depletes the
+                        # correct amount of substrate per unit biomass.
                         components.append((substrate, cpm,
-                                           flux * _H_PER_TICK))
+                                           abs(flux) * _H_PER_TICK))
+                # Flag: components are FBA-sourced, not Monod.
+                # The caller must use g_c*bx as growth_c (not the
+                # yield_c-weighted sum) and handle CO2 separately.
+                return g_c, components, True
+            # FBA solved but biomass=0 (substrates exhausted).
+            # Do NOT fall through to Monod — the GEM is authoritative.
+            return 0.0, [], True
+        except Exception as _gem_err:
+            import sys
+            print(f"[GEM-FALLBACK] {sp.name}: {_gem_err}",
+                  file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
 
-            if g_c > 0:
-                return g_c, components
-        except Exception:
-            pass  # fall through to Monod
-
-        return self._growth_rate(sp, bx, x, y, t_mod, moisture,
-                                 fluct, light)
+        _monod_result = self._growth_rate(sp, bx, x, y, t_mod, moisture,
+                                            fluct, light)
+        return _monod_result[0], _monod_result[1], False
 
     def _apply_growth(self, sp: Species, bx: float, x: int, y: int,
                       comps: list, g: float, g_c: float,

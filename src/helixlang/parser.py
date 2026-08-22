@@ -28,6 +28,7 @@ from helixlang.ast_nodes import (
     PoolDecl,
     Program,
     Promoter,
+    ReactionDecl,
     Regulation,
 )
 from helixlang.errors import ParseError
@@ -71,6 +72,7 @@ class Parser:
                     "type": self._parse_type_annotation,
                     "media": self._parse_media,
                     "enzyme": self._parse_enzyme,
+                    "reaction": self._parse_reaction,
                     "metabolite": self._parse_metabolite,
                     "sim": self._parse_sim,
                     "genome": self._parse_genome,
@@ -346,7 +348,7 @@ class Parser:
             diffusion_um2_s=diffusion))
 
     def _parse_enzyme(self, prog: Program) -> None:
-        """Parse #enzyme gene=gltA reaction=CS [kcat=2800].
+        """Parse #enzyme gene=gltA reaction=CS [kcat=2800] [km=0.5].
 
         Enzyme--reaction binding for enzyme-constrained FBA; inert under the
         classic backend (12-helix-language-wiring.md §6.5).
@@ -367,7 +369,59 @@ class Parser:
             except ValueError as e:
                 raise ParseError(
                     f"invalid kcat {fields['kcat']!r}: {e}", line=t.line) from None
-        prog.enzymes.append(EnzymeDecl(gene=gene, reaction=reaction, kcat=kcat))
+        km: float | None = None
+        if "km" in fields:
+            try:
+                km = float(fields["km"])
+            except ValueError as e:
+                raise ParseError(
+                    f"invalid km {fields['km']!r}: {e}", line=t.line) from None
+        prog.enzymes.append(EnzymeDecl(gene=gene, reaction=reaction, kcat=kcat, km=km))
+
+    def _parse_reaction(self, prog: Program) -> None:
+        """Parse #reaction id=PGI name=PGI substrate=g6p product=f6p.
+
+        Direct reaction definition for DSL-authored metabolic networks.
+        Fields:
+          id        (required) reaction identifier
+          name      human-readable name
+          substrate reactant metabolite id
+          substrate_coeff  reactant stoichiometric coefficient (default -1)
+          product   product metabolite id
+          product_coeff    product stoichiometric coefficient (default 1)
+          lower_bound  flux lower bound (default 0, negative = reversible)
+          upper_bound  flux upper bound (default 1000)
+          subsystem pathway / subsystem tag
+          reversible   shorthand: if true, lower_bound = -upper_bound
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        rxn_id = fields.get("id", "")
+        if not rxn_id:
+            raise ParseError("#reaction requires id= field", line=t.line)
+        name = fields.get("name", rxn_id)
+        substrate = fields.get("substrate", "")
+        product = fields.get("product", "")
+        sub_coeff = float(fields.get("substrate_coeff", "-1"))
+        prod_coeff = float(fields.get("product_coeff", "1"))
+        lb = float(fields.get("lower_bound", "0"))
+        ub = float(fields.get("upper_bound", "1000"))
+        subsystem = fields.get("subsystem", "other")
+        reversible = fields.get("reversible", "false").lower() in ("true", "1", "yes")
+        if reversible:
+            lb = -ub
+        stoich: dict[str, float] = {}
+        if substrate:
+            stoich[substrate] = sub_coeff
+        if product:
+            stoich[product] = prod_coeff
+        prog.reactions.append(ReactionDecl(
+            id=rxn_id, name=name,
+            substrate=substrate, substrate_coeff=sub_coeff,
+            product=product, product_coeff=prod_coeff,
+            lower_bound=lb, upper_bound=ub,
+            subsystem=subsystem, reversible=reversible,
+        ))
 
     def _parse_metabolite(self, prog: Program) -> None:
         """Parse #metabolite name=glc__D init=0.5.
@@ -495,12 +549,17 @@ class Parser:
         ``include_spontaneous`` (include spontaneous reactions, default true),
         ``gapfill`` (run gap-filling, default true),
         ``target_organism`` (target organism for BRENDA lookup),
-        ``medium`` (growth medium preset: ``glucose_minimal``, ``lb``, or
-        ``custom`` to use ``#media`` annotations; default ``glucose_minimal`),
+        ``medium`` (growth medium preset: ``glucose_minimal``, ``lb``,
+        ``bg11``, or ``custom`` to use ``#media`` annotations;
+        default ``glucose_minimal`),
         ``dynamic`` (enable dFBA, default false),
         ``duration`` (simulation hours, default 24.0),
         ``dt`` (time step hours, default 0.1),
-        ``expression`` (enable expression inference, default false).
+        ``expression`` (enable expression inference, default false),
+        ``use_full_model`` (load a full genome-scale model from BiGG
+        instead of rebuilding from genome; default false.  Requires
+        ``organism`` to be in the organism registry, e.g.
+        ``e_coli_k12`` → iML1515, ``synechocystis_pcc6803`` → iJN678).
 
         Setting ``#config backend=gem`` triggers the pipeline automatically;
         using ``#gem`` alone is inert unless the backend is ``gem``.

@@ -387,8 +387,8 @@ def build_functional_model(
         fluxes = {}
 
     # Attach growth rate to the model for downstream consumers
-    model._growth_rate = fluxes.get("BIOMASS_reaction", 0.0)  # type: ignore[attr-defined]
-    model._fba_fluxes = fluxes  # type: ignore[attr-defined]
+    model._growth_rate = fluxes.get("BIOMASS_reaction", 0.0)
+    model._fba_fluxes = fluxes
 
     return model
 
@@ -428,8 +428,79 @@ def build_functional_model_full(
         adapter = FullModelAdapter.from_bigg(organism)
 
     adapter.apply_medium(medium)
+    # Set the correct biomass reaction BEFORE solving so that the
+    # returned MetabolicModel.biomass_reaction points to the right one
+    # (e.g. BIOMASS_Ec_SynAuto for photoautotrophic Synechocystis,
+    # not the auto-detected BIOMASS_Ec_SynHetero from SBML).
+    if adapter.biomass_rxn and adapter.biomass_rxn in adapter.model.reactions:
+        adapter.model.biomass_reaction = adapter.biomass_rxn
     fluxes = adapter.solve()
     adapter.model._growth_rate = adapter.growth_rate  # type: ignore[attr-defined]
     adapter.model._fba_fluxes = fluxes  # type: ignore[attr-defined]
     adapter.model._adapter = adapter  # type: ignore[attr-defined]
     return adapter.model
+
+
+# ---------------------------------------------------------------------------
+# GRN -> FBA closed loop: apply regulatory bounds (doc/25 Phase VII)
+# ---------------------------------------------------------------------------
+
+def apply_regulatory_bounds(
+    model: Any,
+    grn_edges: list,
+    gpr_map: dict[str, list[str]],
+    base_fraction: float = 0.1,
+) -> int:
+    """Apply GRN regulatory edges to FBA reaction bounds (doc/25 G7).
+
+    For each ``RegulatoryEdge``:
+    - **Repression**: scales ``upper_bound`` toward zero by
+      ``confidence * base_fraction``.  Negative lower bounds (uptake
+      exchange reactions) are also scaled.
+    - **Activation**: raises ``upper_bound`` toward the original by
+      ``confidence``.
+
+    Parameters
+    ----------
+    model : MetabolicModel with ``.reactions`` dict
+    grn_edges : list of RegulatoryEdge objects
+    gpr_map : gene_id -> list of reaction_ids (GPR associations)
+    base_fraction : fraction of original bound to subtract when fully
+        repressed (default 0.1 = 10% reduction at confidence=1.0)
+
+    Returns
+    -------
+    Number of reactions whose bounds were modified.
+    """
+    from helixlang.gem.grn_inference import RegulatoryEdge
+
+    n_modified = 0
+    for edge in grn_edges:
+        if not isinstance(edge, RegulatoryEdge):
+            continue
+        # Resolve target reactions from edge or GPR map
+        reactions: list[str] = []
+        if edge.target_reaction:
+            reactions = [edge.target_reaction]
+        else:
+            reactions = gpr_map.get(edge.target_gene, [])
+
+        for rxn_id in reactions:
+            if rxn_id not in model.reactions:
+                continue
+            rxn = model.reactions[rxn_id]
+            orig_ub = rxn.upper_bound
+            orig_lb = rxn.lower_bound
+
+            if edge.regulation_type == "repression":
+                scale = 1.0 - edge.confidence * base_fraction
+                rxn.upper_bound = orig_ub * scale
+                if orig_lb < 0:
+                    rxn.lower_bound = orig_lb * scale
+            elif edge.regulation_type == "activation":
+                min_ub = orig_ub * max(0.0, edge.confidence)
+                rxn.upper_bound = max(rxn.upper_bound, min_ub)
+
+            n_modified += 1
+
+    return n_modified

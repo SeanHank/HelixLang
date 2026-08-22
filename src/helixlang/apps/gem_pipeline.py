@@ -666,10 +666,23 @@ def run_gem_pipeline(
     try:
         tf_result = detect_transcription_factors(genome_fasta)
         result.tf_result = tf_result
+        # Pass genome gene IDs for validation: skip database edges
+        # whose TF or target is not in the input genome.
+        _genome_gene_ids: set[str] | None = None
+        if result.annotations:
+            _genome_gene_ids = set(result.annotations.keys())
+        # Convert pipeline bool to database_interactions list or None
+        # None = use default KNOWN_REGULATORY_INTERACTIONS
+        # [] = disable database edges entirely
+        _db_interactions: list | None = (
+            None if use_database_interactions else []
+        )
         result.grn = infer_grn(
             tf_result,
             genome_fasta,
+            database_interactions=_db_interactions,
             use_motif_prediction=True,
+            genome_gene_ids=_genome_gene_ids,
         )
         result.stages_completed = 4
     except Exception as exc:
