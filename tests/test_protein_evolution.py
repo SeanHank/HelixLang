@@ -70,14 +70,14 @@ def test_make_oracle_falls_back_to_blosum62() -> None:
 
 
 def test_guided_directed_evolution_beats_random_baseline() -> None:
-    res = guided_directed_evolution()
+    res = guided_directed_evolution(oracle="blosum62")
     assert res.guided_gain > res.baseline_gain + 0.05
     assert res.guided_gain > 0.10
     assert res.baseline_gain < res.guided_gain
 
 
 def test_guided_evolution_recovers_wild_type() -> None:
-    res = guided_directed_evolution()
+    res = guided_directed_evolution(oracle="blosum62")
     start = make_crippled(seed=1)
     mismatches_start = sum(a != b for a, b in zip(GB1_WT, start, strict=True))
     mismatches_final = sum(
@@ -88,15 +88,15 @@ def test_guided_evolution_recovers_wild_type() -> None:
 
 
 def test_guided_evolution_is_deterministic() -> None:
-    a = guided_directed_evolution()
-    b = guided_directed_evolution()
+    a = guided_directed_evolution(oracle="blosum62")
+    b = guided_directed_evolution(oracle="blosum62")
     assert a.guided_cumulative_best == b.guided_cumulative_best
     assert a.baseline_cumulative_best == b.baseline_cumulative_best
     assert a.final_best_sequence == b.final_best_sequence
 
 
 def test_oracle_spearman_alignment_with_landscape() -> None:
-    res = guided_directed_evolution()
+    res = guided_directed_evolution(oracle="blosum62")
     assert res.spearman_rho > 0.5
     assert isinstance(res, DirectedEvolutionResult)
 

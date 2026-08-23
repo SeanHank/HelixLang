@@ -286,7 +286,7 @@ def _stage_d_ecgem(
         for p in proteins:
             gene_id = p.gene_id if hasattr(p, "gene_id") else f"protein_{len(kcat_dict)}"
             pred = kcat_preds.get(gene_id)
-            if hasattr(pred, "kcat_value"):
+            if pred is not None and hasattr(pred, "kcat_value"):
                 kcat_dict[gene_id] = pred.kcat_value
             seq = p.sequence if hasattr(p, "sequence") else ""
             if seq:

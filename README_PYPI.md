@@ -6,13 +6,6 @@ _"We are moving from reading the genetic code to writing it." — J. Craig Vente
 
 A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior and morphology.
 
-| | |
-|---|---|
-| 🐍 Requires | Python ≥ 3.11 |
-| 📦 Runtime deps | **none** (stdlib only) |
-| 🧪 Tested on | Python 3.11 |
-| 📜 License | AGPLv3 |
-
 ---
 
 ## Why HelixLang?
@@ -37,6 +30,7 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
 - 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
 - 🧪 **Frontier biology** — the frontier tier turns the simulator into a quantitative model: **programmable cells**, **stochastic gene expression**, **environment-coupled Monod metabolism** with CROMICS cell-crowding diffusion, **dynamic FBA** batch / diauxic simulation, and spatial cell mechanics.
+- 🧬 **DNA → Structure → Kinetics → ecGEM → Ecosystem** — ESM3 end-to-end protein structure prediction from sequence alone (no MSA required), sequence-based kcat/Km prediction using ESM-2 embeddings + BRENDA calibration (CatPred-style), auto ecGEM construction (ECMpy 2.0 enzyme capacity constraints), community FBA with per-organism ecGEMs and cross-feeding. The full pipeline runs from a single genome FASTA file via `run_full_pipeline()`. Example 55 demonstrates the complete chain with Xenobacter alienus — 24 genes, 5 pathways, 22 enzyme kinetic parameters, 42-reaction core model with 24 enzyme constraints.
 - 🧬 **Whole-cell realism** — `VirtualCell` is a physically complete virtual organism: cell-cycle phasing with scheduled **Cooper–Helmstetter chromosome replication**, true volume in µm³ with **adder** size control, chaperone-mediated protein maturation & QC, and **enzyme-constrained FBA** over intracellular pools — closed at colony scale and calibrated from noisy, lab-style observables via the Virtual Cell Challenge calibrate→predict loop.
 - 🖥️ **One source, every runtime** — a single backend selector drives five quantitative runtimes — whole-cell physiology, 3D cell colonies, dFBA batch/diauxie curves, even inverse calibration — all straight from `.helix` source, with `#media`/`#enzyme`/`#metabolite` annotations, `seed=` determinism, `--backend`/`--json` CLI flags, and a `POST /api/sim/run` web endpoint. `backend=classic` stays the default, bit-identical.
 - 🌍 **Evolution with a physical body** — DNA programs evolve in real 3D space: a biological mutation spectrum mutates the source, the compiler revalidates the reading frame and recompiles, and fitness is *spatial behavior* — colony radius × core survival in an oxygen-poor colony core (Bosshard 2020). Codons, physics, and natural selection in a single loop.
@@ -53,15 +47,16 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 pip install helixlang
 
 # Recommended: install all optional extras
-pip install "helixlang[dev,fast,web,bio]"
+pip install "helixlang[fast,web,bio,ml]"
 ```
 
 | Extra | Capability | Dependencies |
 |-------|-----------|--------------|
-| `dev` | tests + coverage | pytest, pytest-cov |
 | `fast` | vectorized mutation / reaction-diffusion speedup | numpy |
 | `web` | Flask visualization frontend | flask |
-| `bio` | physical DNA codec + IUPAC validation | biopython, reedsolo |
+| `bio` | physical DNA codec + IUPAC validation + full GEM import | biopython, reedsolo, cobra |
+| `ml` | ESM3 protein structure + ESM-2 sequence-based kinetics | esm, torch |
+| `dev` | tests + coverage | pytest, pytest-cov, scipy |
 
 The core installs with **zero runtime dependencies** — only the Python standard library.
 
@@ -77,6 +72,9 @@ helixlang examples/01_hello_dna.helix
 
 # Disassemble the bytecode
 helixlang examples/01_hello_dna.helix --disassemble
+
+# Run the full-chain custom organism pipeline (DNA → structure → kinetics → ecGEM → ecosystem)
+helixlang examples/55_custom_organism_ecosystem.helix --full-pipeline
 
 # Launch the web visualization (http://127.0.0.1:5000)
 helixlang --serve
@@ -249,7 +247,12 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `epigenetics` | CpG islands / methylation / histone modification |
 | `metabolism` | FBA flux balance analysis (+ SBML / BiGG `load_model`) |
 | `protein_structure` | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
+| `protein_structure_predictor` | ESM3 end-to-end protein structure from sequence (no MSA); falls back to Chou-Fasman when esm/torch unavailable |
 | `protein_fitness` | Fitness oracles: BLOSUM62 + ESM-2 + variant ranking |
+| `kinetics/sequence_predictor` | Sequence-based kcat/Km prediction: ESM-2 embeddings → BRENDA EC-class medians → physics fallback |
+| `gem/ecgem` | Enzyme-constrained GEM builder (ECMpy 2.0 / sMOMENT-lite): kcat capacity constraints, enzyme pool budget |
+| `gem/community` | Community FBA extension (OptCom): per-organism ecGEMs, dynamic metabolite exchange, cross-feeding networks |
+| `apps/full_pipeline` | Full-chain custom organism pipeline: FASTA → translation → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation |
 | `omics` | Expression matrices → GRN/FBA states, spatial atlas, heterogeneity (ARI) |
 | `virtual_cell` | Virtual-cell budget model, gene encoding, parameter fitting, benchmarks |
 | `interop` | SBML L3V1 import + SBOL3 export/import round-trip |
@@ -273,6 +276,8 @@ usage: helixlang <source.helix> [options]
   --csv                                      emit CSV trace
   --png PREFIX                               render morphology/field to PPM
   --ticks N                                  override #config ticks
+  --gem                                      run GEM reconstruction from genome FASTA
+  --full-pipeline                            run full-chain custom organism pipeline
   --serve [--port 5000] [--host 127.0.0.1]   launch web visualization
   --encode-dna goldman|erlich                encode source -> DNA FASTA
   --decode-dna FILE                          decode DNA -> source
@@ -289,7 +294,7 @@ live diagnostics, hover docs, completion, navigation, semantic highlighting, inl
 bytecode disassembler, and a line debugger — all over Language Server Protocol.
 
 ```bash
-pip install "helixlang[lsp]"
+pip install helixlang-lsp
 ```
 
 Then install the plugin zip from that repo's [Releases](https://github.com/SeanHank/HelixLang-LSP-Plugin/releases)
@@ -343,10 +348,10 @@ ruff check src tests
 mypy
 ```
 
-- **2134 test cases** (2134 passing, 89% coverage)
+- **2430 test cases** (all passing, 81% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 40 `examples/*.helix` covered + Python API companions
+- All 55 `examples/*.helix` covered + Python API companions
 
 ---
 
@@ -359,7 +364,7 @@ conventions, the citation rules for biological constants, and the documentation 
 ```bash
 git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
-pip install -e ".[dev,fast,web,bio]"
+pip install -e ".[dev,fast,web,bio,ml]"
 pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests && mypy
 ```
 

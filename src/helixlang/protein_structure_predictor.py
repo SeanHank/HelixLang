@@ -88,7 +88,7 @@ def _derive_secondary_from_coords(coords: Any) -> str:
     else:
         coords_np = np.asarray(coords)
 
-    n = coords_np.shape[0]
+    n = int(coords_np.shape[0])
     if n < 4:
         return "C" * n
 

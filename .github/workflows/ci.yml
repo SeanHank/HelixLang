@@ -32,7 +32,7 @@ jobs:
       - name: Install mypy + project (with optional dependencies to resolve stubs)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,fast,web,bio]"
+          pip install -e ".[dev,fast,web,bio,ml]"
           pip install mypy
       - name: Mypy type check
         run: mypy
@@ -52,15 +52,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies (including [bio] extra)
+      - name: Install dependencies (including [bio] and [ml] extras)
         run: |
           python -m pip install --upgrade pip
-          # Install all optional dependencies: dev (tests + coverage) / fast (numpy) / web (flask) / bio (biopython + reedsolo)
-          pip install -e ".[dev,fast,web,bio]"
+          # Install all optional dependencies: dev (tests + coverage + xdist) / fast (numpy) / web (flask) / bio (biopython + reedsolo + cobra) / ml (esm + torch)
+          pip install -e ".[dev,fast,web,bio,ml]"
 
-      - name: Run tests with coverage (gate 80%)
+      - name: Run tests with coverage (gate 80%) in parallel
         run: |
-          pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
+          pytest -n auto --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
 
   examples-smoke:
     runs-on: ubuntu-latest
@@ -71,10 +71,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install dependencies (with [bio] extra to support DNA encode/decode examples)
+      - name: Install dependencies (with [bio] and [ml] extras)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,fast,web,bio]"
+          pip install -e ".[dev,fast,web,bio,ml]"
       - name: Examples smoke test (all *.helix compile and run)
         run: |
           # Compile all examples

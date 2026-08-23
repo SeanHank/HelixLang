@@ -44,7 +44,7 @@ _esm2_tokenizer = None
 _esm2_layer_count = 0
 
 
-def _ensure_esm2():
+def _ensure_esm2() -> None:
     global _ESM2_AVAILABLE, _esm2_model, _esm2_tokenizer, _esm2_layer_count
     if _esm2_model is not None:
         return
@@ -85,7 +85,7 @@ def get_esm2_embedding(sequence: str) -> list[float]:
     masked = last_hidden * attention_mask
     lengths = attention_mask.sum(dim=1).clamp(min=1)
     mean_emb = masked.sum(dim=1) / lengths
-    return mean_emb[0].tolist()
+    return mean_emb[0].tolist()  # type: ignore[no-any-return]
 
 
 def _aa_composition_features(sequence: str) -> list[float]:

@@ -244,13 +244,14 @@ class TestEColiCoreModel:
         )
 
     def test_glc_exchange_bound(self):
-        """Glucose exchange default upper bound is 0 (standard FBA convention: no uptake by default).
+        """Glucose exchange: upper bound 0 (no export), lower bound -10 (uptake allowed).
 
-        Uptake must be explicitly enabled via FluxBalanceAnalysis.set_uptake.
+        Standard FBA convention: negative flux = import.  Uptake rate is
+        controlled by ``FluxBalanceAnalysis.set_uptake``.
         """
         ex_glc = ECOLI_CORE_MODEL.reactions["EX_glc"]
-        assert ex_glc.upper_bound == 0.0  # no uptake by default
-        assert ex_glc.lower_bound == 0.0  # not reversible
+        assert ex_glc.upper_bound == 0.0   # no export by default
+        assert ex_glc.lower_bound == -10.0  # uptake allowed (negative flux = import)
 
     def test_atpm_maintenance_fixed(self):
         """ATP maintenance flux is fixed at ATP_MAINTENANCE_FLUX."""

@@ -42,11 +42,11 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 87 (78 top-level + 7 subpackages) |
-| Test cases | 2318 (all passing, 89% coverage) |
-| `.helix` examples | 54 (complete source) |
-| Documentation | 26 files, 15,900 lines |
-| Runtime dependencies | **zero** (all optional: numpy, biopython, flask) |
+| Source modules | 98 (80 top-level + 9 subpackages) |
+| Test cases | 2430 (all passing, 81% coverage) |
+| `.helix` examples | 55 (complete source) |
+| Documentation | 27 files, 16,500+ lines |
+| Runtime dependencies | **zero** (all optional: numpy, biopython, flask, esm, torch) |
 
 ### Highlights
 
@@ -71,9 +71,10 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 🌱 **Genome → GEM → Ecosystem end-to-end** — a single `.helix` source can specify real genomes and run multi-species, multi-population simulation starting from genes. The six-phase GEM reconstruction pipeline (`#gem`) turns genome FASTA into a functional genome-scale metabolic model, and the GEM↔Ecosystem bridge (`gem_driven=true`) feeds the reconstructed metabolic models directly into the ecosystem tick loop.
 - 🔬 **GEM reconstruction** — UniProt 3-tier functional annotation (ID mapping → NCBI BLASTP → UniProt sequence search), ~200 EC→reaction mappings, ~90 universal prokaryotic reactions, consensus bottom-up + top-down reconstruction, LP gap-filling, biomass reaction assembly, kcat prediction (60+ EC entries, organism scaling), Km estimation, GRN inference (RegulonDB PWMs + ChIP-seq evidence), FBA validation.
 - 📥 **Full genome-scale model import** — load real BiGG/BioModels SBML models directly (`#gem model=path/to/model.xml`), bypassing reconstruction entirely. Validated against E. coli iML1515 (2712 reactions, 1877 metabolites, 1516 genes; growth rate 0.821 h⁻¹) and Synechocystis iJN678 (863 reactions, 795 metabolites, 622 genes; photoautotrophic growth 0.292 h⁻¹). CobraPy import with SBML fallback, automatic biomass reaction detection, and BiGG metabolite ID normalization.
+- 🧬 **DNA → Structure → Kinetics → ecGEM → Ecosystem** — ESM3 end-to-end protein structure prediction from sequence alone (no MSA required; Lin et al. 2023), sequence-based kcat/Km prediction using ESM-2 embeddings + BRENDA calibration, auto ecGEM construction, community FBA with per-organism ecGEMs and cross-feeding. The full pipeline runs from a single genome FASTA file via `run_full_pipeline()`. Example 55 demonstrates the complete chain with Xenobacter alienus — 24 genes, 5 pathways, 22 enzyme kinetic parameters, 42-reaction core model with 24 enzyme constraints.
 - 🌿 **Photoautotrophic dFBA** — light-dependent FBA for cyanobacteria and photoautotrophs: CO₂ uptake via Monod kinetics modulated by PAR light saturation, oxygen evolution tracked as a field, light scalar diurnal forcing, and photo-vmax separate from heterotrophic vmax. Photoautotrophic examples (Synechocystis PCC 6803) run with real iJN678 model fluxes.
 - 🔗 **GRN → FBA closed loop** — regulatory edges carry `target_reaction` to directly clamp FBA exchange bounds: transcription factors repress/activate specific metabolic reactions, closing the gene-to-metabolism feedback loop.
-- 🌡️ **Enzyme correction** — Arrhenius temperature dependence + Gaussian pH profile scale internal FBA bounds at non-optimal conditions (e.g. 62% activity for Synechocystis at 30 °C / pH 7.5).
+- 🌡️ **Enzyme correction** — Arrhenius temperature dependence + Gaussian pH profile scale internal FBA bounds at non-optimal conditions.
 - 📊 **Density-dependent enzyme scaling** — logistic model: full metabolic capacity at low biomass, decreasing toward zero as population approaches carrying capacity.
 - 🧬 **CRISPR → enzyme feedback** — CRISPR knockdown and evolve edits automatically update enzyme levels and kcat values; FBA re-solves with the modified enzyme pool, propagating genetic changes to metabolic phenotype.
 - 🌍 **Multi-species ecosystem** — `#sim kind=ecosystem` with `#species`/`#patch`: Lotka-Volterra competition/predation, cross-feeding, CENTURY litter/SOM pools, C/N biogeochemistry, Q10/DAMM temperature dependence, diurnal/seasonal forcing, photoautotrophy, event-driven Scheduler, invasion-fitness evolution.
@@ -82,7 +83,7 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 
 - 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
 - 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
-- 🧪 **Frontier biology modules** — programmable cells, stochastic gene expression (telegraph-promoter Fano + Gillespie SSA), environment-coupled Monod metabolism, dynamic FBA batch/diauxic simulation, CRISPR-Cas9 guide design, epigenetics, protein structure prediction, directed evolution.
+- 🧪 **Frontier biology modules** — programmable cells, stochastic gene expression (telegraph-promoter Fano + Gillespie SSA), environment-coupled Monod metabolism, dynamic FBA batch/diauxic simulation, CRISPR-Cas9 guide design, epigenetics, protein structure prediction (ESM3), directed evolution, sequence-based enzyme kinetics (ESM-2 + BRENDA).
 
 ---
 
@@ -97,7 +98,7 @@ HelixLang is published on **PyPI** — install the released package:
 pip install helixlang
 
 # Recommended: install all optional extras
-pip install "helixlang[fast,web,bio]"
+pip install "helixlang[fast,web,bio,ml]"
 ```
 
 > The core installs with **zero runtime dependencies** — only the Python standard library.
@@ -107,8 +108,9 @@ pip install "helixlang[fast,web,bio]"
 |-------|-----------|--------------|
 | `fast` | vectorized mutation / reaction-diffusion speedup | numpy |
 | `web` | Flask visualization frontend | flask |
-| `bio` | physical DNA codec + IUPAC validation | biopython, reedsolo |
-| `dev` | tests + coverage (source checkouts) | pytest, pytest-cov |
+| `bio` | physical DNA codec + IUPAC validation + full GEM import | biopython, reedsolo, cobra |
+| `ml` | ESM3 protein structure + ESM-2 sequence-based kinetics | esm, torch |
+| `dev` | tests + coverage (source checkouts) | pytest, pytest-cov, scipy |
 
 ### Up and running in 30 seconds
 
@@ -121,6 +123,9 @@ helixlang examples/01_hello_dna.helix --disassemble
 
 # Run a GEM reconstruction from genome FASTA
 helixlang examples/46_gem_reconstruction.helix --gem
+
+# Run the full-chain custom organism pipeline (DNA → structure → kinetics → ecGEM → ecosystem)
+helixlang examples/55_custom_organism_ecosystem.helix --full-pipeline
 
 # Launch the web visualization (http://127.0.0.1:5000)
 helixlang --serve
@@ -270,14 +275,14 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 
 ### 6. Simulation Backends — quantitative runs from `.helix`
 
-`#config backend` selects the quantitative simulator instead of the bytecode VM (see `doc/09-bio-instructions.md` §6.1). All 54 examples ship in `examples/`:
+`#config backend` selects the quantitative simulator instead of the bytecode VM (see `doc/09-bio-instructions.md` §6.1). All 55 examples ship in `examples/`:
 
 | Backend | Representative examples | What it does |
 |---|---|---|
 | `fba` | `10`, `20`, `35` | Static/dynamic FBA: biomass solve, diauxic batch curves, acetate switch |
 | `whole_cell` | `30`, `31`, `34` | Cooper–Helmstetter replication, adder size control, enzyme-constrained FBA |
 | `population` | `21`, `32`, `37`, `38`, `39` | Per-cell GRN+bytecode colonies, dFBA, 4338-gene GRN, LBM microfluidics |
-| `ecosystem` | `41`, `43`, `50`, `53`, `54` | Multi-species Lotka-Volterra, cross-feeding, diurnal forcing, full GEM models |
+| `ecosystem` | `41`, `43`, `50`, `53`, `54`, `55` | Multi-species Lotka-Volterra, cross-feeding, diurnal forcing, full GEM models, **full-chain custom organism pipeline (DNA → structure → kinetics → ecGEM → ecosystem)** |
 | `gem` | `46`, `47`, `48`, `49` | Genome→GEM reconstruction, E. coli / Synechocystis / B. subtilis / S. cerevisiae |
 | `calibration` | `34`, `36` | Inverse modeling: recover hidden parameters from mixed observables |
 | `#sim kind=` | `11`, `14`, `15`, `23`, `25`–`29` | Protein structure, synbio design, 3D morphology, digital evolution, fate analysis, directed evolution |
@@ -359,6 +364,7 @@ This downloads **Pfam-A.hmm** (~2.1 GB, CC0 public domain) from EBI and **E. col
 | [epigenetics](src/helixlang/epigenetics.py) | CpG islands / methylation / histone modification |
 | [metabolism](src/helixlang/metabolism.py) | FBA flux balance analysis (+ SBML / BiGG load_model), enzyme-constrained FBA (kcat capacity bound by protein pools, MOMENT/GECKO), `MetabolitePool` intracellular dynamics, dynamic FBA batch/diauxic simulation (Mahadevan 2002), full model support (`build_functional_model_full` for iML1515/iJN678-class models) |
 | [protein_structure](src/helixlang/protein_structure.py) | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
+| [protein_structure_predictor](src/helixlang/protein_structure_predictor.py) | ESM3 end-to-end protein structure prediction from sequence (no MSA); falls back to Chou-Fasman when esm/torch unavailable; `ProteinStructure3D` with coords, pLDDT, TM helix, disorder annotations |
 | [protein_fitness](src/helixlang/protein_fitness.py) | Fitness oracles: BLOSUM62 conservation + ESM-2 pseudo-likelihood + variant ranking |
 | [morphology_3d](src/helixlang/morphology_3d.py) | 3D population + 3D concentration-field diffusion (6/26-connectivity) + LSystem3D |
 | [vectorized](src/helixlang/vectorized.py) | Across-cell numpy GRN step, stable cell sorting, snapshot iteration, optional jit |
@@ -380,8 +386,12 @@ This downloads **Pfam-A.hmm** (~2.1 GB, CC0 public domain) from EBI and **E. col
 | [apps/population_dbtl](src/helixlang/apps/population_dbtl.py) | Population DBTL data loop — Design-Build-Test-Learn cycle for colony-scale phenotype optimization |
 | [annotation/](src/helixlang/annotation/) | Functional annotation package — DIAMOND/UniProt 3-tier search (ID mapping → NCBI BLASTP → UniProt sequence search), EC/KEGG mapping (`ec_mapping.py`, `kegg_mapping.py`), TF detection via HMMER domain scan + RegulonDB PWMs + heuristic fallback (`tf_detection.py`), transporter classification (`transporter.py`), sequence utilities (`sequences.py`) |
 | [gem/](src/helixlang/gem/) | GEM reconstruction — bottom-up (`bottom_up.py`), top-down universal prokaryotic carve (~90 reactions, `top_down.py`), consensus merge (`consensus.py`), LP gap-filling (`gapfill.py`), biomass reaction (`biomass.py`), GRN inference (`grn_inference.py`), HelixLang bridge (`bridge.py`), SBML export (`sbml_export.py`), full model import (`full_model.py`, `sbml_import.py`), organism registry (`organism_registry.py`), validation (`validation.py`) |
+| [gem/ecgem](src/helixlang/gem/ecgem.py) | Enzyme-constrained GEM builder (ECMpy 2.0 / sMOMENT-lite): kcat capacity constraints, enzyme pool budget (0.55 g protein/gDW), real molecular weights from sequences; `ECGEMBuilder.build()` → `ECGEMResult` with constrained/unconstrained growth comparison and validation |
+| [gem/community](src/helixlang/gem/community.py) | Community FBA extension (OptCom multi-level): per-organism ecGEMs, dynamic metabolite exchange, cross-feeding network detection, iterative convergence; `CommunityFBAExtended.solve()` → `CommunityResult` with exchange network and mass balance |
 | [kinetics/](src/helixlang/kinetics/) | Enzyme kinetics — kcat prediction (60+ EC entries, 18 organism scaling factors, `kcat_predictor.py`), Km estimation (`km_estimator.py`), `km=` DSL extension for direct Km specification in `#enzyme` blocks |
+| [kinetics/sequence_predictor](src/helixlang/kinetics/sequence_predictor.py) | Sequence-based kcat/Km prediction: ESM-2 embeddings (facebook/esm2_t6_8M_UR50D via transformers) → BRENDA EC-class medians → physics fallback (Bar-Even 2011); `SequenceKcatPredictor`, `SequenceKmEstimator`, substrate charge table, catalytic residue detection |
 | [apps/gem_pipeline](src/helixlang/apps/gem_pipeline.py) | Six-phase GEM reconstruction orchestrator — genome → annotation → GEM → GRN → kinetics → HelixLang integration; 3-tier UniProt annotation, consensus + FBA validation |
+| [apps/full_pipeline](src/helixlang/apps/full_pipeline.py) | Full-chain custom organism pipeline (doc/26): FASTA → translation → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation; `run_full_pipeline()` with `PipelineConfig`/`PipelineResult`, auto EC number inference, DNA auto-detect + translate |
 | [gem/full_model](src/helixlang/gem/full_model.py) | Full GEM model loading — SBML import via CobraPy (`_load_sbml`), automatic biomass reaction detection, `build_functional_model()` that returns a functional `MetabolicModel` ready for FBA |
 | [gem/sbml_import](src/helixlang/gem/sbml_import.py) | CobraPy SBML loader with stderr capture (`_stderr_for_cobra`), SBML fallback for non-CobraPy environments, `BiGGModels` model caching |
 | [gem/organism_registry](src/helixlang/gem/organism_registry.py) | Organism-specific GEM registry — maps organism IDs to SBML model paths, biomass reactions, and growth parameters |
@@ -421,6 +431,7 @@ Main REST endpoints:
 | `POST /api/gem/reconstruct` | GEM reconstruction from genome FASTA (6-stage pipeline) |
 | `POST /api/gem/simulate` | Simulate a reconstructed GEM model |
 | `POST /api/gem/simulate_full` | Simulate a full genome-scale model (SBML import → FBA) |
+| `POST /api/full-pipeline` | Full-chain custom organism pipeline: FASTA → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation |
 
 ---
 
@@ -445,13 +456,14 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`20-gem-reconstruction-pipeline.md`](doc/20-gem-reconstruction-pipeline.md) | Researchers | Six-phase genome→GEM: annotation → reconstruction → GRN → kinetics → integration |
 | [`24-full-gem-import.md`](doc/24-full-gem-import.md) | Researchers | Full SBML model import: CobraPy loader, BiGG ID normalization, `#gem model=path.xml` |
 | [`25-realistic-parameter-consistency-gaps.md`](doc/25-realistic-parameter-consistency-gaps.md) | Researchers | GRN→FBA closed loop, enzyme correction, density scaling, CRISPR→enzyme feedback |
+| [`26-full-chain-custom-organism-pipeline.md`](doc/26-full-chain-custom-organism-pipeline.md) | Researchers | DNA → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → ecosystem: full-chain custom organism pipeline (Xenobacter alienus example) |
 | **Engineering** | | |
 | [`03-compiler-design.md`](doc/03-compiler-design.md) | Compiler contributors | Compilation pipeline, AST, bytecode format, stack VM, disassembler |
 | [`06-engineering-design.md`](doc/06-engineering-design.md) | Maintainers | Module interfaces, data flow, error matrix, performance budgets, CI, test pyramid |
 | [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Tooling users | `.helixc` binary artifact format: versioned container, round-trip tests |
 | [`13-performance-report.md`](doc/13-performance-report.md) | Performance engineers | Bottleneck analysis + scaling behavior (compile / VM / GRN / reaction-diffusion) |
 
-> Full index of all 26 documents: [`doc/`](doc/). Research-oriented docs (01, 05, 10, 14–19, 21–23) cover frontier biology plans, whole-cell realism roadmaps, population simulation designs, and GEM↔Ecosystem bridge specs.
+> Full index of all 27 documents: [`doc/`](doc/). Research-oriented docs (01, 05, 10, 14–19, 21–23, 26) cover frontier biology plans, whole-cell realism roadmaps, population simulation designs, GEM↔Ecosystem bridge specs, and the full-chain custom organism pipeline.
 
 ### Suggested reading order
 
@@ -478,10 +490,11 @@ ruff check src tests
 mypy
 ```
 
-- **2318 test cases** (2318 passing, 80%+ coverage)
+- **2430 test cases** (all passing, 81% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 54 `examples/*.helix` covered + Python API companions
+- All 55 `examples/*.helix` covered + Python API companions
+- doc/26 full-chain pipeline: 95 tests across `test_protein_structure_predictor`, `test_sequence_kinetics`, `test_ecgem`, `test_community_fba`, `test_full_pipeline`
 
 ---
 
@@ -496,7 +509,7 @@ In short: fork the repo, create a branch off `main`, and open a pull request.
 ```bash
 git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
-pip install -e ".[dev,fast,web,bio]"
+pip install -e ".[dev,fast,web,bio,ml]"
 pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests && mypy
 ```
 

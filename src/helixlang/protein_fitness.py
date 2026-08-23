@@ -206,7 +206,7 @@ class ESM2Oracle:
     Masks each residue in turn, reads the model's predictive distribution
     at that position, and returns the per-residue log-likelihood of the
     true residue (``sum_i log P(aa_i | context)``).  Variants are scored
-    by the wild-type-minus-variant difference (Frazer et al. 2021
+    by the variant-minus-reference difference (Frazer et al. 2021
     zero-shot protocol).
 
     ``available`` is False when ``transformers``/``torch`` are not
@@ -220,6 +220,7 @@ class ESM2Oracle:
         self._model = None
         self._tokenizer = None
         self._load_error: Exception | None = None
+        self._ref_cache: dict[str, float] = {}
         try:
             self._model, self._tokenizer = _load_esm(model_name)
             if self.device is None:
@@ -260,18 +261,29 @@ class ESM2Oracle:
         return log_probs
 
     def pseudo_log_likelihood(self, sequence: str) -> float:
-        """Sum over residues of masked-marginal log-likelihoods."""
+        """Sum over residues of masked-marginal log-likelihoods.
+
+        Results are cached per sequence to avoid redundant forward passes
+        when scoring many variants against the same reference.
+        """
         if not self.available:
             raise RuntimeError(
                 f"ESM2Oracle unavailable ({self.model_name}): {self._load_error}")
-        return float(sum(self._log_probs(sequence)))
+        if sequence not in self._ref_cache:
+            self._ref_cache[sequence] = float(sum(self._log_probs(sequence)))
+        return self._ref_cache[sequence]
 
     def score(self, reference: str, variant: str) -> float:
-        """Zero-shot variant effect: loglik(wt) - loglik(variant)."""
+        """Zero-shot variant effect: loglik(variant) - loglik(wt).
+
+        Positive means the variant has higher pseudo-likelihood than
+        the wild type (predicted fitter), matching the BLOSUMOracle
+        convention where higher score = better.
+        """
         if len(reference) != len(variant):
             raise ValueError("reference and variant must have equal length")
-        return self.pseudo_log_likelihood(reference) - \
-            self.pseudo_log_likelihood(variant)
+        return self.pseudo_log_likelihood(variant) - \
+            self.pseudo_log_likelihood(reference)
 
 
 # ============================================================================

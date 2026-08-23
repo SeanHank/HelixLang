@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 from helixlang.errors import BioError
@@ -28,7 +29,7 @@ from helixlang.metabolism import MetabolicModel
 
 
 @contextlib.contextmanager
-def _stderr_for_cobra():
+def _stderr_for_cobra() -> Iterator[None]:
     """Temporarily redirect stdout to stderr.
 
     COBRApy's Rich progress bar writes to stdout, which contaminates
