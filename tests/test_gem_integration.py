@@ -479,7 +479,7 @@ class TestPipelineEcosystemBridge:
         eco = Ecosystem(EcosystemConfig(
             ticks=0, species=[sp], patches=[pc], gem_driven=True))
         patch = eco.patches[0]
-        g_c, comps = patch._growth_rate_gem(
+        g_c, comps, _is_fba = patch._growth_rate_gem(
             sp, 100.0, 0, 0, 1.0, 1.0, 1.0, 0.0)
         assert g_c > 0.0, "FBA should produce positive growth"
 

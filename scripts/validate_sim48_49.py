@@ -29,12 +29,12 @@ def run_example_json(helix_path: str) -> dict:
 def run_ecosystem_gem(organism: str, genome_seq: str, medium: str,
                       duration: float, dt: float) -> dict:
     """Run a single-species ecosystem with GEM-driven growth."""
+    import tempfile
+
     from helixlang.apps.ecosystem import (
-        Ecosystem, EcosystemConfig, PatchConfig, ScalarConfig,
-        Species, SubstrateConfig, gem_to_species,
+        gem_to_species,
     )
     from helixlang.apps.gem_pipeline import run_gem_pipeline
-    import tempfile
 
     # Write genome to temp FASTA
     tmp = Path(tempfile.mktemp(suffix=".fasta"))
@@ -143,7 +143,7 @@ def main():
     print(f"  Biomass yield:{meta.get('biomass_yield', 0):.4f}")
     kf = meta.get("key_fluxes", {})
     if kf:
-        print(f"  Key fluxes:")
+        print("  Key fluxes:")
         for k, v in sorted(kf.items()):
             if k not in ("time", "glucose", "oxygen"):
                 print(f"    {k:30s} = {v}")
@@ -188,7 +188,7 @@ def main():
     print(f"  Biomass yield:{meta.get('biomass_yield', 0):.4f}")
     kf = meta.get("key_fluxes", {})
     if kf:
-        print(f"  Key fluxes:")
+        print("  Key fluxes:")
         for k, v in sorted(kf.items()):
             if k not in ("time",):
                 print(f"    {k:30s} = {v}")
@@ -241,9 +241,9 @@ def main():
     print(f"  │ Final biomass (gDW/L)│ {bm48:10.4f} │ 0.90-1.2      │ Monod 1949     │")
     print(f"  │ Glucose consumed    │ {10-glc48:10.4f} mM │ 10 mM (full)  │ uptake=10     │")
     print(f"  │ Doubling time (min)│ {69.3/max(gr48,0.001):10.1f} │ 20-30         │ Brock 2012    │")
-    print(f"  │ Acetate overflow   │ N/A        │ >10 mmol/gDW/h│ Varma 1994    │")
+    print("  │ Acetate overflow   │ N/A        │ >10 mmol/gDW/h│ Varma 1994    │")
 
-    print(f"""  └──────────────────────────────────────────────────────────────────────┘
+    print("""  └──────────────────────────────────────────────────────────────────────┘
 
   ┌──────────────────────────────────────────────────────────────────────┐
   │ Synechocystis PCC 6803 — BG-11 photoautotrophic                    │
@@ -256,11 +256,11 @@ def main():
     bm49 = kf49.get("biomass", 0)
     print(f"  │ Growth rate (h⁻¹)  │ {gr49:10.4f} │ 0.14          │ Rippka 1979   │")
     print(f"  │ Final biomass (gDW/L)│ {bm49:10.4f} │ 0.5-2.0       │ Kaneko 1996   │")
-    print(f"  │ Carbon source      │ bg11       │ CO₂ only      │ photoautotroph│")
+    print("  │ Carbon source      │ bg11       │ CO₂ only      │ photoautotroph│")
     print(f"  │ Doubling time (h)  │ {0.693/max(gr49,0.001):10.1f} │ 4-8           │ Castenholz   │")
-    print(f"  │ O₂ evolution       │ N/A        │ ~300 mmol/gDW/h│Allakhverdiev  │")
+    print("  │ O₂ evolution       │ N/A        │ ~300 mmol/gDW/h│Allakhverdiev  │")
 
-    print(f"""  └──────────────────────────────────────────────────────────────────────┘
+    print("""  └──────────────────────────────────────────────────────────────────────┘
 
   IDENTIFIED ISSUES:
 """)

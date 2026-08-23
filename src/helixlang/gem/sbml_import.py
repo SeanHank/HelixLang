@@ -19,10 +19,24 @@ The ``cobra`` package must be installed (``pip install cobra`` or
 """
 from __future__ import annotations
 
+import contextlib
+import sys
 from pathlib import Path
 
 from helixlang.errors import BioError
 from helixlang.metabolism import MetabolicModel
+
+
+@contextlib.contextmanager
+def _stderr_for_cobra():
+    """Temporarily redirect stdout to stderr.
+
+    COBRApy's Rich progress bar writes to stdout, which contaminates
+    CSV / structured output.  This wrapper keeps the progress bar
+    visible on terminals (via stderr) while keeping stdout clean.
+    """
+    with contextlib.redirect_stdout(sys.stderr):
+        yield
 
 
 def _require_cobra():  # type: ignore[no-untyped-def]
@@ -54,7 +68,8 @@ def load_sbml_model(path: str | Path, preserve_gpr: bool = True) -> MetabolicMod
     if not p.exists():
         raise BioError(f"SBML file not found: {p}")
     try:
-        sbml_model = cobra.io.read_sbml_model(str(p))
+        with _stderr_for_cobra():
+            sbml_model = cobra.io.read_sbml_model(str(p))
     except Exception as exc:
         raise BioError(f"failed to parse SBML file {p.name}: {exc}") from exc
     from helixlang.metabolism import _from_cobra_model
@@ -82,7 +97,8 @@ def load_bigg_model(model_id: str, preserve_gpr: bool = True) -> MetabolicModel:
     """
     cobra = _require_cobra()
     try:
-        sbml_model = cobra.io.load_model(model_id)
+        with _stderr_for_cobra():
+            sbml_model = cobra.io.load_model(model_id)
     except Exception as exc:
         raise BioError(
             f"could not load BiGG model {model_id!r}: {exc}. "
@@ -99,7 +115,8 @@ def download_bigg_model(model_id: str, output_path: str | Path) -> Path:
     """
     cobra = _require_cobra()
     try:
-        sbml_model = cobra.io.load_model(model_id)
+        with _stderr_for_cobra():
+            sbml_model = cobra.io.load_model(model_id)
     except Exception as exc:
         raise BioError(f"could not download BiGG model {model_id!r}: {exc}") from exc
     out = Path(output_path)

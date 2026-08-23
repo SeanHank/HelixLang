@@ -1205,7 +1205,6 @@ class Patch:
                         growth_c = 0.0
                         respired_total = 0.0
                         consumed_total = 0.0
-                        sec_total_c = 0.0
                         expected_total = 0.0
                         _fba_fluxes = sp.last_fba_fluxes or {}
                         for sub, cpm, rate in comps:
@@ -1339,7 +1338,7 @@ class Patch:
     def _growth_rate_gem(
         self, sp: Species, bx: float, x: int, y: int,
         t_mod: float, moisture: float, fluct: float, light: float,
-    ) -> tuple[float, list]:
+    ) -> tuple[float, list, bool]:
         """FBA-backed growth rate for a GEM-equipped species (doc/21 §3.3).
 
         Solves a per-site FBA with exchange bounds set from local
@@ -1360,8 +1359,9 @@ class Patch:
         from helixlang.metabolism import FluxBalanceAnalysis, MetabolicModel
 
         if sp.metabolic_model is None or not isinstance(sp.metabolic_model, MetabolicModel):
-            return self._growth_rate(sp, bx, x, y, t_mod, moisture,
+            _monod_result = self._growth_rate(sp, bx, x, y, t_mod, moisture,
                                      fluct, light)
+            return _monod_result[0], _monod_result[1], False
         model = copy.deepcopy(sp.metabolic_model)
 
         try:

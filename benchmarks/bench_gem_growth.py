@@ -80,7 +80,7 @@ def _find_genome_fasta(organism: str) -> str:
 def benchmark_organism(organism: str) -> BenchmarkResult:
     """Run the full GEM pipeline for one organism and return benchmark."""
     from helixlang.apps.gem_pipeline import run_gem_pipeline
-    from helixlang.metabolism import FluxBalanceAnalysis, DynamicFBAConfig
+    from helixlang.metabolism import FluxBalanceAnalysis
 
     expected = EXPECTED_GROWTH_RATES.get(organism, 0.0)
     genome = _find_genome_fasta(organism)
@@ -112,8 +112,8 @@ def benchmark_organism(organism: str) -> BenchmarkResult:
     n_reactions = 0
     if result.consensus is not None:
         try:
-            from helixlang.gem.bridge import consensus_to_metabolic_model
             from helixlang.gem.biomass import build_biomass_reaction
+            from helixlang.gem.bridge import consensus_to_metabolic_model
             from helixlang.gem.gapfill import _parse_equation_to_stoich
             from helixlang.metabolism import Reaction
 

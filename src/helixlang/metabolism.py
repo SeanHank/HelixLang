@@ -278,7 +278,10 @@ def load_model(path_or_identifier: str | Path | None = None
                 "package (pip install cobra); returning the curated "
                 "core model instead"
             ) from None
-        sbml_model = cobra.io.read_sbml_model(str(p))
+        import sys
+        from contextlib import redirect_stdout
+        with redirect_stdout(sys.stderr):
+            sbml_model = cobra.io.read_sbml_model(str(p))
         return _from_cobra_model(sbml_model)
 
     identifier = str(path_or_identifier)
@@ -291,7 +294,10 @@ def load_model(path_or_identifier: str | Path | None = None
             "curated core model"
         ) from None
     try:
-        sbml_model = cobra.io.load_model(identifier)
+        import sys
+        from contextlib import redirect_stdout
+        with redirect_stdout(sys.stderr):
+            sbml_model = cobra.io.load_model(identifier)
     except Exception as exc:  # BiGG download / network errors
         raise BioError(
             f"could not load BiGG model {identifier!r} via cobrapy: {exc}"

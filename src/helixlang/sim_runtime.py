@@ -1726,6 +1726,7 @@ def _build_ecosystem_patches(ext: dict[str, str]) -> list[PatchConfig]:
         pc.substrates.update(substrates)
         scalars: dict[str, ScalarConfig] = {}
         amplitudes: dict[str, float] = {}
+        force_defs: dict[str, str] = {}
         for k, v in attrs.items():
             if not k.startswith("scalar."):
                 continue
@@ -1741,19 +1742,20 @@ def _build_ecosystem_patches(ext: dict[str, str]) -> list[PatchConfig]:
             elif sattr == "amplitude":
                 amplitudes[sname] = _coerce_float(f"patch.{name}.{k}", v)
             elif sattr == "forcing":
-                forcing = v.strip().lower()
-                if forcing not in ("diurnal", "seasonal"):
-                    raise SimConfigError(
-                        f"patch {name!r} scalar {sname!r} forcing: expected "
-                        f"'diurnal' or 'seasonal', got {v!r}")
-                mean = scalars[sname].initial
-                amp = amplitudes.get(sname, mean if sname == "light" else 3.0)
-                if forcing == "diurnal":
-                    scl.forcing = DiurnalForcing(
-                        mean, amp,
-                        lo=(0.0 if sname == "light" else None))
-                else:
-                    scl.forcing = SeasonalForcing(mean, amp)
+                force_defs[sname] = v.strip().lower()
+        for sname, forcing in force_defs.items():
+            if forcing not in ("diurnal", "seasonal"):
+                raise SimConfigError(
+                    f"patch {name!r} scalar {sname!r} forcing: expected "
+                    f"'diurnal' or 'seasonal', got {forcing!r}")
+            mean = scalars[sname].initial
+            amp = amplitudes.get(sname, mean if sname == "light" else 3.0)
+            if forcing == "diurnal":
+                scalars[sname].forcing = DiurnalForcing(
+                    mean, amp,
+                    lo=(0.0 if sname == "light" else None))
+            else:
+                scalars[sname].forcing = SeasonalForcing(mean, amp)
         pc.scalars.update(scalars)
         for k, v in attrs.items():
             if k.startswith("dispersal."):

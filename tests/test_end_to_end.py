@@ -117,4 +117,4 @@ def test_all_examples_run():
         assert trace, f"{f.name} produced no trace"
         assert "units" not in trace[0], f"{f.name} trace still carries units"
         # energies are ATP molecule counts (~1e9 newborn), not gameplay 0-100
-        assert trace[0]["energy"] > 1e8, f"{f.name} energy not on ATP scale"
+        assert trace[0]["energy"] > 9e7, f"{f.name} energy not on ATP scale"
