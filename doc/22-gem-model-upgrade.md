@@ -1,6 +1,6 @@
 # 22 — GEM Model Upgrade: Amino Acid Biosynthesis, Biomass Restoration & Photoautotrophic dFBA
 
-> **Status:** Design Document  
+> **Status:** Implemented  
 > **Depends on:** doc/20 (GEM reconstruction pipeline), doc/21 (ecosystem bridge)  
 > **Target:** Examples 48 (E. coli K-12 MG1655) and 49 (Synechocystis PCC 6803)
 

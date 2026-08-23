@@ -1,4 +1,4 @@
-"""Genome-scale metabolic model reconstruction (doc/20 §6, doc/24 full GEM import)."""
+"""Genome-scale metabolic model reconstruction (doc/20 §6, doc/24 full GEM import, doc/26 Phases D-E)."""
 from __future__ import annotations
 
 from helixlang.gem.biomass import (
@@ -12,7 +12,19 @@ from helixlang.gem.bridge import (
     consensus_to_metabolic_model,
     regulatory_edges_to_grn,
 )
+from helixlang.gem.community import (
+    CommunityFBAExtended,
+    CommunityResult,
+    ExchangeNetwork,
+    OrganismModel,
+)
 from helixlang.gem.consensus import consensus_merge
+from helixlang.gem.ecgem import (
+    ECGEMBuilder,
+    ECGEMResult,
+    EnzymeConstraint,
+    EnzymePoolConstraint,
+)
 from helixlang.gem.full_model import FullModelAdapter
 from helixlang.gem.gapfill import GapfillPool, GapfillResult, gapfill, lp_gapfill
 from helixlang.gem.grn_inference import RegulatoryEdge, infer_grn
@@ -39,12 +51,20 @@ from helixlang.gem.validation import (
 )
 
 __all__ = [
+    "CommunityFBAExtended",
+    "CommunityResult",
+    "ECGEMBuilder",
+    "ECGEMResult",
+    "ExchangeNetwork",
     "GPRRule",
     "GapfillPool",
     "GapfillResult",
     "GemValidationResult",
     "OrganismConfig",
+    "OrganismModel",
     "RegulatoryEdge",
+    "EnzymeConstraint",
+    "EnzymePoolConstraint",
     "FullModelAdapter",
     "bottom_up_reconstruct",
     "top_down_reconstruct",

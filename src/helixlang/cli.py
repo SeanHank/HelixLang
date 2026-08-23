@@ -102,6 +102,10 @@ def main(argv: list[str] | None = None) -> int:
                    help="simulation duration in hours for --dynamic mode (default: 24)")
     p.add_argument("--dt", metavar="HOURS", type=float, default=0.1,
                    help="time step in hours for --dynamic mode (default: 0.1)")
+    # Full-chain pipeline (doc/26)
+    p.add_argument("--full-pipeline", action="store_true",
+                   help="run full-chain custom organism pipeline from FASTA "
+                        "(DNA → structure → kinetics → ecGEM → simulation)")
     args = p.parse_args(argv)
 
     # ----- Web mode -----
@@ -191,6 +195,10 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
 
+    # ----- Full-chain pipeline (doc/26) -----
+    if args.full_pipeline:
+        return _run_full_pipeline(args)
+
     # ----- binary artifact modes (doc/11-helixc-binary-format.md) -----
     if args.compile or args.decompile or args.compare:
         return _run_artifact_mode(args)
@@ -265,6 +273,33 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  morphology points: {len(vm.cell.morphology_points)}")
         if vm.field:
             print(f"  field total V: {vm.field.total_v():.3f}")
+    return 0
+
+
+def _run_full_pipeline(args: argparse.Namespace) -> int:
+    """Run full-chain custom organism pipeline from FASTA (doc/26)."""
+    try:
+        from helixlang.apps.full_pipeline import PipelineConfig, run_full_pipeline
+    except ImportError as e:
+        print(f"error: full pipeline requires: {e}", file=sys.stderr)
+        return 1
+    config = PipelineConfig()
+    result = run_full_pipeline(str(args.source), config)
+    print(f"=== Full Pipeline: {args.source.name} ===")
+    print(f"  stages completed: {', '.join(result.stages_completed)}")
+    print(f"  proteins: {len(result.proteins)}")
+    print(f"  structures: {len(result.structures)}")
+    print(f"  kcat predictions: {len(result.kcat_predictions)}")
+    if result.ecgem is not None:
+        print(f"  ecGEM growth rate: {result.ecgem.growth_rate:.4f} h^-1")
+        print(f"  ecGEM unconstrained: {result.ecgem.growth_rate_unconstrained:.4f} h^-1")
+    if result.community is not None:
+        print(f"  community biomass: {result.community.total_biomass:.4f}")
+        print(f"  community converged: {result.community.converged}")
+    print(f"  pipeline time: {result.pipeline_time:.2f}s")
+    if result.warnings:
+        for w in result.warnings:
+            print(f"  warning: {w}")
     return 0
 
 

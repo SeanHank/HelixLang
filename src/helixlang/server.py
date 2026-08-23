@@ -1381,6 +1381,45 @@ def create_app() -> Flask:
             "meta": {"summary": result.summary()},
         })
 
+    @app.post("/api/full-pipeline")
+    def api_full_pipeline():
+        """Run full-chain custom organism pipeline (doc/26).
+
+        Body: { "fasta": "<path>", "organism": "custom_organism",
+                "ecgem": true, "community": false }
+        Returns: pipeline result with structures, kinetics, ecGEM, simulation.
+        """
+        from helixlang.apps.full_pipeline import PipelineConfig, run_full_pipeline
+
+        body = request.get_json(force=True, silent=True) or {}
+        fasta = body.get("fasta", "")
+        if not fasta:
+            return jsonify({"ok": False, "error": "fasta field required"}), 400
+
+        config = PipelineConfig(
+            organism_name=body.get("organism", "custom_organism"),
+            medium=body.get("medium", "glucose_minimal"),
+            ecgem=body.get("ecgem", True),
+            community=body.get("community", False),
+        )
+
+        try:
+            result = run_full_pipeline(fasta, config)
+        except Exception as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+
+        return jsonify({
+            "ok": True,
+            "stages_completed": result.stages_completed,
+            "num_proteins": len(result.proteins),
+            "num_structures": len(result.structures),
+            "kcat_predictions": len(result.kcat_predictions),
+            "ecgem_growth_rate": result.ecgem.growth_rate if result.ecgem else None,
+            "community_biomass": result.community.total_biomass if result.community else None,
+            "pipeline_time": result.pipeline_time,
+            "warnings": result.warnings,
+        })
+
     @app.errorhandler(HelixError)
     def handle_helix_error(e):
         # User/input errors (lexical/syntactic/semantic/compile/runtime/bio): 4xx
