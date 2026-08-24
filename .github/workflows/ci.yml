@@ -58,9 +58,9 @@ jobs:
           # Install all optional dependencies: dev (tests + coverage + xdist) / fast (numpy) / web (flask) / bio (biopython + reedsolo + cobra) / ml (esm + torch)
           pip install -e ".[dev,fast,web,bio,ml]"
 
-      - name: Run tests with coverage (gate 80%) in parallel
+      - name: Run tests with coverage (gate 80%)
         run: |
-          pytest -n auto --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
+          pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
 
   examples-smoke:
     runs-on: ubuntu-latest
