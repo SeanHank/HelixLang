@@ -1077,7 +1077,14 @@ def _fmt_str(s: str) -> str:
 
 
 def _fmt_fields(d: dict[str, str]) -> str:
-    return " ".join(f"{k}={v}" for k, v in sorted(d.items()))
+    parts = []
+    for k, v in sorted(d.items()):
+        already_quoted = (len(v) >= 2 and v.startswith('"') and v.endswith('"'))
+        if (" " in v or "\t" in v) and not already_quoted:
+            parts.append(f'{k}="{v}"')
+        else:
+            parts.append(f"{k}={v}")
+    return " ".join(parts)
 
 
 def _fmt_codons(codons: list[Codon], per_line: int = 12) -> str:
@@ -1185,10 +1192,68 @@ def decompile(program: Program) -> str:
     lines.append("#config " + " ".join(parts))
 
     _INLINE_GENE_KEYS = {"gem_inline_genes", "gem_inline_genome"}
+    # List-valued entries (from _append_sim_list) cannot round-trip through
+    # #sim key=value lines; they are written back as their original annotation
+    # form below.
+    _LIST_VALUED_KEYS = {
+        "disease_genes", "disease_metabolites", "pd_effects",
+        "qsp_bindings", "endocrine_configs", "immune_configs",
+        "drugs", "genes",
+    }
+    # Keys prefixed with these are written back as their original annotations
+    # (#person, #trait, #disease) rather than #sim, because values may contain
+    # spaces that break the key=value parser.
+    _ANNOTATION_PREFIX_MAP = {
+        "person_": "#person",
+        "trait_": "#trait",
+        "disease_": "#disease",
+    }
+    _skip_keys: set[str] = set()
+
+    # Collect keys that belong to original annotation forms
+    for prefix, ann in sorted(_ANNOTATION_PREFIX_MAP.items()):
+        ann_keys = {k for k in program.sim_extensions if k.startswith(prefix)}
+        if ann_keys:
+            fields = {k[len(prefix):]: str(program.sim_extensions[k])
+                      for k in sorted(ann_keys)
+                      if not isinstance(program.sim_extensions[k], list)}
+            if fields:
+                lines.append(f"{ann} " + _fmt_fields(fields))
+            _skip_keys.update(ann_keys)
+
     for k in sorted(program.sim_extensions):
-        if k in _INLINE_GENE_KEYS:
+        if k in _INLINE_GENE_KEYS or k in _skip_keys:
             continue
-        lines.append(f"#sim {k}={program.sim_extensions[k]}")
+        v = program.sim_extensions[k]
+        if k in _LIST_VALUED_KEYS and isinstance(v, list):
+            continue
+        lines.append(f"#sim {k}={v}")
+
+    # --- Write list-valued annotations in their original annotation form ---
+    for entry in program.sim_extensions.get("genes", []):
+        if isinstance(entry, dict):
+            lines.append("#gene " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("drugs", []):
+        if isinstance(entry, dict):
+            lines.append("#drug " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("disease_genes", []):
+        if isinstance(entry, dict):
+            lines.append("#disease_gene " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("disease_metabolites", []):
+        if isinstance(entry, dict):
+            lines.append("#disease_metabolite " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("pd_effects", []):
+        if isinstance(entry, dict):
+            lines.append("#pd_effect " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("qsp_bindings", []):
+        if isinstance(entry, dict):
+            lines.append("#qsp_binding " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("endocrine_configs", []):
+        if isinstance(entry, dict):
+            lines.append("#endocrine_config " + _fmt_fields(entry))
+    for entry in program.sim_extensions.get("immune_configs", []):
+        if isinstance(entry, dict):
+            lines.append("#immune_config " + _fmt_fields(entry))
 
     # Output inline gene DNA blocks inside a #gem block (doc/20 §12)
     inline_genes = program.sim_extensions.get("gem_inline_genes")

@@ -1,0 +1,144 @@
+# 56 — Virtual Patient Simulation: Type 2 Diabetes + Metformin Treatment
+#
+# Demonstrates the full human virtual-patient pipeline:
+#   1. Person specification (age, sex, weight, height, ethnicity)
+#   2. Complete genome (pharmacogene variants + disease-relevant genes)
+#   3. External traits (smoking, alcohol, exercise)
+#   4. Disease definition (Type 2 Diabetes with gene + metabolite perturbations)
+#   5. Drug specification (metformin: SMILES, dosage, route, interval, duration)
+#   6. Pharmacodynamic effects (glucose lowering via AMPK activation)
+#   7. Full time-series simulation (60 days: 30 treatment + 30 recovery)
+#
+# Output: hourly clinical labs, vital signs, drug concentrations,
+#         disease severity, and recovery dynamics.
+#
+# Based on: DeFronzo RA. Diabetes 2015; Graham GG. Clin Pharmacokinet 2011.
+
+# ─── PERSON ─────────────────────────────────────────────────────────────────
+# 55-year-old male, overweight (82 kg, 175 cm → BMI 26.8), European ancestry
+
+#person name=Zhang_Wei age=55 sex=male weight=82 height=175 ethnicity=european
+
+# ─── PHARMACOGENES ──────────────────────────────────────────────────────────
+# CYP2D6 *1/*4 → intermediate metabolizer (CPIC)
+# CYP2C19 *1/*1 → extensive metabolizer
+# CYP2C9 *1/*1 → extensive metabolizer
+# CYP3A4 *1/*1 → normal metabolizer
+# CYP1A2 *1/*1 → normal metabolizer
+# CYP2E1 *1/*1 → normal metabolizer
+
+#gene name=CYP2D6 allele=*4 zygosity=het
+#gene name=CYP2C19 allele=*1 zygosity=hom_ref
+#gene name=CYP2C9 allele=*1 zygosity=hom_ref
+#gene name=CYP3A4 allele=*1 zygosity=hom_ref
+#gene name=CYP1A2 allele=*1 zygosity=hom_ref
+#gene name=CYP2E1 allele=*1 zygosity=hom_ref
+
+# ─── DISEASE-RELEVANT GENES (non-pharmacogene, for full genome record) ──────
+# TCF7L2 rs7903146 T/T → highest T2DM risk (OR 2.41, Grant et al. Nature Genetics 2006)
+# PPARG rs1801282 C/T → moderate T2DM risk (OR 1.14, Altshuler et al. Nature 2000)
+# KCNJ11 rs5219 T/C → modest T2DM risk (OR 1.15, Barroso et al. Nature 1992)
+# FTO rs9939609 A/T → obesity-associated T2DM risk (OR 1.30, Frayling et al. Science 2007)
+# HFE rs1800562 G/A → hereditary hemochromatosis carrier (iron overload can worsen insulin resistance)
+# APOE rs429358 T/C → E3/E4 → higher LDL cholesterol (dyslipidemia risk)
+
+#gene name=TCF7L2 allele=rs7903146_TT zygosity=hom_alt
+#gene name=PPARG allele=rs1801282_CT zygosity=het
+#gene name=KCNJ11 allele=rs5219_TC zygosity=het
+#gene name=FTO allele=rs9939609_AT zygosity=het
+#gene name=HFE allele=rs1800562_GA zygosity=het
+#gene name=APOE allele=rs429358_TC zygosity=het
+#gene name=INSR allele=WT zygosity=hom_ref
+#gene name=IRS1 allele=WT zygosity=hom_ref
+#gene name=GLP1R allele=WT zygosity=hom_ref
+#gene name=SLC22A1 allele=WT zygosity=hom_ref
+
+# ─── LIFESTYLE TRAITS ──────────────────────────────────────────────────────
+# Former smoker (10 pack-years), moderate alcohol, moderate exercise
+
+#trait smoking=former pack_years=10 alcohol=3 exercise=moderate
+
+# ─── DISEASE: TYPE 2 DIABETES MELLITUS ──────────────────────────────────────
+# Severity 0.7 (moderate, on oral hypoglycemics before starting metformin)
+# Onset age 45, now 10 years into disease
+
+#disease name="Type 2 Diabetes Mellitus" category=metabolic_overload severity=0.7 onset_age=45
+
+# Gene-level perturbations (insulin signaling impairment):
+# INSR: insulin receptor downregulated to 40% activity (DeFronzo 2015)
+# IRS1: insulin receptor substrate-1 downregulated to 50% activity
+# TCF7L2: transcription factor dysfunction → 30% residual incretin effect
+
+#disease_gene gene=INSR type=downregulate activity=0.4
+#disease_gene gene=IRS1 type=downregulate activity=0.5
+#disease_gene gene=TCF7L2 type=downregulate activity=0.3
+
+# Metabolite perturbations (chronic hyperglycemia + dyslipidemia):
+# Fasting glucose: 145 mg/dL (normal 85), HOMA-IR elevated
+# Triglycerides: 220 mg/dL (normal <150), free fatty acids elevated
+# HbA1c target: 8.2% (uncontrolled)
+
+#disease_metabolite id=glucose type=accumulate concentration=8.1 normal=5.0
+#disease_metabolite id=triglycerides type=accumulate concentration=2.5 normal=1.7
+
+# ─── DRUG: METFORMIN ────────────────────────────────────────────────────────
+# First-line T2DM therapy (Nathan et al. ADA Standards of Care 2023)
+# SMILES: CN(C)C(=N)NC(=N)N
+# MW: 129.16 g/mol
+# Dose: 500 mg PO BID → titrate to 1000 mg BID (standard regimen)
+# Bioavailability: 50-60% (F due to first-pass gut metabolism)
+# Vd: 654 L (large tissue distribution)
+# CL: 510 mL/min (primarily renal, no hepatic metabolism)
+# Half-life: 4.0-8.7 h (Graham 2011)
+# Route: oral
+
+#drug name=metformin smiles=CN(C)C(=N)NC(=N)N formula=C4H11N5 mw=129.16 dose=500 route=oral interval=12 duration=30 bioavailability=0.55 vd=654 cl=510 half_life=6.0 renal_fraction=1.0
+
+# ─── PHARMACODYNAMIC EFFECTS ────────────────────────────────────────────────
+# Metformin primarily works via:
+# 1. Hepatic glucose output reduction (AMPK activation →抑制糖异生)
+#    EC50 ~5 µM hepatic concentration, Emax ~40% reduction
+# 2. Peripheral insulin sensitivity improvement (muscle glucose uptake)
+#    EC50 ~10 µM, Emax ~20% improvement
+#
+# Note: Metformin does NOT stimulate insulin secretion (not a secretagogue)
+
+#pd_effect drug=metformin target=BIOMASSReaction type=inhibition ec50=5.0 emax=0.40 hill=1.5
+#pd_effect drug=metformin target=glucose_uptake type=activation ec50=10.0 emax=0.20 hill=1.2
+
+# ─── SIMULATION ─────────────────────────────────────────────────────────────
+# 60-day total: 30 days treatment + 30 days recovery
+# Hourly time step, hourly output resolution
+
+#sim kind=human duration_days=60 dfa_dt_h=1.0 output_resolution_h=1.0
+
+# ─── EXPECTED OUTPUT (hours 0–1440, treatment) ──────────────────────────────
+#
+# Day 0 (baseline):
+#   Glucose: ~145 mg/dL, HbA1c: ~8.2%, Fasting insulin: elevated (HOMA-IR >4)
+#   ALT: 25 U/L, AST: 22 U/L, Creatinine: 1.05 mg/dL, eGFR: 82 mL/min
+#   BP: 135/85 mmHg (hypertension comorbidity common in T2DM)
+#   HR: 74 bpm, Weight: 82.0 kg
+#
+# Day 7 (steady-state metformin):
+#   Glucose trending down → ~130 mg/dL
+#   HbA1c unchanged (slow turnover τ ~120 days)
+#   ALT/AST: stable (metformin is NOT hepatotoxic)
+#   Cr/eGFR: stable (monitor for lactic acidosis risk if eGFR <30)
+#
+# Day 30 (end of treatment):
+#   Glucose: ~115 mg/dL (15-20% reduction from baseline)
+#   HbA1c: ~7.8% (beginning to decline)
+#   Weight: ~81.0 kg (modest weight loss with metformin)
+#   BP: ~130/82 mmHg (mild improvement)
+#
+# Day 60 (30 days post-treatment, recovery):
+#   Glucose: gradually returning toward baseline → ~135 mg/dL
+#   HbA1c: may still be declining (long τ)
+#   Weight: slowly increasing
+#
+# KEY SAFETY MONITORING:
+#   - Lactate: watch for metformin-associated lactic acidosis (MALA)
+#     if eGFR drops <30 mL/min (rare but life-threatening)
+#   - QTc: metformin has minimal QT effect (<2ms prolongation)
+#   - WBC: no myelosuppression expected

@@ -331,7 +331,10 @@ class TestCLIIntegration:
             # annotation-only sim examples carry no bytecode; the classic
             # (default) examples must disassemble to real opcodes
             src = f.read_text()
-            if "backend=" not in src or "#config backend=classic" in src:
+            # Human-simulation and other annotation-only backends have no bytecode
+            annotation_only = ("kind=human" in src or "kind=ecosystem" in src
+                               or "kind=population" in src or "kind=spatial_dfba" in src)
+            if not annotation_only and ("backend=" not in src or "#config backend=classic" in src):
                 assert "OP_" in out, f"{f.name} has no disassembled opcodes"
 
     def test_cli_table_switch(self):

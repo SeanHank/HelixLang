@@ -1,0 +1,177 @@
+# 57 — Virtual Patient Simulation: Rheumatoid Arthritis + Methotrexate
+#
+# Demonstrates the full human virtual-patient pipeline with a disease that
+# engages MULTIPLE organ systems simultaneously:
+#   - Immune system: elevated IL-6, TNF-α, CRP (autoimmune inflammation)
+#   - Endocrine: HPA axis stress response (elevated cortisol)
+#   - Hematological: anemia of chronic disease, drug-induced myelosuppression
+#   - Hepatic: methotrexate hepatotoxicity (ALT/AST elevation)
+#   - Renal: methotrexate nephrotoxicity (creatinine rise, eGFR decline)
+#   - Musculoskeletal: erosive joint damage (disease ODE)
+#
+# Patient: Maria_Garcia, 48F, 62kg, 160cm, Hispanic ancestry
+# Disease: Rheumatoid Arthritis (moderate-severe, seropositive)
+# Drug: Methotrexate 15mg PO once weekly + Folic Acid 1mg daily
+# Genes: CYP2C9 *1/*3 (intermediate metabolizer — slower MTX clearance)
+#         HLA-DRB1 shared epitope (RA risk allele)
+#         TNF-308 G/A (higher TNF production)
+#
+# Duration: 90 days (60 days treatment + 30 days recovery)
+#
+# References:
+#   - Smolen JS. Lancet 2016 (RA treatment algorithm)
+#   - Rang & Dale 2019 (methotrexate pharmacology)
+#   - CPIC guideline for methotrexate (dec 2023)
+
+# ─── PERSON ─────────────────────────────────────────────────────────────────
+# 48-year-old Hispanic female, normal weight
+
+#person name=Maria_Garcia age=48 sex=female weight=62 height=160 ethnicity=hispanic
+
+# ─── PHARMACOGENES ──────────────────────────────────────────────────────────
+# CYP2C9 *1/*3 → intermediate metabolizer (slower methotrexate clearance,
+#   higher toxicity risk — CPIC 2023)
+# CYP2D6 *1/*1 → normal metabolizer (irrelevant for MTX but included)
+# CYP3A4 *1/*1 → normal metabolizer
+# TPMT *1/*1 → normal (TPMT metabolizes MTX; normal = standard dosing)
+
+#gene name=CYP2C9 allele=*1 zygosity=het
+#gene name=CYP2C9 allele=*3 zygosity=het
+#gene name=CYP2D6 allele=*1 zygosity=hom_ref
+#gene name=CYP3A4 allele=*1 zygosity=hom_ref
+#gene name=TPMT allele=*1 zygosity=hom_ref
+
+# ─── DISEASE-RELEVANT GENES ────────────────────────────────────────────────
+# HLA-DRB1 shared epitope → RA susceptibility (OR 3.0-5.0, Weyand CM. NEJM 2006)
+# TNF-308 G/A → higher TNF-α production (Wilson AG. PNAS 1997)
+# PTPN22 rs2476601 A/C → RA risk (OR 1.8, Begovich et al. AJHG 2004)
+# IL-6R rs7529229 T/C → IL-6 signaling variant (Ferreira et al. Nature 2013)
+
+#gene name=HLA-DRB1 allele=shared_epitope zygosity=het
+#gene name=TNF_308 allele=G_A zygosity=het
+#gene name=PTPN22 allele=rs2476601_AC zygosity=het
+#gene name=IL6R allele=rs7529229_TC zygosity=het
+
+# ─── LIFESTYLE TRAITS ──────────────────────────────────────────────────────
+# Non-smoker, moderate alcohol, low exercise (joint pain limits mobility)
+
+#trait smoking=never pack_years=0 alcohol=1 exercise=light
+
+# ─── DISEASE: RHEUMATOID ARTHRITIS ─────────────────────────────────────────
+# Moderate-severe RA, seropositive (anti-CCP+)
+# DAS28-CRP baseline ≈ 5.2 (high disease activity)
+# Erosive disease present (Larsen stage II)
+
+#disease name="Rheumatoid Arthritis" category=autoimmune severity=0.6 onset_age=42
+
+# Gene-level perturbations:
+# TNF-308 G/A → constitutively higher TNF-α production (1.5x normal)
+# HLA-DRB1 SE → aberrant antigen presentation → sustained autoimmune activation
+
+#disease_gene gene=TNF_308 type=overexpress activity=0.75
+#disease_gene gene=IL6R type=overexpress activity=0.65
+
+# Metabolite perturbations:
+# CRP elevated (systemic inflammation), ESR elevated
+
+#disease_metabolite id=crp type=accumulate concentration=3.5 normal=0.5
+#disease_metabolite id=esr type=accumulate concentration=45.0 normal=15.0
+
+# ─── DRUG: METHOTREXATE ────────────────────────────────────────────────────
+# Gold standard DMARD for RA (Smolen 2016)
+# SMILES: CN(Cc1cnc(nc1N)c2ccc(cc2)NC(=O)N)C
+# MW: 454.44 g/mol
+# Dose: 15 mg PO once weekly (standard RA dose)
+# Bioavailability: 70% (oral)
+# Vd: 0.8 L/kg → ~49.6 L for 62kg patient
+# CL: 6.0 L/h (renal + hepatic)
+# Half-life: 8-10 h (primary), 8-10 days (terminal, polyglutamated)
+# Protein binding: 50% (albumin-bound)
+# Renal excretion: 80% (unchanged)
+
+#drug name=methotrexate smiles="CN(Cc1cnc(nc1N)c2ccc(cc2)NC(=O)N)C" formula=C20H22N8O5 mw=454.44 dose=15 route=oral interval=168 duration=60 bioavailability=0.70 vd=49.6 cl=6.0 half_life=9.0 renal_fraction=0.80
+
+# ─── DRUG: FOLIC ACID (supplement) ─────────────────────────────────────────
+# Co-prescribed with MTX to reduce mucositis/hepatotoxicity
+# SMILES: c1cc(nc1)c2nc3cc(ccc3[nH]2)C(=O)N[C@@H](CCC(=O)O)C(=O)O
+# MW: 441.4 g/mol
+# Dose: 1 mg PO daily
+# Minimal PK effects; reduces MTX side effects
+
+#drug name=folic_acid smiles="c1cc(nc1)c2nc3cc(ccc3[nH]2)C(=O)N[C@@H](CCC(=O)O)C(=O)O" formula=C19H19N7O6 mw=441.4 dose=1 route=oral interval=24 duration=90 bioavailability=0.50 vd=20.0 cl=3.0 half_life=7.0 renal_fraction=0.50
+
+# ─── PHARMACODYNAMIC EFFECTS ────────────────────────────────────────────────
+# Methotrexate mechanism in RA:
+# 1. Inhibits dihydrofolate reductase (DHFR) → blocks purine synthesis
+#    → suppresses lymphocyte proliferation → anti-inflammatory
+#    EC50 ~0.05 µM (intracellular polyglutamated form), Emax ~60% reduction
+# 2. Increases adenosine release → anti-inflammatory
+#    EC50 ~0.5 µM, Emax ~40%
+
+#pd_effect drug=methotrexate target=BIMASSReaction type=inhibition ec50=0.05 emax=0.60 hill=1.5
+#pd_effect drug=methotrexate target=glucose_uptake type=activation ec50=0.5 emax=0.40 hill=1.2
+
+# ─── QSP BINDING ───────────────────────────────────────────────────────────
+# Methotrexate DHFR binding (mass-action)
+# Ki ≈ 0.4 nM (strong binding)
+
+#qsp_binding drug=methotrexate kind=mass_action kd_nM=0.4 emax=0.6
+
+# ─── ENDOCRINE CONFIG ──────────────────────────────────────────────────────
+# RA causes chronic stress → moderately elevated cortisol
+# (HPA axis activated by chronic inflammation)
+
+#endocrine_config axis=stress level=0.3
+
+# ─── IMMUNE CONFIG ─────────────────────────────────────────────────────────
+# Active autoimmune inflammation: high IL-6, TNF-α
+# MTX treatment will suppress over time
+
+#immune_config autoimmune_activation=0.6 infection_severity=0.0 immunosuppression=0.0
+
+# ─── SIMULATION ─────────────────────────────────────────────────────────────
+# 90-day total: 60 days treatment + 30 days recovery
+# Hourly time step, hourly output resolution
+
+#sim kind=human duration_days=90 dfa_dt_h=1.0 output_resolution_h=1.0
+
+# ─── EXPECTED OUTPUT ────────────────────────────────────────────────────────
+#
+# Day 0 (baseline, pre-treatment):
+#   DAS28-CRP ~5.2 (high activity), CRP ~3.5 mg/L, ESR ~45 mm/h
+#   IL-6 ~15 pg/mL, TNF-α ~25 pg/mL (elevated by HLA-DRB1 + TNF-308)
+#   Hemoglobin ~11.5 g/dL (anemia of chronic disease)
+#   ALT/AST normal, Creatinine ~0.8 mg/dL, eGFR ~95 mL/min
+#   Cortisol ~18 µg/dL (mild HPA activation from chronic pain/inflammation)
+#
+# Day 7 (early treatment):
+#   CRP beginning to decline ~2.5, IL-6 ~10 pg/mL
+#   Joint inflammation still high (DMARD takes 4-6 weeks for full effect)
+#   ALT/AST may start rising (MTX hepatotoxicity onset)
+#
+# Day 30 (mid-treatment):
+#   CRP ~1.0, IL-6 ~5 pg/mL, TNF-α ~15 pg/mL
+#   DAS28 ~3.5 (moderate activity)
+#   Hemoglobin improving ~12.5 (less hepcidin suppression)
+#   ALT/AST mild elevation ~40-50 U/L (monitor)
+#   Creatinine slight rise ~0.95, eGFR ~85
+#
+# Day 60 (end of treatment):
+#   CRP ~0.5, IL-6 ~2 pg/mL, TNF-α ~10 pg/mL
+#   DAS28 ~2.8 (low activity)
+#   Hemoglobin ~13.0
+#   ALT/AST ~35 U/L (folic acid protecting liver)
+#   Creatinine ~0.9, eGFR ~82
+#
+# Day 90 (30 days post-treatment, recovery):
+#   CRP may rebound to ~1.5 (autoimmune flare without DMARD)
+#   IL-6 ~8 pg/mL, TNF-α ~18 pg/mL
+#   Hemoglobin stable ~12.8
+#   ALT/AST returning to normal ~28 U/L
+#   eGFR recovering ~88
+#
+# KEY SAFETY MONITORING:
+#   - CBC every 2 weeks: watch for pancytopenia (MTX myelosuppression)
+#   - LFTs monthly: ALT >3x ULN → hold MTX
+#   - Creatinine: >30% rise from baseline → dose adjustment
+#   - Pulmonary: MTX pneumonitis (rare, watch for dyspnea)

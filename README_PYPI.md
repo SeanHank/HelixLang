@@ -37,6 +37,7 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 🌊 **Microfluidics in the box** — lattice-Boltzmann D2Q9 (2D) and D3Q19 (3D) solvers drive medium through microfluidic channels around growing colonies: no-slip obstacles, Stokes-drag drift, Hertzian contacts, substrate advection — and a nutrient boundary layer emerges at the colony edge on its own.
 - 🧫 **From one gene to a genome** — one `#genome` annotation builds a shared **4338-gene** sparse regulatory network; every cell is a row of the same matrix, and expression-gated FBA turns a knockout into a silent node — knock out an essential gene and the whole colony stops growing.
 - 🎯 **Calibrate the invisible** — more than simulation: **inverse modeling** recovers hidden biophysical parameters from noisy, lab-realistic mixed observables at both whole-cell and colony scale (Karr 2012 / Virtual Cell Challenge–style weighted fitting).
+- 🏥 **Human pathology & drug simulation** — full PBPK (physiologically-based pharmacokinetic) compartmental model with organ volumes, blood flows, and ADME for drug distribution; disease states via GEM perturbation (Gaucher, PKU, T2D, Warburg); drug molecules (organic/inorganic/biologic with SMILES); pharmacodynamics (Hill equation, IC50/EC50); long-term therapy simulation over days–months via `#sim kind=human`. All parameters anchored to published literature.
 
 ---
 
@@ -56,6 +57,7 @@ pip install "helixlang[fast,web,bio,ml]"
 | `web` | Flask visualization frontend | flask |
 | `bio` | physical DNA codec + IUPAC validation + full GEM import | biopython, reedsolo, cobra |
 | `ml` | ESM3 protein structure + ESM-2 sequence-based kinetics | esm, torch |
+| `human` | SMILES parsing + molecular properties for drug simulation | rdkit (2026.03.5) |
 | `dev` | tests + coverage | pytest, pytest-cov, scipy |
 
 The core installs with **zero runtime dependencies** — only the Python standard library.
@@ -253,6 +255,7 @@ assert recovered == "#gene name=hello\nATG TAA\n#end\n"
 | `gem/ecgem` | Enzyme-constrained GEM builder (ECMpy 2.0 / sMOMENT-lite): kcat capacity constraints, enzyme pool budget |
 | `gem/community` | Community FBA extension (OptCom): per-organism ecGEMs, dynamic metabolite exchange, cross-feeding networks |
 | `apps/full_pipeline` | Full-chain custom organism pipeline: FASTA → translation → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation |
+| `human/` | Human physiology & drug simulation (doc/27–31): organ volumes, blood flows, Recon3D GEM, disease states (Gaucher/PKU/T2D/Warburg), drug molecules (SMILES via RDKit 2026.3), PBPK, pharmacodynamics (Hill + QSP binding: mass-action/TMDD/competitive), endocrine axes (insulin-glucose/HPA/HPT), innate immune ABM (cytokines/CRP/WBC), organ crosstalk, per-disease ODE models (8 categories), genotype→CYP450 mapping, phenotype scaling, clinical labs (35+ analytes), vital signs, disease progression, drug-drug interactions, post-treatment recovery, virtual patient simulation |
 | `omics` | Expression matrices → GRN/FBA states, spatial atlas, heterogeneity (ARI) |
 | `virtual_cell` | Virtual-cell budget model, gene encoding, parameter fitting, benchmarks |
 | `interop` | SBML L3V1 import + SBOL3 export/import round-trip |
@@ -348,7 +351,7 @@ ruff check src tests
 mypy
 ```
 
-- **2430 test cases** (all passing, 81% coverage)
+- **2644 test cases** (all passing, 81% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 55 `examples/*.helix` covered + Python API companions

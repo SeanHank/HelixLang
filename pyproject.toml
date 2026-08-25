@@ -26,6 +26,7 @@ viz = ["matplotlib>=3.8,<4"]
 web = ["flask>=3.0,<4"]   # Web visualization frontend: python -m helixlang --serve
 bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2", "cobra>=0.26,<1"]   # Physical DNA codec + IUPAC validation + genome-scale metabolic models
 ml = ["esm>=2.0", "torch>=2.0"]   # Protein structure prediction + sequence-based kinetics (doc/26 Phase B-C)
+human = ["rdkit>=2026.3,<2027"]   # SMILES parsing + molecular properties for human drug simulation (doc/27)
 
 [project.scripts]
 helixlang = "helixlang.cli:main"

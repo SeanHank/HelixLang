@@ -61,6 +61,9 @@ class Lexer:
                         "crispr", "evolve", "methylate", "histone",
                         "transcribe", "translate", "quorum",
                         "gff", "sequence", "table", "field",
+                        "person", "trait", "disease", "disease_gene",
+                        "disease_metabolite", "drug", "pd_effect",
+                        "qsp_binding", "endocrine_config", "immune_config",
                     ):
                         # Gene ID marker — emit GENE_ID token
                         start_line, start_col = self.line, self.col

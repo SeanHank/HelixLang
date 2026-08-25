@@ -1,0 +1,197 @@
+# 58 — Novel Pathogen + Novel Drug: Full Human Simulation
+#
+# Scenario: A novel pan-drug-resistant Klebsiella pneumoniae strain ("Kp-XDR7")
+# causes severe hospital-acquired pneumonia with sepsis. A completely new
+# antibiotic — "Helicidin" (quinazoline-piperazine hybrid) — is designed and
+# administered. The simulation models:
+#
+#   1. Infection dynamics: bacterial load, CRP, procalcitonin, SIRS
+#   2. Sepsis cascade: cytokine storm (IL-6, TNF-α), vasoplegia, organ stress
+#   3. Drug PK: absorption, distribution, metabolism, elimination
+#   4. Drug PD: bacterial killing via novel transpeptidase inhibition
+#   5. Toxicity: SMILES-driven prediction (molecular_toxicity.py integrated)
+#   6. Immune response: neutrophil recruitment, complement, CRP kinetics
+#   7. Endocrine: HPA axis stress response (cortisol surge in sepsis)
+#   8. Organ function: hepatic (ALT/AST), renal (creatinine/eGFR), hematologic
+#   9. Recovery: post-infection normalization over 30 days
+#
+# Patient: James_Chen, 35M, 75kg, 178cm, East Asian
+# Pathogen: Kp-XDR7 (hypothetical engineered resistance)
+# Drug: Helicidin 200mg IV q8h × 14 days
+# SMILES: c1ccc2c(N3CCNCC3)ncnc2c1  (MW 214.3, LogP 1.04)
+#
+# Duration: 44 days (14 days treatment + 30 days recovery)
+#
+# doc/32 integration:
+#   - MolecularToxicityPredictor provides SMILES-based toxicity for Helicidin
+#     (unknown to hardcoded dicts → falls through to structure-based prediction)
+#   - PhysiologyConstraints validates lab values each hour
+#   - All 8 doc/32 modules are now wired into the simulation pipeline
+
+# ─── PERSON ─────────────────────────────────────────────────────────────────
+# 35-year-old East Asian male, normal weight, admitted to ICU
+
+#person name=James_Chen age=35 sex=male weight=75 height=178 ethnicity=east_asian
+
+# ─── PHARMACOGENES ──────────────────────────────────────────────────────────
+# CYP2D6 *1/*1 → normal metabolizer
+# CYP3A4 *1/*1 → normal metabolizer
+# CYP2C19 *1/*1 → normal metabolizer
+
+#gene name=CYP2D6 allele=*1 zygosity=hom_ref
+#gene name=CYP3A4 allele=*1 zygosity=hom_ref
+#gene name=CYP2C19 allele=*1 zybosity=hom_ref
+
+# ─── LIFESTYLE TRAITS ──────────────────────────────────────────────────────
+# Non-smoker, no alcohol, moderate exercise (pre-admission)
+
+#trait smoking=never pack_years=0 alcohol=0 exercise=moderate
+
+# ─── DISEASE: SEVERE HOSPITAL-ACQUIRED PNEUMONIA + SEPSIS ──────────────────
+# Kp-XDR7 infection: bilateral infiltrates, positive BAL culture
+# Sepsis criteria: temp 39.2°C, HR 115, RR 28, WBC 18000, CRP 180 mg/L
+# qSOFA score: 2 (altered mentation, RR >22)
+# Lactate: 4.2 mmol/L (elevated — tissue hypoperfusion)
+
+#disease name="Hospital-Acquired Pneumonia" category=infectious severity=0.75 onset_age=35
+
+# Infection-driven metabolite changes
+# CRP extremely elevated (acute bacterial infection), procalcitonin elevated
+# Lactate elevated (sepsis-related tissue hypoperfusion)
+# IL-6 and TNF-α massively elevated (cytokine storm)
+
+#disease_metabolite id=crp type=accumulate concentration=180.0 normal=2.0
+#disease_metabolite id=procalcitonin type=accumulate concentration=8.5 normal=0.05
+#disease_metabolite id=lactate type=accumulate concentration=4.2 normal=1.0
+
+# ─── DRUG: HELICIDIN (novel antibiotic) ────────────────────────────────────
+# Quinazoline-piperazine hybrid antibiotic
+# Mechanism: inhibits a novel transpeptidase variant in Kp-XDR7
+# SMILES: c1ccc2c(N3CCNCC3)ncnc2c1  (validated by RDKit: MW 214.3, LogP 1.04)
+# Dose: 200mg IV every 8 hours × 14 days
+# Bioavailability: 1.0 (IV = 100%)
+# Vd: 35 L (moderate tissue distribution)
+# CL: 8.0 L/h (renal + hepatic)
+# Half-life: 4.5 h (supports q8h dosing)
+# Renal fraction: 0.6 (60% renal elimination)
+
+#drug name=helicidin smiles=c1ccc2c(N3CCNCC3)ncnc2c1 mw=214.3 dose=200 route=iv interval=8 duration=14 bioavailability=1.0 vd=35.0 cl=90.0 half_life=4.5 renal_fraction=0.60
+
+# ─── PHARMACODYNAMIC EFFECTS ────────────────────────────────────────────────
+# Helicidin PD:
+# 1. Bacterial killing (inhibits transpeptidase → cell wall synthesis arrest)
+#    EC50 ~2.0 µM (MIC ≈ 1 mg/L = 4.7 µM)
+#    Emax ~0.85 (85% bacterial kill at steady state)
+#    Hill coefficient 1.4 (moderate cooperativity)
+#
+# 2. Anti-inflammatory (reduces endotoxin release from killed bacteria)
+#    EC50 ~5.0 µM, Emax ~0.40
+
+#pd_effect drug=helicidin target=BIOMASSReaction type=inhibition ec50=2.0 emax=0.85 hill=1.4
+#pd_effect drug=helicidin target=glucose_uptake type=activation ec50=5.0 emax=0.40 hill=1.2
+
+# ─── QSP BINDING ───────────────────────────────────────────────────────────
+# Helicidin binds Kp-XDR7 transpeptidase (mass-action)
+# Ki ≈ 0.8 nM (high affinity for novel target)
+
+#qsp_binding drug=helicidin kind=mass_action kd_nM=0.8 emax=0.85
+
+# ─── ENDOCRINE CONFIG ──────────────────────────────────────────────────────
+# Sepsis → massive HPA axis activation → cortisol surge
+# Cortisol peaks at ~35-40 µg/dL (normal 5-25)
+# Stress level 0.6 (high but not critical)
+
+#endocrine_config axis=stress level=0.6
+
+# ─── IMMUNE CONFIG ─────────────────────────────────────────────────────────
+# Active bacterial infection: massive innate immune activation
+# No autoimmune component — pure infection-driven inflammation
+# Expected: high IL-6 (200+ pg/mL), TNF-α (80+ pg/mL), CRP (180 mg/L)
+# Neutrophilia (left shift), lymphopenia (stress response)
+
+#immune_config autoimmune_activation=0.0 infection_severity=0.85 immunosuppression=0.0
+
+# ─── SIMULATION ─────────────────────────────────────────────────────────────
+# 44-day total: 14 days IV antibiotic + 30 days recovery
+# Hourly time step, hourly output resolution
+
+#sim kind=human duration_days=44 dfa_dt_h=1.0 output_resolution_h=1.0
+
+# ─── EXPECTED OUTPUT ────────────────────────────────────────────────────────
+#
+# Day 0 (baseline, pre-treatment — ICU admission):
+#   Temp 39.2°C, HR 115, BP 95/60, RR 28, SpO2 93% on 4L NC
+#   WBC 18,000/µL (neutrophilia), CRP 180 mg/L, Procalcitonin 8.5 ng/mL
+#   Lactate 4.2 mmol/L (elevated — sepsis)
+#   IL-6 ~250 pg/mL, TNF-α ~90 pg/mL (cytokine storm)
+#   ALT/AST normal (25 U/L), Creatinine 1.0 mg/dL, eGFR 120
+#   Hemoglobin 14.5 g/dL, Platelets 180,000/µL (early DIC?)
+#   Cortisol ~35 µg/dL (HPA stress response)
+#
+# Day 1 (first 24h of Helicidin):
+#   Drug achieves steady state (Cmax ~12 µM, trough ~3 µM)
+#   Bacterial killing begins — CRP starts declining ~150 mg/L
+#   Lactate trending down ~3.5 mmol/L (improved perfusion)
+#   Temp still elevated ~38.5°C
+#   WBC still elevated ~16,000 (lag behind bacterial clearance)
+#   IL-6 dropping ~180 pg/mL
+#   Mild ALT elevation possible (SMILES-based prediction: low hepatotoxicity)
+#
+# Day 3 (early treatment response):
+#   CRP ~80 mg/L (50% reduction from baseline)
+#   Lactate ~2.2 mmol/L (normalizing)
+#   Temp ~37.8°C (afebrile trend)
+#   WBC ~12,000 (declining)
+#   IL-6 ~60 pg/mL, TNF-α ~30 pg/mL
+#   Blood cultures turning negative
+#   ALT/AST slight rise ~35 U/L (drug metabolism stress)
+#   Creatinine stable ~1.0 mg/dL
+#
+# Day 7 (mid-treatment):
+#   CRP ~15 mg/L (near normal)
+#   Lactate ~1.3 mmol/L (normal)
+#   Temp 36.8°C (afebrile)
+#   WBC ~9,000 (normalizing)
+#   IL-6 ~15 pg/mL, TNF-α ~10 pg/mL
+#   Chest X-ray improving (infiltrates resolving)
+#   ALT ~30 U/L, Creatinine ~1.05 mg/dL
+#   Hemoglobin ~13.5 (mild anemia of critical illness)
+#
+# Day 14 (end of treatment):
+#   CRP ~3 mg/L (normal)
+#   WBC ~7,500/µL (normal)
+#   IL-6 ~5 pg/mL, TNF-α ~5 pg/mL (baseline)
+#   ALT ~28 U/L, Creatinine ~1.0 mg/dL, eGFR ~118
+#   Hemoglobin ~13.0, Platelets ~220,000
+#   Cortisol ~12 µg/dL (HPA normalizing)
+#   Cultures negative ×48h → antibiotics discontinued
+#
+# Day 30 (16 days post-treatment):
+#   All labs normalized
+#   CRP ~2 mg/L, WBC ~6,500
+#   ALT ~25 U/L, Creatinine ~0.95 mg/dL
+#   Hemoglobin ~14.0, fully recovered
+#   Weight back to 75 kg (resolved fluid overload)
+#
+# Day 44 (30 days post-treatment):
+#   Complete recovery
+#   No sequelae expected (novel drug, no resistance emergence modeled)
+#   Full immune reconstitution
+#
+# KEY SAFETY MONITORING:
+#   - qSOFA q4h: watch for septic shock progression
+#   - Lactate q6h: tissue perfusion adequacy
+#   - CBC daily: watch for DIC (platelet consumption)
+#   - LFTs q48h: Helicidin hepatotoxicity monitoring
+#   - Creatinine q12h: drug nephrotoxicity (renal elimination)
+#   - Blood cultures q24h: document clearance kinetics
+#
+# doc/32 VALIDATION:
+#   - MolecularToxicityPredictor: Helicidin NOT in hardcoded toxicity dicts
+#     → SMILES c1ccc2c(N3CCNCC3)ncnc2c1 drives structure-based prediction
+#     → Expected: low hepatotoxicity (LogP 1.04, no structural alerts)
+#     → Expected: low nephrotoxicity (MW 214, no renal clearance concerns)
+#     → Expected: minimal myelosuppression (not a cytotoxic agent)
+#   - PhysiologyConstraints: validates labs each hour, projects to feasible
+#   - Virtual4DVar available for individual PK optimization if TDM data provided
+#   - CalibrationCascade: GP wrappers reduce prediction uncertainty ±50% → ±10%

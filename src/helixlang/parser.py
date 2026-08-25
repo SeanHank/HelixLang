@@ -32,7 +32,7 @@ from helixlang.ast_nodes import (
     Regulation,
 )
 from helixlang.errors import ParseError
-from helixlang.lexer import Token
+from helixlang.lexer import Lexer, Token
 
 # Supported biological instruction kinds
 BIO_INSTRUCTION_KINDS = frozenset({
@@ -79,6 +79,16 @@ class Parser:
                     "species": self._parse_species,
                     "patch": self._parse_patch,
                     "gem": self._parse_gem,
+                    "person": self._parse_person,
+                    "trait": self._parse_trait,
+                    "disease": self._parse_disease,
+                    "disease_gene": self._parse_disease_gene,
+                    "disease_metabolite": self._parse_disease_metabolite,
+                    "drug": self._parse_drug,
+                    "pd_effect": self._parse_pd_effect,
+                    "qsp_binding": self._parse_qsp_binding,
+                    "endocrine_config": self._parse_endocrine_config,
+                    "immune_config": self._parse_immune_config,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -190,6 +200,19 @@ class Parser:
         if name.startswith("__anon"):
             self.anon_counter += 1
         promoter = fields.get("promoter")
+        # Pharmacogene declaration form (human-simulation backend):
+        # "#gene name=... allele=... zygosity=..." with no DNA block records
+        # one entry under sim_extensions["genes"] for genotype building.
+        if "allele" in fields:
+            if not fields.get("name"):
+                raise ParseError("#gene requires name= field", line=t.line)
+            entry = {k: self._clean_value(v) for k, v in fields.items()}
+            existing = prog.sim_extensions.setdefault("genes", [])
+            if isinstance(existing, list):
+                existing.append(entry)
+            else:
+                prog.sim_extensions["genes"] = [entry]
+            return
         # Collect CODON stream (before #end)
         codons: list[Codon] = []
         while self._peek() and self._peek().kind == "CODON":
@@ -659,6 +682,204 @@ class Parser:
             if k != "name":
                 prog.sim_extensions[f"patch.{name}.{k}"] = v
 
+    # -------- Human patient simulation annotations --------
+    @staticmethod
+    def _clean_value(v: str) -> str:
+        """Strip surrounding double quotes from a lexer FIELD value."""
+        if len(v) >= 2 and v.startswith('"') and v.endswith('"'):
+            return v[1:-1]
+        return v
+
+    def _parse_person(self, prog: Program) -> None:
+        """Parse #person name=... age=... (human patient simulation).
+
+        Patient demographics for the human-simulation backend, merged into
+        ``Program.sim_extensions`` under a ``person_`` prefix (the same open
+        extension point as ``#sim``/``#genome``):
+
+            #person name=John age=55 sex=male weight=82 height=175 \
+ethnicity=european
+
+        Values are stored verbatim as strings; inert until a backend
+        consumes them.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        for k, v in fields.items():
+            prog.sim_extensions[f"person_{k}"] = self._clean_value(v)
+
+    def _parse_trait(self, prog: Program) -> None:
+        """Parse #trait smoking=former pack_years=10 ... (patient lifestyle).
+
+        Lifestyle traits merged into ``Program.sim_extensions`` under a
+        ``trait_`` prefix:
+
+            #trait smoking=former pack_years=10 alcohol=5 exercise=moderate
+
+        Values are stored verbatim as strings; inert until a backend
+        consumes them.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        for k, v in fields.items():
+            prog.sim_extensions[f"trait_{k}"] = self._clean_value(v)
+
+    def _parse_disease(self, prog: Program) -> None:
+        """Parse #disease name=... category=... severity=0.7 onset_age=45.
+
+        Disease declaration merged into ``Program.sim_extensions`` under a
+        ``disease_`` prefix:
+
+            #disease name="type 2 diabetes" category=metabolic_overload \
+severity=0.7 onset_age=45
+
+        Values are stored verbatim as strings; inert until a backend
+        consumes them.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        for k, v in fields.items():
+            prog.sim_extensions[f"disease_{k}"] = self._clean_value(v)
+
+    def _append_sim_list(
+            self, prog: Program, key: str,
+            fields: dict[str, str]) -> None:
+        """Append one cleaned entry to a list-valued sim_extensions key.
+
+        The list is created on first use so repeated annotations accumulate.
+        """
+        entry = {k: self._clean_value(v) for k, v in fields.items()}
+        existing = prog.sim_extensions.setdefault(key, [])
+        if isinstance(existing, list):
+            existing.append(entry)
+        else:
+            prog.sim_extensions[key] = [entry]
+
+    def _parse_disease_gene(self, prog: Program) -> None:
+        """Parse #disease_gene gene=INSR type=downregulate activity=0.3.
+
+        Gene perturbation associated with the declared ``#disease``; each
+        annotation appends one dict to
+        ``Program.sim_extensions["disease_genes"]`` (created on first use):
+
+            #disease_gene gene=INSR type=downregulate activity=0.3
+
+        Requires ``gene=``; inert until a backend consumes it.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("gene"):
+            raise ParseError("#disease_gene requires gene= field",
+                             line=t.line)
+        self._append_sim_list(prog, "disease_genes", fields)
+
+    def _parse_disease_metabolite(self, prog: Program) -> None:
+        """Parse #disease_metabolite id=glucose type=accumulate concentration=7.8.
+
+        Metabolite perturbation associated with the declared ``#disease``;
+        each annotation appends one dict to
+        ``Program.sim_extensions["disease_metabolites"]`` (created on first
+        use):
+
+            #disease_metabolite id=glucose type=accumulate concentration=7.8 \
+normal=5.5
+
+        Requires ``id=``; inert until a backend consumes it.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("id"):
+            raise ParseError("#disease_metabolite requires id= field",
+                             line=t.line)
+        self._append_sim_list(prog, "disease_metabolites", fields)
+
+    def _parse_drug(self, prog: Program) -> None:
+        """Parse #drug name=metformin smiles=... formula=... dose=500 ...
+
+        Drug declaration; each annotation appends one dict to
+        ``Program.sim_extensions["drugs"]`` (created on first use):
+
+            #drug name=metformin smiles=CN(C)C(=N)NC(=N)N formula=C4H11N5 \
+mw=129.16 dose=500 route=oral interval=8 duration=90
+
+        Requires ``name=``; inert until a backend consumes it.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("name"):
+            raise ParseError("#drug requires name= field", line=t.line)
+        self._append_sim_list(prog, "drugs", fields)
+
+    def _parse_pd_effect(self, prog: Program) -> None:
+        """Parse #pd_effect drug=metformin target=BIOMASSReaction ec50=5 ...
+
+        Pharmacodynamic effect linking a previously declared ``#drug`` to a
+        model target; each annotation appends one dict to
+        ``Program.sim_extensions["pd_effects"]`` (created on first use):
+
+            #pd_effect drug=metformin target=BIOMASSReaction ec50=5 emax=0.6 \
+            hill=1.5
+
+        Requires ``drug=``; inert until a backend consumes it.
+        """
+        t = self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("drug"):
+            raise ParseError("#pd_effect requires drug= field", line=t.line)
+        self._append_sim_list(prog, "pd_effects", fields)
+
+    def _parse_qsp_binding(self, prog: Program) -> None:
+        """Parse #qsp_binding drug=... kind=mass_action|tmdd|competitive ...
+
+        QSP-style pharmacodynamic binding model (doc/31 §2.5).
+
+            #qsp_binding drug=trastuzumab kind=tmdd kss_nM=2.0 emax=0.9
+            #qsp_binding drug=imatinib kind=mass_action kd_nM=1.0 emax=0.85
+            #qsp_binding drug=antagonist kind=competitive kd_agonist=10 ki=5
+
+        Requires ``drug=`` and ``kind=``.
+        """
+        t = self._advance()
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("drug"):
+            raise ParseError("#qsp_binding requires drug= field", line=t.line)
+        if not fields.get("kind"):
+            raise ParseError("#qsp_binding requires kind= field (mass_action|tmdd|competitive)", line=t.line)
+        self._append_sim_list(prog, "qsp_bindings", fields)
+
+    def _parse_endocrine_config(self, prog: Program) -> None:
+        """Parse #endocrine_config axis=... severity=0.5 ...
+
+        Configure endocrine axis parameters (doc/31 §2.6).
+
+            #endocrine_config axis=diabetes severity=0.7
+            #endocrine_config axis=addison severity=0.3
+            #endocrine_config axis=hypothyroid severity=0.5
+            #endocrine_config axis=stress level=0.8
+
+        Requires ``axis=``.
+        """
+        t = self._advance()
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        if not fields.get("axis"):
+            raise ParseError("#endocrine_config requires axis= field", line=t.line)
+        self._append_sim_list(prog, "endocrine_configs", fields)
+
+    def _parse_immune_config(self, prog: Program) -> None:
+        """Parse #immune_config parameter=value ...
+
+        Configure immune system parameters (doc/31 §2.4).
+
+            #immune_config infection_severity=0.8
+            #immune_config autoimmune_activation=0.5
+            #immune_config immunosuppression=0.3
+
+        No required fields; all parameters optional.
+        """
+        self._advance()
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        self._append_sim_list(prog, "immune_configs", fields)
+
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:
         """Parse #type annotations.
@@ -807,3 +1028,14 @@ class Parser:
                              line=t.line,
                              col=t.col)
         return self._advance()
+
+
+def parse_source(source: str, stop_codons: set[str] | None = None) -> Program:
+    """Parse a helix program directly from source text.
+
+    Convenience wrapper that lexes ``source`` and runs the
+    recursive-descent parser, returning the resulting
+    :class:`~helixlang.ast_nodes.Program`.
+    """
+    tokens = list(Lexer(source).tokens())
+    return Parser(tokens, stop_codons=stop_codons).parse()

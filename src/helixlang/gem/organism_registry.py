@@ -134,6 +134,14 @@ ORGANISM_REGISTRY: dict[str, OrganismConfig] = {
         glucose_exchange="EX_glc_e",
         oxygen_exchange="EX_o2_e",
     ),
+    "human_recon3d": OrganismConfig(
+        organism_id="human_recon3d",
+        bigg_id="Recon3D",
+        name="Homo sapiens Recon3D",
+        model_type="mammalian",
+        biomass_rxn="BIOMASS_reaction",
+        default_medium="human_plasma",
+    ),
 }
 
 

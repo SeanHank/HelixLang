@@ -25,7 +25,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from helixlang.human.disease import DiseaseState
+    from helixlang.human.drug import Drug
+    from helixlang.human.genotype import GenotypeProfile
+    from helixlang.human.pharmacodynamics import Pharmacodynamics
+    from helixlang.human.phenotype import ExternalTraits
 
 from helixlang.apps.consortium import (
     QUORUM_SIGNAL_THRESHOLD,
@@ -3279,6 +3286,597 @@ def _add_gem_core_reactions(model: Any) -> None:
         ))
 
 
+def _run_human_simulation(program: Program) -> SimResult:
+    """``#sim kind=human`` — virtual-patient simulation (doc/27+28+29).
+
+    Parses ``#person``, ``#trait``, ``#disease``, ``#disease_gene``,
+    ``#disease_metabolite``, ``#drug``, ``#pd_effect`` annotations from
+    ``program.sim_extensions``, builds a
+    :class:`~helixlang.human.virtual_patient.VirtualPatientConfig`, runs
+    the full PBPK→PD→labs→vitals→recovery integration loop, and returns
+    the complete time-series as a ``SimResult`` with one row per hour.
+
+    Falls back to the legacy
+    :class:`~helixlang.human.simulation.HumanSimulation` when no
+    person/drug annotations are present (backward compatible).
+    """
+    ext = program.sim_extensions
+
+    # --- Detect which backend to use ---
+    has_person = any(k.startswith("person_") for k in ext)
+    has_drugs = "drugs" in ext and ext["drugs"]
+
+    if not has_person and not has_drugs:
+        return _run_human_simulation_legacy(program)
+
+    return _run_virtual_patient(program)
+
+
+def _run_human_simulation_legacy(program: Program) -> SimResult:
+    """Legacy ``#sim kind=human`` backend using HumanSimulation (doc/27)."""
+    from helixlang.human.simulation import (
+        HumanSimulation,
+        HumanSimulationConfig,
+    )
+
+    ext = program.sim_extensions
+    duration_days = _opt_float(ext, "duration_days", 30.0)
+    config = HumanSimulationConfig(
+        total_duration_days=duration_days,
+        dfa_dt_h=_opt_float(ext, "dfa_dt_h", 1.0),
+        target_tissue=ext.get("target_tissue", "liver"),
+        base_model_path=ext.get("base_model_path", ""),
+    )
+    result = HumanSimulation(config).run()
+    row = {
+        "duration_days": duration_days,
+        "auc_plasma": result.auc_plasma,
+        "time_in_range_fraction": result.time_in_therapeutic_range_fraction,
+        "efficacy_score": result.overall_efficacy_score,
+        "toxicity_events": len(result.toxicity_events),
+    }
+    columns = _select_columns(program, [row], default=[
+        "duration_days",
+        "auc_plasma",
+        "time_in_range_fraction",
+        "efficacy_score",
+        "toxicity_events",
+    ])
+    return SimResult(
+        backend="human", columns=columns, rows=[_project(row, columns)],
+        meta={
+            "kind": "human",
+            "therapeutic_response_time_h": result.therapeutic_response_time_h,
+            "time_points": len(result.time_h),
+        },
+    )
+
+
+def _run_virtual_patient(program: Program) -> SimResult:
+    """Full virtual-patient simulation using VirtualPatient (doc/28+29).
+
+    Builds a VirtualPatientConfig from helix annotations and runs the
+    complete PBPK→PD→labs→vitals→recovery integration loop.
+    """
+    from helixlang.human.genotype import create_default_genotype
+    from helixlang.human.virtual_patient import VirtualPatient, VirtualPatientConfig
+
+    ext = program.sim_extensions
+
+    # --- Build genotype ---
+    genotype = create_default_genotype()
+    _build_genotype_from_helix(genotype, ext)
+
+    # --- Build traits ---
+    traits = _build_traits_from_helix(ext)
+
+    # --- Build disease ---
+    disease = _build_disease_from_helix(ext)
+    disease_name = ext.get("disease_name", "")
+
+    # --- Build drugs ---
+    drugs = _build_drugs_from_helix(ext)
+
+    # --- Build PD effects ---
+    pd_effects = _build_pd_from_helix(ext)
+
+    # --- Build QSP binding models ---
+    qsp_bindings = _build_qsp_bindings_from_helix(ext)
+
+    # --- Build endocrine config ---
+    endocrine_config = _build_endocrine_config_from_helix(ext)
+
+    # --- Build immune config ---
+    immune_config = _build_immune_config_from_helix(ext)
+
+    # --- Auto-infer PD from drug target when no explicit #pd_effect ---
+    if drugs and not pd_effects:
+        from helixlang.human.pharmacodynamics import infer_pd_from_drug as _infer_pd
+        for drug in drugs:
+            tp = drug.molecule.target_protein
+            if tp:
+                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                pd_effects[key] = _infer_pd(
+                    drug.molecule.name,
+                    target_protein=tp,
+                    binding_kd_um=drug.molecule.binding_affinity_kd_um,
+                    mw_da=drug.molecule.molecular_weight_da,
+                )
+
+    # --- Simulation parameters ---
+    duration_days = _opt_float(ext, "duration_days", 30.0)
+    dt_h = _opt_float(ext, "dfa_dt_h", 1.0)
+    output_res_h = _opt_float(ext, "output_resolution_h", 1.0)
+
+    config = VirtualPatientConfig(
+        genotype=genotype,
+        traits=traits,
+        disease=disease,
+        disease_profile_name=disease_name,
+        drugs=drugs,
+        pharmacodynamics=pd_effects,
+        qsp_bindings=qsp_bindings.get("qsp_bindings", []),
+        endocrine_configs=endocrine_config.get("endocrine_configs", []),
+        immune_configs=immune_config.get("immune_configs", []),
+        total_duration_days=duration_days,
+        dfa_dt_h=dt_h,
+        output_time_resolution_h=output_res_h,
+    )
+
+    patient = VirtualPatient(config)
+    result = patient.run()
+
+    # --- Build output rows (one row per recorded time point) ---
+    n = len(result.time_h)
+    rows: list[dict[str, Any]] = []
+    for i in range(n):
+        row: dict[str, Any] = {
+            "time_h": result.time_h[i],
+            "systolic_bp": result.systolic_bp[i] if i < len(result.systolic_bp) else 0.0,
+            "diastolic_bp": result.diastolic_bp[i] if i < len(result.diastolic_bp) else 0.0,
+            "heart_rate": result.heart_rate[i] if i < len(result.heart_rate) else 0.0,
+            "temperature": result.temperature[i] if i < len(result.temperature) else 0.0,
+            "spo2_pct": result.spo2_pct[i] if i < len(result.spo2_pct) else 0.0,
+            "respiratory_rate": result.respiratory_rate[i] if i < len(result.respiratory_rate) else 0.0,
+            "qtc_ms": result.qtc_ms[i] if i < len(result.qtc_ms) else 0.0,
+            "alt": result.alt[i] if i < len(result.alt) else 0.0,
+            "ast": result.ast[i] if i < len(result.ast) else 0.0,
+            "creatinine": result.creatinine[i] if i < len(result.creatinine) else 0.0,
+            "egfr": result.egfr[i] if i < len(result.egfr) else 0.0,
+            "wbc": result.wbc[i] if i < len(result.wbc) else 0.0,
+            "hemoglobin": result.hemoglobin[i] if i < len(result.hemoglobin) else 0.0,
+            "platelets": result.platelets[i] if i < len(result.platelets) else 0.0,
+            "glucose": result.glucose[i] if i < len(result.glucose) else 0.0,
+            "hba1c": result.hba1c[i] if i < len(result.hba1c) else 0.0,
+            "crp": result.crp[i] if i < len(result.crp) else 0.0,
+            "bilirubin": result.bilirubin[i] if i < len(result.bilirubin) else 0.0,
+            "albumin": result.albumin[i] if i < len(result.albumin) else 0.0,
+            "inr": result.inr[i] if i < len(result.inr) else 0.0,
+            "sodium": result.sodium[i] if i < len(result.sodium) else 0.0,
+            "potassium": result.potassium[i] if i < len(result.potassium) else 0.0,
+            "lactate": result.lactate[i] if i < len(result.lactate) else 0.0,
+            "calcium": result.calcium[i] if i < len(result.calcium) else 0.0,
+            "phosphate": result.phosphate[i] if i < len(result.phosphate) else 0.0,
+            "chloride": result.chloride[i] if i < len(result.chloride) else 0.0,
+            "bicarbonate": result.bicarbonate[i] if i < len(result.bicarbonate) else 0.0,
+            "ldl": result.ldl[i] if i < len(result.ldl) else 0.0,
+            "hdl": result.hdl[i] if i < len(result.hdl) else 0.0,
+            "triglycerides": result.triglycerides[i] if i < len(result.triglycerides) else 0.0,
+            "disease_severity": result.disease_severity[i] if i < len(result.disease_severity) else 0.0,
+            "weight_kg": result.weight_kg[i] if i < len(result.weight_kg) else 0.0,
+            # doc/30-31 new channels
+            "cortisol": result.cortisol[i] if i < len(result.cortisol) else 0.0,
+            "insulin": result.insulin[i] if i < len(result.insulin) else 0.0,
+            "glucose_endocrine": result.glucose_endocrine[i] if i < len(result.glucose_endocrine) else 0.0,
+            "tsh": result.tsh[i] if i < len(result.tsh) else 0.0,
+            "ft4": result.ft4[i] if i < len(result.ft4) else 0.0,
+            "il6": result.il6[i] if i < len(result.il6) else 0.0,
+            "tnf_alpha": result.tnf_alpha[i] if i < len(result.tnf_alpha) else 0.0,
+            "neutrophils": result.neutrophils[i] if i < len(result.neutrophils) else 0.0,
+            "tumor_volume": result.tumor_volume[i] if i < len(result.tumor_volume) else 0.0,
+            "nephron_mass": result.nephron_mass[i] if i < len(result.nephron_mass) else 0.0,
+            "fibrosis_stage": result.fibrosis_stage[i] if i < len(result.fibrosis_stage) else 0.0,
+            "beta_cell_function": result.beta_cell_function[i] if i < len(result.beta_cell_function) else 0.0,
+        }
+        # Drug concentrations
+        for dk, dc in result.drug_concentrations.items():
+            row[f"drug_{dk}"] = dc[i] if i < len(dc) else 0.0
+        rows.append(row)
+
+    # --- Select columns ---
+    default_cols = [
+        "time_h", "systolic_bp", "diastolic_bp", "heart_rate",
+        "temperature", "spo2_pct", "respiratory_rate", "qtc_ms",
+        "alt", "ast", "creatinine", "egfr", "wbc", "hemoglobin",
+        "platelets", "glucose", "hba1c", "crp",
+        "bilirubin", "albumin", "inr",
+        "sodium", "potassium", "lactate",
+        "calcium", "phosphate", "chloride", "bicarbonate",
+        "ldl", "hdl", "triglycerides",
+        "disease_severity", "weight_kg",
+        "cortisol", "insulin", "glucose_endocrine", "tsh", "ft4",
+        "il6", "tnf_alpha", "neutrophils",
+        "tumor_volume", "nephron_mass", "fibrosis_stage", "beta_cell_function",
+    ]
+    # Add drug concentration columns
+    for dk in result.drug_concentrations:
+        default_cols.append(f"drug_{dk}")
+
+    columns = _select_columns(program, rows, default=default_cols)
+
+    # --- Summary meta ---
+    summary = result.summary()
+    meta: dict[str, Any] = {
+        "kind": "human_virtual_patient",
+        "duration_days": duration_days,
+        "time_points": n,
+        "summary": summary,
+        "ddi_alerts": result.ddi_alerts,
+        "clinical_events": result.clinical_events,
+        "overall_efficacy_score": result.overall_efficacy_score,
+        "total_toxicity_events": result.total_toxicity_events,
+    }
+
+    return SimResult(
+        backend="human",
+        columns=columns,
+        rows=[_project(r, columns) for r in rows],
+        meta=meta,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Annotation → config builders
+# ---------------------------------------------------------------------------
+
+def _build_genotype_from_helix(
+    genotype: GenotypeProfile, ext: dict[str, Any],
+) -> None:
+    """Populate genotype from #gene annotations stored in sim_extensions.
+
+    Routes pharmacogenes to the correct status dict:
+    - CYP enzymes (CYP2D6, CYP3A4, ...) → ``cyp_status`` via star-allele
+    - Transporters (SLCO1B1, ABCB1, ...) → ``transporter_status``
+    - Non-CYP enzymes (UGT1A1, TPMT, ...) → ``non_cyp_enzyme_status``
+    - Other genes → ``gene_variants`` (generic storage)
+    """
+    from helixlang.human.genotype import (
+        CYP_ALLELE_ACTIVITIES,
+        NON_CYP_ENZYMES,
+        TRANSPORTER_ALLELE_EFFECTS,
+        VALID_ZYGOSITY,
+        Variant,
+        _AlleleCall,
+        _summarize_enzyme,
+        _summarize_non_cyp,
+        _summarize_transporter,
+    )
+
+    gene_list = ext.get("genes", [])
+    if not isinstance(gene_list, list):
+        return
+
+    # Collect allele calls per gene
+    cyp_calls: dict[str, list[_AlleleCall]] = {}
+    transporter_calls: dict[str, list[_AlleleCall]] = {}
+    non_cyp_calls: dict[str, list[_AlleleCall]] = {}
+    other_genes: dict[str, list[Variant]] = {}
+
+    for entry in gene_list:
+        if not isinstance(entry, dict):
+            continue
+        gene_name = entry.get("name", "").strip()
+        allele = entry.get("allele", "").strip()
+        zygosity = entry.get("zygosity", "het")
+        if zygosity not in VALID_ZYGOSITY:
+            zygosity = "het"
+        if not gene_name or not allele:
+            continue
+
+        # Import star-allele resolution here for clarity
+        from helixlang.human.genotype import _resolve_star_allele
+
+        star, dup_count = _resolve_star_allele(gene_name, allele)
+
+        variant = Variant(
+            gene_id=gene_name,
+            chromosome="0",
+            position=0,
+            ref=".",
+            alt=allele,
+            zygosity=zygosity,
+        )
+
+        call = _AlleleCall(
+            variant=variant,
+            star=star,
+            duplication_count=dup_count,
+            copy_number=None,
+        )
+
+        gene_upper = gene_name.upper()
+        if gene_upper in CYP_ALLELE_ACTIVITIES:
+            cyp_calls.setdefault(gene_upper, []).append(call)
+        elif gene_upper in TRANSPORTER_ALLELE_EFFECTS:
+            transporter_calls.setdefault(gene_upper, []).append(call)
+        elif gene_upper in NON_CYP_ENZYMES:
+            non_cyp_calls.setdefault(gene_upper, []).append(call)
+        else:
+            other_genes.setdefault(gene_name, []).append(variant)
+
+    # Summarize CYP enzymes
+    for gene, calls in cyp_calls.items():
+        genotype.cyp_status[gene] = _summarize_enzyme(gene, calls)
+
+    # Summarize transporters
+    for gene, calls in transporter_calls.items():
+        genotype.transporter_status[gene] = _summarize_transporter(gene, calls)
+
+    # Summarize non-CYP enzymes
+    for gene, calls in non_cyp_calls.items():
+        genotype.non_cyp_enzyme_status[gene] = _summarize_non_cyp(gene, calls)
+
+    # Store non-pharmacogene variants in gene_variants
+    for gene_name, variants in other_genes.items():
+        for v in variants:
+            genotype.add_gene_variant(gene_name, v)
+
+
+def _build_traits_from_helix(ext: dict[str, Any]) -> ExternalTraits:
+    """Build ExternalTraits from #person + #trait annotations."""
+    from helixlang.human.phenotype import ExternalTraits as _Ext
+    return _Ext(
+        age_years=_opt_float(ext, "person_age", 30.0),
+        sex=ext.get("person_sex", "male"),
+        body_weight_kg=_opt_float(ext, "person_weight", 70.0),
+        height_cm=_opt_float(ext, "person_height", 170.0),
+        ethnicity=ext.get("person_ethnicity", "european"),
+        smoking_status=ext.get("trait_smoking", "never"),
+        pack_years=_opt_float(ext, "trait_pack_years", 0.0),
+        alcohol_drinks_per_week=_opt_float(ext, "trait_alcohol", 0.0),
+        exercise_level=ext.get("trait_exercise", "moderate"),
+        pregnant=ext.get("trait_pregnant", "false").lower() == "true",
+    )
+
+
+def _build_disease_from_helix(ext: dict[str, Any]) -> DiseaseState | None:
+    """Build DiseaseState from #disease + #disease_gene + #disease_metabolite."""
+    from helixlang.human.disease import (
+        DiseaseState as _DS,
+    )
+    from helixlang.human.disease import (
+        GenePerturbation as _GP,
+    )
+    from helixlang.human.disease import (
+        MetabolitePerturbation as _MP,
+    )
+    disease_name = ext.get("disease_name", "")
+    if not disease_name:
+        return None
+
+    gene_perts = []
+    for entry in ext.get("disease_genes", []):
+        if isinstance(entry, dict) and entry.get("gene"):
+            gene_perts.append(_GP(
+                gene_id=entry["gene"],
+                perturbation_type=entry.get("type", "downregulate"),
+                activity_fraction=_opt_float(entry, "activity", 0.0),
+            ))
+
+    met_perts = []
+    for entry in ext.get("disease_metabolites", []):
+        if isinstance(entry, dict) and entry.get("id"):
+            met_perts.append(_MP(
+                metabolite_id=entry["id"],
+                perturbation_type=entry.get("type", "accumulate"),
+                initial_concentration_mm=_opt_float(entry, "concentration", 0.0),
+                normal_concentration_mm=_opt_float(entry, "normal", 0.0),
+            ))
+
+    return _DS(
+        name=disease_name,
+        category=ext.get("disease_category", "metabolic_overload"),
+        gene_perturbations=gene_perts,
+        metabolite_perturbations=met_perts,
+        severity=_opt_float(ext, "disease_severity", 0.5),
+        onset_age_years=_opt_float(ext, "disease_onset_age", 40.0),
+        description=ext.get("disease_description", ""),
+    )
+
+
+def _build_drugs_from_helix(ext: dict[str, Any]) -> list[Drug]:
+    """Build Drug objects from #drug annotations.
+
+    Supports all Drug fields including:
+      - drug_type, target_protein, binding_affinity_kd
+      - cyp_metabolism (e.g. cyp_metabolism="CYP3A4:0.5,CYP2D6:0.3")
+      - transporter_affected (e.g. transporter_affected="SLCO1B1:0.6,ABCB1:0.15")
+      - non_cyp_metabolism (e.g. non_cyp_metabolism="UGT1A1:0.7")
+
+    When SMILES is provided and MW/ADME are not all explicit, auto-infers
+    properties via ``parse_drug_smiles`` (MW/formula/LogP) and
+    ``smiles_to_adme`` (bioavailability, Vd, CL, half-life, etc.).
+    PD effects are auto-inferred from ``target_protein`` when no explicit
+    ``#pd_effect`` is provided.
+    """
+    from helixlang.human.drug import SMALL_MOLECULE, parse_drug_smiles, smiles_to_adme
+    from helixlang.human.drug import Drug as _Drug
+    from helixlang.human.drug import DrugMolecule as _DM
+
+    def _parse_fraction_map(raw: str) -> dict[str, float]:
+        """Parse 'CYP3A4:0.5,CYP2D6:0.3' → {'CYP3A4': 0.5, 'CYP2D6': 0.3}."""
+        result: dict[str, float] = {}
+        if not raw:
+            return result
+        for part in raw.split(","):
+            part = part.strip()
+            if ":" in part:
+                key, val = part.split(":", 1)
+                try:
+                    result[key.strip()] = float(val.strip())
+                except ValueError:
+                    pass
+        return result
+
+    drugs = []
+    for entry in ext.get("drugs", []):
+        if not isinstance(entry, dict) or not entry.get("name"):
+            continue
+
+        name = entry["name"]
+        smiles = entry.get("smiles", "")
+        drug_type = entry.get("drug_type", SMALL_MOLECULE)
+        target_protein = entry.get("target_protein", entry.get("target", ""))
+        binding_kd = _opt_float(entry, "binding_affinity_kd", 0.0)
+
+        # --- Molecule: prefer parse_drug_smiles when SMILES is available ---
+        if smiles:
+            mol = parse_drug_smiles(smiles, name=name, drug_type=drug_type)
+            if target_protein:
+                mol.target_protein = target_protein
+            if binding_kd > 0:
+                mol.binding_affinity_kd_um = binding_kd
+            # Allow explicit mw to override SMILES-parsed value
+            explicit_mw = _opt_float(entry, "mw", 0.0)
+            if explicit_mw > 0:
+                mol.molecular_weight_da = explicit_mw
+        else:
+            mol = _DM(
+                name=name,
+                drug_type=drug_type,
+                smiles=smiles,
+                molecular_weight_da=_opt_float(entry, "mw", 0.0),
+                formula=entry.get("formula", ""),
+                target_protein=target_protein,
+                binding_affinity_kd_um=binding_kd,
+                protein_binding_fraction=_opt_float(entry, "protein_binding", 0.0),
+            )
+
+        # --- ADME inference from SMILES when not all explicit ---
+        explicit_cl = "cl" in entry
+        explicit_vd = "vd" in entry
+        explicit_hl = "half_life" in entry
+        if smiles and not (explicit_cl and explicit_vd and explicit_hl):
+            try:
+                inferred = smiles_to_adme(
+                    smiles,
+                    drug_type=drug_type,
+                    mw_da=mol.molecular_weight_da,
+                )
+                # Fill in only missing (zero-valued) fields
+                if mol.molecular_weight_da <= 0:
+                    mol.molecular_weight_da = inferred.get("molecular_weight_da", 0.0)
+                if mol.log_p <= 0:
+                    mol.log_p = inferred.get("log_p", 0.0)
+                if not explicit_cl:
+                    entry.setdefault("cl", str(round(inferred.get("clearance_ml_per_min", 100.0), 2)))
+                if not explicit_vd:
+                    entry.setdefault("vd", str(round(inferred.get("volume_distribution_l", 50.0), 2)))
+                if not explicit_hl:
+                    entry.setdefault("half_life", str(round(inferred.get("half_life_h", 6.0), 2)))
+                entry.setdefault("bioavailability", str(round(inferred.get("bioavailability", 0.8), 3)))
+                entry.setdefault("protein_binding", str(round(inferred.get("protein_binding", 0.5), 3)))
+                entry.setdefault("absorption_rate", str(round(inferred.get("absorption_rate_h", 1.0), 2)))
+                entry.setdefault("hepatic_eh", str(round(inferred.get("hepatic_extraction_ratio", 0.3), 3)))
+                entry.setdefault("renal_fraction", str(round(inferred.get("renal_fraction", 0.2), 3)))
+            except Exception:
+                pass  # Graceful degradation: use hand-specified values
+
+        # --- Build Drug ---
+        drug = _Drug(
+            molecule=mol,
+            dose_mg=_opt_float(entry, "dose", 0.0),
+            dosing_interval_h=_opt_float(entry, "interval", 24.0),
+            route=entry.get("route", "oral"),
+            duration_days=_opt_float(entry, "duration", 30.0),
+            bioavailability=_opt_float(entry, "bioavailability", 1.0),
+            absorption_rate_h=_opt_float(entry, "absorption_rate", 1.0),
+            volume_distribution_l=_opt_float(entry, "vd", 50.0),
+            clearance_ml_per_min=_opt_float(entry, "cl", 100.0),
+            half_life_h=_opt_float(entry, "half_life", 6.0),
+            hepatic_extraction_ratio=_opt_float(entry, "hepatic_eh", 0.0),
+            renal_fraction=_opt_float(entry, "renal_fraction", 0.0),
+            cyp_metabolism=_parse_fraction_map(entry.get("cyp_metabolism", "")),
+            transporter_affected=_parse_fraction_map(entry.get("transporter_affected", "")),
+            non_cyp_metabolism=_parse_fraction_map(entry.get("non_cyp_metabolism", "")),
+        )
+        drugs.append(drug)
+    return drugs
+
+
+def _build_pd_from_helix(ext: dict[str, Any]) -> dict[str, Pharmacodynamics]:
+    """Build PD effects from #pd_effect annotations."""
+    from helixlang.human.pharmacodynamics import PDEffect as _PE
+    from helixlang.human.pharmacodynamics import Pharmacodynamics as _PD
+    effects_by_drug: dict[str, list[_PE]] = {}
+    for entry in ext.get("pd_effects", []):
+        if not isinstance(entry, dict) or not entry.get("drug"):
+            continue
+        drug_key = entry["drug"].lower().replace(" ", "_").replace("-", "_")
+        eff = _PE(
+            target_reaction=entry.get("target", "BIOMASSReaction"),
+            effect_type=entry.get("type", "inhibition"),
+            ec50_um=_opt_float(entry, "ec50", 1.0),
+            emax=_opt_float(entry, "emax", 1.0),
+            hill_coefficient=_opt_float(entry, "hill", 1.0),
+        )
+        effects_by_drug.setdefault(drug_key, []).append(eff)
+
+    result = {}
+    for drug_key, effs in effects_by_drug.items():
+        result[drug_key] = _PD(
+            drug_name=drug_key,
+            effects=effs,
+        )
+    return result
+
+
+def _build_qsp_bindings_from_helix(ext: dict[str, Any]) -> dict[str, Any]:
+    """Build QSP binding models from #qsp_binding annotations."""
+    bindings = []
+    for entry in ext.get("qsp_bindings", []):
+        if not isinstance(entry, dict) or not entry.get("drug"):
+            continue
+        bindings.append({
+            "drug": entry["drug"],
+            "kind": entry.get("kind", "mass_action"),
+            "kd_nM": _opt_float(entry, "kd_nM", 10.0),
+            "kss_nM": _opt_float(entry, "kss_nM", 5.0),
+            "emax": _opt_float(entry, "emax", 1.0),
+            "kd_agonist_nM": _opt_float(entry, "kd_agonist", 10.0),
+            "ki_antagonist_nM": _opt_float(entry, "ki", 5.0),
+        })
+    return {"qsp_bindings": bindings}
+
+
+def _build_endocrine_config_from_helix(ext: dict[str, Any]) -> dict[str, Any]:
+    """Build endocrine config from #endocrine_config annotations."""
+    configs = []
+    for entry in ext.get("endocrine_configs", []):
+        if not isinstance(entry, dict) or not entry.get("axis"):
+            continue
+        configs.append({
+            "axis": entry["axis"],
+            "severity": _opt_float(entry, "severity", 0.0),
+            "level": _opt_float(entry, "level", 0.0),
+        })
+    return {"endocrine_configs": configs}
+
+
+def _build_immune_config_from_helix(ext: dict[str, Any]) -> dict[str, Any]:
+    """Build immune config from #immune_config annotations."""
+    configs = []
+    for entry in ext.get("immune_configs", []):
+        if not isinstance(entry, dict):
+            continue
+        configs.append({
+            "infection_severity": _opt_float(entry, "infection_severity", 0.0),
+            "autoimmune_activation": _opt_float(entry, "autoimmune_activation", 0.0),
+            "immunosuppression": _opt_float(entry, "immunosuppression", 0.0),
+        })
+    return {"immune_configs": configs}
+
+
 _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {
     "3d_morphology": _run_3d_morphology,
     "codec_benchmark": _run_codec_benchmark,
@@ -3289,6 +3887,7 @@ _SIM_BACKENDS: dict[str, Callable[[Program], SimResult]] = {
     "directed_evolution": _run_directed_evolution,
     "ecosystem": _run_ecosystem,
     "fate_analysis": _run_fate_analysis,
+    "human": _run_human_simulation,
     "morphogen_gradient": _run_morphogen_gradient,
     "omics_calibration": _run_omics_calibration,
     "population_calibration": _run_population_calibration,

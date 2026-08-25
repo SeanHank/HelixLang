@@ -42,10 +42,10 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 98 (80 top-level + 9 subpackages) |
-| Test cases | 2430 (all passing, 81% coverage) |
+| Source modules | 103 (80 top-level + 14 subpackages) |
+| Test cases | 2721 (all passing, 81% coverage) |
 | `.helix` examples | 55 (complete source) |
-| Documentation | 27 files, 16,500+ lines |
+| Documentation | 31 files, 22,000+ lines |
 | Runtime dependencies | **zero** (all optional: numpy, biopython, flask, esm, torch) |
 
 ### Highlights
@@ -110,6 +110,7 @@ pip install "helixlang[fast,web,bio,ml]"
 | `web` | Flask visualization frontend | flask |
 | `bio` | physical DNA codec + IUPAC validation + full GEM import | biopython, reedsolo, cobra |
 | `ml` | ESM3 protein structure + ESM-2 sequence-based kinetics | esm, torch |
+| `human` | SMILES parsing + molecular properties for drug simulation | rdkit (2026.03.5) |
 | `dev` | tests + coverage (source checkouts) | pytest, pytest-cov, scipy |
 
 ### Up and running in 30 seconds
@@ -392,6 +393,7 @@ This downloads **Pfam-A.hmm** (~2.1 GB, CC0 public domain) from EBI and **E. col
 | [kinetics/sequence_predictor](src/helixlang/kinetics/sequence_predictor.py) | Sequence-based kcat/Km prediction: ESM-2 embeddings (facebook/esm2_t6_8M_UR50D via transformers) → BRENDA EC-class medians → physics fallback (Bar-Even 2011); `SequenceKcatPredictor`, `SequenceKmEstimator`, substrate charge table, catalytic residue detection |
 | [apps/gem_pipeline](src/helixlang/apps/gem_pipeline.py) | Six-phase GEM reconstruction orchestrator — genome → annotation → GEM → GRN → kinetics → HelixLang integration; 3-tier UniProt annotation, consensus + FBA validation |
 | [apps/full_pipeline](src/helixlang/apps/full_pipeline.py) | Full-chain custom organism pipeline (doc/26): FASTA → translation → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation; `run_full_pipeline()` with `PipelineConfig`/`PipelineResult`, auto EC number inference, DNA auto-detect + translate |
+| [human/](src/helixlang/human/) | Human physiology & drug simulation (doc/27–31): organ volumes, blood flows, Recon3D GEM, disease states (Gaucher/PKU/T2D/Warburg), drug molecules (SMILES/inorganic/biologic via RDKit 2026.3), PBPK, pharmacodynamics (Hill + QSP binding: mass-action/TMDD/competitive), endocrine axes (insulin-glucose/HPA/HPT), innate immune ABM (cytokines/CRP/WBC), organ crosstalk, per-disease ODE models (8 categories), genotype→CYP450, phenotype scaling, clinical labs (35+ analytes), vital signs, disease progression, DDI, recovery; `#sim kind=human` with `#person`/`#trait`/`#disease`/`#drug`/`#pd_effect`/`#qsp_binding`/`#endocrine_config`/`#immune_config` |
 | [gem/full_model](src/helixlang/gem/full_model.py) | Full GEM model loading — SBML import via CobraPy (`_load_sbml`), automatic biomass reaction detection, `build_functional_model()` that returns a functional `MetabolicModel` ready for FBA |
 | [gem/sbml_import](src/helixlang/gem/sbml_import.py) | CobraPy SBML loader with stderr capture (`_stderr_for_cobra`), SBML fallback for non-CobraPy environments, `BiGGModels` model caching |
 | [gem/organism_registry](src/helixlang/gem/organism_registry.py) | Organism-specific GEM registry — maps organism IDs to SBML model paths, biomass reactions, and growth parameters |
@@ -457,13 +459,18 @@ The full technical documentation lives in [`doc/`](doc/). Reference by reader �
 | [`24-full-gem-import.md`](doc/24-full-gem-import.md) | Researchers | Full SBML model import: CobraPy loader, BiGG ID normalization, `#gem model=path.xml` |
 | [`25-realistic-parameter-consistency-gaps.md`](doc/25-realistic-parameter-consistency-gaps.md) | Researchers | GRN→FBA closed loop, enzyme correction, density scaling, CRISPR→enzyme feedback |
 | [`26-full-chain-custom-organism-pipeline.md`](doc/26-full-chain-custom-organism-pipeline.md) | Researchers | DNA → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → ecosystem: full-chain custom organism pipeline (Xenobacter alienus example) |
+| [`27-human-pathology-drug-simulation.md`](doc/27-human-pathology-drug-simulation.md) | Researchers | Human physiology (Recon3D GEM) + disease states (Gaucher, PKU, T2D, Warburg) + drug molecules (SMILES) + PBPK + pharmacodynamics + long-term therapy simulation |
+| [`28-virtual-patient-system.md`](doc/28-virtual-patient-system.md) | Researchers | Full virtual patient: genome → CYP450 phenotype → organ scaling → disease staging → drug DDIs → clinical labs → vital signs → PBPK/PD → post-treatment recovery → virtual patient simulation |
+| [`29-virtual-patient-fixes.md`](doc/29-virtual-patient-fixes.md) | Researchers | Critical fixes: PBPK stateful engine, µM-normalized scalers, dynamic QTc/SpO₂/RR/electrolytes/lipids/coagulation, disease name propagation, full VirtualPatientResult channels |
+| [`30-computational-models-major-disease-categories.md`](doc/30-computational-models-major-disease-categories.md) | Researchers | Literature survey: ODE models for 8 disease categories (CV, metabolic, cancer, autoimmune, neurological, renal, hepatic, hematological) + organ crosstalk |
+| [`31-frontier-virtual-patient-design.md`](doc/31-frontier-virtual-patient-design.md) | Researchers | SOTA survey + 5-phase roadmap: endocrine axes, QSP binding, immune ABM, organ crosstalk, per-disease ODEs, validation frameworks |
 | **Engineering** | | |
 | [`03-compiler-design.md`](doc/03-compiler-design.md) | Compiler contributors | Compilation pipeline, AST, bytecode format, stack VM, disassembler |
 | [`06-engineering-design.md`](doc/06-engineering-design.md) | Maintainers | Module interfaces, data flow, error matrix, performance budgets, CI, test pyramid |
 | [`11-helixc-binary-format.md`](doc/11-helixc-binary-format.md) | Tooling users | `.helixc` binary artifact format: versioned container, round-trip tests |
 | [`13-performance-report.md`](doc/13-performance-report.md) | Performance engineers | Bottleneck analysis + scaling behavior (compile / VM / GRN / reaction-diffusion) |
 
-> Full index of all 27 documents: [`doc/`](doc/). Research-oriented docs (01, 05, 10, 14–19, 21–23, 26) cover frontier biology plans, whole-cell realism roadmaps, population simulation designs, GEM↔Ecosystem bridge specs, and the full-chain custom organism pipeline.
+> Full index of all 31 documents: [`doc/`](doc/). Research-oriented docs (01, 05, 10, 14–19, 21–23, 26–31) cover frontier biology plans, whole-cell realism roadmaps, population simulation designs, GEM↔Ecosystem bridge specs, the full-chain custom organism pipeline, human pathology + drug simulation, virtual patient simulation, critical defect fixes + full-parameter coverage, computational models for major disease categories, and frontier virtual patient architecture design.
 
 ### Suggested reading order
 
@@ -490,7 +497,7 @@ ruff check src tests
 mypy
 ```
 
-- **2430 test cases** (all passing, 81% coverage)
+- **2644 test cases** (all passing, 81% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
 - All 55 `examples/*.helix` covered + Python API companions

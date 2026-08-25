@@ -365,6 +365,20 @@ YEAST_BIOMASS_COMPONENTS: list[BiomassComponent] = [
 ]
 
 
+HUMAN_MAMMALIAN: dict[str, float] = {
+    "protein": 0.55,
+    "lipid": 0.15,
+    "carbohydrate": 0.05,
+    "nucleic_acid": 0.10,
+    "ash": 0.05,
+    "atp_per_gdw": 38.0,
+}
+
+BIOMASS_TEMPLATES: dict[str, dict[str, float]] = {
+    "human_mammalian": HUMAN_MAMMALIAN,
+}
+
+
 # ---------------------------------------------------------------------------
 # Organism-to-template mapping
 # ---------------------------------------------------------------------------
