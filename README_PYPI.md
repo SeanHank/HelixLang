@@ -37,7 +37,17 @@ Feed that sequence to the HelixLang compiler and you get a real bytecode program
 - 🌊 **Microfluidics in the box** — lattice-Boltzmann D2Q9 (2D) and D3Q19 (3D) solvers drive medium through microfluidic channels around growing colonies: no-slip obstacles, Stokes-drag drift, Hertzian contacts, substrate advection — and a nutrient boundary layer emerges at the colony edge on its own.
 - 🧫 **From one gene to a genome** — one `#genome` annotation builds a shared **4338-gene** sparse regulatory network; every cell is a row of the same matrix, and expression-gated FBA turns a knockout into a silent node — knock out an essential gene and the whole colony stops growing.
 - 🎯 **Calibrate the invisible** — more than simulation: **inverse modeling** recovers hidden biophysical parameters from noisy, lab-realistic mixed observables at both whole-cell and colony scale (Karr 2012 / Virtual Cell Challenge–style weighted fitting).
-- 🏥 **Human pathology & drug simulation** — full PBPK (physiologically-based pharmacokinetic) compartmental model with organ volumes, blood flows, and ADME for drug distribution; disease states via GEM perturbation (Gaucher, PKU, T2D, Warburg); drug molecules (organic/inorganic/biologic with SMILES); pharmacodynamics (Hill equation, IC50/EC50); long-term therapy simulation over days–months via `#sim kind=human`. All parameters anchored to published literature.
+- 🏥 **Human virtual patient engine** — `VirtualPatient` accepts genotype (VCF), external traits, disease parameters, and drug regimens, then predicts all body parameter changes during and after medication as hourly time series. Full pipeline: PBPK → PD → clinical labs → vital signs → disease progression → recovery — all from `.helix` source with `#sim kind=human`.
+- 🧪 **PBPK pharmacokinetics** — 6-compartment mechanistic PBPK (central, liver, kidney, brain, muscle, adipose) with organ volumes, blood flows, and Kp partition coefficients calibrated to target Vd; route-specific absorption (oral, IV bolus/infusion, subcutaneous); Euler sub-stepping; AUC/Cmax/tmax; MW-gated biologics PBPK with FcRn recycling.
+- 🧬 **Pharmacogenomics** — VCF 4.2/4.3 parsing with CYP450 star-allele calling (CYP2D6, CYP2C19, CYP2C9, CYP3A4/5, CYP1A2, CYP2E1), metabolizer phenotypes (UM/EM/NM/PM), transporter pharmacogenomics (SLCO1B1, ABCB1), and non-CYP enzymes (UGT1A1, TPMT, DPYD) — all affecting PBPK clearance modifiers.
+- 🦠 **12 disease ODE models across 8 categories** — Infectious, Autoimmune RA, Cardiovascular, Metabolic T2D, Neurological, Renal, Hepatic, Hematological, Respiratory, GI, Endocrine, Cancer — each with mechanistic drug coupling and ODE severity feedback.
+- 📊 **34-analyte clinical lab panel** — hepatic (ALT/AST/ALP/GGT/bilirubin/albumin/INR), renal (creatinine/eGFR/cystatin-C), CBC (WBC/RBC/Hgb/Hct/platelets/MCV/MCH), metabolic (glucose/HbA1c/electrolytes), lipids (TC/LDL/HDL/TG), inflammatory (CRP/ESR) — all driven by disease-to-labs mechanistic coupling.
+- 🔬 **Mechanistic immune system** — innate immune ABM with cytokine pool (TNF-α, IL-1β, IL-6, IL-10), immune cell populations, IL-6 → CRP production with 19h half-life, neutrophil mobilization with bone marrow recovery kinetics, and cortisol/immunosuppression feedback.
+- 💊 **Drug-drug interactions** — 13+ curated DDI rules with CYP inhibition/induction, P-gp interactions, additive toxicity channels, genotype interplay; plus compositional mechanistic DDI predictor for novel drug pairs.
+- 🧬 **Proteome-wide binding** — 44 drug-metabolizing enzymes + transporters with curated Kd data; Morgan fingerprint similarity for novel drug interpolation; competitive inhibition kinetics with FDA guidance thresholds.
+- 🌿 **Microbiome-drug interactions** — 7 bacterial species, 11 microbial reactions (irinotecan reactivation, levodopa decarboxylation, sulfasalazine azoreduction); Michaelis-Menten kinetics; portal vein fluxes → liver impact.
+- 🔄 **Post-treatment recovery** — washout kinetics, organ functional recovery, rebound phenomena (corticosteroid, opioid, beta-blocker), and relapse vs. remission via daily hazard model.
+- 🧠 **Epigenetic & emergent complexity** — CYP methylation/expression dynamics, liver-gut enterohepatic circulation, stress-immune-endocrine triple feedback with fever and metabolic rate coupling.
 
 ---
 
@@ -351,10 +361,11 @@ ruff check src tests
 mypy
 ```
 
-- **2644 test cases** (all passing, 81% coverage)
+- **3000+ test cases** (all passing, 81% coverage)
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 55 `examples/*.helix` covered + Python API companions
+- All 60+ `examples/*.helix` covered + Python API companions
+- doc/26 full-chain pipeline: 95 tests across `test_protein_structure_predictor`, `test_sequence_kinetics`, `test_ecgem`, `test_community_fba`, `test_full_pipeline`
 
 ---
 

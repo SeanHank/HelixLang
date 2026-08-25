@@ -224,7 +224,7 @@ class MechanisticDDIPredictor:
                 all_enzymes.setdefault(p.enzyme, p)
 
         total_inhibition = 0.0
-        mechanisms: list[dict[str, float]] = []
+        mechanisms: list[dict[str, float | str]] = []
 
         inhibition_map = {p.enzyme: p for p in info_a.enzyme_profiles}
         substrate_map = {p.enzyme: p for p in info_b.enzyme_profiles}

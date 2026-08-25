@@ -3726,7 +3726,7 @@ def _build_drugs_from_helix(ext: dict[str, Any]) -> list[Drug]:
         name = entry["name"]
         smiles = entry.get("smiles", "")
         drug_type = entry.get("drug_type", SMALL_MOLECULE)
-        target_protein = entry.get("target_protein", entry.get("target", ""))
+        target_protein = str(entry.get("target_protein", entry.get("target", "")))
         binding_kd = _opt_float(entry, "binding_affinity_kd", 0.0)
 
         # --- Molecule: prefer parse_drug_smiles when SMILES is available ---

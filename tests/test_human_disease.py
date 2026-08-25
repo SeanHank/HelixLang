@@ -23,6 +23,16 @@ VALID_CATEGORIES = {
     "metabolic_overload",
     "receptor_dysfunction",
     "cancer_metabolism",
+    "cardiovascular",
+    "respiratory",
+    "neurological",
+    "metabolic",
+    "infectious",
+    "hematological",
+    "autoimmune",
+    "endocrine",
+    "gastrointestinal",
+    "immune",
 }
 
 

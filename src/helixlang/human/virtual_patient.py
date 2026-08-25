@@ -88,7 +88,7 @@ _proteome_binding = None
 _microbiome = None
 _emergent_complexity = None
 
-def _import_doc32():
+def _import_doc32() -> None:
     """Lazy-import doc/32 modules on first use."""
     global _stochastic_ode, _bayesian_denoiser, _mechanistic_ddi  # noqa: PLW0603
     global _tissue_gem, _reduced_order, _pharmacogenomic_ae  # noqa: PLW0603
@@ -657,7 +657,7 @@ class VirtualPatient:
         from helixlang.human.physiology_constraints import PhysiologyConstraints
         self._physiology_constraints = PhysiologyConstraints()
         # doc/32 — stochastic ODE for inter-individual variability
-        self._sde_config = None
+        self._sde_config: Any = None
         self._stochastic_active = False
         self._sde_seed: int | None = None
         self._rng: Any = None
@@ -665,13 +665,13 @@ class VirtualPatient:
         self._denoise_outputs = False
         self._assay_cv = 0.15
         # doc/32 — mechanistic DDI predictor (augments rule-based DDIModel)
-        self._mech_ddi_predictor = None
+        self._mech_ddi_predictor: Any = None
         # doc/32 §7.4 — tissue-specific GEM organ coupler
-        self._gem_coupler = None
+        self._gem_coupler: Any = None
         # doc/32 §7.5 — reduced-order organ models for spatial gradients
-        self._ro_organs: dict[str, object] = {}
+        self._ro_organs: dict[str, Any] = {}
         # doc/32 §7.6 — pharmacogenomic AE predictor
-        self._ae_predictor = None
+        self._ae_predictor: Any = None
         # doc/33 — WBC recovery tracking (bone marrow kinetics)
         self._wbc_current: float = 0.0
         self._wbc_target: float = 0.0
@@ -859,7 +859,7 @@ class VirtualPatient:
             return sys
         return None
 
-    def _build_disease_ode(self) -> object | None:
+    def _build_disease_ode(self) -> Any:
         """Build per-disease ODE model."""
         from helixlang.human.disease_ode_models import create_disease_model
         if self.config.disease is None:
@@ -898,8 +898,8 @@ class VirtualPatient:
             immunosuppression=immunosuppression,
         )
         # Store base values for dynamic feedback during simulation
-        self._immune._base_infection_severity = infection
-        self._immune._base_autoimmune_activation = autoimmune
+        self._immune._base_infection_severity = infection  # type: ignore[attr-defined]
+        self._immune._base_autoimmune_activation = autoimmune  # type: ignore[attr-defined]
         # Seed CRP driver from disease metabolite perturbations
         if self._crp_driver is not None and self.config.disease is not None:
             crp_seeded = False
@@ -973,7 +973,7 @@ class VirtualPatient:
         if _proteome_binding is not None:
             self._proteome_cascade = _proteome_binding()
         # microbiome-drug interaction compartment
-        self._microbiome_compartment = None
+        self._microbiome_compartment: Any = None
         if _microbiome is not None:
             self._microbiome_compartment = _microbiome()
         # emergent complexity (epigenetics + liver-gut + stress-immune-endocrine)
@@ -2194,7 +2194,6 @@ class _DrugPBPK:
             if vd_ss_current > self.vc_l:
                 scale = (target_vd - self.vc_l) / (vd_ss_current - self.vc_l)
                 for name in ORGAN_NAMES:
-                    base = self._DEFAULT_KP.get(name, self._NEUTRAL_KP)
                     # Scale deviation from neutral (Kp=1.0) toward target
                     self.partition_ratios[name] = max(
                         0.05,
@@ -2226,6 +2225,7 @@ class _DrugPBPK:
         }
         self.depot_mg = 0.0
         self._doses_given: list[float] = []
+        self._last_dose_count: int = 0
 
     # ------------------------------------------------------------------
     # Dosing

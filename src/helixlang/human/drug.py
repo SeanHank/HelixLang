@@ -762,7 +762,7 @@ _PREDEFINED_SPECS: tuple[_Spec, ...] = (
             half_life_h=1.5,
             hepatic_extraction_ratio=0.1,
             renal_fraction=0.9,
-            cyp_metabolism={"CYP1A2": 0.10, "CYP2E1": 0.05, "CYP3A4": 0.05},
+            cyp_metabolism={"CYP1A2": 0.10, "CYP2E1": 0.50, "CYP2C19": 0.40},
         ),
     ),
     _Spec(
@@ -1043,12 +1043,12 @@ def _smiles_to_adme_rdkit(smiles: str) -> dict[str, float]:
     if mol is None:
         return _smiles_to_adme_heuristic(smiles)
 
-    mw = Descriptors.MolWt(mol)
-    logp = Descriptors.MolLogP(mol)
-    tpsa = Descriptors.TPSA(mol)
-    hbd = Descriptors.NumHDonors(mol)
-    hba = Descriptors.NumHAcceptors(mol)
-    rotbonds = Descriptors.NumRotatableBonds(mol)
+    mw = Descriptors.MolWt(mol)  # type: ignore[attr-defined]
+    logp = Descriptors.MolLogP(mol)  # type: ignore[attr-defined]
+    tpsa = Descriptors.TPSA(mol)  # type: ignore[attr-defined]
+    hbd = Descriptors.NumHDonors(mol)  # type: ignore[attr-defined]
+    hba = Descriptors.NumHAcceptors(mol)  # type: ignore[attr-defined]
+    rotbonds = Descriptors.NumRotatableBonds(mol)  # type: ignore[attr-defined]
 
     # Lipinski rule of 5 based bioavailability
     ro5_violations = 0

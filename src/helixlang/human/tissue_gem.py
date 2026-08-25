@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # ============================================================================
 # Curated tissue-specific metabolic reaction sets
@@ -34,7 +35,7 @@ _HOUSEKEEPING_REACTIONS: set[str] = {
 }
 
 # Organ-specific reaction sets (beyond housekeeping)
-TISSUE_REACTION_SETS: dict[str, dict[str, set[str] | dict[str, float]]] = {
+TISSUE_REACTION_SETS: dict[str, dict[str, Any]] = {
     "liver": {
         "reactions": _HOUSEKEEPING_REACTIONS | {
             # Gluconeogenesis

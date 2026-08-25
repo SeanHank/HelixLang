@@ -105,7 +105,7 @@ class MyelosuppressionParams:
             return 0.0
         c_hill = concentration_mg_l ** self.hill
         ec50_hill = self.ec50_mg_l ** self.hill
-        return self.emax * c_hill / (ec50_hill + c_hill)
+        return float(self.emax * c_hill / (ec50_hill + c_hill))
 
 
 # ============================================================================

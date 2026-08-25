@@ -30,7 +30,7 @@ __all__ = [
 # Reference ranges (healthy adult, male unless noted)
 # ============================================================================
 
-REFERENCE_RANGES: dict[str, dict[str, float]] = {
+REFERENCE_RANGES: dict[str, dict[str, Any]] = {
     "alt_u_per_l": {"low": 7.0, "high": 56.0, "unit": "U/L"},
     "ast_u_per_l": {"low": 10.0, "high": 40.0, "unit": "U/L"},
     "alp_u_per_l": {"low": 44.0, "high": 147.0, "unit": "U/L"},
@@ -200,7 +200,7 @@ class ClinicalLabs:
         val = getattr(self, field_name, None)
         if val is None:
             return False
-        return val < rng["low"] or val > rng["high"]
+        return bool(val < rng["low"] or val > rng["high"])
 
     def abnormal_count(self) -> int:
         """Count how many analytes are outside reference ranges."""
@@ -257,7 +257,7 @@ class ClinicalLabModel:
         self.physiology = physiology
         self._hours_since_start: float = 0.0
         self._drug_smiles: dict[str, str] = {}
-        self._toxicity_cache: dict[str, Any] = {}
+        self._toxicity_cache: dict[str, dict[str, float]] = {}
 
     def register_drug_smiles(self, drug_key: str, smiles: str) -> None:
         """Register a SMILES string for a drug to enable structure-based toxicity prediction."""
@@ -865,7 +865,7 @@ def _ckd_epi_2021(
         * (0.9938 ** age)
         * sex_factor
     )
-    return max(1.0, min(200.0, egfr))
+    return float(max(1.0, min(200.0, egfr)))
 
 
 def _apply_disease_to_labs(

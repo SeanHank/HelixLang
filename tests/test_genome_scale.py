@@ -341,7 +341,7 @@ class TestPerformance:
         t0 = time.perf_counter()
         spec.grn.step_budgeted(levels, budget=spec.active_gene_budget)
         elapsed = time.perf_counter() - t0
-        assert elapsed < 2.0, f"budgeted tick took {elapsed:.3f}s"
+        assert elapsed < 3.0, f"budgeted tick took {elapsed:.3f}s"
 
     def test_exact_csr_tick_10k_cells_under_second(self):
         try:

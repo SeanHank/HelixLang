@@ -284,8 +284,8 @@ def _compute_similarity_rdkit(smiles_a: str, smiles_b: str) -> float:
         mol_b = Chem.MolFromSmiles(smiles_b)
         if mol_a is None or mol_b is None:
             return _compute_similarity_fallback(smiles_a, smiles_b)
-        fp_a = AllChem.GetMorganFingerprintAsBitVect(mol_a, 2, nBits=1024)
-        fp_b = AllChem.GetMorganFingerprintAsBitVect(mol_b, 2, nBits=1024)
+        fp_a = AllChem.GetMorganFingerprintAsBitVect(mol_a, 2, nBits=1024)  # type: ignore[attr-defined]
+        fp_b = AllChem.GetMorganFingerprintAsBitVect(mol_b, 2, nBits=1024)  # type: ignore[attr-defined]
         return float(Chem.DataStructs.TanimotoSimilarity(fp_a, fp_b))
     except Exception:
         return _compute_similarity_fallback(smiles_a, smiles_b)

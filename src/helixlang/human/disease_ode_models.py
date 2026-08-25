@@ -871,6 +871,8 @@ def create_disease_model(
             ca.immune_surveillance = max(0.1, 0.8 - severity * 0.5)
             return ca
 
+        return _GenericDiseaseModel(severity=severity)
+
     else:
         return _GenericDiseaseModel(severity=severity)
 

@@ -133,7 +133,7 @@ class ClinicalLabs:
         indicates advanced fibrosis/cirrhosis.
         """
         platelets_10e9 = self.platelets_per_ul / 1000.0
-        return (
+        return float(
             self.age_years * self.ast_u_l
             / (platelets_10e9 * (self.ast_u_l ** 0.5))
         )

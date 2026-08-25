@@ -91,7 +91,7 @@ def ckd_epi_2021(
         * 0.9938 ** age_years
         * (1.012 if is_female else 1.0)
     )
-    return max(egfr, 1.0)
+    return float(max(egfr, 1.0))
 
 
 def inverse_ckd_epi(
@@ -456,7 +456,7 @@ class RenalFunctionModel:
             + _KFRE_COEF_LNACR * (math.log(acr) - _KFRE_CENTER_LNACR)
         )
         s0 = _KFRE_S0[(years, north_american)]
-        return 1.0 - s0 ** math.exp(linear_predictor)
+        return float(1.0 - s0 ** math.exp(linear_predictor))
 
     def ckd_heatmap_cell(self) -> str:
         """KDIGO risk-heatmap cell label (``"G4·A3"`` style)."""

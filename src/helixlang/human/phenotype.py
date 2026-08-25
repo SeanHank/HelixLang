@@ -161,7 +161,7 @@ _REFERENCE_CARDIAC_OUTPUT = 5000.0
 
 def _flow_fraction(organ_name: str) -> float:
     """Resting flow share of cardiac output for a TISSUE_PROFILES organ."""
-    return TISSUE_PROFILES[organ_name]["blood_flow_ml_per_min"] / _REFERENCE_CARDIAC_OUTPUT
+    return float(TISSUE_PROFILES[organ_name]["blood_flow_ml_per_min"]) / _REFERENCE_CARDIAC_OUTPUT
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:

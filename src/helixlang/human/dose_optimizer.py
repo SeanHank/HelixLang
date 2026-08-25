@@ -173,9 +173,9 @@ class DoseOptimizer:
                 ke_mod = rng.lognormvariate(0.0, 0.30)
                 vd_mod = rng.lognormvariate(0.0, 0.30)
                 try:
-                    pk = pk_generator.generate(dose, ke_modifier=ke_mod, vd_modifier=vd_mod)  # type: ignore[union-attr]
+                    pk = pk_generator.generate(dose, ke_modifier=ke_mod, vd_modifier=vd_mod)  # type: ignore[attr-defined]
                 except TypeError:
-                    pk = pk_generator.generate(dose)  # type: ignore[union-attr]
+                    pk = pk_generator.generate(dose)  # type: ignore[attr-defined]
                 pop_aucs.append(self.compute_auc(pk))
                 pop_concs.extend(pk.concentrations)
 
