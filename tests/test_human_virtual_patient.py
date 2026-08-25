@@ -174,7 +174,7 @@ class TestStochasticAndDenoising:
         vp = VirtualPatient(VirtualPatientConfig(total_duration_days=3.0))
         vp.enable_stochastic(seed=7)
         noisy = vp.run()
-        assert any(a != b for a, b in zip(base.alt, noisy.alt))
+        assert any(a != b for a, b in zip(base.alt, noisy.alt, strict=True))
 
     def test_disable_stochastic_restores_determinism(self):
         vp = VirtualPatient(VirtualPatientConfig(total_duration_days=2.0))
@@ -192,7 +192,7 @@ class TestStochasticAndDenoising:
         assert len(res.raw_alt) == len(res.alt)
         assert res.alt != res.raw_alt
         raw_jitter = sum(
-            abs(b - a) for a, b in zip(res.raw_alt, res.raw_alt[1:])
+            abs(b - a) for a, b in zip(res.raw_alt, res.raw_alt[1:], strict=False)
         )
-        smooth_jitter = sum(abs(b - a) for a, b in zip(res.alt, res.alt[1:]))
+        smooth_jitter = sum(abs(b - a) for a, b in zip(res.alt, res.alt[1:], strict=False))
         assert smooth_jitter < raw_jitter

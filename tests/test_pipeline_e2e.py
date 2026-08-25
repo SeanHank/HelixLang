@@ -10,7 +10,6 @@ from helixlang.human.drug import Drug, DrugMolecule, get_predefined_drug
 from helixlang.human.genotype import Variant, create_default_genotype
 from helixlang.human.virtual_patient import VirtualPatient, VirtualPatientConfig
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -146,7 +145,7 @@ class TestPostTreatmentRecovery:
             output_time_resolution_h=1.0,
         )
         vp = VirtualPatient(cfg)
-        result = vp.run()
+        vp.run()
         assert vp._recovery_model is not None
         assert not vp._recovery_model.is_treatment_active
 

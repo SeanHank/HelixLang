@@ -895,7 +895,6 @@ class TestMicrobiomeCompartment:
 
     def test_state_updates(self) -> None:
         mc = MicrobiomeCompartment()
-        initial_scfa = mc.state.scfa_total_mM
         mc.step(dt_h=1.0)
         # SCFA should change after step
         assert mc.state.scfa_total_mM > 0
