@@ -294,7 +294,7 @@ def _match_structural_alerts(mol: object) -> tuple[list[str], dict[str, float]]:
     for name, smarts, weights in _STRUCTURAL_ALERTS:
         try:
             pattern = Chem.MolFromSmarts(smarts)
-            if pattern is not None and mol.HasSubstructMatch(pattern):
+            if pattern is not None and mol.HasSubstructMatch(pattern):  # type: ignore[attr-defined]
                 alerts_triggered.append(name)
                 for organ, w in weights.items():
                     organ_accum[organ] = min(organ_accum[organ] + w, 1.0)
