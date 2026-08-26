@@ -1,0 +1,22 @@
+{
+  "id": "17d_coupled",
+  "status": "PASS",
+  "validation": {
+    "coupled_model_works": true,
+    "protein_pool_works": true
+  },
+  "coupled": {
+    "protein_length": 24,
+    "mrna_level": 10729.59,
+    "mrna_steady_state": 116.04,
+    "transcription_time_s": 1.94,
+    "translation_time_s": 2.4957,
+    "coupling_offset_s": 0.6,
+    "time_course_points": 7
+  },
+  "protein_pool": {
+    "folded_after_6_steps": 95.06,
+    "atp_cost_per_step": 3095.53
+  },
+  "runtime_seconds": 0.26178624999010935
+}

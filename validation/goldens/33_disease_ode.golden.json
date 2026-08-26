@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "at_least_5_disease_models_available": true,
+    "create_disease_model_returns_ode_model": true,
+    "hba1c_starts_near_baseline_and_changes": true,
+    "model_has_step_method": true,
+    "running_365_daily_steps_produces_trajectory": true
+  },
+  "details": {
+    "final_beta_cell_function": 0.05,
+    "final_hepatic_glr": 2.385103,
+    "initial_beta_cell_function": 1.0,
+    "initial_hepatic_glr": 2.0,
+    "models_tested": [
+      "cardiovascular",
+      "metabolic_t2d",
+      "cancer",
+      "renal",
+      "hepatic",
+      "neurological",
+      "hematological"
+    ],
+    "trajectory_length": 366
+  },
+  "id": "33_disease_ode",
+  "runtime_seconds": 0.00013787500211037695,
+  "status": "PASS"
+}

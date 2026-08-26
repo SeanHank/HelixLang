@@ -1,0 +1,13 @@
+id: 14_type_system_flow
+name: Type system & flow — type checking + module imports
+layer: language
+reference: HelixLang type system (P0-1.3)
+input: inline Helix source (valid + invalid)
+parameters:
+  valid_source: "#gene lacI\nATG AAA TAT ACC GCT TCA CCG GAT AAA ACG TAA\n#end"
+  invalid_source: "#gene lacI\nATG AAA TAT ACC GCT TCA CCG GAT AAA ACG TAA\n#end\n#regulate lacI -> nonExistent strength=0.9"
+expected:
+  metric: type_checking_works
+  value: true
+  tolerance: 0
+  unit: bool

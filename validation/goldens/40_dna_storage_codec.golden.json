@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "decode_returns_original": true,
+    "dna_output_valid_characters": true,
+    "encode_produces_oligos": true,
+    "import_dna_storage_module": true,
+    "roundtrip_identical_output": true
+  },
+  "details": {
+    "density": 0.17094017094017094,
+    "erlich_roundtrip_ok": true,
+    "num_oligos": 2,
+    "original": "HELLO",
+    "recovered": "HELLO",
+    "scheme": "goldman",
+    "total_bp": 234
+  },
+  "id": "40_dna_storage_codec",
+  "runtime_seconds": 0.0011067090090364218,
+  "status": "PASS"
+}

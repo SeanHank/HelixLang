@@ -1,0 +1,22 @@
+{
+  "id": "28_genotype_cyp2d6",
+  "status": "PASS",
+  "checks": {
+    "create_default_genotype_returns_valid_profile": true,
+    "cyp2d6_star4_star4_is_poor_metabolizer": true,
+    "cyp2d6_star1_star1_is_normal_metabolizer": true,
+    "at_least_3_star_alleles_recognized": true
+  },
+  "details": {
+    "default_genotype_type": "GenotypeProfile",
+    "cyp_status_count": 10,
+    "cyp2d6_pm_phenotype": "PM",
+    "cyp2d6_pm_activity_score": 0.0,
+    "cyp2d6_em_phenotype": "EM",
+    "cyp2d6_em_activity_score": 2.0,
+    "cyp2d6_star_allele_count": 100,
+    "transporter_count": 11,
+    "non_cyp_enzyme_count": 5
+  },
+  "runtime_seconds": 0.4257507500005886
+}

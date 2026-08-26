@@ -1,0 +1,55 @@
+{
+  "id": "29_drug_adme",
+  "status": "PASS",
+  "checks": {
+    "list_predefined_drugs_returns_at_least_10": true,
+    "get_predefined_drug_warfarin_returns_drug": true,
+    "warfarin_oral_bioavailability_positive": true,
+    "at_least_3_drugs_have_valid_smiles": true
+  },
+  "details": {
+    "drug_count": 21,
+    "drug_names": [
+      "ALLOPURINOL",
+      "AMLODIPINE",
+      "ATORVASTATIN",
+      "CISPLATIN",
+      "CITALOPRAM",
+      "CLOPIDOGREL",
+      "DIPHENHYDRAMINE",
+      "FLUOXETINE",
+      "IBUPROFEN",
+      "IMATINIB",
+      "IMIGLUCERASE",
+      "LOSARTAN",
+      "METFORMIN",
+      "OMEPRAZOLE",
+      "PANTOPRAZOLE",
+      "PREDNISONE",
+      "SERTRALINE",
+      "SIMVASTATIN",
+      "TAMOXIFEN",
+      "TRAMADOL",
+      "WARFARIN"
+    ],
+    "warfarin_bioavailability": 0.95,
+    "warfarin_half_life_h": 40.0,
+    "warfarin_mw_da": 178.18699999999995,
+    "warfarin_formula": "C10H10O3",
+    "drugs_with_smiles_count": 20,
+    "drugs_with_smiles": [
+      "IBUPROFEN",
+      "METFORMIN",
+      "CISPLATIN",
+      "TAMOXIFEN",
+      "IMATINIB",
+      "WARFARIN",
+      "CLOPIDOGREL",
+      "ATORVASTATIN",
+      "AMLODIPINE",
+      "LOSARTAN"
+    ],
+    "warfarin_validation_problems": []
+  },
+  "runtime_seconds": 0.4245867909921799
+}

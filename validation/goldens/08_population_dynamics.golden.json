@@ -1,0 +1,139 @@
+{
+  "competition": {
+    "analytical_fast_fraction": 0.9308,
+    "fast_count": 160,
+    "fast_fraction": 0.8889,
+    "slow_count": 20,
+    "threshold": 0.7,
+    "trajectory": [
+      {
+        "fast": 5,
+        "slow": 5,
+        "tick": 0
+      },
+      {
+        "fast": 10,
+        "slow": 10,
+        "tick": 10
+      },
+      {
+        "fast": 10,
+        "slow": 10,
+        "tick": 20
+      },
+      {
+        "fast": 20,
+        "slow": 10,
+        "tick": 30
+      },
+      {
+        "fast": 20,
+        "slow": 10,
+        "tick": 40
+      },
+      {
+        "fast": 40,
+        "slow": 10,
+        "tick": 50
+      },
+      {
+        "fast": 40,
+        "slow": 10,
+        "tick": 60
+      },
+      {
+        "fast": 80,
+        "slow": 10,
+        "tick": 70
+      },
+      {
+        "fast": 80,
+        "slow": 10,
+        "tick": 80
+      },
+      {
+        "fast": 160,
+        "slow": 20,
+        "tick": 90
+      },
+      {
+        "fast": 160,
+        "slow": 20,
+        "tick": 100
+      }
+    ]
+  },
+  "experimental_comparison": {
+    "note": "Model maps 1 tick = 1 min; TICKS_PER_DIVISION=20 matches 20 min doubling in rich media",
+    "ratio": 0.833,
+    "reference": [
+      "Sezonov et al. 2007, J Bacteriol 189:1426 \u2014 E. coli doubling time ~20 min in LB at 37\u00b0C",
+      "Neidhardt 1996 \u2014 E. coli growth rates across media"
+    ],
+    "reference_doubling_time_min": 20.0,
+    "simulated_doubling_time_min": 16.67,
+    "tolerance_factor": 1.25
+  },
+  "growth": {
+    "N_final_analytical": 56.6,
+    "N_final_helixlang": 80,
+    "N_initial": 10,
+    "expected_doubling_time_ticks": 20.0,
+    "growth_ratio": 1.4142,
+    "observed_doubling_time_ticks": 16.67,
+    "trajectory": [
+      {
+        "N": 10,
+        "tick": 0
+      },
+      {
+        "N": 20,
+        "tick": 5
+      },
+      {
+        "N": 20,
+        "tick": 10
+      },
+      {
+        "N": 20,
+        "tick": 15
+      },
+      {
+        "N": 20,
+        "tick": 20
+      },
+      {
+        "N": 40,
+        "tick": 25
+      },
+      {
+        "N": 40,
+        "tick": 30
+      },
+      {
+        "N": 40,
+        "tick": 35
+      },
+      {
+        "N": 40,
+        "tick": 40
+      },
+      {
+        "N": 80,
+        "tick": 45
+      },
+      {
+        "N": 80,
+        "tick": 50
+      }
+    ]
+  },
+  "id": "08_population_dynamics",
+  "runtime_seconds": 0.06339641602244228,
+  "status": "PASS",
+  "validation": {
+    "doubling_time_15_25": true,
+    "fast_species_dominance": true,
+    "growth_curve_factor2": true
+  }
+}

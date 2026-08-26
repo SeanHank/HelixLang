@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "cai_above_threshold": true,
+    "designer_creates_cassette": true,
+    "full_sequence_not_empty": true,
+    "gc_content_in_range": true,
+    "import_synbio_modules": true,
+    "restriction_sites_absent": true
+  },
+  "details": {
+    "cai": 0.9422414419819487,
+    "cassette_type": "Cassette",
+    "full_sequence_length": 198,
+    "gc_content": 0.4942528735632184,
+    "restriction_sites": []
+  },
+  "id": "39_synbio_designer",
+  "runtime_seconds": 0.00022662500850856304,
+  "status": "PASS"
+}

@@ -1,0 +1,13 @@
+id: 17a_cell
+name: Cell class
+layer: molecular
+reference: Cell state VM runtime context
+reference_doi: null
+input: none (built-in)
+parameters: {}
+expected:
+  metric: cell_instantiable
+  value: true
+  tolerance: 0
+  unit: boolean
+  check: cell_import_and_basic_operations

@@ -1,0 +1,24 @@
+{
+  "id": "02_lac_operon",
+  "status": "PASS",
+  "expected": {
+    "grn_nodes": true,
+    "lacI_steady_above": 0.4,
+    "lacZ_steady_below": 0.3,
+    "lacY_steady_below": 0.3,
+    "repression_ratio_above": 1.2
+  },
+  "actual": {
+    "grn_node_count": 5,
+    "grn_edge_count": 4,
+    "ticks_run": 200,
+    "lacI_steady_mean": 0.5087,
+    "lacZ_steady_mean": 0.2732,
+    "lacY_steady_mean": 0.2732,
+    "repression_ratio": 1.86,
+    "lacI_high": true,
+    "lacZ_low": true,
+    "lacY_low": true
+  },
+  "runtime_seconds": 0.26802187497378327
+}

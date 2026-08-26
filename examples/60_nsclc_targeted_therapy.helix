@@ -1,0 +1,100 @@
+# Example 60: NSCLC Targeted Therapy — EGFR L858R + Pembrolizumab
+#
+# Clinical scenario:
+#   Stage IV NSCLC, EGFR L858R mutation, PD-L1 TPS 60%, TMB 8.2 mut/Mb
+#   First-line osimertinib (EGFR TKI) + pembrolizumab (anti-PD-L1)
+#   120-day treatment course
+#
+# Real pharmacological data (FDA labels / published PK):
+#   Osimertinib: 80 mg QD oral, t1/2=48h, Vd=986L, Cl=14.2L/h, F=0.70
+#   Pembrolizumab: 200 mg IV Q3W, t1/2=258h, Vd=5.3L, Cl=0.23L/h
+#
+# References:
+#   - Sequist LV et al. NEJM 2018;378:113-125 (FLAURA trial)
+#   - Gandhi L et al. NEJM 2018;378:2078-2092 (KEYNOTE-189)
+#   - Wang Y et al. Clin Pharmacokinet 2020;59:1-14 (osimertinib PK)
+#   - Chatterjee M et al. CPT Pharmacometrics Syst Pharmacol 2022 (pembro PD)
+
+# ── Patient profile ──────────────────────────────────────────────
+# 62-year-old male, never-smoker, EGFR-mutant NSCLC
+# CYP3A4 extensive metabolizer (osimertinib primarily CYP3A4 metabolized)
+
+#person name=patient_001 age=62 weight=74 sex=male
+#gene name=CYP3A4 allele=*1 zygosity=hom_ref
+#gene name=CYP2D6 allele=*1 zygosity=hom_ref
+
+# ── Disease ──────────────────────────────────────────────────────
+# Stage IV non-small cell lung cancer, adenocarcinoma subtype
+# Keyword "NSCLC" routes to CancerODE via create_disease_model
+
+#disease name=NSCLC category=oncology severity=0.45
+
+# ── Tumor molecular profile ──────────────────────────────────────
+# Liquid biopsy: EGFR L858R activating mutation (exon 21)
+# HER2 amplification (ERBB2 copy number gain)
+# PD-L1 TPS 60% (high expression, immunotherapy candidate)
+# TMB 8.2 mut/Mb (intermediate-high, immunotherapy responsive)
+# MSS (microsatellite stable), HR-proficient (HRC)
+
+#tumor_biopsy mutation=EGFR_L858R amplification=HER2 pd_l1_expression=0.6 tmb_per_mb=8.2 msi_status=MSS hr_status=HRC
+
+# ── Drug 1: Osimertinib (3rd-gen EGFR TKI) ─────────────────────
+# Real PK: FDA label 2018, Cmax 446 ng/mL at 80mg, t1/2 48h
+# Oral bioavailability 70%, Vd 986L (extensive tissue distribution)
+# CYP3A4 major (65%), CYP1A2 minor (15%), CYP2D6 minor (10%)
+# Target: EGFR (EGFR L858R IC50 ~1 nM, Ki 0.5 nM)
+
+#drug name=osimertinib smiles=COc1cc(NC(=O)/C=C/c2cn(C)c3cc(N4CCN(C)CC4)c(OC)cc3n2)ccn1C mw=499.6 target_protein=EGFR binding_affinity_kd=0.5 dose=80 route=oral interval=24 duration=120 bioavailability=0.70 vd=986.0 cl=236.7 half_life=48.0 absorption_rate=1.0 renal_fraction=0.1 hepatic_eh=0.25 cyp_metabolism=CYP3A4:0.65,CYP1A2:0.15,CYP2D6:0.10 transporter_affected=ABCB1:0.30,ABCG2:0.20
+
+# ── Drug 2: Pembrolizumab (anti-PD-L1 monoclonal antibody) ──────
+# Real PK: FDA label 2020, Cmax ~100 ug/mL at 200mg Q3W, t1/2 258h
+# IV 100% bioavailability, Vd 5.3L (confined to plasma), Cl 0.23L/h
+# Target: PD-L1 (CD274), KD 29 nM (0.029 uM)
+# No CYP metabolism (biologic), cleared by target-mediated disposition
+
+#drug name=pembrolizumab smiles=[BIOLOGIC] formula=monoclonal_antibody mw=148600.0 target_protein=PD-L1 binding_affinity_kd=0.029 dose=200 route=iv_infusion interval=504 duration=120 bioavailability=1.0 vd=5.3 cl=0.24 half_life=258.0 renal_fraction=0.0 hepatic_eh=0.0
+
+# ── Pharmacodynamics ─────────────────────────────────────────────
+# Osimertinib: covalent irreversible EGFR inhibitor
+# IC50 = 1 nM for EGFR L858R (from Ki 0.5 nM, Wang 2020)
+# Emax = 0.95 (near-complete pathway inhibition at steady state)
+# Hill coefficient = 1.3 (steep dose-response for covalent inhibitors)
+
+#pd_effect drug=osimertinib target=EGFR type=inhibition ec50=0.09 emax=0.95 hill=1.3
+
+# Pembrolizumab: PD-1/PD-L1 checkpoint blockade
+# Blocks PD-1/PD-L1 interaction, restores T-cell killing
+# EC50 = 10 ug/mL (clinical PD model, Chatterjee 2022)
+# Emax = 0.80 (partial immune reactivation)
+# Hill coefficient = 1.0
+
+#pd_effect drug=pembrolizumab target=PD-L1 type=inhibition ec50=0.0001 emax=0.80 hill=1.0
+
+# ── Simulation ───────────────────────────────────────────────────
+# 120 days (2880 hours), hourly time steps
+# seed=42 for deterministic reproducibility
+
+#sim kind=human duration_days=120 dfa_dt_h=1.0 seed=42
+
+# ── Expected biology ─────────────────────────────────────────────
+#
+# Baseline (Day 0):
+#   Tumor volume ~0.23 (45% severity x 0.5), EGFR pathway active
+#   PD-L1 high (0.6) provides immune evasion
+#   TMB 8.2 suggests modest neoantigen load
+#
+# Day 1-14 (drug accumulation):
+#   Osimertinib reaches steady state (Cmax ~10 uM at 80mg)
+#   EGFR L858R inhibition >90% at steady state
+#   Tumor volume begins declining (Gompertz + drug kill)
+#
+# Day 14-60 (response):
+#   Pembrolizumab achieves steady state (trough ~20 ug/mL)
+#   PD-L1 blockade restores T-cell killing
+#   Synergistic: osimertinib immunogenic cell death + pembro anti-PD-L1
+#   Expected: partial response (>=30% volume reduction) by day 60
+#
+# Day 60-120 (maintenance):
+#   Continued response or stabilization
+#   Possible emergence of resistant clones (EGFR T790M, C797S)
+#   Tumor heterogeneity tracking via TumorHeterogeneity

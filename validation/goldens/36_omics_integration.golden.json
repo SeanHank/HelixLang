@@ -1,0 +1,21 @@
+{
+  "checks": {
+    "expression_model_classes_exist": true,
+    "hill_function_half_max": true,
+    "hill_function_zero": true,
+    "import_omics_modules": true
+  },
+  "details": {
+    "expression_matrix_shape": [
+      3,
+      3
+    ],
+    "expression_model_created": true,
+    "hill_0_1_1": 0.0,
+    "hill_1_1_1": 0.5,
+    "spatial_atlas_works": true
+  },
+  "id": "36_omics_integration",
+  "runtime_seconds": 0.0037729160103481263,
+  "status": "PASS"
+}

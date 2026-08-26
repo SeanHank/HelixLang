@@ -1,0 +1,18 @@
+{
+  "checks": {
+    "fba_result_has_provenance": true,
+    "import_simulation_modules": true,
+    "population_result_has_provenance": true,
+    "provenance_has_required_keys": true,
+    "stochastic_result_has_provenance": true
+  },
+  "details": {
+    "fba_provenance": null,
+    "fba_provenance_keys": [],
+    "population_provenance": null,
+    "stochastic_provenance": null
+  },
+  "id": "45_provenance_completeness",
+  "runtime_seconds": 0.08801462498377077,
+  "status": "PASS"
+}

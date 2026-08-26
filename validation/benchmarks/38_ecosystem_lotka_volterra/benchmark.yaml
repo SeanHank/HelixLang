@@ -1,0 +1,16 @@
+id: 38_ecosystem_lotka_volterra
+name: Ecosystem — Lotka-Volterra predator-prey dynamics
+layer: ecosystem
+reference: Lotka 1925, Volterra 1926
+input: none (analytic integration)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_ecosystem_module
+    - lotka_volterra_step_runs
+    - both_populations_positive
+    - oscillatory_behavior
+    - conserved_quantity_near_initial

@@ -1,0 +1,22 @@
+{
+  "id": "30_pk_simulation",
+  "status": "PASS",
+  "checks": {
+    "creates_valid_drug": true,
+    "runs_pbpk_model_for_24h": true,
+    "cmax_at_t0_for_iv_bolus": true,
+    "concentration_decreases_monotonically_after_cmax": true,
+    "auc_positive": true
+  },
+  "details": {
+    "c_max": 33.3333,
+    "t_max": 0.0,
+    "c0_expected": 33.3333,
+    "c0_actual": 33.3333,
+    "auc": 17.0716,
+    "half_life_h": 5.9054,
+    "n_time_points": 289,
+    "final_concentration": 0.110688
+  },
+  "runtime_seconds": 0.4307785419805441
+}

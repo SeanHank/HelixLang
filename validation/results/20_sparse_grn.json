@@ -1,0 +1,21 @@
+{
+  "id": "20_sparse_grn",
+  "status": "PASS",
+  "validation": {
+    "fewer_edges_than_dense": true,
+    "sparse_matches_dense_output": true,
+    "roundtrip_to_grn": true
+  },
+  "topology": {
+    "n_genes": 10,
+    "n_edges_sparse": 12,
+    "n_edges_dense_max": 90,
+    "sparsity_ratio": 0.1333
+  },
+  "output_comparison": {
+    "max_abs_difference": 0.0,
+    "tolerance": 1e-06,
+    "n_cells_tested": 3
+  },
+  "runtime_seconds": 0.26147349999519065
+}

@@ -1,0 +1,17 @@
+id: 37_crispr_editing
+name: CRISPR Editing — PAM finding, guide design, off-target scoring
+layer: crispr
+reference: Jinek 2012, Doench 2016, Hsu 2013
+input: none (test sequences)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_crispr_modules
+    - find_pam_sites_found
+    - pam_at_expected_positions
+    - design_guide_works
+    - on_target_score_positive
+    - off_target_score_non_negative

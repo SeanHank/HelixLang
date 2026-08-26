@@ -1,0 +1,23 @@
+{
+  "id": "41_pipeline_integration",
+  "status": "PASS",
+  "checks": {
+    "import_full_pipeline": true,
+    "import_gem_pipeline": true,
+    "import_population_calibration": true,
+    "import_virtual_cell_bench": true,
+    "full_pipeline_has_run_function": true,
+    "gem_pipeline_has_result_class": true,
+    "population_calibration_has_class": true,
+    "virtual_cell_bench_has_class": true
+  },
+  "details": {
+    "modules": [
+      "full_pipeline",
+      "gem_pipeline",
+      "population_calibration",
+      "virtual_cell_bench"
+    ]
+  },
+  "runtime_seconds": 0.272285249986453
+}

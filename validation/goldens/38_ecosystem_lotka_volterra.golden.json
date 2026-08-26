@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "both_populations_positive": true,
+    "conserved_quantity_near_initial": true,
+    "import_ecosystem_module": true,
+    "lotka_volterra_step_runs": true,
+    "oscillatory_behavior": true
+  },
+  "details": {
+    "V_final": 0.3037817553027593,
+    "V_initial": 0.3085842591248711,
+    "V_relative_diff": 0.015563022675658934,
+    "after_1_step": {
+      "predator": 5.924556636467023,
+      "prey": 2.874071713468802
+    },
+    "predator_range": 5.106581781034155,
+    "prey_range": 13.041210934523411
+  },
+  "id": "38_ecosystem_lotka_volterra",
+  "runtime_seconds": 0.00011341701610945165,
+  "status": "PASS"
+}

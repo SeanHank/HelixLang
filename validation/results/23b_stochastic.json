@@ -1,0 +1,28 @@
+{
+  "id": "23b_stochastic",
+  "status": "PASS",
+  "validation": {
+    "telegraph_promoter_fano_matches": true,
+    "fano_greater_than_one": true,
+    "fano_within_30pct_of_theory": true
+  },
+  "parameters": {
+    "k_on": 0.5,
+    "k_off": 0.3,
+    "burst_size": 5.0,
+    "degradation_rate": 0.14
+  },
+  "fano": {
+    "theoretical": 1.5984,
+    "observed_ssa": 1.7514,
+    "relative_error": 0.0957,
+    "promoter_object": 1.5984
+  },
+  "ssa": {
+    "mean": 6.73,
+    "variance": 11.79,
+    "n_replicates": 2000,
+    "t_max": 500.0
+  },
+  "runtime_seconds": 0.5632877079769969
+}

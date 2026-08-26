@@ -1,0 +1,35 @@
+{
+  "id": "27_annotation_ec_mapping",
+  "status": "PASS",
+  "checks": {
+    "import_ec_mapping_module": true,
+    "build_ec_db": true,
+    "lookup_known_ec_number": true,
+    "ec_database_has\u8db3\u591f\u7684_entries": true
+  },
+  "details": {
+    "ec_db_size": 172,
+    "ec_1_1_1_1_reactions": [
+      "EXCH_glyc3p",
+      "ADHEr"
+    ],
+    "additional_lookups": {
+      "2.7.1.1": [
+        "HEX1"
+      ],
+      "2.3.3.1": [
+        "CS"
+      ],
+      "1.2.4.1": [
+        "PDH"
+      ],
+      "4.1.2.13": [
+        "FBA"
+      ],
+      "5.3.1.1": [
+        "TPI"
+      ]
+    }
+  },
+  "runtime_seconds": 0.2677299590141047
+}

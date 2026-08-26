@@ -1,0 +1,94 @@
+{
+  "id": "09_reaction_diffusion",
+  "status": "PASS",
+  "statistical_comparison": {
+    "ref_variance": 0.027074,
+    "helix_variance": 0.025333,
+    "variance_ratio": 0.9357,
+    "ref_spots": 36,
+    "helix_spots": 38,
+    "spot_ratio": 1.0556,
+    "statistical_match": true
+  },
+  "stability_analysis": {
+    "steady_state_V0": 0.059161,
+    "steady_state_U0": 1.690309,
+    "jacobian_eigenvalues": [
+      "(-0.019250000000000003+0.01815041321843665j)",
+      "(-0.019250000000000003-0.01815041321843665j)"
+    ],
+    "homogeneous_stable": true,
+    "diffusion_ratio": 0.5,
+    "mechanism": "excitable/reactive (not classical Turing)"
+  },
+  "parameter_sensitivity": {
+    "spots_F0.035_k0.065_var": 0.025333,
+    "stripes_F0.04_k0.06_var": 0.024052,
+    "no_pattern_F0_k0_spots": 0,
+    "sensitivity_ok": true
+  },
+  "robustness_sweep": {
+    "n_params": 5,
+    "n_pass": 5,
+    "threshold": 3,
+    "robustness_ok": true,
+    "results": [
+      {
+        "F": 0.035,
+        "k": 0.065,
+        "regime": "spots",
+        "ref_var": 0.02644,
+        "helix_var": 0.024411,
+        "variance_ratio": 0.9233,
+        "ref_spots": 36,
+        "helix_spots": 36,
+        "match": true
+      },
+      {
+        "F": 0.04,
+        "k": 0.06,
+        "regime": "stripes",
+        "ref_var": 0.025186,
+        "helix_var": 0.024099,
+        "variance_ratio": 0.9569,
+        "ref_spots": 49,
+        "helix_spots": 45,
+        "match": true
+      },
+      {
+        "F": 0.03,
+        "k": 0.062,
+        "regime": "spots",
+        "ref_var": 0.027059,
+        "helix_var": 0.026793,
+        "variance_ratio": 0.9901,
+        "ref_spots": 35,
+        "helix_spots": 39,
+        "match": true
+      },
+      {
+        "F": 0.042,
+        "k": 0.063,
+        "regime": "labyrinthine",
+        "ref_var": 0.029562,
+        "helix_var": 0.027053,
+        "variance_ratio": 0.9151,
+        "ref_spots": 42,
+        "helix_spots": 39,
+        "match": true
+      },
+      {
+        "F": 0.025,
+        "k": 0.055,
+        "regime": "solitons",
+        "ref_var": 0.023295,
+        "helix_var": 0.023394,
+        "variance_ratio": 1.0043,
+        "ref_spots": 40,
+        "helix_spots": 42,
+        "match": true
+      }
+    ]
+  },
+  "runtime_seconds": 3.814121792005608
+}

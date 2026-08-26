@@ -1,0 +1,19 @@
+id: 23b_stochastic
+name: Gillespie SSA telegraph model
+layer: stochastic
+reference: Peccoud & Ycart 1995
+reference_doi: null
+input: none (programmatic)
+parameters:
+  k_on: 0.5
+  k_off: 0.3
+  burst_size: 5.0
+  degradation_rate: 0.14
+  replicates: 2000
+  t_max: 500
+expected:
+  metric: fano_within_30pct
+  value: true
+  tolerance: 0.30
+  unit: relative_error
+  check: gillespie_fano_matches_theory

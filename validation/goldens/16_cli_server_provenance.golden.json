@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "bytecode_version": {
+      "OPCODE_VERSION": 1
+    },
+    "cli_flags": {
+      "version_output": "OPCODE_VERSION=1"
+    },
+    "cli_import": {
+      "main_callable": true
+    },
+    "provenance": {
+      "backend": "fba",
+      "fields": [
+        "backend",
+        "custom_key",
+        "dependencies",
+        "helix_version",
+        "parameters",
+        "runtime_seconds",
+        "seed",
+        "source_hash",
+        "source_path",
+        "timestamp"
+      ],
+      "has_source_hash": true,
+      "seed": 42
+    },
+    "server_import": {
+      "run_server_callable": true
+    }
+  },
+  "id": "16_cli_server_provenance",
+  "runtime_seconds": 0.2178411660133861,
+  "status": "PASS"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "01_codon_translation",
+  "status": "PASS",
+  "expected": {
+    "codon_count": 64,
+    "all_mapped": true,
+    "stop_codons": [
+      "TAA",
+      "TAG",
+      "TGA"
+    ],
+    "vm_produces_protein": true
+  },
+  "actual": {
+    "codon_count": 64,
+    "mapped_count": 64,
+    "stop_codon_count": 3,
+    "stop_codons": [
+      "TAA",
+      "TAG",
+      "TGA"
+    ],
+    "mapping_errors": [],
+    "vm_protein_produced": true,
+    "vm_protein_total": 50.0,
+    "vm_ticks_run": 50
+  },
+  "runtime_seconds": 0.23756683399551548
+}

@@ -1,0 +1,12 @@
+id: 12_parser_roundtrip
+name: Parser roundtrip — source → AST → bytecode
+layer: language
+reference: HelixLang language specification
+input: inline Helix source
+parameters:
+  source: "#gene name=lacI\nATG AAA TAT ACC GCT TCA CCG GAT AAA ACG TAA\n#end\n#config ticks=10"
+expected:
+  metric: pipeline_success
+  value: true
+  tolerance: 0
+  unit: bool

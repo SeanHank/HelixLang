@@ -1,0 +1,18 @@
+id: 30_pk_simulation
+name: PBPK IV bolus simulation
+layer: human
+reference: Rowland & Tozer 2020, Guyton & Hall 2016
+input: none (drug created inline)
+parameters:
+  route: iv
+  simulation_hours: 24
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - creates_valid_drug
+    - runs_pbpk_model_for_24h
+    - cmax_at_t0_for_iv_bolus
+    - concentration_decreases_monotonically_after_cmax
+    - auc_positive

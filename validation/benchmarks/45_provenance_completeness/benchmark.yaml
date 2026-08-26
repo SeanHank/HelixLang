@@ -1,0 +1,16 @@
+id: 45_provenance_completeness
+name: Provenance — all simulation results carry provenance metadata
+layer: provenance
+reference: FAIR principles
+input: none (built-in simulations)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_simulation_modules
+    - fba_result_has_provenance
+    - stochastic_result_has_provenance
+    - population_result_has_provenance
+    - provenance_has_required_keys

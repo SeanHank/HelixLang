@@ -1,0 +1,16 @@
+id: 20_sparse_grn
+name: Sparse GRN
+layer: regulatory
+reference: Sparse genome-scale GRN (RegulonDB)
+reference_doi: null
+input: none (programmatic topology)
+parameters:
+  n_genes: 10
+  n_edges_sparse: 12
+  n_edges_dense: 90
+expected:
+  metric: sparse_matches_dense
+  value: true
+  tolerance: 1e-6
+  unit: boolean
+  check: sparse_grn_output_matches_dense_grn

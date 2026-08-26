@@ -1,0 +1,21 @@
+{
+  "id": "34_virtual_patient",
+  "status": "PASS",
+  "checks": {
+    "import_virtual_patient_and_config": true,
+    "create_default_config": true,
+    "virtual_patient_config_can_be_created": true,
+    "if_vp_instantiable_run_24_steps": true,
+    "at_minimum_verify_imports": true
+  },
+  "details": {
+    "vp_instantiated": true,
+    "vp_ran": true,
+    "n_time_points": 25,
+    "final_time_h": 24.0,
+    "n_systolic_bp": 25,
+    "n_alt": 25,
+    "has_to_dict": true
+  },
+  "runtime_seconds": 0.4287534999893978
+}

@@ -1,0 +1,16 @@
+id: 26_gapfill_validation
+name: Gapfill Validation — restore incomplete model
+layer: gem
+reference: Orth et al. 2010, gapfill algorithm
+input: none (built-in e_coli_core via FullModelAdapter)
+parameters:
+  organism: e_coli_k12
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_gapfill_modules
+    - gapfill_classes_exist
+    - load_model_and_remove_reaction
+    - run_gapfill

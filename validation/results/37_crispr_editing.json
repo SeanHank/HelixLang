@@ -1,0 +1,20 @@
+{
+  "id": "37_crispr_editing",
+  "status": "PASS",
+  "checks": {
+    "import_crispr_modules": true,
+    "find_pam_sites_found": true,
+    "pam_at_expected_positions": true,
+    "design_guide_works": true,
+    "on_target_score_positive": true,
+    "off_target_score_non_negative": true
+  },
+  "details": {
+    "pam_sites_found": 1,
+    "guide_spacer": "TCGATCGATCGATCGATCGA",
+    "guide_pam": "AGG",
+    "on_target_score": 0.5349167577997496,
+    "off_target_count": 0
+  },
+  "runtime_seconds": 0.25911837501917034
+}

@@ -1,0 +1,15 @@
+id: 36_omics_integration
+name: Omics Integration — expression inference and spatial omics
+layer: omics
+reference: Walsh et al. 2024, MiMICS
+input: none (built-in expression model)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_omics_modules
+    - expression_model_classes_exist
+    - hill_function_zero
+    - hill_function_half_max

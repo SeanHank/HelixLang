@@ -1,0 +1,22 @@
+{
+  "id": "17c_translate",
+  "status": "PASS",
+  "validation": {
+    "protein_length_24": true,
+    "protein_sequence_match": true,
+    "stop_codon_taa": true,
+    "elongation_time_positive": true,
+    "rbs_found": true,
+    "codon_rates_length": true
+  },
+  "translation": {
+    "protein": "MAKSNVKASTWKSIAAMSSRMTVK",
+    "protein_length": 24,
+    "elongation_time_s": 2.4957,
+    "stop_codon": "TAA",
+    "stop_efficiency": 0.99,
+    "rbs_sequence": "AGGAGG",
+    "mean_codon_rate": 11.26
+  },
+  "runtime_seconds": 0.2608551669982262
+}

@@ -1,0 +1,16 @@
+id: 29_drug_adme
+name: Drug ADME predefined library lookup
+layer: human
+reference: Rowland & Tozer 2020, CPIC guidelines
+input: none (built-in drug library)
+parameters:
+  min_drugs: 10
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - list_predefined_drugs_returns_at_least_10
+    - get_predefined_drug_warfarin_returns_drug
+    - warfarin_oral_bioavailability_positive
+    - at_least_3_drugs_have_valid_smiles

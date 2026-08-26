@@ -1,0 +1,15 @@
+id: 44_determinism_all_backends
+name: Determinism — same seed produces identical output for all backends
+layer: determinism
+reference: seed reproducibility
+input: none (seed=42)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_simulation_modules
+    - stochastic_gillespie_deterministic
+    - evolution_deterministic
+    - population_deterministic

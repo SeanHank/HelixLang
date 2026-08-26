@@ -1,0 +1,15 @@
+id: 43_performance_scaling
+name: Performance Scaling — COBRApy vs HelixLang FBA timing
+layer: performance
+reference: Orth 2010
+input: none (built-in models)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_metabolism_module
+    - fba_solves_e_coli_core
+    - both_engines_produce_fluxes
+    - helixlang_faster_or_comparable

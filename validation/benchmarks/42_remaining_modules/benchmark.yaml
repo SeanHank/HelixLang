@@ -1,0 +1,25 @@
+id: 42_remaining_modules
+name: Remaining Modules — bio_data, morphology_3d, lsystem, protein_structure, protein_fitness, units, seq_utils
+layer: core
+reference: various
+input: none (built-in tests)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_bio_data
+    - bio_data_codon_usage_loaded
+    - import_morphology_3d
+    - morphology_3d_mesh_created
+    - import_lsystem
+    - lsystem_iteration_runs
+    - import_protein_structure
+    - protein_structure_prediction_runs
+    - import_protein_fitness
+    - protein_fitness_scoring_works
+    - import_units
+    - units_conversion_correct
+    - import_seq_utils
+    - seq_utils_gc_content_works

@@ -1,0 +1,18 @@
+{
+  "checks": {
+    "at_least_5_ddi_rules_exist": true,
+    "create_default_ddi_model_has_rules": true,
+    "interaction_flag_is_triggered": true,
+    "warfarin_fluconazole_is_known_ddi": true
+  },
+  "details": {
+    "alert_count_warfarin_fluconazole": 1,
+    "total_rules": 13,
+    "warfarin_alert_effect": "CYP2C9 inhibition of S-warfarin clearance sharply raises INR; bleeding risk.",
+    "warfarin_alert_severity": "severe",
+    "warfarin_clearance_modifier": 0.3
+  },
+  "id": "32_ddi_prediction",
+  "runtime_seconds": 2.358300844207406e-05,
+  "status": "PASS"
+}

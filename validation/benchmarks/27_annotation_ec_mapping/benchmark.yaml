@@ -1,0 +1,15 @@
+id: 27_annotation_ec_mapping
+name: Annotation EC Mapping — EC number to reaction lookup
+layer: annotation
+reference: EcoCyc / BiGG EC mapping
+input: none (built-in ECOLI_CORE_EC_REACTIONS)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_ec_mapping_module
+    - build_ec_db
+    - lookup_known_ec_number
+    - ec_database_has足够的_entries

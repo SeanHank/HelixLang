@@ -1,0 +1,14 @@
+id: 17c_translate
+name: mRNA translation
+layer: molecular
+reference: Central dogma — translation
+reference_doi: null
+input: none (built-in transcript)
+parameters:
+  expected_protein_length: 24
+expected:
+  metric: translate_works
+  value: true
+  tolerance: 0
+  unit: boolean
+  check: translate_produces_correct_protein

@@ -1,0 +1,22 @@
+{
+  "id": "17b_transcribe",
+  "status": "PASS",
+  "validation": {
+    "cds_length_75": true,
+    "cds_starts_with_aug": true,
+    "half_life_positive": true,
+    "poly_a_tail_15": true,
+    "elongation_time_positive": true,
+    "utr5_present": true,
+    "utr3_present": true
+  },
+  "transcript": {
+    "cds_length": 75,
+    "half_life_min": 8.04,
+    "elongation_time_s": 1.94,
+    "initiation_freq": 10.0,
+    "utr5_length": 13,
+    "utr3_length": 9
+  },
+  "runtime_seconds": 0.26294670801144093
+}

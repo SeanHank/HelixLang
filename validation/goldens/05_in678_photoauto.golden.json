@@ -1,0 +1,25 @@
+{
+  "comparison": {
+    "growth_rate_rel_error": 6.5242446357994195e-15,
+    "growth_rate_tolerance": 0.05,
+    "n_active_fluxes": 87,
+    "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)",
+    "pearson_r_active_fluxes": 0.9516964262024411
+  },
+  "helixlang": {
+    "growth_rate": 1.6676544563681048,
+    "model_reactions": 863
+  },
+  "id": "05_in678_photoauto",
+  "reference": {
+    "co2_uptake": 1000.0,
+    "glucose_uptake": 0.0,
+    "growth_rate": 1.667654456368094,
+    "n_metabolites": 795,
+    "n_reactions": 863,
+    "photon_uptake": 1000.0,
+    "source": "BiGG iJN678 via COBRApy (photoautotrophic)"
+  },
+  "runtime_seconds": 2.335466249991441,
+  "status": "PASS"
+}

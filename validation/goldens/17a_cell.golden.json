@@ -1,0 +1,19 @@
+{
+  "constants": {
+    "CELL_PROTEIN_SLOT_COUNT": 256,
+    "INITIAL_CELL_ENERGY": 1000000000.0,
+    "MIN_DIVISION_ENERGY": 20000000.0
+  },
+  "id": "17a_cell",
+  "runtime_seconds": 1.5875004464760423e-05,
+  "status": "PASS",
+  "validation": {
+    "division": true,
+    "energy_ops": true,
+    "feed": true,
+    "instantiation": true,
+    "membrane": true,
+    "movement": true,
+    "protein_ops": true
+  }
+}

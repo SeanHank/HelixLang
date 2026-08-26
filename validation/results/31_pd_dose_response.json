@@ -1,0 +1,31 @@
+{
+  "id": "31_pd_dose_response",
+  "status": "PASS",
+  "checks": {
+    "hill_at_zero_concentration_is_zero": true,
+    "hill_at_ec50_is_half_max": true,
+    "hill_at_high_concentration_approaches_emax": true,
+    "dose_response_monotonically_increasing": true
+  },
+  "details": {
+    "ec50": 10.0,
+    "hill_n": 1.0,
+    "effect_at_zero": 0.0,
+    "effect_at_ec50": 0.5,
+    "effect_at_1000x_ec50": 0.999000999,
+    "effects_curve": [
+      0.0,
+      0.009901,
+      0.090909,
+      0.333333,
+      0.5,
+      0.833333,
+      0.909091,
+      0.990099
+    ],
+    "steep_hill_at_ec50": 0.5,
+    "effect_with_baseline_at_zero": 0.2,
+    "effect_with_baseline_at_high": 0.999201
+  },
+  "runtime_seconds": 0.42417729101725854
+}

@@ -1,0 +1,18 @@
+id: 33_disease_ode
+name: Disease ODE model simulation
+layer: human
+reference: Bergman RN 1981, Guyton & Hall 2016
+input: none (model created inline)
+parameters:
+  disease: metabolic_t2d
+  simulation_days: 365
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - create_disease_model_returns_ode_model
+    - model_has_step_method
+    - running_365_daily_steps_produces_trajectory
+    - hba1c_starts_near_baseline_and_changes
+    - at_least_5_disease_models_available

@@ -1,0 +1,17 @@
+id: 39_synbio_designer
+name: SynBio Designer — genetic circuit design and validation
+layer: synbio
+reference: Studier 1986, Sharp & Li 1987
+input: none (test protein sequence)
+parameters: {}
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_synbio_modules
+    - designer_creates_cassette
+    - cai_above_threshold
+    - gc_content_in_range
+    - restriction_sites_absent
+    - full_sequence_not_empty

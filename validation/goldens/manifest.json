@@ -1,0 +1,183 @@
+{
+  "01_codon_translation": {
+    "sha256": "f620f7689467c6d28b1b033a84a342355febe1475afdb6d9fbe753cf7ea89a5a",
+    "status": "PASS"
+  },
+  "02_lac_operon": {
+    "sha256": "091a0cbcc4b408eaecd9e0ea334835eaff12517c4efa7230d2300b9226a3f302",
+    "status": "PASS"
+  },
+  "03_ecoli_fba": {
+    "sha256": "b284296b8c4b704828b85345afd730d06f3b2f5eca98fd253623aba5affc2156",
+    "status": "PASS"
+  },
+  "04_iml1515_fba": {
+    "sha256": "d44fa267aeab9750ea995ec93729e1160cb0cde6193cc8a5e83d5d1fee89f2c9",
+    "status": "PASS"
+  },
+  "05_in678_photoauto": {
+    "sha256": "9bdc43ec89d4668ec989f33bb54fd38932b2a296425aac076d5227d6f5eedbb9",
+    "status": "PASS"
+  },
+  "06_dfba_diauxic": {
+    "sha256": "8b0525cd6dc328f0aeabcaee34c89d380699783b119143486408b6e093a17816",
+    "status": "PASS"
+  },
+  "07_grn_repressilator": {
+    "sha256": "ed7a2501cad64c6a8845acb9b11dcb310d831323c4a8ba415d03a364beb0169c",
+    "status": "PASS"
+  },
+  "08_population_dynamics": {
+    "sha256": "7a669409f0e8169f4556287086beaa55c80999bbfaa7daecc6e03ed51c744e75",
+    "status": "PASS"
+  },
+  "09_reaction_diffusion": {
+    "sha256": "d72d73b423cd16ac12b6e12cad62c3206efb5df25b389597e25b81c77c72c0f8",
+    "status": "PASS"
+  },
+  "10_whole_cell": {
+    "sha256": "a07887df2372f20bdbddf0d0cad4b7b424d2e2d67c71e61629c1763fc89f1e20",
+    "status": "PASS"
+  },
+  "11_performance_comparison": {
+    "note": "throughput values vary per run; correctness verified internally",
+    "sha256": "skipped (performance-only)",
+    "status": "PASS"
+  },
+  "12_parser_roundtrip": {
+    "sha256": "58150ef4de303b5d717646bdca30b503bc5df42bcf8683ee2309ec82bdaf72bf",
+    "status": "PASS"
+  },
+  "13_bytecode_vm_roundtrip": {
+    "sha256": "dce1f466552c44b8e85c0aed9f1653af433570d6353d1966ab284a5367066c6f",
+    "status": "PASS"
+  },
+  "14_type_system_flow": {
+    "sha256": "75b42b3f0fd3b756116aade514c3260fb976711810e0a3e690a2e2fc83f9fc99",
+    "status": "PASS"
+  },
+  "15_dna_encoding": {
+    "sha256": "aa5958d697756085013572816719b83e9bdb20626a65afe74caa7a50e23dd109",
+    "status": "PASS"
+  },
+  "16_cli_server_provenance": {
+    "sha256": "1761694fb61fb7afda3b36971b53923243c872d834f21f0b8b6da9283247b286",
+    "status": "PASS"
+  },
+  "17a_cell": {
+    "sha256": "5a6c8f03dc529129f21b192539a53e706c611cc13ea74cbca9eac9fdddfd6543",
+    "status": "PASS"
+  },
+  "17b_transcribe": {
+    "sha256": "5af80ac0065f9e65ff910b47ed7f820dbcfb1238190564c99e40dfb52ee0d427",
+    "status": "PASS"
+  },
+  "17c_translate": {
+    "sha256": "3eca1f0b1c8fd2a6d2beeab3beb3d9ba4d212b708d28911902ddfab35fb3a146",
+    "status": "PASS"
+  },
+  "17d_coupled": {
+    "sha256": "22aad5c60ad36bbcd258f46e377b6bc00cb373ed6dd572b7db44363c69b04b38",
+    "status": "PASS"
+  },
+  "20_sparse_grn": {
+    "sha256": "729f4d291d3b32d44f5a2820a591b4eb8156239eded4ffe276ca952040878c31",
+    "status": "PASS"
+  },
+  "23a_evolution": {
+    "sha256": "1ef025175495e176f17143b5229c1d85a969ec4907d0dd5bcd71fbd53faa2c58",
+    "status": "PASS"
+  },
+  "23b_stochastic": {
+    "sha256": "a9cf15d9f2e247b06cd825673dedb6763d97bb9aac3e655922ed5e24214d0826",
+    "status": "PASS"
+  },
+  "23c_epigenetics": {
+    "sha256": "1dcc42aedd14fa276ae0b396190cfa96e110786cd29437e01c41da1b697fa6f0",
+    "status": "PASS"
+  },
+  "25_gem_reconstruction": {
+    "sha256": "6d8403db95c34e03469b00a646c8dff19532e13bd93bb8b319c88a1cc8f3b185",
+    "status": "PASS"
+  },
+  "26_gapfill_validation": {
+    "sha256": "1841976f6f28a7f509e9a177859dedcca45d0fd4182222adb5c5e47ff2001862",
+    "status": "PASS"
+  },
+  "27_annotation_ec_mapping": {
+    "sha256": "112d95b8efd9a4531d6e4466a7ad4037b197ef5ca91c889b3cbf2ee59ba88bb6",
+    "status": "PASS"
+  },
+  "28_genotype_cyp2d6": {
+    "sha256": "29c7c794d2589406e054ddfde16e67a59e1de12f2f769debfe1cdf2ea24204e5",
+    "status": "PASS"
+  },
+  "29_drug_adme": {
+    "sha256": "e82818267b06c1aaed72554d4a3707cd1a324675e549a870f2218054538b1485",
+    "status": "PASS"
+  },
+  "30_pk_simulation": {
+    "sha256": "375a65ff8c476c55a65f727aedb781e2cff66e738b858b503d8be45aa0ca99f1",
+    "status": "PASS"
+  },
+  "31_pd_dose_response": {
+    "sha256": "48bbfd6a2c868a063640f3718482524fe5b3ae30e6e559857982a1837cacb307",
+    "status": "PASS"
+  },
+  "32_ddi_prediction": {
+    "sha256": "a428b4e0bc5c1bd33eb48d3760bcdc5c554b4815fbd82a416ce3a4dd40704644",
+    "status": "PASS"
+  },
+  "33_disease_ode": {
+    "sha256": "bb85207860afbf71355965f39783912e4d18b1aba908ba2d7bf7686e57eab7a6",
+    "status": "PASS"
+  },
+  "34_virtual_patient": {
+    "sha256": "4a68cf3b051506d7083a57ed31867bea78a45cb3093135458c00ac06320d9175",
+    "status": "PASS"
+  },
+  "35_enzyme_kinetics": {
+    "sha256": "bcedf3afb8b03d13e0daad539e0dd2a59d46fbccf232bbf34f2e7864fbe659f5",
+    "status": "PASS"
+  },
+  "36_omics_integration": {
+    "sha256": "c8f0f363340a165d9c9c3950e7ceda55154e69c0a76b978e447c8cdccdc3a04f",
+    "status": "PASS"
+  },
+  "37_crispr_editing": {
+    "sha256": "391ec260680457a2e603e2cfe1d62d4e16f97359d1324be59437014ee48c4c41",
+    "status": "PASS"
+  },
+  "38_ecosystem_lotka_volterra": {
+    "sha256": "55bbe9953ebea3c16bbff2825431844445a4bb047afa1c52ee3a2df0ed10a81a",
+    "status": "PASS"
+  },
+  "39_synbio_designer": {
+    "sha256": "a75da568a46261dddd209b90bfa2e0357bd1cea4e95949c26a7f9e74b013a863",
+    "status": "PASS"
+  },
+  "40_dna_storage_codec": {
+    "sha256": "0908e3f8bc0fe37292e939096ded0c554ff4975b64e8ab44c274ef8f837fc9f2",
+    "status": "PASS"
+  },
+  "41_pipeline_integration": {
+    "sha256": "cc2c52a56641348d91b0503f2702e6aa54d426b9ecaae5a96b7a109307fa80d2",
+    "status": "PASS"
+  },
+  "42_remaining_modules": {
+    "sha256": "4eeff3620334c0f0e8a2e9677106389686a5f0803b6466f7610bf8d30d3be563",
+    "status": "PASS"
+  },
+  "43_performance_scaling": {
+    "sha256": "1d3cbff6ed03af3fcadf61cd6d0c89a5a7208cfa9bb5f3d5a8a9db2b8e961285",
+    "status": "PASS"
+  },
+  "44_determinism_all_backends": {
+    "sha256": "fbdbd40e25f0c773acdfe70e8e1a48b79873979464ba62d40fed69901e67e770",
+    "status": "PASS"
+  },
+  "45_provenance_completeness": {
+    "sha256": "c0a0d1791806eb27dc41c0f8ab2f646d3e4ee79ce64e192116958d4eb79bebb9",
+    "status": "PASS"
+  }
+}

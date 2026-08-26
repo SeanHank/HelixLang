@@ -1,0 +1,15 @@
+{
+  "checks": {
+    "gapfill_classes_exist": true,
+    "import_gapfill_modules": true,
+    "load_model_and_remove_reaction": true
+  },
+  "details": {
+    "base_growth_rate": 0.8217979336265827,
+    "gapfill_pool_created": true,
+    "pool_size": 6
+  },
+  "id": "26_gapfill_validation",
+  "runtime_seconds": 3.604983709024964,
+  "status": "PASS"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "35_enzyme_kinetics",
+  "status": "PASS",
+  "checks": {
+    "import_kinetics_modules": true,
+    "predict_kcat_positive": true,
+    "predict_kcat_in_range": true,
+    "predict_km_positive": true,
+    "predict_km_in_range": true
+  },
+  "details": {
+    "kcat_hex1": 199.10000000000002,
+    "kcat_source": "organism_scaled",
+    "km_hex1": 0.1,
+    "additional_kcats": {
+      "PFK": 235.4,
+      "CS": 83.60000000000001,
+      "ENO": 108.0,
+      "PYK": 239.8
+    },
+    "additional_kms": {
+      "glucose": 0.1,
+      "pyruvate": 0.5,
+      "ATP": 0.5,
+      "acetyl-CoA": 0.5
+    }
+  },
+  "experimental_comparison": {
+    "published_kcats": {
+      "PFK": {
+        "predicted": 235.4,
+        "published": 300.0,
+        "range": [
+          200,
+          400
+        ],
+        "within_range": true,
+        "ref": "Krebs & Bridger 1980; Bar-Even et al. 2011"
+      },
+      "CS": {
+        "predicted": 83.60000000000001,
+        "published": 70.0,
+        "range": [
+          50,
+          100
+        ],
+        "within_range": true,
+        "ref": "Krebs & Bridger 1980; BRENDA EC 2.3.3.1"
+      },
+      "ENO": {
+        "predicted": 108.0,
+        "published": 200.0,
+        "range": [
+          150,
+          300
+        ],
+        "within_range": false,
+        "ref": "BRENDA EC 4.2.1.11; Panchaud et al. 2009"
+      },
+      "PYK": {
+        "predicted": 239.8,
+        "published": 400.0,
+        "range": [
+          300,
+          500
+        ],
+        "within_range": false,
+        "ref": "BRENDA EC 2.7.1.40; Bar-Even et al. 2011"
+      }
+    },
+    "published_kms": {
+      "glucose": {
+        "predicted": 0.1,
+        "published": 0.1,
+        "range": [
+          0.05,
+          0.3
+        ],
+        "within_range": true,
+        "ref": "BRENDA EC 2.7.1.1; Lostia et al. 2022"
+      },
+      "ATP": {
+        "predicted": 0.5,
+        "published": 0.3,
+        "range": [
+          0.1,
+          1.0
+        ],
+        "within_range": true,
+        "ref": "BRENDA EC 2.7.1.1; Newsholme & Crabtree 1980"
+      },
+      "acetyl-CoA": {
+        "predicted": 0.5,
+        "published": 0.05,
+        "range": [
+          0.01,
+          0.2
+        ],
+        "within_range": false,
+        "ref": "BRENDA EC 2.3.3.1; Krebs & Bridger 1980"
+      }
+    }
+  },
+  "runtime_seconds": 0.2618283750198316
+}

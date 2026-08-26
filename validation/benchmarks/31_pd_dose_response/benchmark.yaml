@@ -1,0 +1,17 @@
+id: 31_pd_dose_response
+name: Hill equation dose-response curve
+layer: human
+reference: Hill AV 1910, Rang & Dale 2019
+input: none (pure math)
+parameters:
+  ec50: 10.0
+  hill_n: 1.0
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - hill_at_zero_concentration_is_zero
+    - hill_at_ec50_is_half_max
+    - hill_at_high_concentration_approaches_emax
+    - dose_response_monotonically_increasing

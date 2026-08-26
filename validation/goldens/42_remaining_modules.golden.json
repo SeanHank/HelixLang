@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "bio_data_codon_usage_loaded": true,
+    "import_bio_data": true,
+    "import_lsystem": true,
+    "import_morphology_3d": true,
+    "import_protein_fitness": true,
+    "import_protein_structure": true,
+    "import_seq_utils": true,
+    "import_units": true,
+    "lsystem_iteration_runs": true,
+    "morphology_3d_mesh_created": true,
+    "protein_fitness_scoring_works": true,
+    "protein_structure_prediction_runs": true,
+    "seq_utils_gc_content_works": true,
+    "units_conversion_correct": true
+  },
+  "details": {
+    "codon_usage_entries": 64,
+    "gc_atgc": 0.5,
+    "identity_score": 1.0,
+    "lsystem_points_after_1_iter": 5,
+    "morphology_3d_lines": 16,
+    "oracle_score": 0.8163265306122449,
+    "rc_atgc": "GCAT",
+    "ss_length": 28,
+    "ss_segments": 6
+  },
+  "id": "42_remaining_modules",
+  "runtime_seconds": 0.0001536659838166088,
+  "status": "PASS"
+}

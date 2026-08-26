@@ -1,0 +1,22 @@
+{
+  "ecoli_core": {
+    "cobrapy_100_solves_s": 0.0315,
+    "cobrapy_avg_ms": 0.3154,
+    "helixlang_100_solves_s": 1.6018,
+    "helixlang_avg_ms": 16.018,
+    "n_reactions": 95,
+    "speedup_ratio": 0.0197
+  },
+  "id": "11_performance_comparison",
+  "iml1515": {
+    "cobrapy_100_solves_s": 0.9997,
+    "cobrapy_avg_ms": 9.9966,
+    "helixlang_100_solves_s": 16.9782,
+    "helixlang_avg_ms": 169.782,
+    "n_reactions": 2712,
+    "speedup_ratio": 0.0589
+  },
+  "note": "Speedup > 1 means HelixLang is faster",
+  "runtime_seconds": 24.061273917002836,
+  "status": "PASS"
+}

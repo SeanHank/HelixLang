@@ -1,0 +1,74 @@
+{
+  "id": "03_ecoli_fba",
+  "status": "PASS",
+  "reference": {
+    "source": "BiGG e_coli_core via COBRApy",
+    "growth_rate": 0.8739215069684303,
+    "n_reactions": 95,
+    "n_metabolites": 72,
+    "glc_uptake": 10.0
+  },
+  "helixlang": {
+    "growth_rate": 0.8739215069676898,
+    "model_reactions": 95
+  },
+  "comparison": {
+    "growth_rate_rel_error": 8.473515659247073e-13,
+    "growth_rate_tolerance": 0.05,
+    "pearson_r_top10_fluxes": 1.0000000000000002,
+    "pearson_r_threshold": 0.99,
+    "top10_reactions": [
+      "ATPS4r",
+      "CYTBD",
+      "NADH16",
+      "H2Ot",
+      "EX_h2o_e",
+      "CO2t",
+      "EX_co2_e",
+      "EX_o2_e",
+      "O2t",
+      "EX_h_e"
+    ],
+    "top10_cobrapy": [
+      45.51400977451748,
+      43.59898531199755,
+      38.53460965051545,
+      -29.17582713556585,
+      29.17582713556585,
+      -22.80983331020497,
+      22.80983331020497,
+      -21.799492655998773,
+      21.799492655998773,
+      17.530865429786694
+    ],
+    "top10_helixlang": [
+      45.514009774489296,
+      43.598985311972775,
+      38.53460965049206,
+      -29.17582713554964,
+      29.17582713554839,
+      -22.8098333101899,
+      22.809833310193312,
+      -21.79949265598634,
+      21.799492655986228,
+      17.530865429785877
+    ]
+  },
+  "experimental_comparison": {
+    "fba_predicted_growth": 0.8739215069676898,
+    "experimental_range": {
+      "min": 0.52,
+      "max": 0.87,
+      "unit": "h^-1"
+    },
+    "prediction_within_range": true,
+    "references": [
+      "Orth et al. 2010, Nat Biotechnol 28:245",
+      "Edwards et al. 1999, Nat Biotechnol 17:151",
+      "Luli & Strohl 2000, Appl Environ Microbiol 66:825"
+    ],
+    "note": "FBA predicts max growth rate under given constraints; experimental values vary by strain and conditions"
+  },
+  "errors": [],
+  "runtime_seconds": 3.424609917012276
+}

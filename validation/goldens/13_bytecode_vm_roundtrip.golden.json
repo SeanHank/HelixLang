@@ -1,0 +1,9 @@
+{
+  "deterministic": true,
+  "final_energy": 1000000000.0,
+  "id": "13_bytecode_vm_roundtrip",
+  "runtime_seconds": 0.004398249991936609,
+  "serialized_bytes": 941,
+  "status": "PASS",
+  "trace_ticks": 1
+}

@@ -1,0 +1,15 @@
+id: 25_gem_reconstruction
+name: GEM Reconstruction — import and minimal model
+layer: gem
+reference: Orth et al. 2010, BiGG database
+input: none (built-in e_coli_core)
+parameters:
+  organism: e_coli_k12
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_gem_submodules
+    - key_classes_exist
+    - full_model_adapter_instantiable

@@ -1,0 +1,31 @@
+{
+  "id": "43_performance_scaling",
+  "status": "PASS",
+  "checks": {
+    "import_metabolism_module": true,
+    "fba_solves_e_coli_core": true,
+    "both_engines_produce_fluxes": true,
+    "helixlang_faster_or_comparable": true
+  },
+  "details": {
+    "model_reactions": 42,
+    "model_metabolites": 37,
+    "helixlang_growth_rate": 0.0,
+    "cobrapy_growth_rate": 0.8739215069684303,
+    "speedup_ratio": 0.7702795154621656,
+    "timing": {
+      "helixlang_ecoli_core": {
+        "ms": 1.4361669891513884
+      },
+      "cobrapy_ecoli_core": {
+        "ms": 1.1062500125262886
+      },
+      "comparison": {
+        "helixlang_ms": 1.4361669891513884,
+        "cobrapy_ms": 1.1062500125262886,
+        "speedup_ratio": 0.7702795154621656
+      }
+    }
+  },
+  "runtime_seconds": 3.336401458014734
+}

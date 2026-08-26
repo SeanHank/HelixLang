@@ -1,0 +1,36 @@
+{
+  "checks": {
+    "full_model_adapter_instantiable": true,
+    "import_gem_submodules": true,
+    "key_classes_exist": true
+  },
+  "details": {
+    "ecoli_config_bigg_id": "iML1515",
+    "growth_rate": 0.8217979336265827,
+    "modules_verified": [
+      "bridge",
+      "full_model",
+      "consensus",
+      "gapfill",
+      "grn_inference",
+      "biomass",
+      "organism_registry",
+      "sbml_import"
+    ],
+    "n_metabolites": 1877,
+    "n_reactions": 2712,
+    "supported_organisms": [
+      "b_subtilis",
+      "e_coli",
+      "e_coli_k12",
+      "e_coli_mg1655",
+      "human_recon3d",
+      "s_cerevisiae",
+      "synechocystis",
+      "synechocystis_pcc6803"
+    ]
+  },
+  "id": "25_gem_reconstruction",
+  "runtime_seconds": 3.4491053330129944,
+  "status": "PASS"
+}

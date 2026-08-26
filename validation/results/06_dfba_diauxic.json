@@ -1,0 +1,189 @@
+{
+  "id": "06_dfba_diauxic",
+  "status": "PASS",
+  "validation": {
+    "depletion_time_20pct": true,
+    "acetate_peak_30pct": true,
+    "final_biomass_30pct": true,
+    "biphasic_both": true
+  },
+  "helixlang": {
+    "depletion_time": 4.3,
+    "acetate_peak": 5.331,
+    "final_biomass": 0.711,
+    "biphasic": false,
+    "n_steps": 90,
+    "trajectory_keyframes": [
+      {
+        "t": 0.05,
+        "glucose": 9.975247524752476,
+        "acetate": 0.012769315738545176,
+        "biomass": 0.05158145364236224
+      },
+      {
+        "t": 2.549999999999999,
+        "glucose": 6.9588858569916345,
+        "acetate": 1.5726737572312328,
+        "biomass": 0.24450813250543632
+      }
+    ]
+  },
+  "reference": {
+    "depletion_time": 4.3,
+    "acetate_peak": 5.4975,
+    "final_biomass": 0.711,
+    "biphasic": false,
+    "n_steps": 961,
+    "trajectory_keyframes": [
+      {
+        "t": 0.05,
+        "glucose": 9.975248,
+        "acetate": 0.013173,
+        "biomass": 0.051581
+      },
+      {
+        "t": 2.55,
+        "glucose": 6.958886,
+        "acetate": 1.622378,
+        "biomass": 0.244508
+      },
+      {
+        "t": 5.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 7.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 10.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 12.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 15.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 17.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 20.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 22.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 25.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 27.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 30.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 32.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 35.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 37.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 40.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 42.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 45.05,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      },
+      {
+        "t": 47.55,
+        "glucose": 0.0,
+        "acetate": 5.497523,
+        "biomass": 0.711002
+      }
+    ]
+  },
+  "comparison": {
+    "depletion_time_rel_error": 0.0,
+    "acetate_peak_rel_error": 0.0303,
+    "final_biomass_rel_error": 0.0,
+    "tolerances": {
+      "depletion_time": 0.2,
+      "acetate_peak": 0.3,
+      "final_biomass": 0.3
+    }
+  },
+  "experimental_comparison": {
+    "reference_glucose_mM": 15.0,
+    "reference_depletion_h": 4.0,
+    "reference_acetate_peak_mM": 4.0,
+    "scaled_to_our_glucose": {
+      "expected_depletion_h": 2.7,
+      "expected_acetate_peak_mM": 2.7
+    },
+    "helixlang_depletion_h": 4.3,
+    "helixlang_acetate_peak_mM": 5.331,
+    "depletion_ratio": 1.5926,
+    "acetate_ratio": 1.9744,
+    "references": [
+      "Enjalbert et al. 2015, J Bacteriol 197:2301",
+      "Varma & Palsson 1993, Appl Environ Microbiol 59:2465"
+    ],
+    "note": "dFBA overpredicts acetate because simplified model lacks full regulatory mechanisms"
+  },
+  "runtime_seconds": 1.610569292010041
+}

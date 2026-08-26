@@ -1,0 +1,45 @@
+{
+  "id": "44_determinism_all_backends",
+  "status": "PASS",
+  "checks": {
+    "import_simulation_modules": true,
+    "stochastic_gillespie_deterministic": true,
+    "evolution_deterministic": true,
+    "population_deterministic": true
+  },
+  "details": {
+    "stochastic_a": {
+      "mean": 19.36,
+      "variance": 51.6637,
+      "fano": 2.6686
+    },
+    "stochastic_b": {
+      "mean": 19.36,
+      "variance": 51.6637,
+      "fano": 2.6686
+    },
+    "evolution_a": {
+      "final_generation": 3,
+      "final_mean_fitness": 0.9912,
+      "n_generations": 4,
+      "seed": 42
+    },
+    "evolution_b": {
+      "final_generation": 3,
+      "final_mean_fitness": 0.9912,
+      "n_generations": 4,
+      "seed": 42
+    },
+    "population_a": {
+      "alive": 2,
+      "total_energy": 79390320.57451968,
+      "seed": 42
+    },
+    "population_b": {
+      "alive": 2,
+      "total_energy": 79390320.57451968,
+      "seed": 42
+    }
+  },
+  "runtime_seconds": 1.144343249994563
+}

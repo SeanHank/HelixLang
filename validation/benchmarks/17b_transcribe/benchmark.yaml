@@ -1,0 +1,14 @@
+id: 17b_transcribe
+name: DNA transcription
+layer: molecular
+reference: Central dogma — transcription
+reference_doi: null
+input: none (built-in DNA)
+parameters:
+  cds_codons: 25
+expected:
+  metric: transcribe_works
+  value: true
+  tolerance: 0
+  unit: boolean
+  check: transcribe_produces_valid_transcript

@@ -1,0 +1,128 @@
+{
+  "energy_budget": {
+    "avg_biomass_flux": 1.2803,
+    "division_times": [
+      37,
+      112,
+      187
+    ],
+    "divisions_observed": 3,
+    "first_div_ok": true,
+    "first_division_actual_min": 37,
+    "first_division_analytical_min": 37.3,
+    "net_income_ATP_per_min": 13408547.26,
+    "subsequent_div_ok": true,
+    "subsequent_interval_actual_min": 75.0,
+    "subsequent_interval_analytical_min": 74.6
+  },
+  "experimental_comparison": {
+    "note": "Model uses Cooper-Helmstetter replication with adder size control; division time depends on biomass flux and division_energy threshold",
+    "reference": [
+      "Wanner 1996 \u2014 E. coli K-12 generation time 37.3 min at 37\u00b0C in minimal glucose",
+      "Batto et al. 2019, PLOS Comput Biol \u2014 E. coli doubling time 30-45 min depending on medium"
+    ],
+    "reference_division_time_min": 37.3,
+    "reference_range_min_max": [
+      30.0,
+      45.0
+    ],
+    "simulated_avg_subsequent_min": 75.0,
+    "simulated_first_division_min": 37
+  },
+  "id": "10_whole_cell",
+  "proteins": {
+    "lacI": 20000.0,
+    "tetR": 20000.0
+  },
+  "runtime_seconds": 0.3889289580110926,
+  "status": "PASS",
+  "trajectory_keyframes": [
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 0,
+      "energy": 1513408367.26,
+      "mass": 1.0128,
+      "t": 0
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 0,
+      "energy": 1781575712.46,
+      "mass": 1.2689,
+      "t": 20
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 1,
+      "energy": 1044984079.72,
+      "mass": 1.5249,
+      "t": 40
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 1,
+      "energy": 1313151424.91,
+      "mass": 1.781,
+      "t": 60
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 1,
+      "energy": 1581318770.11,
+      "mass": 2.037,
+      "t": 80
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 1,
+      "energy": 1849486115.31,
+      "mass": 2.2931,
+      "t": 100
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 2,
+      "energy": 1112460199.29,
+      "mass": 2.5491,
+      "t": 120
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 2,
+      "energy": 1380627544.49,
+      "mass": 2.8052,
+      "t": 140
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 2,
+      "energy": 1648794889.68,
+      "mass": 3.0613,
+      "t": 160
+    },
+    {
+      "alive": true,
+      "biomass_flux": 1.2803,
+      "divisions": 2,
+      "energy": 1916962234.88,
+      "mass": 3.3173,
+      "t": 180
+    }
+  ],
+  "validation": {
+    "alive": true,
+    "energy_budget_ok": true,
+    "energy_halves_at_division": true,
+    "mass_monotonic": true,
+    "proteins_present": true
+  }
+}

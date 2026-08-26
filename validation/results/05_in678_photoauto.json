@@ -1,0 +1,25 @@
+{
+  "id": "05_in678_photoauto",
+  "status": "PASS",
+  "reference": {
+    "source": "BiGG iJN678 via COBRApy (photoautotrophic)",
+    "growth_rate": 1.667654456368094,
+    "n_reactions": 863,
+    "n_metabolites": 795,
+    "glucose_uptake": 0.0,
+    "photon_uptake": 1000.0,
+    "co2_uptake": 1000.0
+  },
+  "helixlang": {
+    "growth_rate": 1.6676544563681048,
+    "model_reactions": 863
+  },
+  "comparison": {
+    "growth_rate_rel_error": 6.5242446357994195e-15,
+    "growth_rate_tolerance": 0.05,
+    "pearson_r_active_fluxes": 0.9516964262024411,
+    "n_active_fluxes": 87,
+    "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)"
+  },
+  "runtime_seconds": 4.9886773329926655
+}

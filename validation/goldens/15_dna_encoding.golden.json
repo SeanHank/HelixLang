@@ -1,0 +1,30 @@
+{
+  "checks": {
+    "2bit_dna": {
+      "decoded_length": 14,
+      "dna_length": 56,
+      "roundtrip_match": true
+    },
+    "biocodec": {
+      "back_translated_length": 18,
+      "orfs_found": 1
+    },
+    "codon_table": {
+      "all_mapped": true,
+      "codon_count": 64
+    },
+    "gc_content": {
+      "gc_at_only": 0.0,
+      "gc_gc_only": 1.0,
+      "gc_mixed": 0.5
+    },
+    "goldman": {
+      "decoded_length": 14,
+      "oligo_count": 4,
+      "roundtrip_match": true
+    }
+  },
+  "id": "15_dna_encoding",
+  "runtime_seconds": 0.02037124999333173,
+  "status": "PASS"
+}

@@ -1,0 +1,28 @@
+{
+  "fano": {
+    "observed_ssa": 1.7514,
+    "promoter_object": 1.5984,
+    "relative_error": 0.0957,
+    "theoretical": 1.5984
+  },
+  "id": "23b_stochastic",
+  "parameters": {
+    "burst_size": 5.0,
+    "degradation_rate": 0.14,
+    "k_off": 0.3,
+    "k_on": 0.5
+  },
+  "runtime_seconds": 0.29915583398542367,
+  "ssa": {
+    "mean": 6.73,
+    "n_replicates": 2000,
+    "t_max": 500.0,
+    "variance": 11.79
+  },
+  "status": "PASS",
+  "validation": {
+    "fano_greater_than_one": true,
+    "fano_within_30pct_of_theory": true,
+    "telegraph_promoter_fano_matches": true
+  }
+}

@@ -1,0 +1,16 @@
+id: 28_genotype_cyp2d6
+name: Genotype CYP2D6 star-allele mapping
+layer: human
+reference: CPIC/PharmVar consensus activity scores
+input: none (built-in allele tables)
+parameters:
+  enzymes_tested: CYP2D6
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - create_default_genotype_returns_valid_profile
+    - cyp2d6_star4_star4_is_poor_metabolizer
+    - cyp2d6_star1_star1_is_normal_metabolizer
+    - at_least_3_star_alleles_recognized

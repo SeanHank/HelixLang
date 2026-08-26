@@ -1,0 +1,16 @@
+id: 23a_evolution
+name: Wright-Fisher evolution
+layer: population
+reference: Wright-Fisher model
+reference_doi: null
+input: none (programmatic)
+parameters:
+  generations: 20
+  pop_size: 50
+  mutation_rate: 0.01
+expected:
+  metric: evolution_works
+  value: true
+  tolerance: 0
+  unit: boolean
+  check: mutate_and_calculate_fitness_and_populate

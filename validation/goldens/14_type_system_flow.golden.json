@@ -1,0 +1,11 @@
+{
+  "flow_field_construction": true,
+  "helix_types": 9,
+  "id": "14_type_system_flow",
+  "module_import_export": true,
+  "runtime_seconds": 0.0018681660003494471,
+  "status": "PASS",
+  "symbol_table_define_lookup": true,
+  "type_annotation_parsing": true,
+  "valid_program_type_check": true
+}

@@ -1,0 +1,12 @@
+id: 13_bytecode_vm_roundtrip
+name: Bytecode/VM roundtrip — compile → serialize → deserialize → execute
+layer: runtime
+reference: HelixLang bytecode ABI v1
+input: inline Helix source
+parameters:
+  source: "#gene name=lacI\nATG AAA TAT ACC GCT TCA CCG GAT AAA ACG TAA\n#end\n#config ticks=5"
+expected:
+  metric: roundtrip_determinism
+  value: true
+  tolerance: 0
+  unit: bool

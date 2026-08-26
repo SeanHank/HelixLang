@@ -1,0 +1,189 @@
+{
+  "comparison": {
+    "acetate_peak_rel_error": 0.0303,
+    "depletion_time_rel_error": 0.0,
+    "final_biomass_rel_error": 0.0,
+    "tolerances": {
+      "acetate_peak": 0.3,
+      "depletion_time": 0.2,
+      "final_biomass": 0.3
+    }
+  },
+  "experimental_comparison": {
+    "acetate_ratio": 1.9744,
+    "depletion_ratio": 1.5926,
+    "helixlang_acetate_peak_mM": 5.331,
+    "helixlang_depletion_h": 4.3,
+    "note": "dFBA overpredicts acetate because simplified model lacks full regulatory mechanisms",
+    "reference_acetate_peak_mM": 4.0,
+    "reference_depletion_h": 4.0,
+    "reference_glucose_mM": 15.0,
+    "references": [
+      "Enjalbert et al. 2015, J Bacteriol 197:2301",
+      "Varma & Palsson 1993, Appl Environ Microbiol 59:2465"
+    ],
+    "scaled_to_our_glucose": {
+      "expected_acetate_peak_mM": 2.7,
+      "expected_depletion_h": 2.7
+    }
+  },
+  "helixlang": {
+    "acetate_peak": 5.331,
+    "biphasic": false,
+    "depletion_time": 4.3,
+    "final_biomass": 0.711,
+    "n_steps": 90,
+    "trajectory_keyframes": [
+      {
+        "acetate": 0.012769315738545176,
+        "biomass": 0.05158145364236224,
+        "glucose": 9.975247524752476,
+        "t": 0.05
+      },
+      {
+        "acetate": 1.5726737572312328,
+        "biomass": 0.24450813250543632,
+        "glucose": 6.9588858569916345,
+        "t": 2.549999999999999
+      }
+    ]
+  },
+  "id": "06_dfba_diauxic",
+  "reference": {
+    "acetate_peak": 5.4975,
+    "biphasic": false,
+    "depletion_time": 4.3,
+    "final_biomass": 0.711,
+    "n_steps": 961,
+    "trajectory_keyframes": [
+      {
+        "acetate": 0.013173,
+        "biomass": 0.051581,
+        "glucose": 9.975248,
+        "t": 0.05
+      },
+      {
+        "acetate": 1.622378,
+        "biomass": 0.244508,
+        "glucose": 6.958886,
+        "t": 2.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 5.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 7.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 10.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 12.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 15.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 17.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 20.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 22.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 25.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 27.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 30.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 32.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 35.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 37.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 40.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 42.55
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 45.05
+      },
+      {
+        "acetate": 5.497523,
+        "biomass": 0.711002,
+        "glucose": 0.0,
+        "t": 47.55
+      }
+    ]
+  },
+  "runtime_seconds": 1.6128632500185631,
+  "status": "PASS",
+  "validation": {
+    "acetate_peak_30pct": true,
+    "biphasic_both": true,
+    "depletion_time_20pct": true,
+    "final_biomass_30pct": true
+  }
+}

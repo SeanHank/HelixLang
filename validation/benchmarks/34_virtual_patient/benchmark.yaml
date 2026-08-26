@@ -1,0 +1,17 @@
+id: 34_virtual_patient
+name: Virtual patient instantiation and import
+layer: human
+reference: doc/28 virtual-patient pipeline
+input: none (config created inline)
+parameters:
+  simulation_hours: 24
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - import_virtual_patient_and_config
+    - create_default_config
+    - virtual_patient_config_can_be_created
+    - if_vp_instantiable_run_24_steps
+    - at_minimum_verify_imports

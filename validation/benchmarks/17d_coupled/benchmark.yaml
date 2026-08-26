@@ -1,0 +1,14 @@
+id: 17d_coupled
+name: Coupled transcription-translation
+layer: molecular
+reference: E. coli coupled model (Miller 1972)
+reference_doi: null
+input: none (built-in DNA)
+parameters:
+  time_course_min: 30
+expected:
+  metric: coupled_model_works
+  value: true
+  tolerance: 0
+  unit: boolean
+  check: coupled_model_and_protein_pool

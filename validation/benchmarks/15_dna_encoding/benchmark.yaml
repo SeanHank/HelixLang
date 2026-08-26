@@ -1,0 +1,12 @@
+id: 15_dna_encoding
+name: DNA encoding — dna_codec + biocodec + codon_table roundtrips
+layer: biology
+reference: Goldman 2013 Nature 494:77-80; Erlich & Zielinski 2017 Science 355:950-954
+input: hardcoded binary data + known codon table
+parameters:
+  test_bytes: "HelloHelixLang"
+expected:
+  metric: roundtrip_lossless
+  value: true
+  tolerance: 0
+  unit: bool

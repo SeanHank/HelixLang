@@ -1,0 +1,11 @@
+id: 16_cli_server_provenance
+name: CLI / server / provenance — module imports + build_provenance
+layer: infrastructure
+reference: HelixLang CLI and provenance module
+input: none (module-level checks)
+parameters: {}
+expected:
+  metric: all_modules_importable
+  value: true
+  tolerance: 0
+  unit: bool

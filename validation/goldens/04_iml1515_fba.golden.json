@@ -1,0 +1,21 @@
+{
+  "comparison": {
+    "growth_rate_rel_error": 2.6204891226202698e-14,
+    "growth_rate_tolerance": 0.05
+  },
+  "helixlang": {
+    "growth_rate": 0.8769972144269635,
+    "model_reactions": 2712
+  },
+  "id": "04_iml1515_fba",
+  "reference": {
+    "expected_approx": 0.871,
+    "glc_uptake": 10.0,
+    "growth_rate": 0.8769972144269406,
+    "n_metabolites": 1877,
+    "n_reactions": 2712,
+    "source": "BiGG iML1515 via COBRApy"
+  },
+  "runtime_seconds": 3.810072583000874,
+  "status": "PASS"
+}

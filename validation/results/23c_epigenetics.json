@@ -1,0 +1,28 @@
+{
+  "id": "23c_epigenetics",
+  "status": "PASS",
+  "validation": {
+    "cpg_acgt_repeat": true,
+    "cpg_alternating": true,
+    "no_cpg_in_at": true,
+    "dam_sites_found": true
+  },
+  "cpg": {
+    "acgt_repeat_count": 50,
+    "acgt_repeat_expected": 50,
+    "alternating_count": 18,
+    "alternating_expected": 18,
+    "at_only_count": 0
+  },
+  "dam": {
+    "sequence": "AGATCGATCGATCGATC",
+    "sites_found": 4,
+    "positions": [
+      1,
+      5,
+      9,
+      13
+    ]
+  },
+  "runtime_seconds": 0.2584237910050433
+}

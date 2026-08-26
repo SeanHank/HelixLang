@@ -1,0 +1,17 @@
+id: 32_ddi_prediction
+name: Drug-drug interaction prediction
+layer: human
+reference: Lynch & Price 2007, CPIC guidelines
+input: none (built-in DDI rules)
+parameters:
+  substrate: warfarin
+  perpetrator: fluconazole
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - create_default_ddi_model_has_rules
+    - warfarin_fluconazole_is_known_ddi
+    - interaction_flag_is_triggered
+    - at_least_5_ddi_rules_exist

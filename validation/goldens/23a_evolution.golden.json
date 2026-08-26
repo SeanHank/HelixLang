@@ -1,0 +1,52 @@
+{
+  "fitness": {
+    "best_after_evolution": 0.8739,
+    "mutated": 0.3482,
+    "original": 1.0
+  },
+  "id": "23a_evolution",
+  "mutation": {
+    "count": 4,
+    "mutated_length": 112,
+    "original_length": 111
+  },
+  "population": {
+    "diversity": 0.8839,
+    "final_size": 50,
+    "fitness_trajectory": [
+      {
+        "gen": 0,
+        "mean": 1.0
+      },
+      {
+        "gen": 5,
+        "mean": 0.6695
+      },
+      {
+        "gen": 10,
+        "mean": 0.5805
+      },
+      {
+        "gen": 15,
+        "mean": 0.5594
+      },
+      {
+        "gen": 20,
+        "mean": 0.5358
+      },
+      {
+        "gen": 20,
+        "mean": 0.5358
+      }
+    ],
+    "generations_run": 20
+  },
+  "runtime_seconds": 0.009551583003485575,
+  "status": "PASS",
+  "validation": {
+    "fitness_mutated_is_lower": true,
+    "fitness_original_is_one": true,
+    "mutations_produced": true,
+    "population_evolved": true
+  }
+}
