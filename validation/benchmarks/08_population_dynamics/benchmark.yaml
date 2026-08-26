@@ -1,0 +1,16 @@
+id: 08_population_dynamics
+name: Population dynamics
+layer: population
+reference: Standard population dynamics / Lotka-Volterra
+reference_doi: null
+input: none (programmatic population)
+parameters:
+  initial_cells: 10
+  max_size: 500
+  grid: 20x20
+expected:
+  metric: population_growth
+  value: 50
+  tolerance: 20
+  unit: cells
+  check: population_grows_from_initial

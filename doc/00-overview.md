@@ -85,6 +85,32 @@ In one sentence: **DNA is the source, codons are the mnemonics, the ribosome is 
 
 ---
 
+## Three-Layer Architecture
+
+HelixLang is organized into three layers:
+
+### Layer 1: Helix Language
+The compiler toolchain that transforms DNA source code into executable bytecode.
+- Lexer, Parser, AST, Semantic Analyzer
+- Compiler, Bytecode (ABI v1), Virtual Machine
+- Type system, Control flow
+
+### Layer 2: Biological Runtime
+The simulation engine that executes bytecode and maintains biological state.
+- Cell state, Cell body (physical model), Central dogma (transcription/translation)
+- Gene Regulatory Networks (GRN), Metabolism (FBA/dFBA)
+- Environment, Population dynamics
+
+### Layer 3: Scientific Applications
+Domain-specific simulations built on the runtime.
+- human/ — Virtual patient, pharmacology (PBPK, PK/PD)
+- gem/ — Genome-scale metabolic models, FBA
+- apps/ — Pipelines, synthetic biology, consortium
+- kinetics/ — Enzyme kinetics
+- omics/ — Expression, spatial transcriptomics
+
+---
+
 ## 4. Core Innovations
 
 1. **Codons as mnemonics**: The 64 codons serve directly as assembly-level mnemonics, with semantics defined by the codon table. This is absent from other ALife languages (Tierra, Avida, NetLogo), which use raw binary or hand-crafted mnemonics.

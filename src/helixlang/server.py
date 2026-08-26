@@ -50,7 +50,18 @@ _WEB_DIR = Path(__file__).parent / "web"
 _EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 # Debug session storage (in-process; used by the single-process dev server)
-_DEBUG_SESSIONS: dict[str, Any] = {}
+# Thread-safe: protected by _DEBUG_LOCK for concurrent request handling.
+_DEBUG_LOCK: Any = None  # STATE: global (lazily initialized)
+_DEBUG_SESSIONS: dict[str, Any] = {}  # STATE: global (thread-safe via _DEBUG_LOCK)
+
+
+def _get_debug_lock() -> Any:
+    """Return the threading lock, initializing lazily."""
+    global _DEBUG_LOCK  # noqa: PLW0603
+    if _DEBUG_LOCK is None:
+        import threading
+        _DEBUG_LOCK = threading.Lock()
+    return _DEBUG_LOCK
 
 
 def _pipeline(source: str, table_name: str) -> tuple[dict[str, Op], Program, Chunk]:
@@ -84,7 +95,7 @@ def create_app() -> Flask:
     # ---------- API ----------
     @app.get("/api/health")
     def health():
-        return jsonify({"status": "ok", "version": "2026.8.3"})
+        return jsonify({"status": "ok", "version": "2026.8.4"})
 
     @app.get("/api/examples")
     def list_examples():

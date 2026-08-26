@@ -6,6 +6,11 @@ from typing import Any
 
 from helixlang.codon_table import Op
 
+# ── Bytecode ABI version ──────────────────────────────────────────────────
+# Frozen as of HelixLang 2026.8.4.  Any change to opcodes, operand widths,
+# or Chunk layout **must** bump this constant and update spec/bytecode-abi.md.
+OPCODE_VERSION: int = 1
+
 
 @dataclass(slots=True)
 class Chunk:

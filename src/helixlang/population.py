@@ -114,7 +114,7 @@ MAX_SUBSTEP_D_LATTICE = 0.25
 CELL_SLOT_COUNT = 256
 
 #: physical-unit axis summary (see module docstring)
-UNITS: dict[str, str] = {
+UNITS: dict[str, str] = {  # STATE: global (immutable lookup table)
     "energy": "ATP molecules (newborn ~1e9; maintenance ~2.5e7 ATP/min, "
               "Orth 2010)",
     "signal": "µM concentrations; quorum threshold ~10 µM AI-2 "

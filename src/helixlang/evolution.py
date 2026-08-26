@@ -92,8 +92,8 @@ DROSOPHILA_NE = 1e6    # fruit fly
 # mutation spectrum: A->G / C->T are the most common transitions
 # purine interconversions (A<->G) and pyrimidine interconversions
 # (C<->T) make up ~2/3 of substitutions
-_TRANSITIONS: dict[str, str] = {"A": "G", "G": "A", "C": "T", "T": "C"}
-_TRANSVERSIONS: dict[str, tuple[str, str]] = {
+_TRANSITIONS: dict[str, str] = {"A": "G", "G": "A", "C": "T", "T": "C"}  # STATE: global (immutable lookup table)
+_TRANSVERSIONS: dict[str, tuple[str, str]] = {  # STATE: global (immutable lookup table)
     "A": ("C", "T"), "G": ("C", "T"),
     "C": ("A", "G"), "T": ("A", "G"),
 }
@@ -773,7 +773,7 @@ def dnds_ratio(dna: str, ancestral: str,
 # of the ancestral codon, avoiding a 61x61 matrix exponentiation in pure
 # Python.
 
-_TS_TRANSITIONS = {
+_TS_TRANSITIONS = {  # STATE: global (mutable set, never mutated at runtime)
     ("A", "G"), ("G", "A"), ("C", "T"), ("T", "C"),
 }
 
@@ -809,7 +809,7 @@ def _codon_mutation_table() -> dict[str, list[tuple[str, bool, bool]]]:
     return table
 
 
-_CODON_MUTATIONS = _codon_mutation_table()
+_CODON_MUTATIONS = _codon_mutation_table()  # STATE: global (immutable lookup table)
 
 
 def dnds_codeml(dna: str, ancestral: str,

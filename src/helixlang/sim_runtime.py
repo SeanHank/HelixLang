@@ -162,11 +162,14 @@ class SimResult:
     (whole-cell minutes, dFBA batch steps, population ticks, or a single
     score row for ``calibration``/``benchmark``).  ``meta`` carries
     non-tabular payloads (colony observables, per-cell traces).
+    ``provenance`` records reproducibility metadata (seed, backend,
+    source hash, dependency versions, runtime).
     """
     backend: str
     columns: list[str]
     rows: list[dict[str, Any]]
     meta: dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -348,27 +351,38 @@ def run(program: Program, backend: str | None = None) -> SimResult | None:
     # Long-tail extension point (wiring.md §8.6): an #sim kind=... annotation
     # overrides the first-class backend, including the classic default.
     kind = program.sim_extensions.get("kind")
+    result: SimResult | None = None
     if kind in _SIM_BACKENDS:
-        return _SIM_BACKENDS[kind](program)
-    if name == "classic":
+        result = _SIM_BACKENDS[kind](program)
+    elif name == "classic":
         return None
-    if name == "whole_cell":
-        return _run_whole_cell(program)
-    if name == "population":
-        return _run_population(program)
-    if name == "fba":
-        return _run_fba(program)
-    if name == "calibration":
-        return _run_calibration(program)
-    if name == "benchmark":
-        return _run_benchmark(program)
-    if name == "gem":
-        return _run_gem(program)
-    if name == "ecosystem":
-        return _run_ecosystem(program)
-    raise SimConfigError(
-        f"unknown backend {name!r}; expected one of "
-        "classic, whole_cell, population, fba, calibration, benchmark")
+    elif name == "whole_cell":
+        result = _run_whole_cell(program)
+    elif name == "population":
+        result = _run_population(program)
+    elif name == "fba":
+        result = _run_fba(program)
+    elif name == "calibration":
+        result = _run_calibration(program)
+    elif name == "benchmark":
+        result = _run_benchmark(program)
+    elif name == "gem":
+        result = _run_gem(program)
+    elif name == "ecosystem":
+        result = _run_ecosystem(program)
+    else:
+        raise SimConfigError(
+            f"unknown backend {name!r}; expected one of "
+            "classic, whole_cell, population, fba, calibration, benchmark")
+    if result is not None and not result.provenance:
+        from helixlang.provenance import build_provenance
+        seed = getattr(program.config, "seed", None)
+        result.provenance = build_provenance(
+            seed=seed,
+            backend=name,
+            source=getattr(program, "_source_text", None),
+        )
+    return result
 
 
 def _select_columns(program: Program, rows: list[dict[str, Any]],

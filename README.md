@@ -520,6 +520,29 @@ mypy
 
 ---
 
+## Benchmarks
+
+10 reproducible biological benchmarks validating language semantics, GRN regulation, metabolism, population dynamics, and whole-cell physiology.
+
+| # | Benchmark | Layer | Validates |
+|---|-----------|-------|-----------|
+| 01 | Codon translation | Language | 64-codon → opcode mapping |
+| 02 | lac operon | GRN | Gene repression circuit |
+| 03 | E. coli core FBA | Metabolism | Growth rate μ = 1.28 h⁻¹ |
+| 04 | iML1515 genome-scale | Metabolism | Genome-scale FBA |
+| 05 | iJN678 photoauto | Metabolism | Photoautotrophic growth |
+| 06 | dFBA diauxic shift | Metabolism | Biphasic substrate consumption |
+| 07 | Repressilator | GRN | Synthetic oscillation |
+| 08 | Population dynamics | Population | Growth and competition |
+| 09 | Reaction-diffusion | Morphogenesis | Pattern formation |
+| 10 | Whole-cell | Integrated | Cell cycle simulation |
+
+Run all benchmarks: `validation/run_all.sh`
+
+[Benchmark details →](validation/report.md)
+
+---
+
 ## Contributing
 
 Contributions are welcomed! Please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first — it covers

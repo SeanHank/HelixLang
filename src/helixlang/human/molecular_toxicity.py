@@ -226,29 +226,29 @@ def _compute_rdkit_descriptors(smiles: str) -> dict[str, float]:
 
     d: dict[str, float] = {}
     # Physicochemical
-    d["MolWt"] = Descriptors.MolWt(mol)
-    d["LogP"] = Descriptors.MolLogP(mol)
-    d["TPSA"] = Descriptors.TPSA(mol)
-    d["MR"] = Descriptors.MolMR(mol)
+    d["MolWt"] = Descriptors.MolWt(mol)  # type: ignore[attr-defined]
+    d["LogP"] = Descriptors.MolLogP(mol)  # type: ignore[attr-defined]
+    d["TPSA"] = Descriptors.TPSA(mol)  # type: ignore[attr-defined]
+    d["MR"] = Descriptors.MolMR(mol)  # type: ignore[attr-defined]
     d["LabuteASA"] = rdMolDescriptors.CalcLabuteASA(mol)
 
     # Lipinski
-    d["NumHDonors"] = float(Lipinski.NumHDonors(mol))
-    d["NumHAcceptors"] = float(Lipinski.NumHAcceptors(mol))
-    d["NumRotatableBonds"] = float(Lipinski.NumRotatableBonds(mol))
-    d["NumAromaticRings"] = float(Lipinski.NumAromaticRings(mol))
-    d["FractionCSP3"] = Descriptors.FractionCSP3(mol)
+    d["NumHDonors"] = float(Lipinski.NumHDonors(mol))  # type: ignore[attr-defined]
+    d["NumHAcceptors"] = float(Lipinski.NumHAcceptors(mol))  # type: ignore[attr-defined]
+    d["NumRotatableBonds"] = float(Lipinski.NumRotatableBonds(mol))  # type: ignore[attr-defined]
+    d["NumAromaticRings"] = float(Lipinski.NumAromaticRings(mol))  # type: ignore[attr-defined]
+    d["FractionCSP3"] = Descriptors.FractionCSP3(mol)  # type: ignore[attr-defined]
     d["NumHeavyAtoms"] = float(mol.GetNumHeavyAtoms())
-    d["RingCount"] = float(Lipinski.RingCount(mol))
+    d["RingCount"] = float(Lipinski.RingCount(mol))  # type: ignore[attr-defined]
 
     # Topological
     d["BertzCT"] = GraphDescriptors.BertzCT(mol)
     d["BalabanJ"] = Descriptors.BalabanJ(mol) if mol.GetNumBonds() > 0 else 0.0
-    d["Kappa1"] = GraphDescriptors.Kappa1(mol)
-    d["Kappa2"] = GraphDescriptors.Kappa2(mol)
+    d["Kappa1"] = GraphDescriptors.Kappa1(mol)  # type: ignore[attr-defined]
+    d["Kappa2"] = GraphDescriptors.Kappa2(mol)  # type: ignore[attr-defined]
     d["Chi0"] = GraphDescriptors.Chi0(mol)
     d["Chi1"] = GraphDescriptors.Chi1(mol)
-    d["HallKierAlpha"] = GraphDescriptors.HallKierAlpha(mol)
+    d["HallKierAlpha"] = GraphDescriptors.HallKierAlpha(mol)  # type: ignore[attr-defined]
 
     # Electronic / charge
     d["MaxAbsPartialCharge"] = Descriptors.MaxAbsPartialCharge(mol)
@@ -256,10 +256,10 @@ def _compute_rdkit_descriptors(smiles: str) -> dict[str, float]:
     d["NumNitrogens"] = float(sum(1 for a in mol.GetAtoms() if a.GetAtomicNum() == 7))
     d["NumOxygens"] = float(sum(1 for a in mol.GetAtoms() if a.GetAtomicNum() == 8))
     d["NumSulfurs"] = float(sum(1 for a in mol.GetAtoms() if a.GetAtomicNum() == 16))
-    d["NumHeteroatoms"] = float(Lipinski.NumHeteroatoms(mol))
+    d["NumHeteroatoms"] = float(Lipinski.NumHeteroatoms(mol))  # type: ignore[attr-defined]
     d["HeavyAtomCount"] = float(mol.GetNumHeavyAtoms())
-    d["NumAliphaticRings"] = float(Lipinski.NumAliphaticRings(mol))
-    d["NumSaturatedRings"] = float(Lipinski.NumSaturatedRings(mol))
+    d["NumAliphaticRings"] = float(Lipinski.NumAliphaticRings(mol))  # type: ignore[attr-defined]
+    d["NumSaturatedRings"] = float(Lipinski.NumSaturatedRings(mol))  # type: ignore[attr-defined]
     d["NumValenceElectrons"] = Descriptors.NumValenceElectrons(mol)
 
     # Derived ratios (ADMET-relevant)
@@ -563,7 +563,7 @@ def _compute_morgan_fingerprint(
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return []
-    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)
+    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius, nBits=n_bits)  # type: ignore[attr-defined]
     return list(fp)
 
 

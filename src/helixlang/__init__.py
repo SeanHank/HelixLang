@@ -1,6 +1,30 @@
-"""HelixLang: DNA codons → bytecode → biological simulation."""
+"""HelixLang: DNA codons → bytecode → biological simulation.
 
-__version__ = "2026.8.3"
+Architecture (three layers):
+
+Layer 1 — Helix Language
+    lexer, parser, AST, semantic analysis, compiler, bytecode, VM, debugger.
+    Files: lexer.py, parser.py, ast_nodes.py, semantic.py, compiler.py,
+           bytecode.py, vm.py, type_system.py, flow.py, hxbc.py, disassembler.py.
+
+Layer 2 — Biological Runtime
+    gene expression, regulation, transcription, translation, metabolism,
+    cell state, environment, population dynamics.
+    Files: cell.py, cell_body.py, central_dogma.py, grn.py, sparse_grn.py,
+           metabolism.py, environment.py, population.py, codon_table.py,
+           bio_data.py, stochastic.py, epigenetics.py, evolution.py.
+
+Layer 3 — Scientific Applications
+    domain-specific simulators and pipelines built on Layers 1+2.
+    Subpackages:
+        human/   — virtual patient, pharmacology, disease modeling
+        gem/     — GEM reconstruction, FBA, SBML import
+        apps/    — pipelines, synbio, consortium, ecosystem, whole-cell
+        kinetics/ — enzyme kinetics (kcat, Km)
+        omics/   — expression inference, spatial omics
+"""
+
+__version__ = "2026.8.4"
 
 from helixlang.codon_table import (
     CILIATE_TABLE,

@@ -92,7 +92,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-chunk", action="store_true",
                    help="--compile without embedding the precompiled chunk")
     p.add_argument("--no-source", action="store_true",
-                   help="--compile without embedding the original source")
+                    help="--compile without embedding the original source")
+    p.add_argument("--check-bytecode-version", action="store_true",
+                    help="print OPCODE_VERSION and exit")
     # GEM reconstruction pipeline (doc/20)
     p.add_argument("--gem", action="store_true",
                    help="run GEM reconstruction pipeline from #species genome data")
@@ -120,6 +122,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"HelixLang web visualization running at: http://{args.host}:{args.port}")
         print("  press Ctrl+C to exit")
         return run_server(host=args.host, port=args.port, debug=False)
+
+    # ----- Bytecode version check -----
+    if args.check_bytecode_version:
+        from helixlang.bytecode import OPCODE_VERSION
+        print(f"OPCODE_VERSION={OPCODE_VERSION}")
+        return 0
 
     # ----- compile/run mode -----
     if args.source is None:

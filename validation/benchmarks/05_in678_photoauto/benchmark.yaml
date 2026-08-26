@@ -1,0 +1,16 @@
+id: 05_in678_photoauto
+name: Synechocystis PCC 6803 photoautotrophic FBA
+layer: metabolism
+reference: Knoop et al. 2010, J Biol Chem 285:27185
+reference_doi: 10.1074/jbc.M110.146274
+input: iJN678 model (imported via SBML)
+parameters:
+  backend: fba
+  organism: synechocystis
+  model: iJN678
+  mode: photoautotrophic
+expected:
+  metric: growth_rate
+  value: 0.292
+  tolerance: 0.1
+  unit: h^-1

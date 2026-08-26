@@ -88,11 +88,11 @@ OP_OPERAND_BYTES: dict[Op, int] = {
 }
 
 # Third-base wobble value
-WOBBLE_BITS: dict[str, int] = {"A": 0, "C": 1, "G": 2, "T": 3}
+WOBBLE_BITS: dict[str, int] = {"A": 0, "C": 1, "G": 2, "T": 3}  # STATE: global (immutable lookup table)
 
 
 # Standard translation table (NCBI table 1)
-STANDARD_TABLE: dict[str, Op] = {
+STANDARD_TABLE: dict[str, Op] = {  # STATE: global (immutable lookup table)
     # Start / Stop
     "ATG": Op.OP_START,
     "TAA": Op.OP_HALT, "TAG": Op.OP_HALT, "TGA": Op.OP_HALT,
@@ -146,7 +146,7 @@ STANDARD_TABLE: dict[str, Op] = {
 }
 
 # Mitochondrial table (NCBI table 2): TGA->Trp, ATA->Met, AGA/AGG->Stop
-MITO_VERTEBRATE_TABLE: dict[str, Op] = {
+MITO_VERTEBRATE_TABLE: dict[str, Op] = {  # STATE: global (immutable lookup table)
     **STANDARD_TABLE,
     "TGA": Op.OP_BUILD_PIGMENT,
     "ATA": Op.OP_START,
@@ -154,12 +154,12 @@ MITO_VERTEBRATE_TABLE: dict[str, Op] = {
 }
 
 # Ciliate table (NCBI table 6): TAA/TAG->Gln
-CILIATE_TABLE: dict[str, Op] = {
+CILIATE_TABLE: dict[str, Op] = {  # STATE: global (immutable lookup table)
     **STANDARD_TABLE,
     "TAA": Op.OP_EMIT_MORPHOGEN, "TAG": Op.OP_EMIT_MORPHOGEN,
 }
 
-TABLES: dict[str, dict[str, Op]] = {
+TABLES: dict[str, dict[str, Op]] = {  # STATE: global (immutable lookup table)
     "standard": STANDARD_TABLE,
     "mito_vertebrate": MITO_VERTEBRATE_TABLE,
     "ciliate": CILIATE_TABLE,

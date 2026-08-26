@@ -1,0 +1,15 @@
+id: 07_grn_repressilator
+name: Repressilator oscillation
+layer: grn
+reference: Elowitz & Leibler 2000, Nature 403:335-338
+reference_doi: 10.1038/35000122
+input: none (programmatic GRN)
+parameters:
+  method: rk45
+  t_span: 0..600
+expected:
+  metric: oscillation_period_min
+  value: 150
+  tolerance: 50
+  unit: minutes
+  check: period_detected_in_lacI_trajectory

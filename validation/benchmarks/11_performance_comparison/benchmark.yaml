@@ -1,0 +1,13 @@
+id: 11_performance_comparison
+name: FBA solve-time performance vs COBRApy
+layer: metabolism
+reference: Orth et al. 2010, Nat Biotechnol 28:245
+input: BiGG models via COBRApy
+parameters:
+  backend: fba
+  n_solves: 100
+expected:
+  metric: helixlang_solves_per_second
+  value: ">0"
+  tolerance: 0
+  unit: "solves/s"

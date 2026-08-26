@@ -113,7 +113,7 @@ from helixlang.seq_utils import reverse_complement as _reverse_complement  # noq
 # i.e.: next_idx = (prev_idx + 1 + trit) % 4
 
 _BASES = "ACGT"
-_BASE_IDX = {b: i for i, b in enumerate(_BASES)}
+_BASE_IDX = {b: i for i, b in enumerate(_BASES)}  # STATE: global (immutable lookup table)
 
 # ============================================================================
 # Goldman 2013 base-3 Huffman code (verbatim from the paper's corrected
@@ -745,8 +745,8 @@ ERLICH_GC_DEV = 0.05         # GC in [0.45, 0.55]
 ERLICH_MAX_HOMOPOLYMER = 3   # >=4 consecutive identical bases not allowed
 
 # 2-bit DNA mapping (Erlich 2017 utils.pyx)
-_DNA_BIN = {"A": "00", "C": "01", "G": "10", "T": "11"}
-_BIN_DNA = {v: k for k, v in _DNA_BIN.items()}
+_DNA_BIN = {"A": "00", "C": "01", "G": "10", "T": "11"}  # STATE: global (immutable lookup table)
+_BIN_DNA = {v: k for k, v in _DNA_BIN.items()}  # STATE: global (immutable lookup table)
 
 
 def _bytes_to_dna_2bit(data: bytes) -> str:
@@ -1082,8 +1082,8 @@ PCR_POLYMERASE_RATES: dict[str, dict[str, float]] = {
 # Transitions (A<->G, C<->T) make up ~86%, Transversions ~14%
 # Implementation: on substitution, pick transition vs transversion
 # with probability 6:1
-_TRANSITIONS = {"A": "G", "G": "A", "C": "T", "T": "C"}
-_TRANSVERSIONS = {
+_TRANSITIONS = {"A": "G", "G": "A", "C": "T", "T": "C"}  # STATE: global (immutable lookup table)
+_TRANSVERSIONS = {  # STATE: global (immutable lookup table)
     "A": ("C", "T"), "G": ("C", "T"),
     "C": ("A", "G"), "T": ("A", "G"),
 }

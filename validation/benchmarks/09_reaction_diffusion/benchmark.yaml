@@ -1,0 +1,17 @@
+id: 09_reaction_diffusion
+name: Reaction-diffusion (Gray-Scott)
+layer: pattern_formation
+reference: Turing 1952, Phil Trans R Soc B 237:37-72; Pearson 1993
+reference_doi: 10.1098/rstb.1993.0002
+input: none (programmatic GrayScott)
+parameters:
+  n: 64
+  F: 0.035
+  k: 0.065
+  steps: 1000
+expected:
+  metric: pattern_formed
+  value: true
+  tolerance: null
+  unit: boolean
+  check: v_field_deviates_from_zero_and_shows_heterogeneity

@@ -1,0 +1,15 @@
+id: 04_iml1515_fba
+name: E. coli iML1515 genome-scale FBA
+layer: metabolism
+reference: Monk et al. 2017, Nat Biotechnol 35:1036
+reference_doi: 10.1038/nbt.3956
+input: iML1515 model (imported via SBML or GEM reconstruction)
+parameters:
+  backend: fba
+  organism: ecoli
+  model: iML1515
+expected:
+  metric: growth_rate
+  value: 0.821
+  tolerance: 0.1
+  unit: h^-1

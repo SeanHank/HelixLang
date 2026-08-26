@@ -1,0 +1,16 @@
+id: 02_lac_operon
+name: lac operon biphasic growth
+layer: runtime
+reference: Jakob & Monod 1961, Nature 191:141
+reference_doi: 10.1038/191141a0
+input: examples/02_lac_operon.helix
+parameters:
+  backend: classic
+  ticks: 200
+  seed: 42
+expected:
+  metric: biphasic_growth
+  value: true
+  tolerance: 0
+  unit: bool
+  check: glucose_consumed_before_lactose

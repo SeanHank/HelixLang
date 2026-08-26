@@ -1,0 +1,18 @@
+id: 06_dfba_diauxic
+name: dFBA diauxic shift
+layer: metabolism
+reference: Goncalves et al. 2006, Bioinformatics 22:e454-e457
+reference_doi: 10.1093/bioinformatics/btl470
+input: built-in ECOLI_CORE_MODEL
+parameters:
+  backend: fba
+  dt_h: 0.05
+  initial_biomass_gdw: 0.05
+  initial_glucose_mm: 10.0
+  acetate_switch: true
+expected:
+  metric: biphasic_growth
+  value: true
+  tolerance: null
+  unit: boolean
+  check: glucose_depletes_and_acetate_accumulates
