@@ -1125,7 +1125,7 @@ def pcr_amplify(dna: str, cycles: int = DEFAULT_PCR_CYCLES,
     30 Taq cycles give cumulative substitution ~ 1-(1-1.5e-4)^30 ~ 0.45%.
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     if polymerase and polymerase.lower() in PCR_POLYMERASE_RATES:
         rates = PCR_POLYMERASE_RATES[polymerase.lower()]
         sub_rate = rates["substitution"]
@@ -1195,7 +1195,7 @@ def synthesize_dna(dna: str,
       bias)
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     # override parameters by quality
     if quality == "low":
         deletion_rate = 1.5e-2     # 98.5% coupling
@@ -1267,7 +1267,7 @@ def sequence_dna(dna: str,
         the sequencing read (with errors).
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     # load platform parameters from bio_data (avoid redefinition)
     from helixlang.bio_data import SEQUENCING_PLATFORM_ERROR_RATES
     if platform not in SEQUENCING_PLATFORM_ERROR_RATES:
@@ -1318,7 +1318,7 @@ def decay_dna(dna: str, years: float, temperature_c: float = 13.1,
         the degraded sequence (with Ns).
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     from helixlang.bio_data import dna_survival_fraction
     survival = dna_survival_fraction(years, temperature_c, encapsulated)
     # per-base survival probability = survival

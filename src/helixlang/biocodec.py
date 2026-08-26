@@ -266,7 +266,7 @@ def avoid_restriction_sites(dna: str,
     max_attempts.
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     current = dna.upper()
     for _ in range(max_attempts):
         sites = find_restriction_sites(current, enzymes)
@@ -328,7 +328,7 @@ def back_translate(protein: str, optimize: str = "cai",
     - "balanced": random weighted by E. coli frequency
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     out = []
     for aa in protein:
         if aa == "*":

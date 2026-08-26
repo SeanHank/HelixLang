@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "helixlang"
 version = "2026.8.4"
-description = "A bio-genetic DSL that compiles DNA codons to bytecode and simulates biological behavior/morphology."
+description = "A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior."
 readme = "README_PYPI.md"
-requires-python = ">=3.11"
+requires-python = "==3.11"
 authors = [{name = "Sean Hank"}]
 license = {text = "AGPLv3"}
 keywords = ["DSL", "DNA", "compiler", "artificial-life", "biological-simulation"]

@@ -177,6 +177,18 @@ def run() -> dict:
                 "lacI": round(lacI_level, 4),
                 "tetR": round(tetR_level, 4),
             },
+            "experimental_comparison": {
+                "reference_division_time_min": 37.3,
+                "simulated_first_division_min": first_actual,
+                "simulated_avg_subsequent_min": round(avg_subsequent, 1)
+                    if math.isfinite(avg_subsequent) else None,
+                "reference_range_min_max": [30.0, 45.0],
+                "reference": [
+                    "Wanner 1996 — E. coli K-12 generation time 37.3 min at 37°C in minimal glucose",
+                    "Batto et al. 2019, PLOS Comput Biol — E. coli doubling time 30-45 min depending on medium",
+                ],
+                "note": "Model uses Cooper-Helmstetter replication with adder size control; division time depends on biomass flux and division_energy threshold",
+            },
             "trajectory_keyframes": trajectory_keyframes,
             "runtime_seconds": elapsed,
         }

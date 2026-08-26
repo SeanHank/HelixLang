@@ -338,10 +338,10 @@ _PREDEFINED_SPECS: tuple[_Spec, ...] = (
             duration_days=90.0,
             bioavailability=0.55,
             absorption_rate_h=0.7,
-            volume_distribution_l=160.0,
-            clearance_ml_per_min=463.0,
+            volume_distribution_l=360.0,   # Graham 2011: Vd/F=654 L, F=0.55 → Vd=360 L
+            clearance_ml_per_min=627.0,     # Graham 2011: CL/F=1140 mL/min, F=0.55 → CL=627
             half_life_h=4.0,
-            renal_fraction=1.0,
+            renal_fraction=1.0,             # Graham 2011: excreted unchanged in urine
         ),
     ),
     _Spec(

@@ -189,7 +189,7 @@ HelixLang/
 │   ├── 18-programmable-cell-population-simulation.md  # Programmable cell-population roadmap
 │   ├── 19-whole-organism-lifecycle-simulation.md  # ATCG→life→environment full-pipeline audit + plan
 ├── src/helixlang/                    # Compiler and runtime implementation
-│   ├── __init__.py                   # Package exports
+│   ├── __init__.py                   # Package exports (Layer 1/2/3)
 │   │
 │   │  ===== Compiler toolchain (8 modules) =====
 │   ├── codon_table.py                # (1) 64-codon → opcode mapping
@@ -197,13 +197,16 @@ HelixLang/
 │   ├── parser.py                     # (3) Recursive-descent parser → AST
 │   ├── ast_nodes.py                  # (4) AST node definitions
 │   ├── compiler.py                   # (5) AST → bytecode chunk
-│   ├── bytecode.py                   # (6) Chunk / Op / constant pool
+│   ├── bytecode.py                   # (6) Chunk / Op / constant pool (OPCODE_VERSION=1)
+│   ├── hxbc.py                       # (6b) Binary serialization (.helixc)
 │   ├── disassembler.py               # (7) Bytecode disassembly
 │   ├── vm.py                         # (8) Stack VM (ribosome)
 │   │
 │   │  ===== Simulation runtime =====
 │   ├── cell.py                       # (9) Cell state + tick loop
+│   ├── cell_body.py                  # (9b) Physical cell model
 │   ├── grn.py                        # (10) Gene regulatory network
+│   ├── sparse_grn.py                 # (10b) Sparse GRN for large models
 │   ├── lsystem.py                    # (11) L-system morphogenesis
 │   ├── reaction_diffusion.py         # (12) Gray-Scott reaction-diffusion
 │   ├── population.py                 # Population dynamics (2D/3D, mechanics, environments)
@@ -216,9 +219,9 @@ HelixLang/
 │   ├── central_dogma.py              # Central dogma: transcription + translation + degradation
 │   ├── metabolism.py                 # Metabolic network FBA: flux balance analysis + dynamic FBA
 │   ├── protein_structure.py          # Protein structure prediction: secondary structure + TM + disorder
+│   ├── protein_structure_predictor.py # ESM3 end-to-end protein structure (no MSA)
 │   ├── protein_fitness.py            # PLM fitness oracles (BLOSUM62, ESM-2) + variant ranking
 │   ├── crispr.py                     # CRISPR-Cas gene editing model
-│   ├── omics.py                      # Spatial-omics: expression matrices → GRN/FBA states, atlas, ARI
 │   ├── virtual_cell.py               # Virtual-cell budget model + parameter fitting + benchmarks
 │   ├── interop.py                    # SBML import + SBOL3 export/import
 │   │
@@ -229,20 +232,67 @@ HelixLang/
 │   ├── dna_codec.py                  # DNA codec (storage/watermark)
 │   ├── biocodec.py                   # Bio codec utilities
 │   ├── type_system.py                # Type system
+│   ├── flow.py                       # Flow analysis
 │   ├── semantic.py                   # Semantic analysis
 │   ├── units.py                      # Physical units (min/µM/µm²/s/ATP)
-│   ├── errors.py                     # Exception hierarchy
+│   ├── errors.py                     # Exception hierarchy (7 classes)
 │   ├── debugger.py                   # Debugger
 │   ├── server.py                     # HTTP API server
 │   ├── cli.py                        # CLI entry point
-│   ├── apps/                         # Application layer
-│   │   ├── dna_storage.py            # DNA storage app
+│   ├── provenance.py                 # Build provenance + auto-attach
+│   │
+│   │  ===== human/ (36 modules) =====
+│   ├── human/
+│   │   ├── virtual_patient.py        # VirtualPatient engine (2,453 LOC)
+│   │   ├── pharmacokinetics.py       # 6-compartment PBPK model
+│   │   ├── pharmacodynamics.py       # Hill equation + QSP binding
+│   │   ├── drug.py                   # Drug/Molecule dataclasses (RDKit)
+│   │   ├── disease_ode_models.py     # 12 disease ODE models
+│   │   ├── physiology.py             # Organ volumes, blood flows
+│   │   ├── genotype.py               # CYP450 star alleles
+│   │   ├── ddi.py                    # Drug-drug interactions
+│   │   ├── immune.py                 # Innate immune ABM
+│   │   ├── endocrine.py              # Endocrine axes (HPA, HPT, insulin-glucose)
+│   │   ├── clinical_output.py        # 34-analyte clinical lab panel
+│   │   └── ... (25 more modules)
+│   │
+│   │  ===== gem/ (GEM reconstruction) =====
+│   ├── gem/
+│   │   ├── bridge.py                 # SBML/GEM bridge
+│   │   ├── full_model.py             # Full GEM builder
+│   │   ├── ecgem.py                  # Enzyme-constrained GEM
+│   │   ├── community.py              # Community FBA
+│   │   └── ... (5 more modules)
+│   │
+│   │  ===== kinetics/ (enzyme kinetics) =====
+│   ├── kinetics/
+│   │   ├── kcat_predictor.py         # kcat prediction
+│   │   ├── km_estimator.py           # Km estimation
+│   │   ├── sequence_predictor.py     # Sequence-based kinetics
+│   │   └── ...
+│   │
+│   │  ===== omics/ (expression, spatial) =====
+│   ├── omics/
+│   │   ├── expression_inference.py   # Expression → GRN states
+│   │   ├── _spatial_omics.py         # Spatial transcriptomics
+│   │   └── ...
+│   │
+│   │  ===== apps/ (22 modules) =====
+│   ├── apps/
+│   │   ├── full_pipeline.py          # DNA → structure → kinetics → ecGEM → ecosystem
+│   │   ├── gem_pipeline.py           # GEM reconstruction pipeline
+│   │   ├── ecosystem.py              # Lotka-Volterra ecosystem
+│   │   ├── digital_evolution.py      # Digital evolution
 │   │   ├── synbio_designer.py        # Synthetic biology designer
-│   │   └── synbio_automation.py      # Design automation: truth table → DNA → SBOL3
-│   └── web/                          # Web frontend
+│   │   ├── dna_storage.py            # DNA storage codec
+│   │   ├── lattice_boltzmann.py      # 2D lattice-Boltzmann
+│   │   └── ... (15 more modules)
+│   │
+│   │  ===== Web frontend =====
+│   └── web/
 │       ├── index.html
 │       └── labs.html
-├── examples/                         # Example programs (.helix)
+├── examples/                         # Example programs (.helix) — 60 files
 │   ├── 01_hello_dna.helix            # Minimal smoke test
 │   ├── 02_lac_operon.helix           # lac operon GRN
 │   ├── 03_plant_growth.helix         # L-system plant growth
@@ -250,8 +300,9 @@ HelixLang/
 │   ├── 05_table_switch.helix         # Switchable translation table
 │   ├── 06_crispr_edit.helix          # CRISPR gene editing
 │   ├── 07_evolution.helix            # Evolution simulation
-│   └── 08_epigenetics.helix          # Epigenetic regulation
-└── tests/                            # Verification tests (~30 test files)
+│   ├── 08_epigenetics.helix          # Epigenetic regulation
+│   └── ... (52 more examples)
+└── tests/                            # Verification tests (108 files, 2,984+ test functions)
     ├── test_codon_table.py
     ├── test_lexer.py
     ├── test_parser.py
@@ -265,5 +316,6 @@ HelixLang/
     ├── test_crispr.py
     ├── test_epigenetics.py
     ├── test_evolution.py
-    └── ...
+    ├── test_determinism_audit.py
+    └── ... (94 more test files)
 ```

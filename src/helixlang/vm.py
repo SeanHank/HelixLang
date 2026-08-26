@@ -535,7 +535,8 @@ class CellVM:
         self._regulation_events: list[dict] = []     # OP_REGULATE edge changes
         self._binding_events: list[dict] = []        # OP_BIND protein-DNA bindings
         self._signal_emissions: int = 0              # OP_SIGNAL emission count
-        self._rng = random.Random(0)
+        seed = int(self.program.config.sim.get("seed", "0"))
+        self._rng = random.Random(seed)
         self._init_subsystems()
         # P2 refactor: instruction dispatch delegated to BioInstructionDispatcher
         self._dispatcher = BioInstructionDispatcher(self)

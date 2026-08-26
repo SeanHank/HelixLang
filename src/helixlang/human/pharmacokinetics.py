@@ -43,10 +43,10 @@ reported in mg/L, volumes in L, flows and clearances in L/h
 
 References:
 - Rowland M & Tozer TN. Clinical Pharmacokinetics and Pharmacodynamics,
-  Concepts and Applications, 5th ed. 2020.
-- Guyton AC, Hall JE. Textbook of Medical Physiology, 14th ed. 2016.
-- Nestorov I. Whole-body physiologically based pharmacokinetic models.
-  J Pharmacokinet Biopharm 2003;30:479-497.
+  Concepts and Applications, 5th ed. (Derendorf & Schmidt). 2020.
+- Guyton AC, Hall JE. Textbook of Medical Physiology, 14th ed. 2020.
+- Nestorov I. Whole-body pharmacokinetic models. Clin Pharmacokinet
+  2003;42(10):883-908. PMID: 12885263.
 """
 from __future__ import annotations
 
@@ -79,11 +79,11 @@ ML_PER_MIN_TO_L_PER_H = 0.06
 ORGAN_NAMES: tuple[str, ...] = ("liver", "kidney", "brain", "muscle", "adipose")
 
 DEFAULT_FLOW_FRACTIONS: dict[str, float] = {
-    "liver": 0.25,
-    "kidney": 0.20,
-    "brain": 0.125,
-    "muscle": 0.125,
-    "adipose": 0.04,
+    "liver": 0.25,     # Guyton & Hall 2020, Table 14-1: ~25% of cardiac output
+    "kidney": 0.20,    # Guyton & Hall 2020: ~20% of cardiac output
+    "brain": 0.125,    # Guyton & Hall 2020: ~12.5% of cardiac output
+    "muscle": 0.125,   # Guyton & Hall 2020: ~12.5% at rest
+    "adipose": 0.04,   # Guyton & Hall 2020: ~4% of cardiac output
 }
 
 FIRST_ORDER_ROUTES: frozenset[str] = frozenset({ORAL, SUBCUTANEOUS, INTRAMUSCULAR})
@@ -108,12 +108,12 @@ class PBPKConfig:
 
     dt_min: float = 1.0
     total_time_h: float = 24.0
-    plasma_volume_l: float = 3.0
-    liver_volume_l: float = 1.5
-    kidney_volume_l: float = 0.3
-    brain_volume_l: float = 1.4
-    muscle_volume_l: float = 24.0
-    adipose_volume_l: float = 15.0
+    plasma_volume_l: float = 3.0          # ICRP 89: 2.8-3.5 L (70 kg male)
+    liver_volume_l: float = 1.5           # ICRP 89: 1.4-1.5 L
+    kidney_volume_l: float = 0.3          # ICRP 89: 0.25-0.30 L
+    brain_volume_l: float = 1.4           # ICRP 89: 1.2-1.4 L
+    muscle_volume_l: float = 24.0         # ICRP 89: ~24 L skeletal muscle
+    adipose_volume_l: float = 15.0        # ICRP 89: ~15 L (~20% body fat, 70 kg)
 
     def validate(self) -> None:
         """Raise ``ValueError`` when any simulation parameter is invalid."""

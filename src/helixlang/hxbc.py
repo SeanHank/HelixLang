@@ -1221,6 +1221,10 @@ def decompile(program: Program) -> str:
                 lines.append(f"{ann} " + _fmt_fields(fields))
             _skip_keys.update(ann_keys)
 
+    # Dict-valued single-key annotations written back in their original form
+    _DICT_VALUED_KEYS = {"tumor_biopsy"}
+    _skip_keys.update(_DICT_VALUED_KEYS)
+
     for k in sorted(program.sim_extensions):
         if k in _INLINE_GENE_KEYS or k in _skip_keys:
             continue
@@ -1254,6 +1258,11 @@ def decompile(program: Program) -> str:
     for entry in program.sim_extensions.get("immune_configs", []):
         if isinstance(entry, dict):
             lines.append("#immune_config " + _fmt_fields(entry))
+
+    # Tumor biopsy (dict-valued, written back as #tumor_biopsy)
+    tumor_biopsy = program.sim_extensions.get("tumor_biopsy")
+    if isinstance(tumor_biopsy, dict) and tumor_biopsy:
+        lines.append("#tumor_biopsy " + _fmt_fields(tumor_biopsy))
 
     # Output inline gene DNA blocks inside a #gem block (doc/20 §12)
     inline_genes = program.sim_extensions.get("gem_inline_genes")

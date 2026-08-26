@@ -1003,7 +1003,7 @@ def cut_dna(dna: str, guide: GuideRNA,
                   homologous recombination, falls back to NHEJ on failure
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     cfg = CAS_VARIANTS[guide.cas_variant]
     cut_site = guide.target_position + cfg["cut_offset"]
     if cut_site < 0 or cut_site >= len(dna):
@@ -1073,7 +1073,7 @@ def edit_gene(dna: str, target_position: int, new_sequence: str,
                     off-target search
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
 
     # 1. design the guide RNA
     guide = design_guide(dna, cas_variant, position=target_position)

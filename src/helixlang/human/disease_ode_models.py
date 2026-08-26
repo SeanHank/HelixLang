@@ -6,7 +6,7 @@ pathophysiology:
 
 1. **Cardiovascular** — Guyton venous return / cardiac function
 2. **Metabolic (T2D)** — Bergman β-cell + hepatic glucose output
-3. **Cancer** — Gompertz tumor growth + immune surveillance
+3. **Cancer** — Gompertz tumor growth + immune surveillance + pathway-specific therapy
 4. **Autoimmune (RA)** — joint inflammation + cytokine dynamics
 5. **Neurological** — neurodegeneration + synaptic loss
 6. **Renal** — nephron loss + compensatory hyperfiltration
@@ -20,7 +20,10 @@ organ crosstalk.
 Module structure:
     CardiovascularODE     Guyton-inspired CV model
     MetabolicT2DODE       β-cell + insulin-glucose dynamics
-    CancerODE             Gompertz + immune surveillance
+    CancerODE             Gompertz + immune surveillance + per-pathway therapy
+    TumorClone            Clonal subpopulation model
+    TumorHeterogeneity    Clonal dynamics + resistance tracking
+    TumorBiopsy           Tumor molecular profiling
     AutoimmuneRAODE       Joint inflammation model
     NeurologicalODE       Neurodegeneration model
     RenalODE              Nephron loss model
@@ -30,20 +33,27 @@ Module structure:
     create_disease_model  convenience factory
 
 References:
-- Guyton AC, Hall JE. Textbook of Medical Physiology, 14th ed.
-- Bergman RN et al. Ann. Biomed. Eng. 1981 (T2D minimal model)
-- Gompertz B. Phil. Trans. R. Soc. 1825 (tumor growth)
--/fireMackey MC, Glass L. Science 1977 (hematological oscillations)
+- Guyton AC, Hall JE. Textbook of Medical Physiology, 14th ed. 2020.
+- Bergman RN et al. Physiologic evaluation of factors controlling glucose
+  tolerance in man. J Clin Invest 1981;68:1456-1467.
+- Gompertz B. Phil. Trans. R. Soc. 1825;115:513-583 (tumor growth, per Laird 1964).
+- Mackey MC, Glass L. Science 1977;197:287-289 (hematological oscillations).
 """
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, field
 
 __all__ = [
     "CardiovascularODE",
     "MetabolicT2DODE",
     "CancerODE",
+    "TumorClone",
+    "TumorHeterogeneity",
+    "TumorBiopsy",
+    "select_targeted_therapy",
+    "TARGET_TO_PATHWAY",
     "AutoimmuneRAODE",
     "NeurologicalODE",
     "RenalODE",
@@ -174,13 +184,315 @@ class MetabolicT2DODE:
 
 
 # ============================================================================
-# 3. Cancer (Gompertz + Immune Surveillance)
+# 3. Cancer (Gompertz + Immune Surveillance + Per-Pathway Therapy)
 # ============================================================================
+
+# Target protein → pathway mapping (doc/33 Phase 4 §12.1)
+TARGET_TO_PATHWAY: dict[str, str] = {
+    "EGFR": "egfr", "EGFRvIII": "egfr", "ERBB1": "egfr",
+    "BRAF_V600E": "braf", "BRAF": "braf",
+    "VEGFR2": "vegfr", "VEGFR1": "vegfr", "KDR": "vegfr", "VEGFR": "vegfr",
+    "ALK": "alk", "EML4-ALK": "alk",
+    "HER2": "her2", "ERBB2": "her2",
+    "PD-L1": "pd_l1", "CD274": "pd_l1", "PDL1": "pd_l1",
+    "CTLA4": "ctla4", "CTLA-4": "ctla4",
+    "Tubulin": "microtubule", "Beta-tubulin": "microtubule", "TUBB": "microtubule",
+    "TOP1": "topoisomerase", "TOP2A": "topoisomerase",
+    "DNA": "dna_damage", "BRCA1": "dna_damage", "BRCA2": "dna_damage",
+    "PARP1": "parp", "PARP": "parp",
+    "BCR-ABL": "bcr_abl", "ABL1": "bcr_abl",
+    "KRAS": "kras", "KRAS_G12C": "kras",
+    "MET": "met", "HGFR": "met",
+    "RET": "ret",
+    "NTRK": "ntrk", "NTRK1": "ntrk", "NTRK2": "ntrk",
+    "PI3K": "pi3k", "PIK3CA": "pi3k",
+    "mTOR": "mtor",
+    "CDK4": "cdk46", "CDK6": "cdk46",
+    "IDH1": "idh", "IDH2": "idh",
+    "FLT3": "flt3",
+    "JAK2": "jak",
+}
+
+
+@dataclass
+class TumorClone:
+    """A clonal subpopulation within a heterogeneous tumor.
+
+    Each clone has independent growth rate and drug sensitivities.
+    Resistance mutations reduce drug sensitivity and incur a fitness cost.
+
+    Attributes:
+        name: clone identifier (e.g. "EGFR_L858R_parent", "EGFR_T790M_resistant")
+        fraction: proportion of total tumor (0.0–1.0, all clones sum to 1.0)
+        growth_rate: intrinsic Gompertz growth rate (per hour)
+        drug_sensitivities: mapping pathway → sensitivity (0.0 = no effect, 1.0 = full kill)
+        resistance_mutations: list of acquired resistance mutations
+        fitness_cost: multiplicative fitness cost per resistance mutation (0.0–1.0)
+    """
+
+    name: str = "parent"
+    fraction: float = 1.0
+    growth_rate: float = 0.01
+    drug_sensitivities: dict[str, float] = field(default_factory=dict)
+    resistance_mutations: list[str] = field(default_factory=list)
+    fitness_cost: float = 0.1
+
+    def effective_growth(self) -> float:
+        """Growth rate reduced by fitness cost of resistance mutations."""
+        cost = 1.0 - self.fitness_cost * len(self.resistance_mutations)
+        return self.growth_rate * max(0.1, cost)
+
+    def drug_kill_rate(self, pathway_effects: dict[str, float],
+                       drug_kill_capacity: float = 0.05) -> float:
+        """Total drug-mediated kill rate for this clone.
+
+        Pathway inhibition × sensitivity gives a dimensionless fraction
+        (0–1) of maximum kill, scaled by *drug_kill_capacity* (1/h) to
+        produce a pharmacologically realistic kill rate independent of the
+        clone's intrinsic growth rate.
+        """
+        inhibition = 0.0
+        for pathway, effect in pathway_effects.items():
+            sensitivity = self.drug_sensitivities.get(pathway, 1.0)
+            inhibition += effect * sensitivity
+        return inhibition * drug_kill_capacity
+
+
+@dataclass
+class TumorHeterogeneity:
+    """Clonal heterogeneity model for tumor evolution.
+
+    Tracks multiple clones, computes aggregate tumor metrics, and
+    simulates stochastic resistance mutation emergence.
+
+    Attributes:
+        clones: list of tumor clones (must sum to fraction ~1.0)
+        resistance_rate: probability of resistance mutation per cell division per pathway
+        carrying_capacity: maximum tumor volume (relative)
+    """
+
+    clones: list[TumorClone] = field(default_factory=lambda: [
+        TumorClone(name="parent", fraction=1.0, growth_rate=0.01)
+    ])
+    resistance_rate: float = 1e-6
+    carrying_capacity: float = 1.0
+    _rng: random.Random = field(default_factory=lambda: random.Random(42), repr=False)
+
+    def step(self, dt_h: float, pathway_effects: dict[str, float],
+             drug_kill_capacity: float = 0.05) -> dict[str, float]:
+        """Advance clonal dynamics one time step.
+
+        Returns:
+            Dictionary with aggregate tumor metrics:
+            - total_volume: aggregate tumor volume
+            - weighted_growth: volume-weighted average growth rate
+            - weighted_kill: volume-weighted average drug kill rate
+            - resistant_fraction: fraction of tumor with any resistance mutation
+        """
+        if not self.clones:
+            return {"total_volume": 0.0, "weighted_growth": 0.0,
+                    "weighted_kill": 0.0, "resistant_fraction": 0.0}
+
+        total_volume = 0.0
+        weighted_growth = 0.0
+        weighted_kill = 0.0
+        resistant_volume = 0.0
+
+        for clone in self.clones:
+            if clone.fraction <= 0.0:
+                continue
+            eff_growth = clone.effective_growth()
+            kill = clone.drug_kill_rate(pathway_effects, drug_kill_capacity)
+            net_growth = eff_growth - kill
+            clone.fraction *= math.exp(dt_h * net_growth)
+            total_volume += clone.fraction
+            weighted_growth += clone.fraction * eff_growth
+            weighted_kill += clone.fraction * kill
+            if clone.resistance_mutations:
+                resistant_volume += clone.fraction
+
+        # Stochastic resistance mutation emergence
+        new_clones: list[TumorClone] = []
+        for clone in list(self.clones):
+            if clone.fraction <= 0.01:
+                continue
+            for pathway in pathway_effects:
+                if pathway_effects[pathway] > 0.01:
+                    if self._rng.random() < self.resistance_rate * dt_h * clone.fraction:
+                        new_sens = dict(clone.drug_sensitivities)
+                        new_sens[pathway] = new_sens.get(pathway, 1.0) * 0.1
+                        new_clone = TumorClone(
+                            name=f"{clone.name}_R_{pathway}",
+                            fraction=clone.fraction * 0.01,
+                            growth_rate=clone.growth_rate,
+                            drug_sensitivities=new_sens,
+                            resistance_mutations=clone.resistance_mutations + [pathway],
+                            fitness_cost=clone.fitness_cost,
+                        )
+                        clone.fraction *= 0.99
+                        new_clones.append(new_clone)
+        self.clones.extend(new_clones)
+
+        # Renormalize fractions
+        if total_volume > 0.0:
+            scale = 1.0 / total_volume
+            for clone in self.clones:
+                clone.fraction *= scale
+                weighted_growth *= scale
+                weighted_kill *= scale
+            resistant_volume *= scale
+        else:
+            resistant_volume = 0.0
+
+        return {
+            "total_volume": total_volume,
+            "weighted_growth": weighted_growth,
+            "weighted_kill": weighted_kill,
+            "resistant_fraction": resistant_volume,
+        }
+
+    def get_clone_summary(self) -> list[dict[str, object]]:
+        """Return a summary of current clone composition."""
+        return [
+            {
+                "name": c.name,
+                "fraction": c.fraction,
+                "growth_rate": c.growth_rate,
+                "resistance_mutations": list(c.resistance_mutations),
+            }
+            for c in self.clones
+            if c.fraction > 0.001
+        ]
+
+
+@dataclass
+class TumorBiopsy:
+    """Tumor molecular profile from biopsy.
+
+    Used for biomarker-driven therapy selection (doc/33 Phase 4 §12.3).
+
+    Attributes:
+        mutations: somatic mutations detected (e.g. ["EGFR_L858R", "TP53_R175H"])
+        amplifications: gene amplifications (e.g. ["HER2"])
+        deletions: gene deletions (e.g. ["CDKN2A"])
+        pd_l1_expression: PD-L1 tumor proportion score (0.0–1.0)
+        msi_status: microsatellite instability status ("MSI-H", "MSS", "MSI-L")
+        tmb_per_mb: tumor mutational burden (mutations per megabase)
+        hr_status: homologous recombination status ("HRD", "HRC")
+        fusion_genes: fusion transcripts detected (e.g. ["EML4-ALK", "BCR-ABL"])
+    """
+
+    mutations: list[str] = field(default_factory=list)
+    amplifications: list[str] = field(default_factory=list)
+    deletions: list[str] = field(default_factory=list)
+    pd_l1_expression: float = 0.0
+    msi_status: str = "MSS"
+    tmb_per_mb: float = 0.0
+    hr_status: str = "HRC"
+    fusion_genes: list[str] = field(default_factory=list)
+
+    def has_mutation(self, pattern: str) -> bool:
+        """Check if a mutation pattern is present (case-insensitive substring)."""
+        pl = pattern.lower()
+        return any(pl in m.lower() for m in self.mutations)
+
+    def has_amplification(self, gene: str) -> bool:
+        """Check if a gene amplification is present."""
+        return gene.upper() in [a.upper() for a in self.amplifications]
+
+    def has_fusion(self, pattern: str) -> bool:
+        """Check if a fusion gene is present."""
+        pl = pattern.lower()
+        return any(pl in f.lower() for f in self.fusion_genes)
+
+
+# Therapy guidelines based on molecular profile (NCCN-inspired)
+_THERAPY_RULES: list[tuple[str, str, list[str], str]] = [
+    # (rule_name, required_condition, drugs, rationale)
+    ("EGFR_mutant", "mutation", ["erlotinib", "gefitinib", "osimertinib"],
+     "EGFR-mutant NSCLC: first-line EGFR TKI"),
+    ("ALK_fusion", "fusion", ["crizotinib", "alectinib", "lorlatinib"],
+     "ALK-rearranged NSCLC: first-line ALK TKI"),
+    ("HER2_amp", "amplification", ["trastuzumab", "t-dXd"],
+     "HER2-amplified: anti-HER2 therapy"),
+    ("BRAF_V600E", "mutation", ["dabrafenib", "trametinib"],
+     "BRAF V600E: BRAF + MEK inhibitor"),
+    ("KRAS_G12C", "mutation", ["sotorasib", "adagrasib"],
+     "KRAS G12C: covalent KRAS inhibitor"),
+    ("PD_L1_high", "pd_l1", ["pembrolizumab", "nivolumab", "atezolizumab"],
+     "PD-L1 ≥50%: first-line anti-PD-(L)1"),
+    ("MSI_high", "msi", ["pembrolizumab", "dostarlimab"],
+     "MSI-H: anti-PD-1 (tissue-agnostic)"),
+    ("TMB_high", "tmb", ["pembrolizumab"],
+     "TMB ≥10 mut/Mb: anti-PD-1 (tissue-agnostic)"),
+    ("BRCA_HRD", "hrd", ["olaparib", "niraparib"],
+     "BRCA/HRD: PARP inhibitor"),
+    ("BCR_ABL", "fusion", ["imatinib", "dasatinib"],
+     "BCR-ABL: tyrosine kinase inhibitor"),
+    ("FLT3_mutant", "mutation", ["midostaurin", "gilteritinib"],
+     "FLT3-mutant AML: FLT3 inhibitor"),
+    ("IDH_mutant", "mutation", ["ivosidenib", "enasidenib"],
+     "IDH-mutant: IDH inhibitor"),
+]
+
+
+def select_targeted_therapy(biopsy: TumorBiopsy) -> list[dict[str, str]]:
+    """Select appropriate targeted therapies based on tumor biomarkers.
+
+    Implements NCCN-inspired molecular tumor board decision logic.
+
+    Args:
+        biopsy: Tumor molecular profile
+
+    Returns:
+        Ranked list of therapy recommendations with rationale.
+        Each dict has keys: "drug", "pathway", "rationale", "priority"
+    """
+    recommendations: list[dict[str, str]] = []
+    seen_drugs: set[str] = set()
+
+    for rule_name, condition, drugs, rationale in _THERAPY_RULES:
+        matched = False
+        if condition == "mutation":
+            matched = any(biopsy.has_mutation(d) for d in ["EGFR", "BRAF", "KRAS", "FLT3", "IDH"])
+        elif condition == "fusion":
+            matched = any(biopsy.has_fusion(f) for f in ["ALK", "BCR-ABL", "ROS1", "RET", "NTRK"])
+        elif condition == "amplification":
+            matched = any(biopsy.has_amplification(g) for g in ["HER2", "FGFR1", "MET"])
+        elif condition == "pd_l1":
+            matched = biopsy.pd_l1_expression >= 0.5
+        elif condition == "msi":
+            matched = biopsy.msi_status == "MSI-H"
+        elif condition == "tmb":
+            matched = biopsy.tmb_per_mb >= 10.0
+        elif condition == "hrd":
+            matched = biopsy.hr_status == "HRD"
+
+        if matched:
+            for drug in drugs:
+                if drug not in seen_drugs:
+                    seen_drugs.add(drug)
+                    pathway = ""
+                    drug_upper = drug.upper()
+                    for tp, pw in TARGET_TO_PATHWAY.items():
+                        if tp.upper().replace("-", "") in drug_upper.replace("-", ""):
+                            pathway = pw
+                            break
+                    recommendations.append({
+                        "drug": drug,
+                        "pathway": pathway or "unknown",
+                        "rationale": rationale,
+                        "priority": "high" if rule_name in (
+                            "EGFR_mutant", "ALK_fusion", "BCR_ABL",
+                        ) else "medium",
+                    })
+
+    return recommendations
 
 
 @dataclass
 class CancerODE:
-    """Tumor growth with Gompertz kinetics and immune surveillance.
+    """Tumor growth with Gompertz kinetics, immune surveillance, and per-pathway therapy.
 
     States:
         tumor_volume: relative tumor burden (0=none, 1=lethal)
@@ -188,26 +500,58 @@ class CancerODE:
         angiogenesis: 0-1 (new blood vessel formation)
 
     Drug targets: cytotoxic chemo (kills proliferating cells),
-    targeted therapy (inhibits growth signaling), immunotherapy (boosts surveillance)
+    targeted therapy (inhibits growth signaling), immunotherapy (boosts surveillance).
+
+    Per-pathway effects (doc/33 Phase 4):
+        pathway_effects: dict mapping pathway name → inhibition level (0.0–1.0)
+        Supported pathways: egfr, braf, vegfr, alk, her2, microtubule,
+        topoisomerase, dna_damage, pd_l1, ctla4, parp, bcr_abl, kras,
+        met, ret, ntrk, pi3k, mtor, cdk46, idh, flt3, jak
     """
 
-    tumor_volume: float = 0.01   # initial small tumor
+    tumor_volume: float = 0.01   # initial small tumor (normalized)
     immune_surveillance: float = 0.8
     angiogenesis: float = 0.5
 
     # --- Gompertz parameters ---
-    growth_rate: float = 0.01    # intrinsic growth rate (1/h)
-    carrying_capacity: float = 1.0  # maximum tumor volume
-    doubling_time_h: float = 72.0   # initial doubling time
+    growth_rate: float = 0.0003   # intrinsic growth rate (1/h); ~3-month doubling
+                                  # Laird 1964: Gompertz analysis of tumor growth
+    carrying_capacity: float = 1.0  # maximum tumor volume (normalized)
+    doubling_time_h: float = 2310.0   # ~96 days (NSCLC typical;
+                                      # Chaudhary et al. 2016: median 96 days)
 
     # --- Immune parameters ---
-    immune_kill_rate: float = 0.005  # immune-mediated tumor cell death
-    tumor_escape_rate: float = 0.001  # tumor immune evasion
+    immune_kill_rate: float = 0.0001  # immune-mediated tumor cell death
+    tumor_escape_rate: float = 0.00002  # tumor immune evasion
 
-    # --- Drug effects ---
-    chemo_kill_rate: float = 0.0   # set by drug PD
-    targeted_inhibition: float = 0.0
+    # --- Legacy drug effects (backward compatible) ---
+    chemo_kill_rate: float = 0.0   # set by drug PD (legacy)
+    targeted_inhibition: float = 0.0  # set by drug PD (legacy)
     immunotherapy_boost: float = 0.0
+
+    # --- Per-pathway effects (doc/33 Phase 4 §12.1) ---
+    pathway_effects: dict[str, float] = field(default_factory=dict)
+
+    # --- Drug kill capacity (1/h) ---
+    # Maximum drug-mediated kill rate; independent of intrinsic growth_rate.
+    # For targeted therapy (EGFR/ALK/BRAF inhibitors) ~0.001-0.003/hr,
+    # for cytotoxic chemo ~0.002-0.008/hr.
+    # Shaked et al. 2010: tumor cell kill rates for cytotoxic agents.
+    drug_kill_capacity: float = 0.001
+
+    # --- Tumor heterogeneity (doc/33 Phase 4 §12.2) ---
+    heterogeneity: TumorHeterogeneity | None = None
+
+    def _total_drug_kill(self) -> float:
+        """Compute total drug kill rate from legacy + per-pathway effects.
+
+        Pathway effects are scaled by *drug_kill_capacity* (1/h) so that
+        inhibition reduces tumor burden at a pharmacologically realistic
+        rate independent of intrinsic growth.
+        """
+        legacy_kill = self.chemo_kill_rate + self.targeted_inhibition
+        pathway_kill = sum(self.pathway_effects.values()) * self.drug_kill_capacity
+        return legacy_kill + pathway_kill
 
     def step(self, dt_h: float) -> None:
         """Advance one hour."""
@@ -223,20 +567,38 @@ class CancerODE:
         # Immune killing
         immune_kill = self.immune_kill_rate * self.immune_surveillance * V
 
-        # Drug killing (cytotoxic + targeted)
-        drug_kill = (self.chemo_kill_rate + self.targeted_inhibition) * V
+        # Drug killing (cytotoxic + targeted + per-pathway)
+        drug_kill = self._total_drug_kill() * V
 
         # Tumor volume dynamics
         self.tumor_volume = max(0.0, V + dt_h * (
             growth - immune_kill - drug_kill))
 
-        # Immune surveillance: tumor can escape
+        # Immune surveillance: tumor can escape, immunotherapy boosts
+        immuno_boost = self.pathway_effects.get("pd_l1", 0.0) * 0.3 + \
+            self.pathway_effects.get("ctla4", 0.0) * 0.3 + \
+            self.immunotherapy_boost * 0.1
         self.immune_surveillance -= dt_h * (
-            self.tumor_escape_rate * V - self.immunotherapy_boost * 0.1)
+            self.tumor_escape_rate * V - immuno_boost)
         self.immune_surveillance = max(0.0, min(1.0, self.immune_surveillance))
 
-        # Angiogenesis: proportional to tumor size
-        self.angiogenesis = min(1.0, V * 0.8)
+        # Angiogenesis: VEGF pathway inhibition reduces angiogenesis
+        vegf_inhib = self.pathway_effects.get("vegfr", 0.0)
+        self.angiogenesis = min(1.0, V * 0.8 * (1.0 - 0.7 * vegf_inhib))
+
+        # Clonal heterogeneity dynamics (if enabled)
+        if self.heterogeneity is not None:
+            het_metrics = self.heterogeneity.step(
+                dt_h, self.pathway_effects,
+                drug_kill_capacity=self.drug_kill_capacity,
+            )
+            # total_volume is pre-normalization aggregate of clone fractions;
+            # it reflects net growth/shrinkage (< 1.0 = kill > growth).
+            het_growth_index = het_metrics["total_volume"]
+            if het_growth_index > 0.0:
+                self.tumor_volume = max(0.0, self.tumor_volume * het_growth_index)
+            else:
+                self.tumor_volume = 0.0
 
 
 # ============================================================================

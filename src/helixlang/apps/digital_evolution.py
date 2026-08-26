@@ -114,7 +114,7 @@ def mutate_genome(genome: tuple[str, ...],
     the given per-instruction rates (a realistic mutation spectrum:
     substitution-dominated, with rare indels).
     """
-    r = rng if rng is not None else random.Random()
+    r = rng if rng is not None else random.Random(0)
     seq = list(genome)
     # substitutions
     for i in range(len(seq)):

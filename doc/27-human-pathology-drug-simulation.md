@@ -888,55 +888,40 @@ def check_toxicity(
 
 ## 10 — Stage G: Helix DSL Integration
 
-### 10.1 — New Keywords
+### 10.1 — Keywords (Implemented)
 
 | Keyword | Purpose | Example |
 |---|---|---|
-| `#human` | Declare human physiology parameters | `#human weight=70 age=30 sex=male` |
-| `#disease` | Define disease state | `#disease name="Gaucher" gene=GBA1 activity=0.05` |
-| `#drug` | Specify drug molecule | `#drug name=imiglucerase type=enzyme dose=60 route=iv` |
-| `#pk` | Pharmacokinetic parameters | `#pk model=pbpk half_life=8 clearance=120` |
-| `#pd` | Pharmacodynamic parameters | `#pd target=GBA1 ic50=0.5 emax=0.95 hill=1.2` |
-| `#sim kind=human` | Run human pathology simulation | `#sim kind=human duration=90d` |
+| `#person` | Declare human physiology parameters | `#person name=John age=55 weight=78` |
+| `#trait` | Patient lifestyle/risk factors | `#trait smoking=former pack_years=10` |
+| `#genotype` | Pharmacogenomic profile | `#genotype CYP2D6=*4/*4` |
+| `#disease` | Define disease state | `#disease name="type 2 diabetes" category=metabolic severity=0.6` |
+| `#drug` | Specify drug molecule | `#drug name=metformin smiles=CN(C)C(=N)NC(=N)N dose=500 route=oral` |
+| `#pd_effect` | Pharmacodynamic effect | `#pd_effect drug=metformin target=BIOMASSReaction ec50=5 emax=0.6 hill=1.0` |
+| `#qsp_binding` | QSP binding model | `#qsp_binding drug=trastuzumab kind=tmdd kss_nM=2.0 emax=0.9` |
+| `#sim` | Configure simulation | `#sim kind=human ticks=720` |
 
-### 10.2 — DSL Syntax Example
+### 10.2 — DSL Syntax Example (Implemented)
 
 ```helix
-#sim kind=human duration=90d dt_dfa=1h dt_pbpk=1min
+#sim kind=human ticks=720
 
-#human {
-  weight: 70 kg
-  height: 170 cm
-  age: 30 years
-  sex: male
-  organs: liver, kidney, brain, muscle
-  # Blood chemistry
-  albumin: 4.5 g/dL
-  hematocrit: 0.45
-}
+#person name=John age=55 weight=78 height=175 sex=male
 
-#disease {
-  name: "Gaucher disease type 1"
-  category: enzyme_deficiency
-  severity: 0.95
+#trait smoking=former pack_years=10 alcohol=0 exercise=moderate
 
-  gene_knockout: GBA1
-  # Residual enzyme activity: 5% of normal
-  enzyme_activity: 0.05
+#genotype CYP2D6=*4/*4 CYP2C19=*1/*1
 
-  # Metabolite accumulation
-  accumulate: glucosylceramide {
-    normal_conc: 0.5 uM
-    disease_conc: 25.0 uM
-  }
-}
+#disease name="type 2 diabetes" category=metabolic severity=0.6 onset_age=45
 
-#drug {
-  name: "imiglucerase"
-  type: biologic
-  sequence: "MDSL..."  # amino acid sequence (Cerezyme®)
-  mw: 60000 Da
-  mechanism: enzyme_replacement
+#drug name=metformin smiles=CN(C)C(=N)NC(=N)N formula=C4H11N5 mw=165.6 \
+  target_protein=complex_I dose=500 route=oral interval=12 duration=90 \
+  bioavailability=0.55 vd=360 cl=627 half_life=4.0 renal_fraction=1.0
+
+#pd_effect drug=metformin target=BIOMASSReaction ec50=5.0 emax=0.6 hill=1.0
+
+#pd_effect drug=metformin target=hepatic_glucose_output ec50=3.0 emax=0.4 hill=1.5
+```
 
   dose: 60 IU/kg
   route: iv_infusion

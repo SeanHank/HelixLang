@@ -89,6 +89,7 @@ class Parser:
                     "qsp_binding": self._parse_qsp_binding,
                     "endocrine_config": self._parse_endocrine_config,
                     "immune_config": self._parse_immune_config,
+                    "tumor_biopsy": self._parse_tumor_biopsy,
                 }.get(t.value)
                 # Biological instructions (P0-1.1)
                 if t.value in BIO_INSTRUCTION_KINDS:
@@ -879,6 +880,25 @@ mw=129.16 dose=500 route=oral interval=8 duration=90
         self._advance()
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         self._append_sim_list(prog, "immune_configs", fields)
+
+    def _parse_tumor_biopsy(self, prog: Program) -> None:
+        """Parse #tumor_biopsy mutation=EGFR_L858R amplification=HER2 ...
+
+        Tumor molecular profile for biomarker-driven cancer therapy.
+        Multiple values for the same key use comma separation:
+            mutation=EGFR_L858R,TP53_R175H
+            amplification=HER2
+            fusion=EML4-ALK
+            pd_l1_expression=0.6
+            msi_status=MSS
+            tmb_per_mb=5.2
+            hr_status=HRD
+
+        Stores into ``Program.sim_extensions["tumor_biopsy"]`` as a dict.
+        """
+        self._advance()  # ANNOT_START
+        fields = self._collect_fields_until_block_end(allow_no_end=True)
+        prog.sim_extensions["tumor_biopsy"] = fields
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:

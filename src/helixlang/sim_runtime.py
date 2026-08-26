@@ -3403,6 +3403,9 @@ def _run_virtual_patient(program: Program) -> SimResult:
     # --- Build immune config ---
     immune_config = _build_immune_config_from_helix(ext)
 
+    # --- Build tumor biopsy (doc/33 Phase 4) ---
+    tumor_biopsy = _build_tumor_biopsy_from_helix(ext)
+
     # --- Auto-infer PD from drug target when no explicit #pd_effect ---
     if drugs and not pd_effects:
         from helixlang.human.pharmacodynamics import infer_pd_from_drug as _infer_pd
@@ -3432,6 +3435,7 @@ def _run_virtual_patient(program: Program) -> SimResult:
         qsp_bindings=qsp_bindings.get("qsp_bindings", []),
         endocrine_configs=endocrine_config.get("endocrine_configs", []),
         immune_configs=immune_config.get("immune_configs", []),
+        tumor_biopsy=tumor_biopsy,
         total_duration_days=duration_days,
         dfa_dt_h=dt_h,
         output_time_resolution_h=output_res_h,
@@ -3696,6 +3700,34 @@ def _build_disease_from_helix(ext: dict[str, Any]) -> DiseaseState | None:
         onset_age_years=_opt_float(ext, "disease_onset_age", 40.0),
         description=ext.get("disease_description", ""),
     )
+
+
+def _build_tumor_biopsy_from_helix(ext: dict[str, Any]) -> dict[str, Any] | None:
+    """Build tumor biopsy dict from #tumor_biopsy annotation.
+
+    Returns dict with keys: mutations, amplifications, deletions, fusion_genes,
+    pd_l1_expression, msi_status, tmb_per_mb, hr_status.
+    Returns None if no #tumor_biopsy annotation present.
+    """
+    raw = ext.get("tumor_biopsy")
+    if not raw or not isinstance(raw, dict):
+        return None
+
+    def _split_csv(val: str) -> list[str]:
+        if not val:
+            return []
+        return [v.strip() for v in val.split(",") if v.strip()]
+
+    return {
+        "mutations": _split_csv(raw.get("mutation", "")),
+        "amplifications": _split_csv(raw.get("amplification", "")),
+        "deletions": _split_csv(raw.get("deletion", "")),
+        "fusion_genes": _split_csv(raw.get("fusion", "")),
+        "pd_l1_expression": _opt_float(raw, "pd_l1_expression", 0.0),
+        "msi_status": raw.get("msi_status", "MSS"),
+        "tmb_per_mb": _opt_float(raw, "tmb_per_mb", 0.0),
+        "hr_status": raw.get("hr_status", "HRC"),
+    }
 
 
 def _build_drugs_from_helix(ext: dict[str, Any]) -> list[Drug]:

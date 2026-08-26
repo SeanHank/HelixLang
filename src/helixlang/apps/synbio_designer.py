@@ -257,7 +257,7 @@ def _balance_gc(dna: str, target: float = 0.50,
     Greedy strategy: each round find a synonymous substitution that brings GC closer to the target.
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     current = dna.upper()
     if not current or len(current) % 3 != 0:
         return current

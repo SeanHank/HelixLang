@@ -332,6 +332,9 @@ class VirtualPatientConfig:
     disease: DiseaseState | None = None
     disease_profile_name: str = ""
 
+    # --- Cancer therapy (doc/33 Phase 4) ---
+    tumor_biopsy: dict[str, Any] | None = None
+
     # --- Drugs ---
     drugs: list[Drug] = field(default_factory=list)
     pharmacodynamics: dict[str, Pharmacodynamics] = field(default_factory=dict)
@@ -445,6 +448,8 @@ class VirtualPatientResult:
     tnf_alpha: list[float] = field(default_factory=list)
     neutrophils: list[float] = field(default_factory=list)
     tumor_volume: list[float] = field(default_factory=list)
+    tumor_clone_fractions: list[dict[str, float]] = field(default_factory=list)
+    resistance_mutations: list[list[str]] = field(default_factory=list)
     nephron_mass: list[float] = field(default_factory=list)
     fibrosis_stage: list[float] = field(default_factory=list)
     beta_cell_function: list[float] = field(default_factory=list)
@@ -512,6 +517,8 @@ class VirtualPatientResult:
             },
             "disease_ode": {
                 "tumor_volume": self.tumor_volume,
+                "tumor_clone_fractions": self.tumor_clone_fractions,
+                "resistance_mutations": self.resistance_mutations,
                 "nephron_mass": self.nephron_mass,
                 "fibrosis_stage": self.fibrosis_stage,
                 "beta_cell_function": self.beta_cell_function,
@@ -864,11 +871,53 @@ class VirtualPatient:
         from helixlang.human.disease_ode_models import create_disease_model
         if self.config.disease is None:
             return None
-        return create_disease_model(
+        ode = create_disease_model(
             self.config.disease.name,
             self.config.disease.severity,
             category=self.config.disease.category,
         )
+        # Wire tumor heterogeneity from biopsy (doc/33 Phase 4)
+        if hasattr(ode, 'tumor_volume') and self.config.tumor_biopsy is not None:
+            from helixlang.human.disease_ode_models import (
+                CancerODE,
+                TumorClone,
+                TumorHeterogeneity,
+            )
+            assert isinstance(ode, CancerODE)
+            biopsy = self.config.tumor_biopsy
+            mutations = biopsy.get("mutations", [])
+            amplifications = biopsy.get("amplifications", [])
+            fusion_genes = biopsy.get("fusion_genes", [])
+            pd_l1 = biopsy.get("pd_l1_expression", 0.0)
+            msi = biopsy.get("msi_status", "MSS")
+            tmb = biopsy.get("tmb_per_mb", 0.0)
+            clones = []
+            parent_sens: dict[str, float] = {}
+            if any("EGFR" in m for m in mutations):
+                parent_sens["egfr"] = 0.9
+            if any("BRAF" in m for m in mutations):
+                parent_sens["braf"] = 0.85
+            if any("KRAS" in m for m in mutations):
+                parent_sens["kras"] = 0.1
+            if any("ALK" in f for f in fusion_genes):
+                parent_sens["alk"] = 0.9
+            if any("HER2" in a for a in amplifications):
+                parent_sens["her2"] = 0.7
+            if pd_l1 >= 0.5:
+                parent_sens["pd_l1"] = 0.8
+            if msi == "MSI-H":
+                parent_sens["pd_l1"] = max(parent_sens.get("pd_l1", 0.0), 0.85)
+            if any("BRCA" in m for m in mutations):
+                parent_sens["parp"] = 0.9
+            parent_growth = ode.growth_rate * (1.0 + 0.001 * tmb)
+            clones.append(TumorClone(
+                name="parent",
+                fraction=1.0,
+                growth_rate=parent_growth,
+                drug_sensitivities=parent_sens,
+            ))
+            ode.heterogeneity = TumorHeterogeneity(clones=clones)
+        return ode
 
     def _init_immune_if_needed(self) -> None:
         """Lazily initialize immune model (needs cortisol from endocrine)."""
@@ -1561,19 +1610,38 @@ class VirtualPatient:
                         labs.lactate_mmol_per_l = max(0.5,
                             labs.lactate_mmol_per_l + dt_h * 0.01 * (1.0 - co_val / 5.0))
                     elif hasattr(self._disease_ode, 'tumor_volume'):
-                        # CancerODE — wire chemo/targeted/immunotherapy effects from PD
+                        # CancerODE — per-pathway effects (doc/33 Phase 4)
+                        from helixlang.human.disease_ode_models import TARGET_TO_PATHWAY
+                        pathway_effects: dict[str, float] = {}
                         for _pk, _pv in pd_multipliers.items():
-                            kl = _pk.lower()
-                            if 'dna_repl' in kl or 'microtubule' in kl or 'topoisomerase' in kl:
-                                self._disease_ode.chemo_kill_rate = max(
-                                    self._disease_ode.chemo_kill_rate, 1.0 - _pv)
-                            if 'egfr' in kl or 'braf' in kl or 'kdr' in kl or 'alk' in kl:
-                                self._disease_ode.targeted_inhibition = max(
-                                    self._disease_ode.targeted_inhibition, 1.0 - _pv)
-                            if 'pd_l1' in kl or 'ctla4' in kl or 'immun' in kl:
-                                self._disease_ode.immunotherapy_boost = max(
-                                    self._disease_ode.immunotherapy_boost, 1.0 - _pv)
+                            pathway = TARGET_TO_PATHWAY.get(_pk, "")
+                            if not pathway:
+                                kl = _pk.lower()
+                                for tp, pw in TARGET_TO_PATHWAY.items():
+                                    if tp.lower() in kl or kl in tp.lower():
+                                        pathway = pw
+                                        break
+                            if pathway and _pv < 1.0:
+                                inh = 1.0 - _pv
+                                pathway_effects[pathway] = max(
+                                    pathway_effects.get(pathway, 0.0), inh)
+                        if pathway_effects:
+                            self._disease_ode.pathway_effects = pathway_effects
                         self._disease_ode.step(dt_h)
+                        # Record clone fractions and resistance
+                        het = getattr(self._disease_ode, 'heterogeneity', None)
+                        if het is not None:
+                            clone_summary = het.get_clone_summary()
+                            result.tumor_clone_fractions.append({
+                                c["name"]: c["fraction"] for c in clone_summary
+                            })
+                            all_resist = []
+                            for c in het.clones:
+                                all_resist.extend(c.resistance_mutations)
+                            result.resistance_mutations.append(sorted(set(all_resist)))
+                        else:
+                            result.tumor_clone_fractions.append({})
+                            result.resistance_mutations.append([])
                     elif hasattr(self._disease_ode, 'joint_inflammation'):
                         # AutoimmuneRAODE
                         # Wire DMARD effect from PD multipliers into disease ODE
@@ -2201,22 +2269,37 @@ class _DrugPBPK:
                     )
 
         # Elimination rate constants (per hour, acting on central plasma)
+        # The specified renal_fraction and hepatic_extraction may not sum to
+        # total clearance (e.g. osimertinib: renal 10% + hepatic E*Q_liver
+        # ≈ 2.7 L/h but actual CL = 14.2 L/h).  We compute the shortfall
+        # and add it as a lumped "other" elimination on the central compartment.
         cl_total_l_per_h = drug.clearance_ml_per_min * ML_PER_MIN_TO_L_PER_H
         renal_fraction = min(max(drug.renal_fraction, 0.0), 1.0)
-        self.k_renal_per_h = renal_fraction * cl_total_l_per_h / self.vc_l
         extraction = min(max(drug.hepatic_extraction_ratio, 0.0), 1.0)
         q_liver = self.organ_flows_l_per_h["liver"]
-        self.k_hepatic_per_h = extraction * q_liver / self.vc_l
+
+        renal_cl = renal_fraction * cl_total_l_per_h
+        hepatic_cl = extraction * q_liver if q_liver > 0.0 else 0.0
+
         if cl_total_l_per_h > 0.0:
-            if renal_fraction > 0.0 and extraction <= 0.0 and q_liver > 0.0:
-                # Auto-derive hepatic clearance from the remaining fraction
-                remaining_cl = cl_total_l_per_h - renal_fraction * cl_total_l_per_h
-                if remaining_cl > 0.0:
-                    derived_extraction = min(1.0, remaining_cl / q_liver)
-                    self.k_hepatic_per_h = derived_extraction * q_liver / self.vc_l
-            elif renal_fraction <= 0.0 and extraction <= 0.0:
+            if renal_fraction <= 0.0 and extraction <= 0.0:
                 # No pathway fractions specified — apply full CL to central
-                self.k_renal_per_h = cl_total_l_per_h / self.vc_l
+                renal_cl = cl_total_l_per_h
+                hepatic_cl = 0.0
+            elif extraction <= 0.0 and q_liver > 0.0:
+                # Only renal specified — derive hepatic from remainder
+                remaining = cl_total_l_per_h - renal_cl
+                if remaining > 0.0:
+                    derived_extraction = min(1.0, remaining / q_liver)
+                    hepatic_cl = derived_extraction * q_liver
+
+        # Account for any remaining clearance not covered by named pathways
+        # (extrahepatic metabolism, biliary, protein-binding-mediated, etc.)
+        accounted_cl = renal_cl + hepatic_cl
+        other_cl = max(0.0, cl_total_l_per_h - accounted_cl)
+
+        self.k_renal_per_h = renal_cl / self.vc_l
+        self.k_hepatic_per_h = (hepatic_cl + other_cl) / self.vc_l
 
         # Persistent compartment state (µM) + oral depot (mg)
         self.conc_um: dict[str, float] = {

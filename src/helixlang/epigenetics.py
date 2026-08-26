@@ -253,7 +253,7 @@ def methylate_dna(dna: str, cell_type: str = "ecoli",
     probability.
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     dna = dna.upper()
 
     if cell_type == "ecoli":

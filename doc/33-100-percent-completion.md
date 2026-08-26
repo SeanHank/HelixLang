@@ -472,3 +472,173 @@ These are **design limitations**, not bugs:
    inhibition and neuroprotective effects from PD; neuroinflammation feeds into
    CRP. New result channels: `cardiac_output`, `map_mmhg`, `synaptic_density`,
    `cognitive_score`.
+
+5. **Cancer targeted therapy is generic** — **RESOLVED** (Phase 4, below).
+   `CancerODE` now has per-pathway inhibition scalars (EGFR, BRAF, VEGFR, ALK,
+   microtubule, DNA, topoisomerase, PD-L1, CTLA4) with independent Hill-equation
+   dose-response. Tumor heterogeneity via clonal subpopulations with independent
+   growth rates and drug sensitivities. Resistance mutation accumulation.
+
+---
+
+## 12 — Phase 4: Mechanism-Specific Cancer Targeted Therapy
+
+**Status:** IMPLEMENTED
+**Date:** 2026-08-26
+**Motivation:** The existing `CancerODE` models tumor growth with 3 shared drug-effect
+scalars (`chemo_kill_rate`, `targeted_inhibition`, `immunotherapy_boost`). All EGFR/ALK/BRAF/KDR
+inhibitors share a single `targeted_inhibition` value, which is biologically incorrect.
+A real EGFR inhibitor (erlotinib) and a real ALK inhibitor (crizotinib) have completely
+different mechanisms, dose-response curves, and resistance profiles. Phase 4 replaces
+the generic model with pathway-specific, mechanism-aware cancer therapy simulation.
+
+### 12.1 Design: Per-Pathway CancerODE
+
+**Problem:** `CancerODE` has no way to distinguish between different drug mechanisms.
+All targeted drugs map to a single `targeted_inhibition` scalar.
+
+**Solution:** Replace the 3 scalar fields with a dictionary of pathway-specific effects:
+
+```python
+# OLD (generic)
+chemo_kill_rate: float = 0.0
+targeted_inhibition: float = 0.0
+immunotherapy_boost: float = 0.0
+
+# NEW (per-pathway)
+pathway_effects: dict[str, float] = field(default_factory=dict)
+# Keys: "dna_damage", "microtubule", "topoisomerase",  # cytotoxic
+#        "egfr", "braf", "vegfr", "alk", "her2",        # targeted
+#        "pd_l1", "ctla4"                                # immunotherapy
+```
+
+Each pathway has its own Hill-equation dose-response computed from drug concentration:
+```
+effect pathway = emax * C^hill / (EC50^hill + C^hill)
+```
+
+The VP wiring (`virtual_patient.py`) populates `pathway_effects` from PD multipliers
+using a **target-protein → pathway mapping** (not substring matching):
+
+```python
+TARGET_TO_PATHWAY = {
+    "EGFR": "egfr", "EGFRvIII": "egfr",
+    "BRAF_V600E": "braf", "BRAF": "braf",
+    "VEGFR2": "vegfr", "VEGFR1": "vegfr", "KDR": "vegfr",
+    "ALK": "alk", "EML4-ALK": "alk",
+    "HER2": "her2", "ERBB2": "her2",
+    "PD-L1": "pd_l1", "CD274": "pd_l1",
+    "CTLA4": "ctla4",
+    "Tubulin": "microtubule", "Beta-tubulin": "microtubule",
+    "TOP1": "topoisomerase", "TOP2A": "topoisomerase",
+    "DNA": "dna_damage", "BRCA1": "dna_damage",
+}
+```
+
+### 12.2 Design: Tumor Heterogeneity (Clonal Subpopulations)
+
+**Problem:** Gompertz model treats tumor as homogeneous. Real tumors have subclones
+with different drug sensitivities. Resistance emerges when sensitive clones are killed
+and resistant clones expand.
+
+**Solution:** Add `TumorClone` dataclass and `TumorHeterogeneity` model:
+
+```python
+@dataclass
+class TumorClone:
+    name: str
+    fraction: float              # 0.0–1.0, sum of all clones = 1.0
+    growth_rate: float           # per hour
+    drug_sensitivities: dict[str, float]  # pathway → sensitivity (0=none, 1=full)
+    resistance_mutations: list[str]       # e.g. ["EGFR_T790M", "BRAF_V600E"]
+
+@dataclass
+class TumorHeterogeneity:
+    clones: list[TumorClone]
+    resistance_rate: float = 1e-6   # per cell division per pathway
+    fitness_cost: float = 0.1       # fitness cost of resistance mutation
+
+    def step(self, dt_h: float, pathway_effects: dict[str, float]) -> dict[str, float]:
+        """Advance clonal dynamics. Returns aggregate tumor metrics."""
+```
+
+The `step()` method:
+1. For each clone: compute net growth = intrinsic_growth × (1 - fitness_cost × n_mutations) - drug_kill × sensitivity
+2. Update clone fractions (renormalize to sum = 1.0)
+3. Stochastic resistance mutation: with probability `resistance_rate × dt_h × clone_fraction`,
+   a new subclone emerges with one additional resistance mutation and reduced drug sensitivity
+4. Return aggregate: total_volume, weighted_sensitivity per pathway, resistance_clone_fraction
+
+### 12.3 Design: Biomarker-Driven Therapy Selection
+
+**Problem:** No way to select targeted therapy based on tumor molecular profile.
+
+**Solution:** Add `TumorBiopsy` dataclass and `select_targeted_therapy()`:
+
+```python
+@dataclass
+class TumorBiopsy:
+    mutations: list[str]         # e.g. ["EGFR_L858R", "TP53_R175H"]
+    amplifications: list[str]    # e.g. ["HER2"]
+    pd_l1_expression: float      # 0.0–1.0 (TPS)
+    msi_status: str              # "MSI-H", "MSS", "MSI-L"
+    tmb_per_mb: float            # tumor mutational burden
+
+def select_targeted_therapy(biopsy: TumorBiopsy, available_drugs: list[str]) -> list[dict]:
+    """Select appropriate targeted therapies based on biomarkers."""
+```
+
+Returns ranked list of drug + rationale + expected pathway inhibition.
+
+### 12.4 Design: Resistance Tracking in Result
+
+Add to `VirtualPatientResult`:
+- `tumor_clone_fractions: list[dict[str, float]]` — time-series of clone composition
+- `resistance_mutations: list[list[str]]` — accumulated resistance mutations over time
+- `biomarker_selection: list[dict]` — therapy selection decisions
+
+### 12.5 .helix DSL Extensions for Cancer Therapy
+
+New syntax for tumor characterization:
+
+```helix
+#disease name="NSCLC" category=cancer severity=0.8
+
+#tumor_biopsy
+  mutation=EGFR_L858R
+  mutation=TP53_R175H
+  amplification=HER2
+  pd_l1_expression=0.6
+  msi_status=MSS
+  tmb_per_mb=5.2
+#end
+
+#drug name=erlotinib dose=150 route=oral interval=24 duration=90
+  target_protein=EGFR
+  binding_affinity_kd=2.0
+#end
+
+#drug name=pembrolizumab dose=200 route=iv_infusion interval=504 duration=365
+  target_protein=PD-L1
+  binding_affinity_kd=0.029
+#end
+
+#pd_effect drug=erlotinib target=EGFR type=inhibition ec50=0.5 emax=0.95 hill=1.2
+#pd_effect drug=pembrolizumab target=PD-L1 type=inhibition ec50=10 emax=0.8 hill=1.0
+```
+
+Parser additions:
+- `#tumor_biopsy` keyword → `sim_extensions["tumor_biopsy"]` (mutation, amplification, pd_l1, msi, tmb fields)
+- Existing `#drug` and `#pd_effect` syntax unchanged
+- Existing `#disease` with `category=cancer` triggers CancerODE creation
+
+### 12.6 File Changes
+
+| File | Change |
+|------|--------|
+| `src/helixlang/human/disease_ode_models.py` | `CancerODE`: replace 3 scalars with `pathway_effects` dict; add `TumorClone`, `TumorHeterogeneity`, `TumorBiopsy` dataclasses; add `select_targeted_therapy()` |
+| `src/helixlang/human/virtual_patient.py` | VP wiring: use `TARGET_TO_PATHWAY` mapping instead of substring matching; wire `TumorHeterogeneity.step()` into CancerODE loop; populate `tumor_clone_fractions` and `resistance_mutations` in result |
+| `src/helixlang/parser.py` | Add `#tumor_biopsy` parser rule → `sim_extensions["tumor_biopsy"]` |
+| `src/helixlang/sim_runtime.py` | `_build_tumor_biopsy_from_helix()`: read biopsy fields; pass to `VirtualPatientConfig`; auto-create `TumorHeterogeneity` from biopsy mutations |
+| `tests/test_doc33_cancer.py` | E2E tests: pathway-specific inhibition, clonal dynamics, resistance emergence, biomarker selection |
+| `doc/33-100-percent-completion.md` | This section (Phase 4) |

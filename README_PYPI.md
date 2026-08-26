@@ -1,98 +1,116 @@
-# 🧬 HelixLang
+<div align="center">
 
-_"We are moving from reading the genetic code to writing it." — J. Craig Venter_
+# 🧬 HelixLang
 
 **DNA is source code. Codons are mnemonics. The ribosome is a VM. The cell is the runtime.**
 
-A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior and morphology.
+A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior.
+
+[Quick Start](#quick-start) ·
+[5-Minute Proof](#5-minute-proof-lac-operon) ·
+[Examples](#language-examples) ·
+[Architecture](#architecture) ·
+[API](#api--web-visualization) ·
+[Documentation](#documentation) ·
+[Contributing](#contributing) ·
+[License](#license)
+
+[![PyPI - Version](https://img.shields.io/pypi/v/helixlang)](https://pypi.org/project/helixlang/)
+[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/helixlang)](https://pypi.org/project/helixlang/)
+
+</div>
 
 ---
 
-## Why HelixLang?
+## 5-Minute Proof: lac Operon
 
-Traditional biological modeling tools treat DNA as **data** — a passive string to be analyzed. HelixLang treats DNA as **code**: every codon is an instruction, every gene is a function, every cell is a runtime.
+The lac operon is a real gene regulatory circuit in *E. coli*. Here's how it works: LacI constitutively represses the lac promoter. When lactose is absent, LacZ/LacY are off. This is a negative feedback loop — the same pattern that controls billions of genes across nature.
+
+Here's the complete HelixLang program:
 
 ```helix
-#gene name=hello
-ATG GCT GGT TAA          # START -> BUILD_PROTEIN -> BUILD_MEMBRANE -> HALT
+#promoter name=p_lac  strength=0.5
+#promoter name=p_lacI strength=-0.5
+
+#gene name=lacZ promoter=p_lac
+ATG GCT GCT GCT TAA
 #end
+
+#gene name=lacI promoter=p_lacI
+ATG GCT GCT TAA
+#end
+
+#regulate lacI  -> p_lac  strength=-0.9     # lacI represses p_lac
+#regulate p_lac -> lacZ  strength=+0.9      # p_lac activates lacZ
+
+#config ticks=20 output=csv
 ```
 
-Feed that sequence to the HelixLang compiler and you get a real bytecode program you can run, debug, and disassemble — just like Python or Java bytecode.
+Run it:
 
-### Highlights
+```bash
+pip install helixlang
+helixlang examples/02_lac_operon.helix
+```
 
-- 🧬 **Biologically isomorphic** — language primitives map one-to-one to biological entities: codons, amino acids, genes, promoters, operons, regulators, proteins.
-- ⚙️ **Full compiler pipeline** — Lexer → Parser → AST → Semantic → Compiler → Bytecode → VM, with disassembly and debugging support.
-- 🎲 **Degeneracy as aliasing** — 64 codons map to ~30 opcodes; the third wobble position acts as an operand modifier, mirroring real biological degeneracy.
-- 🌱 **Executable life** — bytecode drives a cell simulator that emits morphology, behavior, and state.
-- 🔬 **Real biological data** — mutation rates, transition:transversion ratios, codon usage tables, tRNA abundances, and CAI are sourced from published measurements (Lee 2012, Drake 1991, Ikemura 1985, Dong 1996, Sharp & Li 1987).
-- 💾 **DNA data storage** — built-in Goldman 2013 rotating-key encoding and Erlich-Zielinski 2017 DNA Fountain code, encoding arbitrary byte streams into synthesizable DNA.
-- 🛠️ **No hard dependencies** — the core compiler/VM uses only the Python standard library; numpy / biopython / flask are optional enhancements.
-- 🧪 **Frontier biology** — the frontier tier turns the simulator into a quantitative model: **programmable cells**, **stochastic gene expression**, **environment-coupled Monod metabolism** with CROMICS cell-crowding diffusion, **dynamic FBA** batch / diauxic simulation, and spatial cell mechanics.
-- 🧬 **DNA → Structure → Kinetics → ecGEM → Ecosystem** — ESM3 end-to-end protein structure prediction from sequence alone (no MSA required), sequence-based kcat/Km prediction using ESM-2 embeddings + BRENDA calibration (CatPred-style), auto ecGEM construction (ECMpy 2.0 enzyme capacity constraints), community FBA with per-organism ecGEMs and cross-feeding. The full pipeline runs from a single genome FASTA file via `run_full_pipeline()`. Example 55 demonstrates the complete chain with Xenobacter alienus — 24 genes, 5 pathways, 22 enzyme kinetic parameters, 42-reaction core model with 24 enzyme constraints.
-- 🧬 **Whole-cell realism** — `VirtualCell` is a physically complete virtual organism: cell-cycle phasing with scheduled **Cooper–Helmstetter chromosome replication**, true volume in µm³ with **adder** size control, chaperone-mediated protein maturation & QC, and **enzyme-constrained FBA** over intracellular pools — closed at colony scale and calibrated from noisy, lab-style observables via the Virtual Cell Challenge calibrate→predict loop.
-- 🖥️ **One source, every runtime** — a single backend selector drives five quantitative runtimes — whole-cell physiology, 3D cell colonies, dFBA batch/diauxie curves, even inverse calibration — all straight from `.helix` source, with `#media`/`#enzyme`/`#metabolite` annotations, `seed=` determinism, `--backend`/`--json` CLI flags, and a `POST /api/sim/run` web endpoint. `backend=classic` stays the default, bit-identical.
-- 🌍 **Evolution with a physical body** — DNA programs evolve in real 3D space: a biological mutation spectrum mutates the source, the compiler revalidates the reading frame and recompiles, and fitness is *spatial behavior* — colony radius × core survival in an oxygen-poor colony core (Bosshard 2020). Codons, physics, and natural selection in a single loop.
-- 🌊 **Microfluidics in the box** — lattice-Boltzmann D2Q9 (2D) and D3Q19 (3D) solvers drive medium through microfluidic channels around growing colonies: no-slip obstacles, Stokes-drag drift, Hertzian contacts, substrate advection — and a nutrient boundary layer emerges at the colony edge on its own.
-- 🧫 **From one gene to a genome** — one `#genome` annotation builds a shared **4338-gene** sparse regulatory network; every cell is a row of the same matrix, and expression-gated FBA turns a knockout into a silent node — knock out an essential gene and the whole colony stops growing.
-- 🎯 **Calibrate the invisible** — more than simulation: **inverse modeling** recovers hidden biophysical parameters from noisy, lab-realistic mixed observables at both whole-cell and colony scale (Karr 2012 / Virtual Cell Challenge–style weighted fitting).
-- 🏥 **Human virtual patient engine** — `VirtualPatient` accepts genotype (VCF), external traits, disease parameters, and drug regimens, then predicts all body parameter changes during and after medication as hourly time series. Full pipeline: PBPK → PD → clinical labs → vital signs → disease progression → recovery — all from `.helix` source with `#sim kind=human`.
-- 🧪 **PBPK pharmacokinetics** — 6-compartment mechanistic PBPK (central, liver, kidney, brain, muscle, adipose) with organ volumes, blood flows, and Kp partition coefficients calibrated to target Vd; route-specific absorption (oral, IV bolus/infusion, subcutaneous); Euler sub-stepping; AUC/Cmax/tmax; MW-gated biologics PBPK with FcRn recycling.
-- 🧬 **Pharmacogenomics** — VCF 4.2/4.3 parsing with CYP450 star-allele calling (CYP2D6, CYP2C19, CYP2C9, CYP3A4/5, CYP1A2, CYP2E1), metabolizer phenotypes (UM/EM/NM/PM), transporter pharmacogenomics (SLCO1B1, ABCB1), and non-CYP enzymes (UGT1A1, TPMT, DPYD) — all affecting PBPK clearance modifiers.
-- 🦠 **12 disease ODE models across 8 categories** — Infectious, Autoimmune RA, Cardiovascular, Metabolic T2D, Neurological, Renal, Hepatic, Hematological, Respiratory, GI, Endocrine, Cancer — each with mechanistic drug coupling and ODE severity feedback.
-- 📊 **34-analyte clinical lab panel** — hepatic (ALT/AST/ALP/GGT/bilirubin/albumin/INR), renal (creatinine/eGFR/cystatin-C), CBC (WBC/RBC/Hgb/Hct/platelets/MCV/MCH), metabolic (glucose/HbA1c/electrolytes), lipids (TC/LDL/HDL/TG), inflammatory (CRP/ESR) — all driven by disease-to-labs mechanistic coupling.
-- 🔬 **Mechanistic immune system** — innate immune ABM with cytokine pool (TNF-α, IL-1β, IL-6, IL-10), immune cell populations, IL-6 → CRP production with 19h half-life, neutrophil mobilization with bone marrow recovery kinetics, and cortisol/immunosuppression feedback.
-- 💊 **Drug-drug interactions** — 13+ curated DDI rules with CYP inhibition/induction, P-gp interactions, additive toxicity channels, genotype interplay; plus compositional mechanistic DDI predictor for novel drug pairs.
-- 🧬 **Proteome-wide binding** — 44 drug-metabolizing enzymes + transporters with curated Kd data; Morgan fingerprint similarity for novel drug interpolation; competitive inhibition kinetics with FDA guidance thresholds.
-- 🌿 **Microbiome-drug interactions** — 7 bacterial species, 11 microbial reactions (irinotecan reactivation, levodopa decarboxylation, sulfasalazine azoreduction); Michaelis-Menten kinetics; portal vein fluxes → liver impact.
-- 🔄 **Post-treatment recovery** — washout kinetics, organ functional recovery, rebound phenomena (corticosteroid, opioid, beta-blocker), and relapse vs. remission via daily hazard model.
-- 🧠 **Epigenetic & emergent complexity** — CYP methylation/expression dynamics, liver-gut enterohepatic circulation, stress-immune-endocrine triple feedback with fever and metabolic rate coupling.
+Output (CSV):
+
+```
+tick,lacI_protein,lacZ_protein,p_lac_activity
+0,0.000,0.000,0.500
+1,0.500,0.000,0.050
+2,0.500,0.000,0.050
+3,0.500,0.000,0.050
+...
+```
+
+**What just happened?**
+1. `p_lacI` is constitutively active (strength=-0.5), so LacI protein accumulates
+2. LacI represses `p_lac` (strength=-0.9), so LacZ stays near zero
+3. The system reaches steady state in ~3 ticks — exactly what the real operon does
+
+This is not a toy. The same compiler produces bytecode that runs on a real VM, and the same language specifies genome-scale metabolic models with 2,712 reactions validated against COBRApy with error < 10⁻¹³.
 
 ---
 
-## Installation
+## Quick Start
+
+### Install
 
 ```bash
-# Core (compiler + VM + CLI)
+# Core (compiler + VM + CLI) — zero runtime dependencies
 pip install helixlang
 
-# Recommended: install all optional extras
-pip install "helixlang[fast,web,bio,ml]"
+# Full stack
+pip install "helixlang[fast,web,bio,ml,human]"
 ```
 
 | Extra | Capability | Dependencies |
 |-------|-----------|--------------|
 | `fast` | vectorized mutation / reaction-diffusion speedup | numpy |
 | `web` | Flask visualization frontend | flask |
-| `bio` | physical DNA codec + IUPAC validation + full GEM import | biopython, reedsolo, cobra |
-| `ml` | ESM3 protein structure + ESM-2 sequence-based kinetics | esm, torch |
-| `human` | SMILES parsing + molecular properties for drug simulation | rdkit (2026.03.5) |
-| `dev` | tests + coverage | pytest, pytest-cov, scipy |
+| `bio` | physical DNA codec + full GEM import | biopython, reedsolo, cobra |
+| `ml` | ESM3 protein structure + ESM-2 kinetics | esm, torch |
+| `human` | SMILES parsing + drug simulation | rdkit |
+| `dev` | tests + coverage (source checkouts) | pytest, scipy |
 
-The core installs with **zero runtime dependencies** — only the Python standard library.
-
----
-
-## Quick Start
-
-### Run an example
+### 30-Second Demo
 
 ```bash
-# Run a simulation
-helixlang examples/01_hello_dna.helix
+# Run the lac operon
+helixlang examples/02_lac_operon.helix
 
 # Disassemble the bytecode
-helixlang examples/01_hello_dna.helix --disassemble
+helixlang examples/02_lac_operon.helix --disassemble
 
-# Run the full-chain custom organism pipeline (DNA → structure → kinetics → ecGEM → ecosystem)
-helixlang examples/55_custom_organism_ecosystem.helix --full-pipeline
+# Run a genome-scale metabolic model (E. coli iML1515)
+helixlang examples/53_ecoli_full_model.helix
 
-# Launch the web visualization (http://127.0.0.1:5000)
+# Launch the web visualization
 helixlang --serve
 ```
 
-### As a Python library
+### As a Python Library
 
 ```python
 from helixlang.lexer import Lexer
@@ -115,17 +133,36 @@ print(f"Ran {len(trace)} ticks, final energy = {trace[-1]['energy']}")
 
 ---
 
+## What HelixLang Does
+
+HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends for biology. One `.helix` source file can:
+
+1. **Compile to bytecode** — a real compiler pipeline (Lexer → Parser → AST → Compiler → Bytecode → VM) with `.helixc` binary serialization
+2. **Run quantitative simulations** — FBA metabolism, whole-cell physiology, population dynamics, ecosystem ecology, human pharmacology
+3. **Load real data** — genome-scale metabolic models (2,712 reactions for E. coli), drug molecules, disease parameters
+
+### At a Glance
+
+| Metric | Value |
+|--------|-------|
+| Source modules | 135 |
+| Test cases | 2,984+ (81% coverage) |
+| Validation benchmarks | 45 (all passing, SHA256-verified goldens) |
+| `.helix` examples | 59 |
+| Documentation | 36 files, 25,000+ lines |
+| Runtime dependencies | **zero** (all optional) |
+
+---
+
 ## Language Examples
 
-### 1. The lac Operon — Gene Regulatory Network (GRN)
-
-`p_lacI` constitutively expresses `lacI` → represses `p_lac` → `lacZ`/`lacY` shut off. A real negative-feedback loop:
+### 1. Gene Regulatory Network
 
 ```helix
-#promoter name=p_lac  strength=0.5
+#promoter name=p_tetR strength=-0.5
 #promoter name=p_lacI strength=-0.5
 
-#gene name=lacZ promoter=p_lac
+#gene name=tetR promoter=p_tetR
 ATG GCT GCT GCT TAA
 #end
 
@@ -133,28 +170,13 @@ ATG GCT GCT GCT TAA
 ATG GCT GCT TAA
 #end
 
-#regulate lacI  -> p_lac  strength=-0.9     # lacI represses p_lac
-#regulate p_lac -> lacZ  strength=+0.9      # p_lac activates lacZ
+#regulate lacI  -> p_tetR strength=-0.9
+#regulate tetR -> p_lacI strength=-0.9
 
-#config ticks=20 output=csv
+#config ticks=20
 ```
 
-### 2. Turing Patterns — Gray-Scott Reaction-Diffusion
-
-```helix
-#promoter name=p_pigment strength=-0.4
-#gene name=pigment promoter=p_pigment
-ATG GAT GAT GAA TAA
-#end
-
-#field size=32 F=0.035 k=0.065 Du=0.16 Dv=0.08
-
-#config ticks=100 react_steps=2
-```
-
-Render the output to a PPM image: `helixlang examples/04_turing_pattern.helix --png turing`
-
-### 3. CRISPR-Cas9 Gene Editing
+### 2. CRISPR-Cas9 Gene Editing
 
 ```helix
 #gene name=target_gene
@@ -164,17 +186,7 @@ ATG GCT GCT GCT GCT GCT GCT GCT GCT GCT TAA
 #crispr target=target_gene position=50 new_sequence="GGGG" cas=SpCas9 repair=HDR
 ```
 
-Equivalent Python API call:
-
-```python
-from helixlang.crispr import design_guide, cut_dna, on_target_score
-
-guide = design_guide("ATCGATCGATCGATCGATCGGATC", cas_variant="SpCas9")
-print(f"On-target score: {on_target_score(guide):.3f}")
-edited = cut_dna("ATCGATCGATCGATCGATCGGATC", guide, repair="NHEJ")
-```
-
-### 4. Evolution Simulation — Mutation + Selection + Drift
+### 3. Evolution Simulation
 
 ```helix
 #gene name=ancestor
@@ -184,202 +196,161 @@ ATG CTG CTG CTG CTG CTG CTG CTG CTG CTG TAA
 #evolve target=ancestor generations=100 mutation_rate=0.01 population_size=1000
 ```
 
-Parameters come from real papers: E. coli substitution rate 2.2e-10 /nt/gen (Lee 2012), transition:transversion ≈ 3:1 (Stoltzfus 2009).
+### 4. Human Virtual Patient
 
-### 5. DNA Data Storage — Write source code into DNA
+```helix
+#person name=patient age=55 weight=78
+#genotype CYP2D6=*4/*4
+#disease name=type2_diabetes severity=0.6
+#drug name=metformin dose=500 route=oral
+#config backend=human ticks=168
+```
+
+### 5. DNA Data Storage
 
 ```bash
-# .helix source -> DNA sequence (Goldman rotating-key encoding)
+# Encode .helix source into synthesizable DNA
 helixlang examples/01_hello_dna.helix --encode-dna goldman
 
-# High-density fountain code (~1.57 bit/nt, near the Shannon limit)
-helixlang examples/01_hello_dna.helix --encode-dna erlich
-
-# Simulate 30 cycles of PCR error injection
-helixlang examples/01_hello_dna.helix --encode-dna goldman --pcr-cycles 30
-
-# DNA -> source (reverse decode)
+# Decode DNA back to source
 helixlang decoded.fasta --decode-dna oligos.fasta
 ```
 
-```python
-from helixlang.dna_codec import helix_to_dna, dna_to_helix
+---
 
-enc = helix_to_dna("#gene name=hello\nATG TAA\n#end\n", scheme="goldman")
-print(enc["oligos"][0]["full"])              # 117 nt DNA sequence
-recovered = dna_to_helix(enc, scheme="goldman")
-assert recovered == "#gene name=hello\nATG TAA\n#end\n"
-```
+## Simulation Backends
 
-> 💡 Note the two distinct pipelines: the **compiler** translates `ATG GCT` into VM opcode bytes; the **DNA codec** maps the entire `.helix` file as a byte stream onto ACGT strings for real wet-lab DNA data storage. The two are fully orthogonal.
+| Backend | What it does | Examples |
+|---------|-------------|----------|
+| `classic` | Bytecode VM — GRN + L-system + reaction-diffusion | All |
+| `fba` | Static/dynamic FBA — biomass optimization | 10, 20, 35 |
+| `whole_cell` | Cooper–Helmstetter replication, adder size control | 30, 31, 34 |
+| `population` | Per-cell GRN+bytecode colonies, CROMICS diffusion | 21, 32, 37-39 |
+| `ecosystem` | Multi-species Lotka-Volterra, cross-feeding | 41, 43, 50, 53-55 |
+| `gem` | Genome→GEM reconstruction | 46-49 |
+| `human` | PBPK + PD + pharmacogenomics + disease ODEs | Virtual patient |
+
+Deterministic with `seed=`; same source + same seed = same result (verified with SHA256 goldens).
 
 ---
 
 ## Architecture
 
 ```
-                    HelixLang source program (.helix)
-   #gene promoter=strong
-   ATG GCT GGT TAA    # DNA triplet stream + annotation blocks
-   #end
-                            │  Lexer (split codons by 3 bases + annotation tokens)
-                            ▼
-   Token -> Parser (ORF grouping: START..STOP = one gene) -> AST
-                            │  Semantic analysis (reading frame / pairing / symbol table)
-                            ▼
-   Compiler: codon-table decoding
-     ATG->OP_START  GCT->OP_BUILD_PROTEIN  GGT->OP_BUILD_MEMBRANE
-     TAA->OP_HALT   GTA->OP_MOVE(arg=South)  ...
-                            │  Chunk (bytecode + constant pool + line table)
-                            ▼
-   CellVM: stack-based bytecode virtual machine = "the ribosome"
-     ┌──────────┬──────────┬──────────────┬────────────────────┐
-     │  GRN     │  L-system│ React-Diff   │  Cell state         │
-     │ regulation│ morphogen│ Turing field │  energy/proteins   │
-     └──────────┴──────────┴──────────────┴────────────────────┘
-```
-
-### Module map
-
-| Module | Responsibility |
-|--------|---------------|
-| `lexer` / `parser` / `semantic` | Frontend: Token → AST → semantic checks |
-| `codon_table` / `compiler` | Codon table + bytecode generation |
-| `bytecode` / `disassembler` | Chunk data structure + disassembler |
-| `vm` / `cell` | Stack VM + cell runtime |
-| `grn` | Gene regulatory network (sigmoid / Hill kinetics, half-life decay) |
-| `stochastic` | Two-state (telegraph) promoter noise + Gillespie SSA |
-| `environment` | Diffusing nutrient/O₂ fields, Monod uptake, chemostat flow, CROMICS crowding |
-| `lsystem` / `reaction_diffusion` | L-system morphology + Gray-Scott field |
-| `central_dogma` | Transcription / translation / coupling — codon-specific elongation rates, per-gene mRNA half-lives |
-| `evolution` / `population` | Wright-Fisher evolution + dN/dS codon-substitution models + cell population |
-| `morphology_3d` | 3D population + 3D diffusion + LSystem3D |
-| `vectorized` | Across-cell numpy GRN, stable sorting, snapshot iteration |
-| `crispr` | Cas variants / sgRNA design (nearest-PAM or max-score) / Doench 2016 on-target scoring / off-target prediction |
-| `epigenetics` | CpG islands / methylation / histone modification |
-| `metabolism` | FBA flux balance analysis (+ SBML / BiGG `load_model`) |
-| `protein_structure` | Chou-Fasman / GOR IV secondary structure, IUPred disorder prediction |
-| `protein_structure_predictor` | ESM3 end-to-end protein structure from sequence (no MSA); falls back to Chou-Fasman when esm/torch unavailable |
-| `protein_fitness` | Fitness oracles: BLOSUM62 + ESM-2 + variant ranking |
-| `kinetics/sequence_predictor` | Sequence-based kcat/Km prediction: ESM-2 embeddings → BRENDA EC-class medians → physics fallback |
-| `gem/ecgem` | Enzyme-constrained GEM builder (ECMpy 2.0 / sMOMENT-lite): kcat capacity constraints, enzyme pool budget |
-| `gem/community` | Community FBA extension (OptCom): per-organism ecGEMs, dynamic metabolite exchange, cross-feeding networks |
-| `apps/full_pipeline` | Full-chain custom organism pipeline: FASTA → translation → ESM3 structure → ESM-2 kinetics → ecGEM → community FBA → dFBA simulation |
-| `human/` | Human physiology & drug simulation (doc/27–31): organ volumes, blood flows, Recon3D GEM, disease states (Gaucher/PKU/T2D/Warburg), drug molecules (SMILES via RDKit 2026.3), PBPK, pharmacodynamics (Hill + QSP binding: mass-action/TMDD/competitive), endocrine axes (insulin-glucose/HPA/HPT), innate immune ABM (cytokines/CRP/WBC), organ crosstalk, per-disease ODE models (8 categories), genotype→CYP450 mapping, phenotype scaling, clinical labs (35+ analytes), vital signs, disease progression, drug-drug interactions, post-treatment recovery, virtual patient simulation |
-| `omics` | Expression matrices → GRN/FBA states, spatial atlas, heterogeneity (ARI) |
-| `virtual_cell` | Virtual-cell budget model, gene encoding, parameter fitting, benchmarks |
-| `interop` | SBML L3V1 import + SBOL3 export/import round-trip |
-| `dna_codec` | Goldman / Erlich DNA data-storage codec |
-| `bio_data` | Real biological datasets (codon tables / tRNA / CAI / Gray-Scott presets) |
-| `type_system` | Type checker + symbol table |
-| `debugger` | Bytecode-level debugger (breakpoints / stepping / state inspection) |
-| `server` / `web` | Flask REST API + visualization frontend |
-| `cli` | Command-line entry point |
-
----
-
-## CLI
-
-```text
-usage: helixlang <source.helix> [options]
-
-  --table standard|mito_vertebrate|ciliate   translation table
-  --disassemble                              print bytecode and exit
-  --debug                                    trace VM execution
-  --csv                                      emit CSV trace
-  --png PREFIX                               render morphology/field to PPM
-  --ticks N                                  override #config ticks
-  --gem                                      run GEM reconstruction from genome FASTA
-  --full-pipeline                            run full-chain custom organism pipeline
-  --serve [--port 5000] [--host 127.0.0.1]   launch web visualization
-  --encode-dna goldman|erlich                encode source -> DNA FASTA
-  --decode-dna FILE                          decode DNA -> source
-  --pcr-cycles N                             simulate PCR error injection
+┌─────────────────────────────────────────────────────────────────┐
+│                    .helix source program                         │
+│   #gene promoter=strong                                          │
+│   ATG GCT GGT TAA    # DNA triplet stream + annotation blocks    │
+│   #end                                                            │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │  Lexer → Parser → AST → Compiler
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Bytecode (Chunk)                                                │
+│    ATG->OP_START  GCT->OP_BUILD_PROTEIN  TAA->OP_HALT           │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                ┌──────────────┼──────────────┐
+                ▼              ▼              ▼
+         ┌──────────┐  ┌──────────┐  ┌──────────────┐
+         │  CellVM  │  │  sim     │  │  ecosystem   │
+         │ (bytecode│  │ _runtime │  │  / human /   │
+         │  GRN,    │  │ (22      │  │  population  │
+         │  L-sys)  │  │ backends)│  │              │
+         └──────────┘  └──────────┘  └──────────────┘
 ```
 
 ---
 
-## IDE Plugin (PyCharm)
+## Validation
 
-Write, inspect, and debug `.helix` programs inside **PyCharm 2022.2+** (Community or Professional)
-with the sibling repository [**HelixLang-LSP-Plugin**](https://github.com/SeanHank/HelixLang-LSP-Plugin):
-live diagnostics, hover docs, completion, navigation, semantic highlighting, inlay hints, a
-bytecode disassembler, and a line debugger — all over Language Server Protocol.
+45 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
+
+| # | Benchmark | Evidence |
+|---|-----------|----------|
+| 01 | Codon translation (64 codons) | Functional |
+| 02 | lac operon (negative feedback) | Gold-standard + Experimental |
+| 03 | E. coli core FBA (μ = 0.872 h⁻¹) | Gold-standard (COBRApy err < 10⁻¹²) |
+| 04 | iML1515 FBA (2,712 reactions) | Gold-standard (COBRApy err < 10⁻¹³) |
+| 05 | iJN678 photoauto FBA | Gold-standard (COBRApy err < 10⁻¹⁴) |
+| 06 | dFBA diauxic shift | Gold + Experimental (Enjalbert 2015) |
+| 07 | Repressilator oscillation | Gold + Experimental (Elowitz 2000) |
+| 08 | Population doubling time | Analytical |
+| 09 | Reaction-diffusion pattern | Reference + Robustness |
+| 10 | Whole-cell division time | Analytical |
+| 11-45 | Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 
 ```bash
-pip install helixlang-lsp
-```
+# Run all benchmarks
+bash validation/run_all.sh
 
-Then install the plugin zip from that repo's [Releases](https://github.com/SeanHank/HelixLang-LSP-Plugin/releases)
-via **Settings → Plugins → ⚙ → Install Plugin from Disk…**.
+# Verify golden outputs
+python validation/goldens/verify_goldens.py
+```
 
 ---
 
 ## Documentation
 
-The full technical documentation lives in the [repository `doc/` folder](https://github.com/SeanHank/HelixLang/tree/main/doc). Reference by reader — all files are kept in sync with the implementation (when docs and code conflict, the code prevails).
+Full technical documentation in [`doc/`](doc/) (36 files, 25,000+ lines):
 
-| Document | Audience | What it covers |
-|---|---|---|
-| [00-overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/00-overview.md) | Everyone | The DSL's motivation, vision, and end-to-end compiler → VM → simulation pipeline |
-| [02-language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/02-language-spec.md) | Language users | The **authoritative** spec: alphabet, lexing, annotation syntax, codon table, bytecode format, runtime semantics, type system |
-| [08-api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/08-api-reference.md) | Python library users | Per-module reference: dataclasses, function signatures, key parameters |
-| [09-bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/09-bio-instructions.md) | `.helix` authors | The annotation syntax (`#gene`, `#promoter`, `#regulate`, `#field`, …) + how to call the bio modules |
-| [07-bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/07-bio-modules.md) | Bio module users | Deep dive on the biological modules — central dogma, metabolism, protein structure, CRISPR, epigenetics, evolution |
-| [04-simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/04-simulation-model.md) | Simulator users | The "cell simulator" layer: GRN, L-system morphogenesis, Gray-Scott reaction-diffusion, and the unified tick loop |
-| [03-compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/03-compiler-design.md) | Compiler contributors | The compilation pipeline, AST, bytecode format, stack VM, disassembler, and implementation strategy |
-| [06-engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/06-engineering-design.md) | Maintainers | Implementable contracts: module interfaces, data flow, error matrix, performance budgets, CI, test pyramid, invariants |
-| [01-references.md](https://github.com/SeanHank/HelixLang/blob/main/doc/01-references.md) | Researchers | The academic literature underpinning the design — DNA computing, codon-binary mapping, information theory, formal grammars, artificial life, DSL compilers (with DOI/arXiv) |
-| [11-helixc-binary-format.md](https://github.com/SeanHank/HelixLang/blob/main/doc/11-helixc-binary-format.md) | Compiler / tooling users | The `.helixc` binary artifact format: versioned container, write / read-run / debug, disassemble, round-trip tests |
-| [15-whole-cell-realism.md](https://github.com/SeanHank/HelixLang/blob/main/doc/15-whole-cell-realism.md) | Researchers | Five-phase roadmap to a physically complete virtual cell — **implemented & gated**: design + landing modules + tests + per-phase implementation status |
-| [16-gameplay-units-upgrade.md](https://github.com/SeanHank/HelixLang/blob/main/doc/16-gameplay-units-upgrade.md) | Historical | Superseded plan to calibrate gameplay units into physically grounded, literature-cited targets — kept for provenance |
-| [17-project-details-and-frontier-bio-applications.md](https://github.com/SeanHank/HelixLang/blob/main/doc/17-project-details-and-frontier-bio-applications.md) | Researchers | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples (31–40), problem→capability mapping, delivered solution designs |
-| [18-programmable-cell-population-simulation.md](https://github.com/SeanHank/HelixLang/blob/main/doc/18-programmable-cell-population-simulation.md) | Researchers | Programmable cell-population simulation: the tick model, 3D lattice, evolution line, and the delivered population-roadmap designs |
+| Document | What it covers |
+|----------|---------------|
+| [`00-overview.md`](doc/00-overview.md) | Motivation, vision, end-to-end pipeline |
+| [`02-language-spec.md`](doc/02-language-spec.md) | Authoritative spec: alphabet, lexing, bytecode |
+| [`09-bio-instructions.md`](doc/09-bio-instructions.md) | Annotation syntax for `.helix` authors |
+| [`08-api-reference.md`](doc/08-api-reference.md) | Python API reference |
+| [`27-human-pathology-drug-simulation.md`](doc/27-human-pathology-drug-simulation.md) | Human physiology + drug simulation |
+| [`34-architectural-improvement-plan.md`](doc/34-architectural-improvement-plan.md) | Architecture plan + validation suite |
 
-### Suggested reading order
+---
 
-1. **[00-overview.md](https://github.com/SeanHank/HelixLang/blob/main/doc/00-overview.md)** — the big picture.
-2. **[02-language-spec.md](https://github.com/SeanHank/HelixLang/blob/main/doc/02-language-spec.md)** — how to write programs (codons, genes, annotations, config).
-3. **[04-simulation-model.md](https://github.com/SeanHank/HelixLang/blob/main/doc/04-simulation-model.md)** — what happens when a program *runs*.
-4. **[07-bio-modules.md](https://github.com/SeanHank/HelixLang/blob/main/doc/07-bio-modules.md)** — the biological machinery, per domain.
-5. **[08-api-reference.md](https://github.com/SeanHank/HelixLang/blob/main/doc/08-api-reference.md)** + **[09-bio-instructions.md](https://github.com/SeanHank/HelixLang/blob/main/doc/09-bio-instructions.md)** — while you write code.
-6. **[03-compiler-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/03-compiler-design.md)** — if you want to extend the toolchain.
-7. **[06-engineering-design.md](https://github.com/SeanHank/HelixLang/blob/main/doc/06-engineering-design.md)** — before touching internals.
+## API & Web Visualization
+
+```bash
+helixlang --serve --port 5000
+```
+
+| Endpoint | Function |
+|----------|----------|
+| `POST /api/compile` | Compile source → disassembly + AST |
+| `POST /api/run` | Compile and run → trace + GRN |
+| `POST /api/sim/run` | Run any backend → SimResult JSON |
+| `POST /api/dna/encode` | DNA data-storage encoding |
+| `POST /api/gem/reconstruct` | GEM reconstruction from FASTA |
+| `POST /api/full-pipeline` | DNA → ESM3 → kinetics → ecGEM → ecosystem |
 
 ---
 
 ## Testing & Quality
 
 ```bash
-# Full test suite + coverage gate (80%)
+# Full test suite
 pytest --cov=helixlang --cov-fail-under=80
 
 # Lint
 ruff check src tests
 
-# Type checking
-mypy
+# Determinism audit
+python tests/test_determinism_audit.py
 ```
 
-- **3000+ test cases** (all passing, 81% coverage)
+- **2,984+ test cases** (all passing, 81% coverage)
+- 45 validation benchmarks with SHA256 goldens
 - CI matrix: Python 3.11
-- Three quality gates: ruff + mypy + pytest --cov-fail-under=80
-- All 60+ `examples/*.helix` covered + Python API companions
-- doc/26 full-chain pipeline: 95 tests across `test_protein_structure_predictor`, `test_sequence_kinetics`, `test_ecgem`, `test_community_fba`, `test_full_pipeline`
+- Three quality gates: ruff + mypy + pytest
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [**CONTRIBUTING.md**](https://github.com/SeanHank/HelixLang/blob/main/CONTRIBUTING.md)
-first — it covers the development setup, quality gates (pytest + coverage, ruff, mypy), coding
-conventions, the citation rules for biological constants, and the documentation policy.
+Contributions welcomed! Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first.
 
 ```bash
 git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
 pip install -e ".[dev,fast,web,bio,ml]"
-pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests && mypy
+pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests
 ```
 
 ---

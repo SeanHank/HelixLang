@@ -64,6 +64,7 @@ class Lexer:
                         "person", "trait", "disease", "disease_gene",
                         "disease_metabolite", "drug", "pd_effect",
                         "qsp_binding", "endocrine_config", "immune_config",
+                        "tumor_biopsy",
                     ):
                         # Gene ID marker — emit GENE_ID token
                         start_line, start_col = self.line, self.col

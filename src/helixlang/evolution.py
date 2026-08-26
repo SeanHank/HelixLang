@@ -204,7 +204,7 @@ def mutate(dna: str,
     (e.g. 0.01).
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     if not dna:
         return "", []
     # P(transition | substitution) = ratio / (ratio + 1)
@@ -393,7 +393,7 @@ def select(population: list[Individual],
         may contain duplicate references)
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     n = len(population)
     if n == 0:
         return []
@@ -456,7 +456,7 @@ def recombine(parent1: str, parent2: str,
         the longer parent)
     """
     if rng is None:
-        rng = random.Random()
+        rng = random.Random(0)
     if not parent1:
         return parent2
     if not parent2:
@@ -1053,7 +1053,7 @@ class EvolutionaryPopulation:
         self.target_dna = target_dna
         self.fitness_method = fitness_method
         self.fitness_func = fitness_func
-        self._rng = rng if rng is not None else random.Random()
+        self._rng = rng if rng is not None else random.Random(0)
         self.generation = 0
         self.history: list[dict] = []
         # initialize the population (all individuals start with the same

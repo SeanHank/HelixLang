@@ -349,7 +349,7 @@ class DiseaseProgressionModel:
 
             if self._was_treated and not treated_now and dt_h > 0.0:
                 p_relapse = 1.0 - (1.0 - rate.relapse_probability_per_year) ** years
-                rng = self.rng or random.Random()
+                rng = self.rng or random.Random(0)
                 if rng.random() < p_relapse:
                     delta += min(
                         0.25,

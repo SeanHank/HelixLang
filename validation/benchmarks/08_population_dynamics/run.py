@@ -192,6 +192,18 @@ def run() -> dict:
                 "threshold": 0.70,
                 "trajectory": comp_trajectory,
             },
+            "experimental_comparison": {
+                "reference_doubling_time_min": 20.0,
+                "simulated_doubling_time_min": round(observed_doubling_time, 2),
+                "ratio": round(observed_doubling_time / 20.0, 3)
+                    if observed_doubling_time < float("inf") else None,
+                "tolerance_factor": 1.25,
+                "reference": [
+                    "Sezonov et al. 2007, J Bacteriol 189:1426 — E. coli doubling time ~20 min in LB at 37°C",
+                    "Neidhardt 1996 — E. coli growth rates across media",
+                ],
+                "note": "Model maps 1 tick = 1 min; TICKS_PER_DIVISION=20 matches 20 min doubling in rich media",
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:
