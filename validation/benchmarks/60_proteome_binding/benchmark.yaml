@@ -1,0 +1,7 @@
+id: 60_proteome_binding
+name: Proteome binding + DDI
+layer: pharmacology
+reference: Yoshida et al. 2020, CPT
+input: programmatic
+expected:
+  check: automated

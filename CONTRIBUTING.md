@@ -72,15 +72,18 @@ git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
 
 # Editable install with every optional extra
-pip install -e ".[dev,fast,web,bio]"
+pip install -e ".[dev,fast,web,bio,ml,viz,human]"
 ```
 
 | Extra | What you get |
 |-------|--------------|
-| `dev` | pytest + pytest-cov (tests & coverage) |
+| `dev` | pytest + pytest-cov + scipy (tests & coverage) |
 | `fast` | numpy vectorization (mutation batching, reaction-diffusion) |
 | `web` | Flask visualization frontend (`helixlang --serve`) |
-| `bio` | biopython + reedsolo (physical DNA codec, IUPAC validation) |
+| `bio` | biopython + reedsolo + cobra (DNA codec, GEM import) |
+| `ml` | ESM3 protein structure + ESM-2 kinetics |
+| `viz` | matplotlib (plotting) |
+| `human` | rdkit (SMILES parsing, drug simulation) |
 
 The **core compiler/VM has zero hard dependencies** — the standard library
 only. Optional extras are genuinely optional; keep it that way.
@@ -89,9 +92,11 @@ only. Optional extras are genuinely optional; keep it that way.
 
 ```
 src/helixlang/     The package: lexer → parser → semantic → compiler → bytecode → vm
-tests/             pytest suite (37 modules, ~1500 tests) + shared conftest fixtures
-examples/          16 runnable .helix programs (must always compile & run)
-doc/               All technical documentation (kept in sync with the code)
+                   135 source modules across compiler, runtime, human/, gem/, apps/
+tests/             pytest suite (108 files, 3,169 tests) + shared conftest fixtures
+examples/          runnable .helix programs (must always compile & run)
+doc/               All technical documentation (36 files, kept in sync with code)
+validation/        45 reproducible benchmarks with SHA256-verified golden outputs
 .github/workflows/ CI: lint / typecheck / test / examples-smoke
 ```
 
@@ -101,6 +106,8 @@ Key entry points for contributors:
 - `doc/06-engineering-design.md` — module interfaces, invariants, error matrix.
 - `doc/02-language-spec.md` — the authoritative language spec.
 - `doc/08-api-reference.md` — per-module Python API reference.
+- `doc/34-architectural-improvement-plan.md` — architecture plan + validation suite.
+- `validation/` — 45 reproducible benchmarks with SHA256-verified golden outputs.
 - `tests/conftest.py` — shared fixtures (Flask client, example sources, paths).
 
 ## Finding something to work on
@@ -194,7 +201,7 @@ Strict: `disallow_untyped_defs`, `check_untyped_defs`, `warn_return_any`
 
 ### Examples smoke test
 
-All 16 `examples/*.helix` must compile and run:
+All `examples/*.helix` must compile and run:
 
 ```bash
 for f in examples/*.helix; do
@@ -216,6 +223,30 @@ python -m helixlang examples/01_hello_dna.helix
 
 Green CI is required before merge. If you can't reproduce a CI-only failure,
 mention it in the PR — the matrix runs both supported Python versions.
+
+### Releasing
+
+Releases are handled by `release.py` at the repo root. It runs all gates in
+parallel, syncs version strings, and builds sdist + wheel.
+
+```bash
+python release.py <version>
+```
+
+Version format: `YYYY.M.D` or `YYYY.M.D.N` (e.g. `2026.9.1`, `2026.9.1.2`).
+
+**What `release.py` does internally:**
+
+| Step | Action |
+|------|--------|
+| 1 | Validate version format, sync to `pyproject.toml`, `__init__.py`, `server.py` |
+| 2 | Run gates in parallel: ruff, mypy, pytest (pytest-xdist), validation benchmarks, examples smoke test |
+| 2b | Regenerate `validation/report.md` from fresh benchmark results |
+| 3 | Sync metrics (test count, pass rate, modules, docs, examples) to README.md, README_PYPI.md, CONTRIBUTING.md |
+| 4 | Build sdist + wheel into `dist/` |
+
+All gates must pass before the build proceeds. If any gate fails the script
+exits with a non-zero code and prints the failing gate's last 15 lines.
 
 ## Coding conventions
 
@@ -279,6 +310,35 @@ code prevails."* Practically, that means:
   - Python API signatures → `doc/08-api-reference.md`
 - If you notice stale docs while working on something else, fixing them in the
   same PR is appreciated — but call it out in the description.
+
+## Scientific validation
+
+Every simulation backend and scientific module must have an evidence chain:
+**Reference → Expected range → Helix result → Error → Reproducibility**.
+
+```bash
+# Run the full validation suite
+python validation/run_all.py
+
+# Verify golden outputs
+python validation/goldens/verify_goldens.py
+
+# Regenerate goldens after code changes
+python validation/goldens/generate_goldens.py
+```
+
+Current metrics (2026-08-27):
+- **67/67** benchmarks PASS
+- **40+** published references cited
+- **0** non-deterministic failures
+- **Median error**: ~3.0% (quantitative benchmarks vs published/analytical references)
+- **Worst error**: 16.7% (population doubling time ratio deviation)
+
+When adding a new backend or module, you must add a corresponding benchmark in
+`validation/benchmarks/` with:
+1. A `benchmark.yaml` defining the reference source, expected value, and tolerance
+2. A `run.py` that exercises the code and outputs JSON with PASS/FAIL
+3. A golden output in `validation/goldens/`
 
 ## Reviewing and merging
 

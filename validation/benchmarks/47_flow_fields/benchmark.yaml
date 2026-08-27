@@ -1,0 +1,7 @@
+id: 47_flow_fields
+name: Flow field analytical solutions
+layer: runtime
+reference: Poiseuille flow analytical solution
+input: programmatic
+expected:
+  check: automated

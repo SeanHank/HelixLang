@@ -67,13 +67,39 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS" if all_ok else "FAIL",
+            "layer": "language",
+            "name": "Codon translation (64 codons)",
+            "reference": {
+                "source": "Standard genetic code (NCBI Translation Table 1)",
+                "authors": "NCBI",
+                "note": "Universal genetic code, 64 codons mapping to 20 amino acids + stop",
+            },
             "expected": {
+                "metric": "codon_count",
+                "value": 64,
+                "tolerance": 0,
+                "unit": "codons",
+            },
+            "actual": {
+                "value": mapped,
+            },
+            "error": {
+                "abs_error": abs(64 - mapped),
+                "rel_error": 0.0 if mapped == 64 else 1.0,
+                "passed": mapping_ok,
+                "message": f"{len(errors)} mapping errors" if errors else None,
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+            },
+            "expected_detail": {
                 "codon_count": 64,
                 "all_mapped": True,
                 "stop_codons": sorted(expected_stops),
                 "vm_produces_protein": True,
             },
-            "actual": {
+            "actual_detail": {
                 "codon_count": len(ALL_CODONS),
                 "mapped_count": mapped,
                 "stop_codon_count": len(stop_codons),

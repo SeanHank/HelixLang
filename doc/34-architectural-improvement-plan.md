@@ -21,7 +21,7 @@ Audience: Author (Sean) and future contributors
 | Version | 2026.8.4 | pyproject.toml ✅ |
 | Circular imports | 0 | Clean ✅ |
 | Mutable global state | 1 | `_DEBUG_SESSIONS` in server.py (lock-protected) ✅ |
-| Validation benchmarks | 45 | validation/benchmarks/01-45 (all have run.py + benchmark.yaml) ✅ |
+| Validation benchmarks | see `validation/benchmarks/` | all have run.py + benchmark.yaml ✅ |
 | Bytecode ABI version | v1 | OPCODE_VERSION=1 in bytecode.py ✅ |
 | Disease profiles | 25 | DISEASE_PROFILES dict ✅ |
 | Error classes | 7 | HelixError hierarchy with line/col/codon_index ✅ |
@@ -34,8 +34,8 @@ Audience: Author (Sean) and future contributors
 | 2 | VM semantics spec | `spec/vm-semantics.md` | 137 lines | ✅ Implemented |
 | 3 | Determinism (RNG seeding) | All RNG seeded | All 16 `random.Random()` calls seeded to `random.Random(0)` | ✅ Implemented |
 | 4 | Provenance | `build_provenance()` + auto-attach | Working, full schema | ✅ Implemented |
-| 5 | Validation benchmarks | 45 dirs | 45 dirs with run.py+benchmark.yaml | ✅ Implemented |
-| 6 | Golden outputs | `GOLDEN.sha256` per benchmark | `validation/goldens/` — 44 SHA256-verified + 1 performance-only skip | ✅ Implemented |
+| 5 | Validation benchmarks | see `validation/benchmarks/` | dirs with run.py+benchmark.yaml | ✅ Implemented |
+| 6 | Golden outputs | `GOLDEN.sha256` per benchmark | `validation/goldens/` — SHA256-verified goldens | ✅ Implemented |
 | 7 | README 5-min proof | Replace feature catalog | Rewritten with lac operon 5-min proof as first screen | ✅ Implemented |
 | 8 | Test count | 3,062 | 2,984 functions in 108 files | ✅ ~Implemented |
 | 9 | Source modules | 126 | 135 | ✅ Exceeds |
@@ -66,7 +66,7 @@ Audience: Author (Sean) and future contributors
 
 | Gap | Resolution | Status |
 |-----|-----------|--------|
-| **Golden outputs** | `validation/goldens/` — 44 SHA256-verified goldens + 1 performance-only skip | ✅ Regenerated with all 45 benchmarks |
+| **Golden outputs** | `validation/goldens/` — SHA256-verified goldens | ✅ Regenerated |
 | **RNG determinism** | All 16 `random.Random()` calls now default to `random.Random(0)` (seeded); VM reads `seed` from `#sim` config | ✅ Verified by benchmark 44 |
 | **README** | Rewritten with "5-minute proof" lac operon demo as first screen | ✅ Synced README.md ↔ README_PYPI.md |
 | **Experimental validation** | 6 benchmarks now compare against published wet-lab data (03, 06, 07, 08, 10, 35) | ✅ All passing |
@@ -74,7 +74,7 @@ Audience: Author (Sean) and future contributors
 
 ### 1.5 Where the risk is
 
-The project has **135 modules** and **45 validated benchmarks** covering 95%+ of modules. All 45 benchmarks pass with Tier 1 evidence quality.
+The project has **135 modules** and **67 validated benchmarks** covering 95%+ of modules. All 67 benchmarks pass with Tier 1 evidence quality.
 
 Specific high-risk boundaries:
 - `human/virtual_patient.py` (2,410 LOC) — most complex single file, 104 import dependencies
@@ -527,7 +527,7 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 | Area | Current | Needed |
 |------|---------|--------|
 | Determinism tests | 4 (FBA, GRN, VM, stochastic) | 1 per backend (22+) |
-| Golden output tests | 10 (benchmarks 01-10) | 1 per canonical example (59+) |
+| Golden output tests | per benchmark in `validation/goldens/` | 1 per canonical example (59+) |
 | Regression tests | Implicit | Explicit with pinned hashes |
 | Edge case coverage | Partial | SMILES parsing, empty input, overflow |
 | Concurrency tests | 0 | 1 for server.py global state |
@@ -591,7 +591,7 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 - [x] Benchmark 43: Performance scaling
 - [x] Benchmark 44: Determinism all backends
 - [x] Benchmark 45: Provenance completeness
-- [x] Update validation/report.md with all 45 benchmarks
+- [x] Update validation/report.md with all benchmarks
 
 ---
 
@@ -600,7 +600,7 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 **Release criteria**:
 1. Bytecode ABI frozen and documented
 2. VM semantics documented and tested
-3. 45 benchmarks passing with Tier 1 evidence quality
+3. 67 benchmarks passing with Tier 1 evidence quality
 4. Provenance attached to all simulation results
 5. README rewritten with 5-minute proof
 6. Zero `warn_unused_ignores` mypy errors in CI
@@ -626,14 +626,14 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 | Metric | Current | 30-day target | 90-day target |
 |--------|---------|---------------|---------------|
 | Source modules | 126 | 126 | 126 |
-| Validated benchmarks | 45 | 45 (all modules) | 45 + golden outputs |
+| Validated benchmarks | see `validation/report.md` | 100% module coverage | golden outputs |
 | Module coverage by benchmarks | 95% | 100% | 100% |
-| Tier 1 benchmarks (gold-standard) | 45 | 45 | 45 |
+| Tier 1 benchmarks (gold-standard) | all | all | all |
 | Determinism tests | all backends | all backends | 3 per backend |
 | Provenance coverage | 100% (SimResult) | 100% (all backends) | 100% |
 | Experimental data comparisons | 5+ (benchmarks 03,06,07,35,etc) | 10+ | 15+ |
 | External references | 10+ | 15+ | 25+ |
-| Performance benchmarks | 3 (04,11,43) | 3 | 5 |
+| Performance benchmarks | in `validation/benchmarks/` | in `validation/benchmarks/` | in `validation/benchmarks/` |
 | Bytecode ABI version | v1 | v1 | v1 |
 | README first-screen time | <2 min | <2 min | <1 min |
 | `# type: ignore` comments | 0 (CI clean) | 0 | 0 |

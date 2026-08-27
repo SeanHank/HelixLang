@@ -1,6 +1,32 @@
 {
   "id": "10_whole_cell",
   "status": "PASS",
+  "layer": "cell_biology",
+  "name": "Whole-cell division time",
+  "reference": {
+    "source": "E. coli K-12 generation time",
+    "authors": "Wanner",
+    "year": 1996,
+    "note": "37.3 min at 37\u00b0C in minimal glucose medium"
+  },
+  "expected": {
+    "metric": "division_time",
+    "value": 37.3,
+    "tolerance": 0.3,
+    "unit": "min"
+  },
+  "actual": {
+    "value": 37
+  },
+  "error": {
+    "abs_error": 0.29999999999999716,
+    "rel_error": 0.008042895442359173,
+    "passed": true
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15"
+  },
   "validation": {
     "alive": true,
     "energy_budget_ok": true,
@@ -124,5 +150,5 @@
       "alive": true
     }
   ],
-  "runtime_seconds": 0.6129698330187239
+  "runtime_seconds": 0.7383851250051521
 }

@@ -1,0 +1,7 @@
+id: 67_microbiome_crosstalk
+name: Microbiome + organ crosstalk
+layer: physiology
+reference: Spanogiannopoulos et al. 2016, Nat Rev Pharmacol
+input: programmatic
+expected:
+  check: automated

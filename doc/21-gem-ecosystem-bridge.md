@@ -1,7 +1,7 @@
 # 21. GEM ↔ Ecosystem Bridge: Gene-to-Ecosystem End-to-End Pipeline
 
 > **Status: ✅ IMPLEMENTED** (2026-08-20). All design items landed;
-> 2233 tests pass; mypy clean.
+> tests pass; mypy clean.
 
 ## 1. Problem
 
@@ -148,7 +148,7 @@ specified Monod parameters (backward compatible).
 
 1. ✅ mypy clean on `apps/ecosystem.py` and `sim_runtime.py`
 2. ✅ `import helixlang.apps.ecosystem` and `import helixlang.sim_runtime` succeed
-3. ✅ GEM integration tests: 55/55 pass (`test_gem_integration.py`, `test_metabolism_proxy.py`, `test_omics.py`)
-4. ✅ Ecosystem/population tests: 302/302 pass
-5. ✅ Full test suite: **2233/2233 pass** (no regressions)
+3. ✅ GEM integration tests pass (`test_gem_integration.py`, `test_metabolism_proxy.py`, `test_omics.py`)
+4. ✅ Ecosystem/population tests pass
+5. ✅ Full test suite: **all pass** (no regressions)
 6. ✅ Backward compatibility: `#sim kind=ecosystem` without `gem_driven` unchanged

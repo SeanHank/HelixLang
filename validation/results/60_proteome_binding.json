@@ -1,0 +1,27 @@
+{
+  "id": "60_proteome_binding",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "cascade_instantiate": true,
+    "profile_fields_accessible": true,
+    "binding_prediction_confidence_range": true,
+    "ddi_has_auc_ratio": true,
+    "ddi_has_significance": true,
+    "cascade_has_screen": true,
+    "cascade_has_predict_ddi": true,
+    "screen_known_drug_returns_profile": true
+  },
+  "details": {
+    "profile_binding_dict": {
+      "CYP2D6": 0.67
+    },
+    "binding_confidence": 0.9,
+    "ddi_auc_ratio": 1.8,
+    "ddi_significance": "DDD_ALERT",
+    "warfarin_n_bindings": 5,
+    "warfarin_n_significant": 5
+  },
+  "reference": "Yoshida K et al. 2020, CPT Pharmacometrics Syst Pharmacol 9:51 (DDI prediction)",
+  "runtime_seconds": 0.49460912495851517
+}

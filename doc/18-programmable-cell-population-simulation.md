@@ -12,8 +12,7 @@
 >
 > Intended reader: someone who has read 17 (or already has a mental model of multi-agent /
 > spatial simulation). Every claim is anchored to specific files and line numbers so you can
-> verify against the source. Writing date: 2026-08 · Baseline: 2134 tests, ≈89% coverage,
-> `ruff` + `mypy` clean (revision 2026.8.2).
+> verify against the source. Writing date: 2026-08 · Baseline: `ruff` + `mypy` clean
 
 ---
 
@@ -1004,4 +1003,4 @@ Level 3 — landing it only needs the new solver and the wiring (`CellPopulation
 >   `CellPopulation3D._step_lbm` (D3Q19 dispatch) + `_step_lbm_3d` (obstacle mask → advance →
 >   publish `config.flow3d`) + `_drift_cells_3d` (x/y/z drift), example
 >   `examples/39_lbm3d_biofilm.helix`; `tests/test_sim_runtime.py` (3) +
->   `tests/test_population_3d.py` (3) all green, full regression 2134 passed.
+>   `tests/test_population_3d.py` (3) all green, full regression passes.

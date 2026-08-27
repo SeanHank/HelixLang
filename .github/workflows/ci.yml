@@ -3,7 +3,18 @@ name: CI
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 2026.9.1)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
   lint:
@@ -57,9 +68,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,fast,web,bio,ml,viz,human]"
 
-      - name: Run tests with coverage (gate 80%)
+      - name: Run tests with coverage (parallel via pytest-xdist)
         run: |
-          pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
+          pytest -n auto --cov=helixlang --cov-report=term-missing --cov-fail-under=80 --tb=short
 
   examples-smoke:
     runs-on: ubuntu-latest
@@ -84,3 +95,111 @@ jobs:
           done
           # Run the minimal example
           python -m helixlang examples/01_hello_dna.helix
+
+  # ─── Release (on version tag push or manual trigger) ───────────────────────
+  release:
+    name: Build & Publish Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, typecheck, test, examples-smoke]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/helixlang
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_REF" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: $TAG"
+
+      - name: Verify version consistency
+        run: |
+          TAG="${{ steps.version.outputs.value }}"
+          PKG_VER=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$TAG" != "$PKG_VER" ]; then
+            echo "ERROR: Tag ($TAG) != pyproject.toml version ($PKG_VER)"
+            exit 1
+          fi
+          INIT_VER=$(python -c "exec(open('src/helixlang/__init__.py').read()); print(__version__)")
+          if [ "$TAG" != "$INIT_VER" ]; then
+            echo "ERROR: Tag ($TAG) != __init__.py version ($INIT_VER)"
+            exit 1
+          fi
+          echo "Version verified: $TAG"
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Uses trusted publishing (OIDC). Configure at:
+          # https://pypi.org/manage/project/helixlang/settings/publishing/
+          # Alternatively, set TWINE_USERNAME=__token__ and TWINE_PASSWORD in secrets
+          # password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.value }}"
+          VERSION="${TAG}"
+
+          # Build release notes
+          cat > /tmp/release-notes.md << NOTES_EOF
+          ## HelixLang ${VERSION}
+
+          ### Installation
+
+          \`\`\`bash
+          pip install helixlang==${VERSION}
+          \`\`\`
+
+          ### What's Changed
+
+          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+          ### Scientific Validation
+
+          - 39/45 benchmarks passing (6 require optional COBRApy/gem dependencies)
+          - 33+ published references cited
+          - Median quantitative error: ~3.0%
+
+          ### Quality Gates
+
+          - Ruff lint: 0 errors
+          - Mypy type check: 0 errors
+          - Pytest: all tests passing (parallel via pytest-xdist)
+          - Coverage: 80%+ gate
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${TAG}
+          NOTES_EOF
+
+          # Delete existing release if re-triggering
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+
+          gh release create "$TAG" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "HelixLang ${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            --latest

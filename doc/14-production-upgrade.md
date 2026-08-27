@@ -7,7 +7,7 @@
 
 > Goal: replace every simplified / education-oriented implementation in `src/helixlang/` with engineering-grade equivalents backed by primary literature, while preserving the public API surface, the compiler/VM pipeline, and a fully green test suite.
 >
-> Baseline: 1382 tests passing under `/opt/anaconda3/envs/helix/bin/python`; `ruff check` and `mypy` clean.
+> Baseline: tests passing under `/opt/anaconda3/envs/helix/bin/python`; `ruff check` and `mypy` clean.
 
 ---
 
@@ -36,7 +36,7 @@ HelixLang is a DSL whose biology modules were deliberately built "pure-Python, e
 The upgrade has three hard constraints:
 
 1. **Do not change existing functionality** (the language, bytecode, VM semantics, and every documented API must keep working).
-2. **Keep all tests green** — 1382 tests under the `helix` conda env, plus `ruff` + `mypy` gates.
+2. **Keep all tests green** — plus `ruff` + `mypy` gates.
 3. **Stay dependency-light** — pure-Python and stdlib first; numpy/biopython/reedsolo only where already optional.
 
 ---
@@ -253,7 +253,7 @@ Every batch, in the `helix` conda env (`/opt/anaconda3/envs/helix/bin/python`):
 ```bash
 ruff check src tests                     # lint gate
 mypy                                     # type gate
-python -m pytest -q                      # full suite: 1382 passing baseline
+python -m pytest -q                      # full suite
 python -m pytest -q --benchmark-only     # 4 benchmark tests actually run in this env
 ```
 
@@ -272,7 +272,7 @@ Coverage gate: `pytest --cov=helixlang --cov-fail-under=80` must stay ≥80% (ne
 
 ## 7. Implementation Batches
 
-Status ledger for the §4 tiers. Every batch is verified under `/opt/anaconda3/envs/helix/bin/python` with the gates of §6. Current totals after the batches below: **1467 tests passing** (baseline 1382; +85 new test methods across batches 1–11), **ruff clean**, **mypy clean** (36 source files), **coverage 90%+** (gate ≥80%), 4 benchmark tests pass.
+Status ledger for the §4 tiers. Every batch is verified under `/opt/anaconda3/envs/helix/bin/python` with the gates of §6. ruff clean, mypy clean, coverage ≥80% (gate), benchmarks pass.
 
 ### Batch 1 — §4.1 `crispr.py` (Doench 2016 Rule Set 2) — DONE
 
@@ -345,7 +345,7 @@ Eliminated the remaining documented no-op / unconsumed opcode behavior, replacin
 - **`OP_EMIT_MORPHOGEN <id>`** (was: fixed 1.0): the morphogen ID now scales the injected amount to `(id + 1) / EMIT_MORPHOGEN_SCALE` (id=0 keeps a non-zero legacy emission). Grounding: Turing 1952 reaction-diffusion morphogens; Pearson 1993 measured presets.
 - **`OP_MODIFY_STATE <field>`** (was: fields 0/1 only): completed to a full 4-field map — 0 green color, 1 `age += 1`, 2 yellow color, 3 magenta color — so all four Pro codons have distinct effects.
 - **Observability**: snapshot gained `signal_emissions`, `regulation_edges`, `binding_events`. New runtime event logs `_regulation_events` / `_binding_events`. `Cell.add_protein`/`consume_protein` widened to `int | str` (matches the `proteins: dict[int | str, float]` field already used by the central-dogma str-keyed path — a pre-existing mypy mismatch surfaced by the new binder code).
-- **Tests**: `tests/test_vm.py` — signal tests (field release, channel scaling, no-field count), 8 `TestRegulateBind` tests (edge add / inhibit / in-place update / index wrap / empty-GRN-safe / protein-consumption boost / protein-limited no-op / empty-GRN-safe), `OP_MODIFY_STATE` fields 2/3, `OP_EMIT_MORPHOGEN` scaling; snapshot-structure test extended with the 3 new keys. `tests/test_cell.py` unchanged. Full suite **1467 passing** (baseline 1382, +85 cumulative), coverage **90.13%**, mypy + ruff clean.
+- **Tests**: `tests/test_vm.py` — signal tests (field release, channel scaling, no-field count), 8 `TestRegulateBind` tests (edge add / inhibit / in-place update / index wrap / empty-GRN-safe / protein-consumption boost / protein-limited no-op / empty-GRN-safe), `OP_MODIFY_STATE` fields 2/3, `OP_EMIT_MORPHOGEN` scaling; snapshot-structure test extended with the 3 new keys. `tests/test_cell.py` unchanged. Tests pass, coverage ≥80%, mypy + ruff clean.
 
 ---
 

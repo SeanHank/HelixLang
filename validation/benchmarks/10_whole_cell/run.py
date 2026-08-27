@@ -154,6 +154,32 @@ def run() -> dict:
         return {
             "id": "10_whole_cell",
             "status": "PASS" if all_pass else "FAIL",
+            "layer": "cell_biology",
+            "name": "Whole-cell division time",
+            "reference": {
+                "source": "E. coli K-12 generation time",
+                "authors": "Wanner",
+                "year": 1996,
+                "note": "37.3 min at 37°C in minimal glucose medium",
+            },
+            "expected": {
+                "metric": "division_time",
+                "value": 37.3,
+                "tolerance": 0.3,
+                "unit": "min",
+            },
+            "actual": {
+                "value": first_actual,
+            },
+            "error": {
+                "abs_error": abs(first_actual - 37.3),
+                "rel_error": abs(first_actual - 37.3) / 37.3 if 37.3 > 0 else 0.0,
+                "passed": first_div_ok,
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+            },
             "validation": {
                 "alive": alive,
                 "energy_budget_ok": energy_budget_ok,

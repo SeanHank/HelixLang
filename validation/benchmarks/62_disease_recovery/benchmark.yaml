@@ -1,0 +1,7 @@
+id: 62_disease_recovery
+name: Disease progression + recovery
+layer: physiology
+reference: Sonnenberg & Beck 1993, Med Decis Making
+input: programmatic
+expected:
+  check: automated

@@ -1,0 +1,7 @@
+id: 46_vectorized_grn
+name: Vectorized GRN correctness
+layer: runtime
+reference: Elowitz & Leibler 2000
+input: programmatic
+expected:
+  check: automated

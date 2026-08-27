@@ -1,0 +1,52 @@
+{
+  "id": "62_disease_recovery",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "create_progression_model_returns_model": true,
+    "disease_stage_has_preclinical": true,
+    "disease_stage_has_mild": true,
+    "disease_stage_has_moderate": true,
+    "disease_stage_has_severe": true,
+    "disease_stage_has_critical": true,
+    "progression_profiles_is_dict": true,
+    "progression_profiles_ge_3": true,
+    "severity_non_decreasing_without_drug": true,
+    "create_recovery_model_returns_model": true,
+    "organ_recovery_profiles_is_dict": true,
+    "organ_recovery_profiles_ge_3": true,
+    "recovery_alt_moves_toward_baseline": true,
+    "recovery_fraction_in_range": true
+  },
+  "details": {
+    "initial_disease": "CKD",
+    "progression_profile_keys": [
+      "CKD",
+      "LIVER_CIRRHOSIS",
+      "DIABETES_T2",
+      "CANCER_GENERIC"
+    ],
+    "prev_severity": 0.3,
+    "new_severity_1yr": 0.3119917864476386,
+    "organ_profile_keys": [
+      "liver",
+      "kidney",
+      "bone_marrow",
+      "heart",
+      "cns",
+      "adrenal",
+      "systemic"
+    ],
+    "prev_alt": 120.0,
+    "new_alt_1d": 118.0585973169109
+  },
+  "reference": {
+    "source": "Sonnenberg FA, Beck JR 1993",
+    "authors": "Sonnenberg FA, Beck JR",
+    "year": 1993,
+    "journal": "Med Decis Making",
+    "volume": "13",
+    "pages": "322"
+  },
+  "runtime_seconds": 0.4574226249824278
+}

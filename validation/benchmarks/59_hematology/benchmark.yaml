@@ -1,0 +1,7 @@
+id: 59_hematology
+name: Hematology myelosuppression
+layer: pharmacology
+reference: Friberg et al. 2002, JPKPD
+input: programmatic
+expected:
+  check: automated

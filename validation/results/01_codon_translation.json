@@ -1,7 +1,33 @@
 {
   "id": "01_codon_translation",
   "status": "PASS",
+  "layer": "language",
+  "name": "Codon translation (64 codons)",
+  "reference": {
+    "source": "Standard genetic code (NCBI Translation Table 1)",
+    "authors": "NCBI",
+    "note": "Universal genetic code, 64 codons mapping to 20 amino acids + stop"
+  },
   "expected": {
+    "metric": "codon_count",
+    "value": 64,
+    "tolerance": 0,
+    "unit": "codons"
+  },
+  "actual": {
+    "value": 64
+  },
+  "error": {
+    "abs_error": 0,
+    "rel_error": 0.0,
+    "passed": true,
+    "message": null
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15"
+  },
+  "expected_detail": {
     "codon_count": 64,
     "all_mapped": true,
     "stop_codons": [
@@ -11,7 +37,7 @@
     ],
     "vm_produces_protein": true
   },
-  "actual": {
+  "actual_detail": {
     "codon_count": 64,
     "mapped_count": 64,
     "stop_codon_count": 3,
@@ -25,5 +51,5 @@
     "vm_protein_total": 50.0,
     "vm_ticks_run": 50
   },
-  "runtime_seconds": 0.23756683399551548
+  "runtime_seconds": 0.31534895801451057
 }

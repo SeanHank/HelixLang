@@ -1,0 +1,7 @@
+id: 52_community_fba
+name: Community FBA cross-feeding
+layer: metabolism
+reference: Harcombe 2010, J Theor Biol
+input: programmatic
+expected:
+  check: automated

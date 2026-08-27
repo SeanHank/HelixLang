@@ -1,6 +1,6 @@
 # 32 — Advanced Pharmacological Modeling: Research Grounding and Implementation Roadmap
 
-> **Status:** IMPLEMENTED (all §7 innovations + §8 closures + §7.7–7.10 microbiome/epigenetics/emergent complexity; all wired into VirtualPatient; 180 tests passing)
+> **Status:** IMPLEMENTED (all §7 innovations + §8 closures + §7.7–7.10 microbiome/epigenetics/emergent complexity; all wired into VirtualPatient; tests passing)
 > **Depends on:** doc/30, doc/31 (computational disease models, endocrine, immune, QSP binding)
 > **Date:** 2026-08-25
 > **Innovations:** 10 proposals (§7) + 3 limit-closures (§8) + 3 experiments (exp. 58–60) → ALL gaps closed, 0 ⚠️ remaining
@@ -1116,7 +1116,7 @@ exceed the accuracy of the measurements it is trained on.
 - [x] Liver-gut feedback — enterohepatic circulation + FXR/CYP7a1 (§7.10.1) (`emergent_complexity.py`)
 - [x] Stress-immune-endocrine feedback — cortisol-immune-metabolic triple feedback (§7.10.2) (`emergent_complexity.py`)
 - [x] All 10 §7 innovations + §8 closures wired into VirtualPatient
-- [x] 180 unit tests passing across all doc/30–32 modules
+- [x] Unit tests passing across all doc/30–32 modules
 - [x] Example 58 end-to-end with all modules active (1057 time points, 12 output channels)
 - [ ] Full regulatory submission package generation — deferred (requires regulatory framework alignment)
 

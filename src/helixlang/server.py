@@ -95,7 +95,7 @@ def create_app() -> Flask:
     # ---------- API ----------
     @app.get("/api/health")
     def health():
-        return jsonify({"status": "ok", "version": "2026.8.4"})
+        return jsonify({"status": "ok", "version": "2026.8.5"})
 
     @app.get("/api/examples")
     def list_examples():

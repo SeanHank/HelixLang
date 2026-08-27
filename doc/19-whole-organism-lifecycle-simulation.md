@@ -640,7 +640,7 @@ and the system automatically:
 4. Uses FBA-backed growth (`Patch._growth_rate_gem()`) instead of Monod kinetics in the tick loop
 5. Falls back to Monod if the GEM pipeline fails or `gem_driven=false`
 
-**Landed files:** `apps/ecosystem.py` (`gem_to_species()`, `Species.metabolic_model`, `_growth_rate_gem()`, `EcosystemConfig.gem_driven`); `sim_runtime.py` (`_attach_gem_to_ecosystem_species()`, `_run_ecosystem()` wired). **Tests:** all 2233 pass; mypy clean.
+**Landed files:** `apps/ecosystem.py` (`gem_to_species()`, `Species.metabolic_model`, `_growth_rate_gem()`, `EcosystemConfig.gem_driven`); `sim_runtime.py` (`_attach_gem_to_ecosystem_species()`, `_run_ecosystem()` wired). **Tests:** all pass; mypy clean.
 
 ---
 

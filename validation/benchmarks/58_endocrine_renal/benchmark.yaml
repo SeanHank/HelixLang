@@ -1,0 +1,7 @@
+id: 58_endocrine_renal
+name: Endocrine + renal ODEs
+layer: pharmacology
+reference: Inker et al. 2021, NEJM
+input: programmatic
+expected:
+  check: automated

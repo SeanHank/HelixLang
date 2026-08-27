@@ -6,7 +6,7 @@ the whole simulation stack, without breaking the existing compiler pipeline.
 
 Status: **implemented (W-1 … W-5 complete, Aug 2026).** The full gate is green:
 `mypy src` (0 issues, 65 files), `ruff check src tests` (clean), and
-`pytest --cov=helixlang` (2134 passed, coverage 89.2 % ≥ 80 %). `backend=classic`
+`pytest --cov=helixlang` (pass, coverage ≥80%). `backend=classic`
 remains the default and is bit-identical. §18 is the coverage audit of which
 Python features are reachable from `.helix` today, §19 is the remaining backlog
 and next-step plan.

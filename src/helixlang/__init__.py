@@ -24,7 +24,7 @@ Layer 3 — Scientific Applications
         omics/   — expression inference, spatial omics
 """
 
-__version__ = "2026.8.4"
+__version__ = "2026.8.5"
 
 from helixlang.codon_table import (
     CILIATE_TABLE,

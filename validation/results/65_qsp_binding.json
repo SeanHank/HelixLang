@@ -1,0 +1,35 @@
+{
+  "id": "65_qsp_binding",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "mass_action_occupancy_at_100nM": true,
+    "mass_action_occupancy_at_0nM": true,
+    "tmdd_step_works": true,
+    "competitive_binding_instantiates": true,
+    "competitive_antagonist_reduces_effect": true,
+    "create_qsp_binding_returns_system": true,
+    "qsp_system_has_step": true
+  },
+  "details": {
+    "mass_action_occupancy": 0.909091,
+    "expected_occupancy": 0.909091,
+    "mass_action_occupancy_zero": 0.0,
+    "tmdd_c_free_after_1h": 0.2,
+    "tmdd_r_total_before": 100.0,
+    "tmdd_r_total_after": 90.5,
+    "competitive_effect_no_antag": 0.5,
+    "competitive_effect_with_antag": 0.25,
+    "n_models": 2,
+    "model_names": [
+      "trastuzumab",
+      "imatinib"
+    ]
+  },
+  "reference": {
+    "tmdd": "Mager DE, Jusko WJ 2001, J Pharmacokinet Pharmacodyn 28:507",
+    "qss_tmdd": "Gibiansky L, Gibiansky E 2014, J Pharmacokinet Pharmacodyn 41:275",
+    "schild": "Schild HO 1949, Br J Pharmacol 4:277"
+  },
+  "runtime_seconds": 0.45499241701327264
+}

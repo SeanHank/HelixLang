@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixlang"
-version = "2026.8.4"
+version = "2026.8.5"
 description = "A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior."
 readme = "README_PYPI.md"
 requires-python = ">=3.11,<3.12"
 authors = [{name = "Sean Hank"}]
-license = {text = "AGPLv3"}
+license = "AGPL-3.0-only"
 keywords = ["DSL", "DNA", "compiler", "artificial-life", "biological-simulation"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -52,7 +52,6 @@ omit = [
 
 [tool.coverage.report]
 # Coverage gate: CI relies on this config as the lower-bound reference for --cov-fail-under=80.
-# Current measured ~92%; 80% is a reasonable baseline that also leaves headroom for future modules.
 fail_under = 80
 show_missing = true
 exclude_lines = [

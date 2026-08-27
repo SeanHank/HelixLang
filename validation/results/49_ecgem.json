@@ -1,0 +1,34 @@
+{
+  "id": "49_ecgem",
+  "status": "PASS",
+  "checks": {
+    "ec_mapping_nonempty": true,
+    "kcat_positive": true,
+    "kcat_reasonable_range": true,
+    "mw_estimation": true,
+    "builder_instantiates": true,
+    "builder_has_build_method": true,
+    "kcat_mw_keys_consistent": true,
+    "constrained_growth_positive": true,
+    "constrained_growth_reasonable": true,
+    "constrained_lower_than_unconstrained": true
+  },
+  "details": {
+    "ec_mapping_count": 25,
+    "kcat_count": 24,
+    "kcat_min": 14.3,
+    "kcat_max": 700.0,
+    "mw_300aa": 33000.0,
+    "kcat_mw_key_count": 24,
+    "constrained_growth_rate": 4.208163837845409,
+    "unconstrained_growth_rate": 4.20816383784542
+  },
+  "reference": {
+    "source": "Sanchez BJ et al. 2017, PLoS Comput Biol 13:e1005565",
+    "doi": "10.1371/journal.pcbi.1005565",
+    "authors": "Sanchez BJ, Brunberg TM, Nielsen LK",
+    "year": 2017,
+    "note": "ECMpy 2.0 enzyme-constrained model building"
+  },
+  "runtime_seconds": 0.2867545000044629
+}

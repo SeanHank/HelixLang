@@ -1,0 +1,24 @@
+{
+  "id": "59_hematology",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "create_returns_HematologySystem": true,
+    "hematology_has_step": true,
+    "no_drug_anc_stable": true,
+    "myelosuppression_params_instantiate": true,
+    "drug_exposure_anc_decreased": true,
+    "erythropoiesis_step_positive": true
+  },
+  "details": {
+    "baseline_anc": 4.5,
+    "anc_after_24h_no_drug": 4.5,
+    "anc_pct_change": 0.0,
+    "drug_effect_at_ec50": 0.45,
+    "anc_start_drug": 4.5,
+    "anc_end_after_7d_drug": 2.1299,
+    "hemoglobin_after_24h": 14.5
+  },
+  "reference": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428 (Friberg model)",
+  "runtime_seconds": 0.4433049170183949
+}

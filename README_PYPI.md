@@ -146,9 +146,9 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 | Metric | Value |
 |--------|-------|
 | Source modules | 135 |
-| Test cases | 2,984+ (81% coverage) |
-| Validation benchmarks | 45 (all passing, SHA256-verified goldens) |
-| `.helix` examples | 59 |
+| Test cases | 3,169 (81% coverage) |
+| Validation benchmarks | 67 (67 pass) |
+| `.helix` examples | 60 |
 | Documentation | 36 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
 
@@ -280,6 +280,19 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 10 | Whole-cell division time | Analytical |
 | 11-45 | Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 
+### Scientific Validation Metrics
+
+| Metric | Value |
+|--------|-------|
+| Benchmarks passing | **67/67** |
+| Published references cited | **40+** |
+| Non-deterministic failures | **0** |
+| Median error (quantitative benchmarks) | **~3.0%** |
+| Worst-case error | **16.7%** (population doubling time) |
+| SHA256 golden verification | **44/44** |
+
+Every benchmark records: **Reference → Expected range → Helix result → Error → Reproducibility**.
+
 ```bash
 # Run all benchmarks
 bash validation/run_all.sh
@@ -292,16 +305,16 @@ python validation/goldens/verify_goldens.py
 
 ## Documentation
 
-Full technical documentation in [`doc/`](doc/) (36 files, 25,000+ lines):
+Full technical documentation in [`doc/`](https://github.com/SeanHank/HelixLang/tree/main/doc) (37 files, 25,000+ lines):
 
 | Document | What it covers |
 |----------|---------------|
-| [`00-overview.md`](doc/00-overview.md) | Motivation, vision, end-to-end pipeline |
-| [`02-language-spec.md`](doc/02-language-spec.md) | Authoritative spec: alphabet, lexing, bytecode |
-| [`09-bio-instructions.md`](doc/09-bio-instructions.md) | Annotation syntax for `.helix` authors |
-| [`08-api-reference.md`](doc/08-api-reference.md) | Python API reference |
-| [`27-human-pathology-drug-simulation.md`](doc/27-human-pathology-drug-simulation.md) | Human physiology + drug simulation |
-| [`34-architectural-improvement-plan.md`](doc/34-architectural-improvement-plan.md) | Architecture plan + validation suite |
+| [`00-overview.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/00-overview.md) | Motivation, vision, end-to-end pipeline |
+| [`02-language-spec.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/02-language-spec.md) | Authoritative spec: alphabet, lexing, bytecode |
+| [`09-bio-instructions.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/09-bio-instructions.md) | Annotation syntax for `.helix` authors |
+| [`08-api-reference.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/08-api-reference.md) | Python API reference |
+| [`27-human-pathology-drug-simulation.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/27-human-pathology-drug-simulation.md) | Human physiology + drug simulation |
+| [`34-architectural-improvement-plan.md`](https://github.com/SeanHank/HelixLang/blob/main/doc/34-architectural-improvement-plan.md) | Architecture plan + validation suite |
 
 ---
 
@@ -335,16 +348,38 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **2,984+ test cases** (all passing, 81% coverage)
-- 45 validation benchmarks with SHA256 goldens
+- **3191 test cases**(all passing, 81% coverage)
+- [67/67 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 
 ---
 
+## Release
+
+One-command release via `release.py`:
+
+```bash
+python release.py 2026.8.5
+```
+
+What `release.py` does:
+
+| Step | Action |
+|------|--------|
+| 1 | Sync version to `pyproject.toml`, `__init__.py`, `server.py` |
+| 2 | Run quality gates in parallel (ruff, mypy, pytest -n auto, validation benchmarks, examples smoke test) |
+| 2b | Generate `validation/report.md` from fresh results |
+| 3 | Sync metrics (test count, validation pass rate, modules, examples) to README/CONTRIBUTING |
+| 4 | Build sdist + wheel |
+
+Version format: `YYYY.M.D` or `YYYY.M.D.N` (e.g. `2026.9.1`, `2026.9.1.2`).
+
+---
+
 ## Contributing
 
-Contributions welcomed! Read **[CONTRIBUTING.md](CONTRIBUTING.md)** first.
+Contributions welcomed! Read **[CONTRIBUTING.md](https://github.com/SeanHank/HelixLang/blob/main/CONTRIBUTING.md)** first.
 
 ```bash
 git clone https://github.com/SeanHank/HelixLang.git
@@ -358,5 +393,7 @@ pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests
 ## License
 
 This project is licensed under the **GNU Affero General Public License v3.0** (AGPLv3).
+
+See [DISCLAIMER.md](https://github.com/SeanHank/HelixLang/blob/main/DISCLAIMER.md) for important legal notices and limitations.
 
 Copyright © 2026 Sean Hank.

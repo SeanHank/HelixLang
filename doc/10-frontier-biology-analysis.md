@@ -8,7 +8,7 @@
 > `apps/`, and `examples/`). G9 declarative couplings resolved. Scope decisions are
 > for the maintainer.
 >
-> Date: 2026-08 · Baseline: **1766 tests passing**, coverage **89%**, `ruff` + `mypy` clean
+> Date: 2026-08 · Baseline: `ruff` + `mypy` clean
 > (`/opt/anaconda3/envs/helix/bin/python`). Runtime runs on physical units end-to-end
 > (1 tick = 1 min, ATP molecule counts, µM signals, µm²/s diffusion — see `units.py`).
 
@@ -184,7 +184,7 @@ Each gap: **Current** → **Gap** → **Why it blocks frontier work** → **Rela
 - **Literature:** `doc/13-performance-report.md` §4 items 4–5 (open items); NUFEB parallelization lessons.
 
 ### G11 — No validation/calibration pipeline
-- **Current:** 1766 tests validate internal consistency and literature anchors, but there is no pipeline to fit model parameters to experimental data or run standardized benchmarks (BM2/BM3 biofilms, Virtual Cell Challenge style).
+- **Current:** Tests validate internal consistency and literature anchors, but there is no pipeline to fit model parameters to experimental data or run standardized benchmarks (BM2/BM3 biofilms, Virtual Cell Challenge style).
 - **Gap:** Calibration harness + standardized benchmark cases.
 - **Blocks:** P9/P10 credibility; the virtual-cell field explicitly demands shared benchmarks (Virtual Cell Challenge 2025).
 - **Literature:** Karr 2012 (validation methodology); Virtual Cell Challenge (Cell 2025); IWA biofilm Benchmark Problem 3 (used by iDynoMiCS 2.0 / NUFEB).
@@ -442,7 +442,7 @@ then B6–B7 in parallel, then B8–B10 as stretch goals.
   `OP_DIVIDE` division via `CellVM._divide()`/`vm.daughters`, and `OP_CALL_GENE`
   `call_target=` back-patching verified against a 5th gene with unknown-target
   `CompileError`. Verified in `tests/test_g9.py` (16 tests) and the G9 row added to the
-  §6 verification table. Full suite: 1766 passed; coverage 89% (gate 80%).
+  §6 verification table. Full suite: tests pass (gate 80%).
 - **2026-08-12** — T3.5 sync. T3.5 marked ✅ implemented (`interop.py`: SBML L3V1
   import → `MetabolicModel`, SBOL3 `sbol3_dumps`/`sbol3_loads`; `tests/test_interop.py`
   16 tests); B10 flipped to ✅ shipped in §7; §6 gains a T3.5 verification row; `interop.py`

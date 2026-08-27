@@ -1,0 +1,7 @@
+id: 66_infrastructure
+name: Infrastructure (units, seq, codec)
+layer: infrastructure
+reference: NCBI / standard references
+input: programmatic
+expected:
+  check: automated

@@ -1,0 +1,7 @@
+id: 48_immune_dynamics
+name: Innate immune dynamics
+layer: runtime
+reference: IMEX ODE immune modelling
+input: programmatic
+expected:
+  check: automated

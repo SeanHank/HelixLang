@@ -1,0 +1,7 @@
+id: 65_qsp_binding
+name: QSP binding models
+layer: pharmacology
+reference: Mager & Jusko 2001, JPKPD
+input: programmatic
+expected:
+  check: automated

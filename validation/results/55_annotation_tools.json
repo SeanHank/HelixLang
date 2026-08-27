@@ -1,0 +1,29 @@
+{
+  "id": "55_annotation_tools",
+  "status": "PASS",
+  "checks": {
+    "import_all_4_modules": true,
+    "ko_db_size": true,
+    "ko_db_has_k00844": true,
+    "ko_db_lookup": true,
+    "translate_mkf": true,
+    "translate_stop_codon": true,
+    "reverse_complement": true,
+    "tf_pfam_domains_count": true,
+    "transport_families_count": true
+  },
+  "details": {
+    "ko_db_size": 22,
+    "k00844_reactions": [
+      "HEX1"
+    ],
+    "translate_atgtaa": "M",
+    "tf_pfam_domains_count": 19,
+    "transport_families_count": 11
+  },
+  "reference": {
+    "kegg": "Kanehisa M, Goto S 2000, Nucleic Acids Res 28:27-30",
+    "pfam": "El-Gebali S et al. 2019, Nucleic Acids Res 47:D427"
+  },
+  "runtime_seconds": 0.280417166010011
+}

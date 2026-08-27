@@ -9,7 +9,7 @@
 ## 1 — Problem Statement
 
 The reduced GEM models reconstructed from inline DNA produce functional
-simulations (2233/2233 tests pass), but three architectural limitations prevent
+simulations (tests pass), but three architectural limitations prevent
 quantitative agreement with published literature:
 
 | Issue | Current | Literature | Gap |
@@ -692,7 +692,7 @@ _coef = next(iter(_glc_rxn.stoichiometry.values()))
 v_glc = -v_glc_raw if _coef < 0 else v_glc_raw
 ```
 
-This was implemented and tested in the current codebase (2233 tests pass).
+This was implemented and tested in the current codebase (tests pass).
 
 ### 8.2 Byproduct Accumulation
 
@@ -789,7 +789,7 @@ _MEDIUM_PRESETS = {
 - Expected: E. coli growth rate 0.7–0.9 h⁻¹, glucose fully consumed
 - Expected: Synechocystis growth rate 0.14 h⁻¹, final biomass 0.5–2.0 gDW/L
 - Run full test suite: `pytest tests/ -q --tb=short`
-- Expected: 2233+ tests pass, 0 failures
+- Expected: tests pass, 0 failures
 
 ---
 

@@ -1,0 +1,42 @@
+{
+  "id": "50_protein_structure",
+  "status": "PASS",
+  "checks": {
+    "chou_fasman_20_aas": true,
+    "kyte_doolittle_20_aas": true,
+    "kd_ile_most_hydrophobic": true,
+    "kd_arg_most_hydrophilic": true,
+    "cf_poly_ala_all_helix": true,
+    "gor_produces_valid_output": true,
+    "gor_poly_ala_length": true,
+    "tm_detects_hydrophobic_segment": true,
+    "tm_length_in_range": true,
+    "disorder_detects_charge_rich": true,
+    "gravy_ala_positive": true,
+    "gravy_ser_negative": true,
+    "hydropathy_length": true,
+    "hydropathy_ala_positive": true,
+    "report_has_all_fields": true,
+    "report_length_matches": true
+  },
+  "details": {
+    "chou_fasman_aa_count": 20,
+    "kd_ile": 4.5,
+    "kd_arg": -4.5,
+    "cf_poly_ala_ss": "HHHHHHHHHH...",
+    "tm_count": 1,
+    "tm_first_start": 38,
+    "tm_first_length": 31,
+    "gravy_poly_ala": 1.7999999999999992,
+    "gravy_poly_ser": -0.8000000000000004,
+    "hydropathy_ala_mean": 1.7999999999999992
+  },
+  "reference": {
+    "source": "Chou & Fasman 1978; Garnier et al. 1978; Kyte & Doolittle 1982",
+    "doi": "10.1021/bi00609a010",
+    "authors": "Chou PY, Fasman GD",
+    "year": 1978,
+    "journal": "Biochemistry"
+  },
+  "runtime_seconds": 0.2881564580020495
+}

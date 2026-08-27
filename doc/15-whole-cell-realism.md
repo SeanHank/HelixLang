@@ -4,8 +4,7 @@ Status: **implemented (Phases 1–5) and gated**. Every proposal below has
 landed on a concrete module behind backward-compatible flags whose defaults
 reproduce the original behaviour; each phase ships tests and passes the
 project quality gates (`mypy src`, `ruff check src tests`,
-`pytest --cov=helixlang`). Current baseline: **1,944 tests passing,
-89.46% coverage, EXIT 0** (Phase 5 gate). §12 tracks exactly what each
+`pytest --cov=helixlang`). §12 tracks exactly what each
 phase shipped and where.
 
 ---
@@ -537,5 +536,5 @@ bit-for-bit — verified by the "bit-compat" tests listed per phase.
 
 | Gate | Result |
 |------|--------|
-| Phase 4 (Phases 1–4 complete) | 1,927 tests passed in 458.91 s |
-| Phase 5 (full suite, this doc) | **1,944 tests passed in 465.48 s, coverage 89.46%, EXIT 0** (mypy 55 files clean, ruff clean) — log `/tmp/helix_phase5_gate2.log` |
+| Phase 4 (Phases 1–4 complete) | Tests pass, mypy + ruff clean |
+| Phase 5 (full suite, this doc) | Tests pass, coverage ≥80%, EXIT 0 (mypy + ruff clean) |

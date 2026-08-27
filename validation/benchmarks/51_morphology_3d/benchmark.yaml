@@ -1,0 +1,7 @@
+id: 51_morphology_3d
+name: 3D L-system morphology
+layer: runtime
+reference: Prusinkiewicz & Lindenmayer 1990
+input: programmatic
+expected:
+  check: automated

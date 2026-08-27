@@ -1,0 +1,7 @@
+id: 63_phenotype_simulation
+name: Phenotype + simulation
+layer: physiology
+reference: Ursino et al. 2020, Front Physiol
+input: programmatic
+expected:
+  check: automated

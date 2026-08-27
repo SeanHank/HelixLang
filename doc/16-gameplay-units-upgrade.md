@@ -20,7 +20,7 @@
 > consistent unit system, and proposes opt-in `calibrated=` re-parameterization backed by primary
 > literature.
 >
-> Baseline: **1471 tests passing**, coverage **90%**, `ruff` + `mypy` clean
+> Baseline: `ruff` + `mypy` clean
 > (`/opt/anaconda3/envs/helix/bin/python`).
 
 ---
@@ -64,7 +64,7 @@ them ("gameplay units, not Joules") rather than *calibrating* them.
 
 **Design constraints** (unchanged from 14-production-upgrade.md §5):
 1. Do not change existing functionality — every default stays, every documented API keeps working.
-2. Keep all tests green (1471 baseline) plus ruff + mypy.
+2. Keep all tests green plus ruff + mypy.
 3. Stay dependency-light: stdlib first; numpy only where already optional.
 4. New behavior is **opt-in** behind `calibrated=` / `units=` kwargs.
 5. Docstrings stay honest — each calibrated module updates its `UNITS` disclaimer to name the
@@ -353,7 +353,7 @@ by dependency (units.py first, then consumers).
 ## 6. Compatibility and API Preservation
 
 1. **Defaults never change.** Every `calibrated=False` / `units="gameplay"` default reproduces
-   today's numbers bit-for-bit; the 1471-test baseline must pass without modification.
+   today's numbers bit-for-bit; the existing test baseline must pass without modification.
 2. **New behavior is opt-in** behind `calibrated=` kwargs or `#config units=real`.
 3. **No new hard dependencies.** `units.py` is stdlib-only; numpy stays optional.
 4. **Constants become canonical.** Hardcoded literals that duplicate a named constant
@@ -371,7 +371,7 @@ Every batch, under `/opt/anaconda3/envs/helix/bin/python`:
 ```bash
 ruff check src tests                     # lint gate
 mypy                                     # type gate
-python -m pytest -q                      # full suite: 1471 baseline
+python -m pytest -q                      # full suite
 python -m pytest -q --cov=helixlang --cov-fail-under=80
 ```
 
@@ -394,8 +394,7 @@ Coverage gate stays ≥ 80% (new registry + constants add coverage, not reduce i
 ## 8. Implementation Batches
 
 Status ledger for §5. Every batch is verified under `/opt/anaconda3/envs/helix/bin/python`
-with the gates of §7. Totals after batches 1–8 land: **1517 passing**, coverage **90.4%**,
-ruff + mypy clean. Validation suite: `tests/test_units.py` + calibrated sections in
+with the gates of §7. Totals after batches 1–8 land: ruff + mypy clean. Validation suite: `tests/test_units.py` + calibrated sections in
 `tests/{test_cell,test_grn,test_population,test_vm,test_central_dogma,test_semantic,
 test_parser,test_server,test_end_to_end}.py`.
 

@@ -1,0 +1,7 @@
+id: 54_sbml_grn_inference
+name: SBML import + GRN inference
+layer: metabolism
+reference: Keating et al. 2020, Nat Biotechnol
+input: programmatic
+expected:
+  check: automated

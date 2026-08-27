@@ -444,15 +444,3 @@ def _update_enzyme_levels_from_edits(self) -> None:
 | `apps/ecosystem.py` | Wire temperature/pH + density correction into `_growth_rate_gem()` |
 | `apps/ecosystem.py` | Add `last_fba_fluxes` to `Species`; deep-copy model before FBA |
 | `vm.py` | Add `_update_enzyme_levels_from_edits()`, `gem_dirty` flag, re-FBA after edits |
-
-## Verification
-
-- **2245 tests pass** (1 skipped, 0 failures) — full CI clean
-- ruff clean on all modified files
-- mypy clean on all modified files
-- **35 new tests** in `tests/test_doc25_phase_vii_x.py`:
-  - 9 tests for G7 (apply_regulatory_bounds: repression, activation, GPR fallback, multi-edge)
-  - 11 tests for G8 (enzyme_correction: optimal=1, temperature falloff, pH symmetry, Arrhenius, wiring)
-  - 7 tests for G9 (density scaling: EX_ exempt, clamp range, high-density reduction, flux storage)
-  - 8 tests for G10 (evolution FBA: dirty flag, GPR map, frameshift/deletion/substitution/nonsense kcat)
-- Examples 53/54 demonstrate direct DSL gene/param definitions alongside full BiGG models

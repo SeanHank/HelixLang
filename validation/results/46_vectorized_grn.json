@@ -1,0 +1,23 @@
+{
+  "id": "46_vectorized_grn",
+  "status": "PASS",
+  "checks": {
+    "sigmoid_scalar_match": true,
+    "hill_scalar_match": true,
+    "output_clipped_0_1": true,
+    "triggered_mask_correct": true,
+    "n_genes_and_names_correct": true
+  },
+  "details": {
+    "sigmoid_max_diff": 1.1102230246251565e-16,
+    "n_cells_test1": 6,
+    "n_ticks_test1": 50,
+    "n_cells_test2": 4,
+    "n_ticks_test2": 30
+  },
+  "reference": {
+    "source": "HelixLang grn.py scalar implementation",
+    "note": "VectorizedGRN must produce identical output to scalar GRN.step()"
+  },
+  "runtime_seconds": 0.2650889999931678
+}

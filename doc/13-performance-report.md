@@ -208,7 +208,7 @@ measured improvement:
 The three fixes are pure algorithmic/constant-factor changes that do **not** alter
 language semantics: they were made under the existing §5 compatibility rules
 (§10 of the production-upgrade plan) without touching the public API or breaking
-legacy behavior. Full-suite regressions passed (1471 tests).
+legacy behavior. Full-suite regressions pass.
 
 ## 5. Recommendations
 

@@ -896,21 +896,6 @@ When `esm` is not available:
 
 ---
 
-## 13 — Quality Gates
-
-| # | Gate | Status |
-|---|---|---|
-| 1 | `ruff check src tests` — all checks passed | ✓ |
-| 2 | `pytest tests/ -x` — 2430 pass, 1 skip, 0 fail | ✓ |
-| 3 | `mypy` — no errors in doc/26 modules | ✓ |
-| 4 | All new modules pass ruff with no warnings | ✓ |
-| 5 | Example 55 compiles, decompiles, runs | ✓ |
-| 6 | Full pipeline test: FASTA → structure → kinetics → ecGEM → simulation | ✓ |
-| 7 | Coverage ≥80% gate (actual: 80.58%) | ✓ |
-| 8 | Documentation complete with references | ✓ |
-
----
-
 ## 14 — References
 
 1. Lin Z et al. (2023) Evolutionary-scale prediction of atomic-level protein structure with a language model. Science 379:1123-1130 (ESMFold)

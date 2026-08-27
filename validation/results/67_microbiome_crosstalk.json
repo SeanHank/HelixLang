@@ -1,0 +1,30 @@
+{
+  "id": "67_microbiome_crosstalk",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "microbiome_compartment_instantiates": true,
+    "microbial_species_fields_accessible": true,
+    "microbiome_compartment_step_works": true,
+    "create_crosstalk_returns_organ_crosstalk": true,
+    "organ_crosstalk_has_apply": true,
+    "apply_crosstalk_cv_risk_elevated": true,
+    "apply_crosstalk_anemia_risk_elevated": true,
+    "apply_crosstalk_immune_suppressed": true,
+    "apply_crosstalk_clearance_reduced": true
+  },
+  "details": {
+    "n_species": 10,
+    "scfa_after_1h": 40.996,
+    "cv_risk_multiplier": 1.3438,
+    "anemia_risk_multiplier": 2.3207,
+    "immune_suppression": 0.3333,
+    "clearance_modifier": 0.2,
+    "child_pugh_score": 14.0
+  },
+  "reference": {
+    "microbiome": "Spanogiannopoulos P et al. 2016, Nat Rev Pharmacol 16:135",
+    "organ_crosstalk": "Qi Z et al. 2017, PLoS Comput Biol 13:e1005416"
+  },
+  "runtime_seconds": 0.46197837503859773
+}

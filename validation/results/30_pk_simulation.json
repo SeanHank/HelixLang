@@ -1,6 +1,33 @@
 {
   "id": "30_pk_simulation",
   "status": "PASS",
+  "layer": "pharmacology",
+  "name": "PBPK IV bolus simulation",
+  "reference": {
+    "source": "IV bolus pharmacokinetics (one-compartment model)",
+    "authors": "Rowland & Tozer",
+    "year": 2011,
+    "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+    "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus"
+  },
+  "expected": {
+    "metric": "c0_concentration",
+    "value": 33.333333333333336,
+    "tolerance": 0.05,
+    "unit": "mg/L"
+  },
+  "actual": {
+    "value": 33.33333333333334
+  },
+  "error": {
+    "abs_error": 7.105427357601002e-15,
+    "rel_error": 2.1316282072803005e-16,
+    "passed": true
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15"
+  },
   "checks": {
     "creates_valid_drug": true,
     "runs_pbpk_model_for_24h": true,
@@ -18,5 +45,5 @@
     "n_time_points": 289,
     "final_concentration": 0.110688
   },
-  "runtime_seconds": 0.4307785419805441
+  "runtime_seconds": 0.451041541993618
 }

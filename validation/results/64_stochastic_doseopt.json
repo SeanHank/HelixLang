@@ -1,0 +1,27 @@
+{
+  "id": "64_stochastic_doseopt",
+  "status": "PASS",
+  "checks": {
+    "import_all_classes": true,
+    "euler_maruyama_step_finite": true,
+    "solve_sde_x_positive_at_t1": true,
+    "sde_config_instantiates": true,
+    "dose_optimizer_instantiates": true,
+    "pk_profile_has_time_conc": true,
+    "pk_profile_auc_computable": true,
+    "dose_recommendation_dose_accessible": true
+  },
+  "details": {
+    "euler_maruyama_x0": 1.0,
+    "euler_maruyama_x1": 0.987839,
+    "solve_sde_final_x": 0.398918,
+    "solve_sde_n_points": 101,
+    "pk_auc": 109.25,
+    "pk_cmax": 25.0
+  },
+  "reference": {
+    "euler_maruyama": "Maruyama K 1955, Proc Imp Acad 30:10",
+    "dose_optimization": "Jusko WJ, Ko HC 1994, J Pharmacokinet Biopharm 22:389"
+  },
+  "runtime_seconds": 0.47317770903464407
+}

@@ -1,0 +1,7 @@
+id: 49_ecgem
+name: Enzyme-constrained GEM
+layer: metabolism
+reference: Sanchez et al. 2017, Mol Syst Biol
+input: programmatic
+expected:
+  check: automated

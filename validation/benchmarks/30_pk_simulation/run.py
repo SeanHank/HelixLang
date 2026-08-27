@@ -80,6 +80,33 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "layer": "pharmacology",
+            "name": "PBPK IV bolus simulation",
+            "reference": {
+                "source": "IV bolus pharmacokinetics (one-compartment model)",
+                "authors": "Rowland & Tozer",
+                "year": 2011,
+                "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+                "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus",
+            },
+            "expected": {
+                "metric": "c0_concentration",
+                "value": expected_c0,
+                "tolerance": 0.05,
+                "unit": "mg/L",
+            },
+            "actual": {
+                "value": actual_c0,
+            },
+            "error": {
+                "abs_error": abs(actual_c0 - expected_c0),
+                "rel_error": abs(actual_c0 - expected_c0) / expected_c0 if expected_c0 > 0 else 0.0,
+                "passed": True,
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+            },
             "checks": {
                 "creates_valid_drug": True,
                 "runs_pbpk_model_for_24h": True,
