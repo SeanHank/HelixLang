@@ -148,7 +148,7 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 | Metric | Value |
 |--------|-------|
 | Source modules | 135 |
-| Test cases | 3,169 (81% coverage) |
+| Test cases | 3,192 (81% coverage) |
 | Validation benchmarks | 67 (67 pass) |
 | `.helix` examples | 60 |
 | Documentation | 36 files, 25,000+ lines |
@@ -266,7 +266,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 ## Validation
 
-45 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
+67 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
 
 | # | Benchmark | Evidence |
 |---|-----------|----------|
@@ -280,7 +280,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 08 | Population doubling time | Analytical |
 | 09 | Reaction-diffusion pattern | Reference + Robustness |
 | 10 | Whole-cell division time | Analytical |
-| 11-45 | Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
+| 11-67 | Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 
 ### Scientific Validation Metrics
 
@@ -350,7 +350,7 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3191 test cases**(all passing, 81% coverage)
+- **3,192 test cases**(all passing, 81% coverage)
 - [67/67 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest

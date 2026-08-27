@@ -340,70 +340,82 @@ def sync_metrics(gate_dir: Path) -> None:
 
         content = fpath.read_text()
 
-        # 1. Test count
+        # 1. Test count — table format: "| Test cases | 3,192 (81% coverage) |"
         if test_count:
-            content = _replacer(
-                r"\*\*[\d,+]* test cases\*\*/?[^(]*",
+            content = re.sub(
+                r"(\| Test cases \| )\d[\d,]*( \(.*?\))?( \||\|)",
+                rf"\g<1>{test_count}\g<2>\g<3>",
+                content,
+            )
+            # bullet format: "- **3,192 test cases**(all passing..."
+            content = re.sub(
+                r"\*\*[\d,]+ test cases\*\*",
                 f"**{test_count} test cases**",
                 content,
             )
-            content = _replacer(
-                r"\*\*[\d,]* test cases\*\*",
-                f"**{test_count} test cases**",
-                content,
-            )
 
-        # 2. Validation benchmarks line
+        # 2. Validation benchmarks — table format: "| Validation benchmarks | 67 (67 pass) |"
         if val_pass and val_total:
-            content = _replacer(
-                rf"\| Validation benchmarks \| {val_total} \(\d* pass\)",
-                f"| Validation benchmarks | {val_total} ({val_pass} pass)",
-                content,
-            )
-            content = _replacer(
-                rf"\| Validation benchmarks \| {val_total} \(\d* pass, [^)]*\)",
-                f"| Validation benchmarks | {val_total} ({val_pass} pass)",
+            content = re.sub(
+                r"(\| Validation benchmarks \| )\d+ \(\d+ pass[^)]*\)( \||\|)",
+                rf"\g<1>{val_total} ({val_pass} pass)\g<2>",
                 content,
             )
 
-        # 3. "N/TOTAL benchmarks PASS"
+        # 3. "Benchmarks passing" — "**67/67**"
         if val_pass and val_total:
-            content = _replacer(
-                r"\*\*\d+/\d+\*\* benchmarks PASS",
-                f"**{val_pass}/{val_total}** benchmarks PASS",
+            content = re.sub(
+                r"Benchmarks passing \| \*\*\d+/\d+\*\*",
+                f"Benchmarks passing | **{val_pass}/{val_total}**",
                 content,
             )
 
-        # 4. Source modules
-        content = _replacer(
-            r"\| Source modules \| \d+ \|",
-            f"| Source modules | {src_modules} |",
+        # 4. "N reproducible benchmarks" heading — "67 reproducible benchmarks"
+        if val_total:
+            content = re.sub(
+                r"\d+ reproducible benchmarks validating",
+                f"{val_total} reproducible benchmarks validating",
+                content,
+            )
+
+        # 5. Benchmark range in table — "| 11-45 |" → "| 11-67 |"
+        if val_total:
+            content = re.sub(
+                r"(\| 11-)\d+ (\|)",
+                rf"\g<1>{val_total}\g<2>",
+                content,
+            )
+
+        # 6. Source modules
+        content = re.sub(
+            r"(\| Source modules \| )\d+(\s*\|)",
+            rf"\g<1>{src_modules}\g<2>",
             content,
         )
 
-        # 5. Test files count
-        content = _replacer(
+        # 7. Test files count — "pytest suite (N files"
+        content = re.sub(
             r"pytest suite \(\d+ files",
             f"pytest suite ({test_files} files",
             content,
         )
 
-        # 6. Doc count
-        content = _replacer(
+        # 8. Doc count — "(N files, 25,000+"
+        content = re.sub(
             r"\(\d+ files, 25,000\+",
             f"({doc_count} files, 25,000+",
             content,
         )
 
-        # 7. Example count
-        content = _replacer(
+        # 9. Example count — "60 runnable .helix" and "| `.helix` examples | 60 |"
+        content = re.sub(
             r"\d+ runnable \.helix",
             f"{example_count} runnable .helix",
             content,
         )
-        content = _replacer(
-            r"\| `\.helix` examples \| \d+ \|",
-            f"| `.helix` examples | {example_count} |",
+        content = re.sub(
+            r"(\| `\.helix` examples \| )\d+(\s*\|)",
+            rf"\g<1>{example_count}\g<2>",
             content,
         )
 

@@ -62,7 +62,7 @@ abusive behavior is not tolerated.
 
 ### Environment
 
-- Python **3.11+**.
+- Python **3.11** (exactly; `>=3.11,<3.12`).
 - A venv or conda environment — anything works, but keep it isolated.
 
 ### Installation
