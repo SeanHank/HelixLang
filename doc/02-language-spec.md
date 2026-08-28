@@ -219,7 +219,7 @@ handling of unknown keys). Full key tables live in
 HelixLang runs on physical units end-to-end (no `#config units=` switch; the
 legacy gameplay-unit catalog was removed). Energy counts are **ATP molecules**,
 the signal field is in **µM**, diffusion is a physical **µm²/s** coefficient,
-and one tick is **one minute** (`helixlang.units`; see `doc/04-simulation-model.md` §6.3).
+and one tick is **one minute** (`helixlang.core.units`; see `doc/04-simulation-model.md` §6.3).
 
 | Quantity | Default | Physical meaning |
 |---|---|---|

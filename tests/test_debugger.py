@@ -1,7 +1,10 @@
 """HelixDebugger unit tests."""
-from helixlang.cell import FEED_ENERGY_AMOUNT, INITIAL_CELL_ENERGY
-from helixlang.codon_table import STANDARD_TABLE, Op
-from helixlang.compiler import Compiler
+from helixlang.core.codon_table import STANDARD_TABLE, Op
+from helixlang.core.compiler import Compiler
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.core.vm import CellVM
 from helixlang.debugger import (
     Breakpoint,
     DebugState,
@@ -9,10 +12,7 @@ from helixlang.debugger import (
     format_disasm_around,
     format_state,
 )
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.vm import CellVM
+from helixlang.plugins.runtime.cell import FEED_ENERGY_AMOUNT, INITIAL_CELL_ENERGY
 
 
 def make_debugger(src, table=STANDARD_TABLE):

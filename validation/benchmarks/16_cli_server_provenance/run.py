@@ -8,7 +8,7 @@ import time
 
 
 def _test_provenance() -> tuple[bool, dict]:
-    from helixlang.provenance import build_provenance
+    from helixlang.core.provenance import build_provenance
 
     prov = build_provenance(
         seed=42,
@@ -69,7 +69,7 @@ def _test_server_import() -> tuple[bool, dict]:
 
 
 def _test_bytecode_version() -> tuple[bool, dict]:
-    from helixlang.bytecode import OPCODE_VERSION
+    from helixlang.core.bytecode import OPCODE_VERSION
     assert isinstance(OPCODE_VERSION, int)
     assert OPCODE_VERSION >= 1
     return True, {"OPCODE_VERSION": OPCODE_VERSION}

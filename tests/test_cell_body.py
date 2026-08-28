@@ -26,7 +26,9 @@ import random
 import numpy as np
 import pytest
 
-from helixlang.cell_body import (
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.plugins.runtime.cell_body import (
     CellBody,
     capsule_radius,
     hertzian_force,
@@ -36,9 +38,7 @@ from helixlang.cell_body import (
     rod_wall_contacts,
     stokes_drag_coefficient,
 )
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.population import (
+from helixlang.plugins.runtime.population import (
     CellPopulation,
     PopulationCell,
     PopulationConfig,
@@ -238,7 +238,7 @@ def test_gate5_divide_cell_daughters_do_not_penetrate() -> None:
 def test_lbm_flow_field_spreads_into_solid_cells() -> None:
     """flow_field() fills obstacle cells with the local fluid velocity so
     a cell on its own no-slip site still feels the current."""
-    from helixlang.apps.lattice_boltzmann import LatticeBoltzmann
+    from helixlang.plugins.apps.lattice_boltzmann import LatticeBoltzmann
 
     lbm = LatticeBoltzmann(width=24, height=24, omega=1.0)
     lbm.set_occupancy([[False] * 24 for _ in range(24)])
@@ -259,7 +259,7 @@ def test_lbm_flow_field_spreads_into_solid_cells() -> None:
 def test_gate5_lbm_drag_advects_rod_downstream() -> None:
     """A single rod under the Level-2 LBM flow drifts east (one-way
     coupling: flow drags cells)."""
-    from helixlang.apps.lattice_boltzmann import LatticeBoltzmann
+    from helixlang.plugins.apps.lattice_boltzmann import LatticeBoltzmann
 
     cfg = PopulationConfig(
         grid_width=24, grid_height=24,
@@ -313,7 +313,7 @@ def test_sim_flow_channel_poiseuille_builds_field() -> None:
 
 
 def test_sim_flow_and_lbm_mutually_exclusive() -> None:
-    from helixlang.errors import SimConfigError
+    from helixlang.core.errors import SimConfigError
 
     with pytest.raises(SimConfigError, match="mutually exclusive"):
         _build_population_config(
@@ -321,7 +321,7 @@ def test_sim_flow_and_lbm_mutually_exclusive() -> None:
 
 
 def test_sim_invalid_flow_and_shape_rejected() -> None:
-    from helixlang.errors import SimConfigError
+    from helixlang.core.errors import SimConfigError
 
     with pytest.raises(SimConfigError, match="'flow'"):
         _build_population_config(parse("#sim flow=spiral"))

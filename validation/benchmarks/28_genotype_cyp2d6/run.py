@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.human.genotype import (
+from helixlang.plugins.human.genotype import (
     CYP_ALLELE_ACTIVITIES,
     CYPStatus,
     GenotypeProfile,

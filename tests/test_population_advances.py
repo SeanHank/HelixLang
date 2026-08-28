@@ -3,15 +3,16 @@
 CROMICS crowding diffusion, and spatial mechanics."""
 import pytest
 
-from helixlang.codon_table import STANDARD_TABLE
-from helixlang.compiler import Compiler
-from helixlang.environment import (
+from helixlang.core.codon_table import STANDARD_TABLE
+from helixlang.core.compiler import Compiler
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.plugins.runtime.environment import (
     Environment,
     EnvironmentConfig,
 )
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.population import (
+from helixlang.plugins.runtime.population import (
     CELL_VOLUME_FRACTION,
     SIGNAL_EMISSION_PER_STEP,
     CellPopulation,
@@ -19,7 +20,6 @@ from helixlang.population import (
     PopulationConfig,
     divide_cell,
 )
-from helixlang.semantic import SemanticAnalyzer
 
 
 def _compile(src: str):

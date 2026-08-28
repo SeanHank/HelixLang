@@ -31,7 +31,7 @@ import pytest
 pytest.importorskip("Bio")
 pytest.importorskip("reedsolo")
 
-from helixlang.bio_data import (
+from helixlang.plugins.runtime.bio_data import (
     ECOLI_CODON_USAGE,
     GRAY_SCOTT_PRESETS,
     PCR_ERROR_RATES,
@@ -45,7 +45,7 @@ from helixlang.bio_data import (
     lac_repression_factor,
     mu_to_grn_strength,
 )
-from helixlang.dna_codec import (
+from helixlang.plugins.runtime.dna_codec import (
     ERLICH_MAX_HOMOPOLYMER,
     ERLICH_OLIGO_NT,
     ERLICH_OLIGO_SIZE,
@@ -623,14 +623,14 @@ class TestBioData:
 
 class TestGrayScottPresets:
     def test_from_preset(self):
-        from helixlang.reaction_diffusion import GrayScott
+        from helixlang.plugins.runtime.reaction_diffusion import GrayScott
         gs = GrayScott.from_preset("Coral")
         assert gs.F == 0.016
         assert gs.k == 0.048
 
     def test_preset_produces_pattern(self):
         """Pearson presets produce non-trivial patterns (V concentration diffusion)."""
-        from helixlang.reaction_diffusion import GrayScott
+        from helixlang.plugins.runtime.reaction_diffusion import GrayScott
         gs = GrayScott.from_preset("Spots", n=16)
         v_before = gs.total_v()
         for _ in range(50):

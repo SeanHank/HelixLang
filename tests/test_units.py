@@ -6,8 +6,8 @@ whole-cell convention): energy in ATP molecules, signals in µM, space in
 """
 import pytest
 
-import helixlang.units as units
-from helixlang.units import (
+import helixlang.core.units as units
+from helixlang.core.units import (
     AI2_DIFFUSION_UM2_S,
     DIFFUSION_DT_S,
     LATTICE_SPACING_UM,
@@ -62,7 +62,7 @@ def test_module_exports():
 
 # -- runtime defaults are physically consistent (the unified unit system) --
 def test_default_diffusion_is_physical_and_stable_on_lattice():
-    from helixlang.population import SIGNAL_DIFFUSION_UM2_S
+    from helixlang.plugins.runtime.population import SIGNAL_DIFFUSION_UM2_S
     assert SIGNAL_DIFFUSION_UM2_S == AI2_DIFFUSION_UM2_S
     # D_lattice = 60 at the declared 10 um / 60 s lattice
     assert diffusion_to_lattice(
@@ -71,19 +71,19 @@ def test_default_diffusion_is_physical_and_stable_on_lattice():
 
 
 def test_default_grn_decay_from_median_half_life():
-    from helixlang.grn import GRN
+    from helixlang.plugins.runtime.grn import GRN
     assert GRN.DECAY == pytest.approx(
         decay_from_half_life_ticks(PROTEIN_HALF_LIFE_MEDIAN_TICKS))
     assert GRN.DECAY == pytest.approx(0.994, abs=1e-3)
 
 
 def test_default_cell_energy_is_atp_molecule_count():
-    from helixlang.cell import INITIAL_CELL_ENERGY
+    from helixlang.plugins.runtime.cell import INITIAL_CELL_ENERGY
     assert INITIAL_CELL_ENERGY == pytest.approx(1e9)  # newborn cell, ~10^9 ATP
 
 
 def test_default_division_threshold_gives_20_tick_doubling():
-    from helixlang.population import (
+    from helixlang.plugins.runtime.population import (
         DIVISION_ENERGY_THRESHOLD,
         ENERGY_INTAKE_PER_STEP,
         METABOLIC_COST_PER_STEP,
@@ -96,7 +96,7 @@ def test_default_division_threshold_gives_20_tick_doubling():
 
 
 def test_default_quorum_threshold_and_emission_in_um():
-    from helixlang.population import (
+    from helixlang.plugins.runtime.population import (
         QUORUM_SIGNAL_THRESHOLD,
         SIGNAL_EMISSION_PER_STEP,
     )

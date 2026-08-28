@@ -1153,7 +1153,7 @@ def hill_function(
 ```python
 # After GRN inference, compute expression levels
 if result.grn is not None:
-    from helixlang.omics.expression_inference import infer_expression
+    from helixlang.plugins.omics.expression_inference import infer_expression
     enzyme_levels = infer_expression(
         grn=result.grn,
         annotations=result.annotations,

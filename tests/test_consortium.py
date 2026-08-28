@@ -14,7 +14,7 @@ Verification goals:
 """
 from __future__ import annotations
 
-from helixlang.apps.consortium import (
+from helixlang.plugins.apps.consortium import (
     ROLE_ACTUATOR,
     ROLE_PRODUCER,
     ROLE_SENSOR,
@@ -110,11 +110,11 @@ def test_ratio_control_converges_to_target() -> None:
 
 
 def test_make_consortium_helix_compiles() -> None:
-    from helixlang.codon_table import STANDARD_TABLE
-    from helixlang.compiler import Compiler
-    from helixlang.lexer import Lexer
-    from helixlang.parser import Parser
-    from helixlang.semantic import SemanticAnalyzer
+    from helixlang.core.codon_table import STANDARD_TABLE
+    from helixlang.core.compiler import Compiler
+    from helixlang.core.lexer import Lexer
+    from helixlang.core.parser import Parser
+    from helixlang.core.semantic import SemanticAnalyzer
 
     src = make_consortium_helix()
     assert "ATG TCA TAA" in src

@@ -4,7 +4,7 @@
 # differentiated attractors (fate A / fate B) separated by an unstable
 # boundary state.  This example reproduces the three complementary views
 # of the decision machinery through the #sim extension point
-# (kind=fate_analysis) using helixlang.apps.fate_analysis:
+# (kind=fate_analysis) using helixlang.plugins.apps.fate_analysis:
 #
 #   1. bistability_scan    -- deterministic bifurcation diagram: the
 #      saddle-node birth of the two fates as repression strength w grows.

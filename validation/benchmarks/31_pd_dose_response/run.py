@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.human.pharmacodynamics import hill_equation
+from helixlang.plugins.human.pharmacodynamics import hill_equation
 
 
 def run() -> dict:

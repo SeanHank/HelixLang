@@ -17,15 +17,15 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.ast_nodes import Program
-from helixlang.bytecode import Chunk
-from helixlang.cell import INITIAL_CELL_ENERGY, Cell
-from helixlang.codon_table import STANDARD_TABLE, Op
-from helixlang.compiler import CompileError, Compiler
-from helixlang.errors import ParseError
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.vm import CellVM, Frame
+from helixlang.core.ast_nodes import Program
+from helixlang.core.bytecode import Chunk
+from helixlang.core.codon_table import STANDARD_TABLE, Op
+from helixlang.core.compiler import CompileError, Compiler
+from helixlang.core.errors import ParseError
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.vm import CellVM, Frame
+from helixlang.plugins.runtime.cell import INITIAL_CELL_ENERGY, Cell
 
 
 def _compile(src: str) -> tuple[Chunk, Program]:

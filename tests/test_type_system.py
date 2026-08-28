@@ -1,9 +1,9 @@
 """HelixLang type system and modularization unit tests."""
 import pytest
 
-from helixlang.ast_nodes import Codon, Gene, Program, Promoter, Regulation
-from helixlang.errors import HelixError
-from helixlang.type_system import (
+from helixlang.core.ast_nodes import Codon, Gene, Program, Promoter, Regulation
+from helixlang.core.errors import HelixError
+from helixlang.core.type_system import (
     HelixType,
     Module,
     ModuleLoader,

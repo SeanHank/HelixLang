@@ -21,7 +21,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3]
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.gem.community import (
+        from helixlang.plugins.gem.community import (
             CommunityFBAExtended,
             CommunityResult,
             ExchangeNetwork,

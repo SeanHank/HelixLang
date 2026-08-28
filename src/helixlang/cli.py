@@ -15,13 +15,13 @@ import json
 import sys
 from pathlib import Path
 
-from helixlang import hxbc
-from helixlang.ast_nodes import Program
-from helixlang.bytecode import Chunk
-from helixlang.codon_table import Op, get_table
-from helixlang.compiler import Compiler
-from helixlang.disassembler import disassemble
-from helixlang.errors import (
+from helixlang.core import hxbc
+from helixlang.core.ast_nodes import Program
+from helixlang.core.bytecode import Chunk
+from helixlang.core.codon_table import Op, get_table
+from helixlang.core.compiler import Compiler
+from helixlang.core.disassembler import disassemble
+from helixlang.core.errors import (
     CompileError,
     LexError,
     ParseError,
@@ -30,12 +30,12 @@ from helixlang.errors import (
     SemanticError,
     SimConfigError,
 )
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.seq_utils import stop_codons_from_table as _stop_codons_from_table
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.core.vm import CellVM
+from helixlang.plugins.runtime.seq_utils import stop_codons_from_table as _stop_codons_from_table
 from helixlang.sim_runtime import _SIM_BACKENDS, BACKENDS, SimResult, run
-from helixlang.vm import CellVM
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # ----- Bytecode version check -----
     if args.check_bytecode_version:
-        from helixlang.bytecode import OPCODE_VERSION
+        from helixlang.core.bytecode import OPCODE_VERSION
         print(f"OPCODE_VERSION={OPCODE_VERSION}")
         return 0
 
@@ -137,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     # ----- DNA physical codec mode -----
     if args.encode_dna or args.decode_dna:
         try:
-            from helixlang.dna_codec import (
+            from helixlang.plugins.runtime.dna_codec import (
                 dna_to_helix,
                 helix_to_dna,
                 pcr_amplify,
@@ -287,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
 def _run_full_pipeline(args: argparse.Namespace) -> int:
     """Run full-chain custom organism pipeline from FASTA (doc/26)."""
     try:
-        from helixlang.apps.full_pipeline import PipelineConfig, run_full_pipeline
+        from helixlang.plugins.apps.full_pipeline import PipelineConfig, run_full_pipeline
     except ImportError as e:
         print(f"error: full pipeline requires: {e}", file=sys.stderr)
         return 1

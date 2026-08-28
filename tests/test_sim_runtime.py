@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.errors import SimConfigError
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
+from helixlang.core.errors import SimConfigError
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
 from helixlang.sim_runtime import (
     _build_grn,
     _build_population_config,
@@ -264,7 +264,7 @@ def test_population_determinism():
 # ============================================================================
 def test_sim_lbm_3d_true_builds_solver() -> None:
     """`#sim lbm_3d=true` builds the D3Q19 solver over the 3D lattice."""
-    from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+    from helixlang.plugins.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
 
     with pytest.raises(SimConfigError, match="grid_depth"):
         _build_population_config(

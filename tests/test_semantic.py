@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.ast_nodes import (
+from helixlang.core.ast_nodes import (
     Codon,
     Config,
     Gene,
@@ -21,8 +21,8 @@ from helixlang.ast_nodes import (
     Promoter,
     Regulation,
 )
-from helixlang.errors import RegulationError, SemanticError
-from helixlang.semantic import SemanticAnalyzer
+from helixlang.core.errors import RegulationError, SemanticError
+from helixlang.core.semantic import SemanticAnalyzer
 
 # ============================================================================
 # Helper functions
@@ -472,9 +472,9 @@ class TestSemanticFromSource:
     """Verify SemanticAnalyzer through the full Lexer/Parser pipeline."""
 
     def _parse(self, src):
-        from helixlang.codon_table import STANDARD_TABLE, Op
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
+        from helixlang.core.codon_table import STANDARD_TABLE, Op
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
         stop = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}
         toks = list(Lexer(src).tokens())
         return Parser(toks, stop_codons=stop).parse()

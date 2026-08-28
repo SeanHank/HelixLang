@@ -147,7 +147,7 @@ specified Monod parameters (backward compatible).
 ## 5. Verification (✅ ALL PASSING)
 
 1. ✅ mypy clean on `apps/ecosystem.py` and `sim_runtime.py`
-2. ✅ `import helixlang.apps.ecosystem` and `import helixlang.sim_runtime` succeed
+2. ✅ `import helixlang.plugins.apps.ecosystem` and `import helixlang.sim_runtime` succeed
 3. ✅ GEM integration tests pass (`test_gem_integration.py`, `test_metabolism_proxy.py`, `test_omics.py`)
 4. ✅ Ecosystem/population tests pass
 5. ✅ Full test suite: **all pass** (no regressions)

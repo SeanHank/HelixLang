@@ -192,6 +192,36 @@ Memory use is minimal for simulator-scale programs. One structural caveat: the V
 retains **every snapshot in `trace`** (`vm.run` returns the full trace), so memory
 grows linearly with `ticks`. For long runs this should be streamed or downsampled.
 
+## 3.7 Cross-stack hot-loop matrix (doc/36 Phase 5)
+
+The `_accel` hot loops (VM `dispatch`, `grn_step`, `simplex`, `diffusion`) are
+each backed by multiple **equivalent-fidelity** implementations — swapping
+backend is a deliberate *speed*-only switch that never changes numerics
+(doc/36 §3ξ.5). This matrix measures every backend present on this interpreter
+at the same workload, using the same public loading path production code uses
+(`python benchmarks/bench_accel_matrix.py`, best-of-5, GC disabled, warm-up):
+
+| kernel | workload | impl_cext | impl_cython | impl_numba | impl_numpy | impl_python |
+|---|---|---|---|---|---|---|
+| `dispatch` | length=128 | **0.50 us** | n/a | n/a | n/a | 7.38 us |
+| `grn_step` | N=256, E=4096 | **23.08 us** | 66.54 us | n/a | 156.00 us | 125.08 us |
+| `simplex` | 40×60 | n/a | **78.50 us** | n/a | 79.83 us | 84.37 us |
+| `diffusion` | 64×64 | n/a | n/a | **5.38 us** | 40.58 us | 3.898 ms |
+
+Observations:
+
+* The compiled/native stack is the only path to a step-change for CPU-bound
+  kernels: `impl_cext` is **~15×** faster than the pure-Python reference on VM
+  dispatch and ~5.4× on `grn_step`; numba `diffusion` is **~725×** faster than
+  the Python loop.
+* The selection order `native,numpy,python` (doc/36 §4.2) maps a declared
+  fidelity level to its fastest present impl; because the numerics are
+  identical, these speed-ups are pure wins with no change to results.
+* One caveat for the matrix: it reflects *this* build's compiled set
+  (`impl_cext` for dispatch/grn, `impl_cython` for grn/simplex, `impl_numba`
+  for diffusion). On a py-only wheel the `impl_python` column is the floor;
+  installing the native wheel raises that floor per the table above.
+
 ## 4. Bottleneck analysis
 
 All three §2026 bottlenecks are **resolved** in this build. Ranking by the
@@ -465,12 +495,71 @@ measurements behind every table above (JSON) follow.
 }
 ```
 
+Raw best-of-5 measurements behind the §3.7 cross-stack matrix
+(`benchmarks/bench_accel_matrix.py`, seconds per unit of work):
+
+```json
+{
+  "dispatch": [
+    {
+      "kernel": "dispatch",
+      "workload": "length=128",
+      "backends": {
+        "impl_cext": 5.00003807246685e-07,
+        "impl_python": 7.3750270530581474e-06
+      }
+    }
+  ],
+  "grn_step": [
+    {
+      "kernel": "grn_step",
+      "workload": "N=256,E=4096",
+      "backends": {
+        "impl_cext": 2.3083004634827375e-05,
+        "impl_cython": 6.654200842604041e-05,
+        "impl_numpy": 0.00015600002370774746,
+        "impl_python": 0.00012508401414379478
+      }
+    }
+  ],
+  "simplex": [
+    {
+      "kernel": "simplex",
+      "workload": "40x60",
+      "backends": {
+        "impl_cython": 7.850001566112041e-05,
+        "impl_numpy": 7.983302930369973e-05,
+        "impl_python": 8.43749730847776e-05
+      }
+    }
+  ],
+  "diffusion": [
+    {
+      "kernel": "diffusion",
+      "workload": "64x64",
+      "backends": {
+        "impl_numpy": 4.0583021473139524e-05,
+        "impl_numba": 5.375011824071407e-06,
+        "impl_python": 0.0038980419631116092
+      }
+    }
+  ]
+}
+```
+
 ## 7. Where to find the harness
 
 * `benchmarks/bench_helix.py` — the measurement harness (this report's numbers;
   includes the Gray-Scott per-cell section added with the numpy backend).
+* `benchmarks/bench_accel_matrix.py` — the cross-stack hot-loop matrix (§3.7);
+  its raw best-of-5 JSON is reproduced at the end of §6.
 * `tests/test_reaction_diffusion.py` — regression tests pinning both Gray-Scott
   backends to the original algorithm (bit-identical).
+* `tests/test_vm_fuzz.py` — Phase 5 fuzz parity harness: seeds the native
+  dispatch kernel against the pure-Python reference over randomized bytecode
+  (including truncated/unknown opcodes) and asserts byte-identical results (or
+  identical typed exceptions). This is what caught the impl_cext out-of-bounds
+  read on a trailing `PUSH_CONST` (fixed; see §5.5/§11 of doc/36).
 * `tests/test_benchmark.py` — the existing pytest-benchmark regression suite for
   the biological modules (FBA, CRISPR, evolution, protein structure); it is
   skipped without `pytest-benchmark`. The new harness complements it by covering

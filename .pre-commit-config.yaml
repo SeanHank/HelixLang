@@ -12,3 +12,12 @@ repos:
         entry: ruff format
         language: system
         types: [python]
+      # doc/36 §3ξ.4: no silent fallbacks. Enforced on the audited core + _accel
+      # foundation (clean by construction); scoped here so the quality gate stays
+      # green while the legacy scientific modules migrate to plugins (Phase 2/4).
+      - id: find-silent-fallbacks-core
+        name: find silent fallbacks (core)
+        entry: python -m helixlang.core.find_silent_fallbacks src/helixlang/core src/helixlang/_accel --fail
+        language: system
+        types: [python]
+        pass_filenames: false

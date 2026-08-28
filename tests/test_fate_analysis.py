@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.fate_analysis import (
+from helixlang.plugins.apps.fate_analysis import (
     bistability_scan,
     critical_slowing_down,
     fate,
@@ -11,7 +11,7 @@ from helixlang.apps.fate_analysis import (
     run_fate_analysis,
     switching_rate,
 )
-from helixlang.grn import integrate_grn
+from helixlang.plugins.runtime.grn import integrate_grn
 
 
 def test_bistability_scan_monostable_below_saddle_node() -> None:

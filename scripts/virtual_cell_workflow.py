@@ -11,7 +11,7 @@ Annotated `.helix` form of this workflow:
 
 Run with:  python examples/virtual_cell_workflow.py
 """
-from helixlang.apps.virtual_cell_bench import (
+from helixlang.plugins.apps.virtual_cell_bench import (
     VirtualCellBench,
     VirtualCellBenchConfig,
     run_virtual_cell_benchmark,

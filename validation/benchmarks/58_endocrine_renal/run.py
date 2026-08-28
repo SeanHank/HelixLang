@@ -13,14 +13,14 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "58_endocrine_renal"}
     try:
-        from helixlang.human.endocrine import (
+        from helixlang.plugins.human.endocrine import (
             InsulinGlucoseAxis,
             HPAAxis,
             HPTAxis,
             EndocrineSystem,
             create_endocrine,
         )
-        from helixlang.human.renal_model import (
+        from helixlang.plugins.human.renal_model import (
             ckd_epi_2021,
             RenalFunctionModel,
         )

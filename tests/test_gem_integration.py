@@ -62,7 +62,7 @@ def ecoli_core_fasta(tmp_path: pathlib.Path) -> str:
 
 class TestAnnotation:
     def test_gene_annotation_creation(self) -> None:
-        from helixlang.annotation import GeneAnnotation
+        from helixlang.plugins.annotation import GeneAnnotation
 
         annot = GeneAnnotation(
             gene_id="gltA",
@@ -75,7 +75,7 @@ class TestAnnotation:
         assert annot.to_dict()["gene_id"] == "gltA"
 
     def test_ec_mapping_lookup(self) -> None:
-        from helixlang.annotation.ec_mapping import build_ec_db
+        from helixlang.plugins.annotation.ec_mapping import build_ec_db
 
         db = build_ec_db()
         assert db.size > 0
@@ -84,7 +84,7 @@ class TestAnnotation:
         assert "CS" in mapping.reaction_ids
 
     def test_kegg_mapping_lookup(self) -> None:
-        from helixlang.annotation.kegg_mapping import build_ko_db
+        from helixlang.plugins.annotation.kegg_mapping import build_ko_db
 
         db = build_ko_db()
         assert db.size > 0
@@ -99,8 +99,8 @@ class TestAnnotation:
 
 class TestGemReconstruction:
     def test_bottom_up_reconstruct(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.bottom_up import bottom_up_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -118,8 +118,8 @@ class TestGemReconstruction:
         assert "PFK" in result.reaction_ids()
 
     def test_top_down_reconstruct(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.top_down import top_down_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -131,10 +131,10 @@ class TestGemReconstruction:
         assert result.kept_reactions >= 2
 
     def test_consensus_merge(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.bottom_up import bottom_up_reconstruct
-        from helixlang.gem.consensus import consensus_merge
-        from helixlang.gem.top_down import top_down_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
+        from helixlang.plugins.gem.consensus import consensus_merge
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -149,11 +149,11 @@ class TestGemReconstruction:
         assert consensus.from_both >= 1  # at least some overlap
 
     def test_gapfill(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.bottom_up import bottom_up_reconstruct
-        from helixlang.gem.consensus import consensus_merge
-        from helixlang.gem.gapfill import gapfill
-        from helixlang.gem.top_down import top_down_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
+        from helixlang.plugins.gem.consensus import consensus_merge
+        from helixlang.plugins.gem.gapfill import gapfill
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -166,7 +166,7 @@ class TestGemReconstruction:
         assert result.gap_filled_count > 0  # exchange reactions added
 
     def test_biomass_reaction(self) -> None:
-        from helixlang.gem.biomass import build_biomass_reaction
+        from helixlang.plugins.gem.biomass import build_biomass_reaction
 
         rxn = build_biomass_reaction("e_coli_k12")
         assert "BIOMASS_reaction" in rxn.name
@@ -180,7 +180,7 @@ class TestGemReconstruction:
 
 class TestGrnInference:
     def test_regulatory_edges(self) -> None:
-        from helixlang.gem.grn_inference import (
+        from helixlang.plugins.gem.grn_inference import (
             EvidenceLevel,
             RegulatoryEdge,
         )
@@ -196,11 +196,11 @@ class TestGrnInference:
         assert edge.regulation_type == "activation"
 
     def test_grn_inference_result(self) -> None:
-        from helixlang.annotation.tf_detection import (
+        from helixlang.plugins.annotation.tf_detection import (
             TFCandidate,
             TFScanResult,
         )
-        from helixlang.gem.grn_inference import infer_grn
+        from helixlang.plugins.gem.grn_inference import infer_grn
 
         # Create a minimal TF scan result with CRP
         tf_result = TFScanResult(
@@ -227,14 +227,14 @@ class TestGrnInference:
 
 class TestKinetics:
     def test_kcat_predictor(self) -> None:
-        from helixlang.kinetics.kcat_predictor import predict_kcat
+        from helixlang.plugins.kinetics.kcat_predictor import predict_kcat
 
         pred = predict_kcat("CS", ec_number="2.3.3.1")
         assert pred.kcat_value > 0
         assert pred.source in ("brenda", "median", "organism_scaled", "fallback")
 
     def test_km_estimator(self) -> None:
-        from helixlang.kinetics.km_estimator import estimate_km
+        from helixlang.plugins.kinetics.km_estimator import estimate_km
 
         km = estimate_km("HEX1", substrate="glucose")
         assert km > 0
@@ -247,11 +247,11 @@ class TestKinetics:
 
 class TestBridge:
     def test_consensus_to_metabolic_model(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.bottom_up import bottom_up_reconstruct
-        from helixlang.gem.bridge import consensus_to_metabolic_model
-        from helixlang.gem.consensus import consensus_merge
-        from helixlang.gem.top_down import top_down_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
+        from helixlang.plugins.gem.bridge import consensus_to_metabolic_model
+        from helixlang.plugins.gem.consensus import consensus_merge
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -265,8 +265,8 @@ class TestBridge:
         assert len(model.reactions) > 0
 
     def test_regulatory_edges_to_grn(self) -> None:
-        from helixlang.gem.bridge import regulatory_edges_to_grn
-        from helixlang.gem.grn_inference import (
+        from helixlang.plugins.gem.bridge import regulatory_edges_to_grn
+        from helixlang.plugins.gem.grn_inference import (
             EvidenceLevel,
             RegulatoryEdge,
         )
@@ -286,11 +286,11 @@ class TestBridge:
         assert len(grn.edges) == 1
 
     def test_gpr_to_genome_dict(self) -> None:
-        from helixlang.annotation import GeneAnnotation
-        from helixlang.gem.bottom_up import bottom_up_reconstruct
-        from helixlang.gem.bridge import gpr_to_genome_dict
-        from helixlang.gem.consensus import consensus_merge
-        from helixlang.gem.top_down import top_down_reconstruct
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
+        from helixlang.plugins.gem.bridge import gpr_to_genome_dict
+        from helixlang.plugins.gem.consensus import consensus_merge
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
 
         annotations = {
             "gltA": GeneAnnotation(
@@ -310,7 +310,7 @@ class TestBridge:
 
 class TestFullPipeline:
     def test_run_gem_pipeline_mini(self, mini_fasta: str) -> None:
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
 
         result = run_gem_pipeline(
             genome_fasta=mini_fasta,
@@ -324,7 +324,7 @@ class TestFullPipeline:
         assert len(result.errors) == 0 or result.stages_completed >= 2
 
     def test_run_gem_pipeline_ecoli(self, ecoli_core_fasta: str) -> None:
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
 
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
@@ -346,7 +346,7 @@ class TestFullPipeline:
 
 class TestRegulonDBParser:
     def test_parse_regulondb_3col(self) -> None:
-        from helixlang.apps.genome_scale import parse_regulondb
+        from helixlang.plugins.apps.genome_scale import parse_regulondb
 
         text = "regulator\ttarget\teffect\ncrp\tlacZ\t+\nfnr\tsdhCDAB\t-\n"
         edges = parse_regulondb(text)
@@ -355,7 +355,7 @@ class TestRegulonDBParser:
         assert edges[1] == ("fnr", "sdhCDAB", -1.0)
 
     def test_parse_regulondb_full(self) -> None:
-        from helixlang.apps.genome_scale import parse_regulondb_full
+        from helixlang.plugins.apps.genome_scale import parse_regulondb_full
 
         text = (
             "# RegulonDB Network\ncrp\tlacZ\tactivation\t...\n"
@@ -367,7 +367,7 @@ class TestRegulonDBParser:
         assert edges[1][2] == -1.0  # repression
 
     def test_parse_regulondb_numeric_effect(self) -> None:
-        from helixlang.apps.genome_scale import parse_regulondb_full
+        from helixlang.plugins.apps.genome_scale import parse_regulondb_full
 
         text = "crp\tlacZ\t+0.8\nfnr\tsdhCDAB\t-0.6\n"
         edges = parse_regulondb_full(text)
@@ -397,7 +397,7 @@ class TestPipelineStandaloneGrowth:
     positive growth rate (was always 0.0 before the fix)."""
 
     def test_pipeline_positive_growth(self, ecoli_core_fasta):
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
             organism="e_coli_k12",
@@ -409,7 +409,7 @@ class TestPipelineStandaloneGrowth:
         assert result.fba_fluxes
 
     def test_pipeline_model_has_biomass_reaction(self, ecoli_core_fasta):
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
             organism="e_coli_k12",
@@ -421,7 +421,7 @@ class TestPipelineStandaloneGrowth:
 
     def test_pipeline_growth_in_valid_range(self, ecoli_core_fasta):
         """Growth rate should be in 0.5-1.0 h⁻¹ range for E. coli."""
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
             organism="e_coli_k12",
@@ -434,8 +434,8 @@ class TestPipelineEcosystemBridge:
     """Phase G: GEM pipeline output feeds into ecosystem parameters."""
 
     def test_gem_to_species_from_pipeline(self, ecoli_core_fasta):
-        from helixlang.apps.ecosystem import gem_to_species
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.apps.ecosystem import gem_to_species
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
             organism="e_coli_k12",
@@ -447,15 +447,15 @@ class TestPipelineEcosystemBridge:
 
     def test_growth_rate_gem_with_pipeline_model(self, ecoli_core_fasta):
         """_growth_rate_gem works with a pipeline-produced MetabolicModel."""
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             Ecosystem,
             EcosystemConfig,
             PatchConfig,
             Species,
             SubstrateConfig,
         )
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
-        from helixlang.metabolism import MetabolicModel
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
 
         result = run_gem_pipeline(
             genome_fasta=ecoli_core_fasta,
@@ -489,10 +489,10 @@ class TestPipelinePopulationBridge:
 
     def test_population_dfba_with_pipeline_model(self, ecoli_core_fasta):
         """CellPopulation uses pipeline-produced model for dFBA."""
-        from helixlang.apps.gem_pipeline import run_gem_pipeline
-        from helixlang.environment import Environment, EnvironmentConfig
-        from helixlang.metabolism import ECOLI_CORE_MODEL, MetabolicModel
-        from helixlang.population import (
+        from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
+        from helixlang.plugins.runtime.environment import Environment, EnvironmentConfig
+        from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, MetabolicModel
+        from helixlang.plugins.runtime.population import (
             CellPopulation,
             PopulationCell,
             PopulationConfig,
@@ -536,7 +536,7 @@ class TestBuildMultiSpeciesEcosystem:
 
     @pytest.fixture
     def _ecosystem(self, ecoli_core_fasta):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             build_multi_species_ecosystem,
         )
         if TestBuildMultiSpeciesEcosystem._cached_eco is None:
@@ -566,14 +566,14 @@ class TestBuildMultiSpeciesEcosystem:
         assert ks > 0
 
     def test_empty_raises(self):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             build_multi_species_ecosystem,
         )
         with pytest.raises(ValueError, match="at least one"):
             build_multi_species_ecosystem(species_genomes={}, ticks=0)
 
     def test_inline_dna(self):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             build_multi_species_ecosystem,
         )
         eco = build_multi_species_ecosystem(
@@ -603,7 +603,7 @@ class TestPhotoautotrophicCo2Fix:
 
     def test_co2_per_biomass_formula(self):
         """Directly verify the scaling formula: co2_per_biomass = |v_co2|/v_bm."""
-        from helixlang.metabolism import (
+        from helixlang.plugins.runtime.metabolism import (
             ECOLI_CORE_MODEL,
             DynamicFBAConfig,
             FluxBalanceAnalysis,
@@ -629,7 +629,7 @@ class TestPhotoautotrophicCo2Fix:
 
     def test_biomass_never_decreases(self):
         """Forward Euler with mu >= 0 must never reduce biomass."""
-        from helixlang.metabolism import (
+        from helixlang.plugins.runtime.metabolism import (
             ECOLI_CORE_MODEL,
             DynamicFBAConfig,
             FluxBalanceAnalysis,

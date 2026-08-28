@@ -10,7 +10,7 @@
 # The gradient physics (source influx + on-lattice diffusion + first-order
 # decay + per-gene sigmoid thresholds + gap-gene cross-repression) runs
 # through the #sim extension point (kind=morphogen_gradient) using
-# helixlang.apps.morphogen_gradient.  The #promoter strengths below carry
+# helixlang.plugins.apps.morphogen_gradient.  The #promoter strengths below carry
 # the per-gene morphogen thresholds (near > mid > far).
 
 #promoter name=p_near strength=0.30      # highest threshold: nearest

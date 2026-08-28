@@ -12,13 +12,13 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.environment import Environment, EnvironmentConfig
-        from helixlang.population import (
+        from helixlang.plugins.runtime.environment import Environment, EnvironmentConfig
+        from helixlang.plugins.runtime.population import (
             CellPopulation,
             PopulationCell,
             PopulationConfig,
         )
-        from helixlang.stochastic import gillespie_telegraph
+        from helixlang.plugins.runtime.stochastic import gillespie_telegraph
 
         checks["import_simulation_modules"] = True
 
@@ -46,7 +46,7 @@ def run() -> dict:
         def _run_evolution(seed: int) -> dict:
             import random
 
-            from helixlang.evolution import EvolutionaryPopulation, EvolutionConfig
+            from helixlang.plugins.runtime.evolution import EvolutionaryPopulation, EvolutionConfig
             cfg = EvolutionConfig(
                 mutation_rate=0.01,
                 population_size=20,

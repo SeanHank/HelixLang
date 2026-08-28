@@ -4,7 +4,7 @@ A two-gene mutual-repression toggle switch (Gardner, Cantor & Collins
 2000 Nature 403:339) is the canonical binary cell-fate decision: two
 differentiated attractors (fate A / fate B) separated by an unstable
 boundary state.  This script reproduces the three complementary views
-of the decision machinery from helixlang.apps.fate_analysis:
+of the decision machinery from helixlang.plugins.apps.fate_analysis:
 
   1. bistability_scan    -- deterministic bifurcation diagram: the
      saddle-node birth of the two fates as repression strength w grows.
@@ -22,7 +22,7 @@ Annotated `.helix` form of this workflow:
 
 Run with:  python examples/fate_analysis_workflow.py
 """
-from helixlang.apps.fate_analysis import (
+from helixlang.plugins.apps.fate_analysis import (
     bistability_scan,
     critical_slowing_down,
     switching_rate,

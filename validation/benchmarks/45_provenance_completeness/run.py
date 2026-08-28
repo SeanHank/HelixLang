@@ -23,14 +23,14 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.environment import Environment, EnvironmentConfig
-        from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
-        from helixlang.population import (
+        from helixlang.plugins.runtime.environment import Environment, EnvironmentConfig
+        from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+        from helixlang.plugins.runtime.population import (
             CellPopulation,
             PopulationCell,
             PopulationConfig,
         )
-        from helixlang.stochastic import gillespie_telegraph
+        from helixlang.plugins.runtime.stochastic import gillespie_telegraph
 
         checks["import_simulation_modules"] = True
 

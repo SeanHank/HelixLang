@@ -165,7 +165,7 @@ before Stage 6 (FBA), insert:
 
 ```python
 if grn_result and grn_result.regulatory_edges:
-    from helixlang.gem.bridge import apply_regulatory_bounds
+    from helixlang.plugins.gem.bridge import apply_regulatory_bounds
     n = apply_regulatory_bounds(model, grn_result.regulatory_edges, gpr_map)
     _extra_meta["grn_bounds_applied"] = n
 ```

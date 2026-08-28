@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.clinical_output import (
+from helixlang.plugins.human.clinical_output import (
     _POTENCY_REFERENCE_UM,
     ClinicalLabModel,
     ClinicalLabs,
@@ -25,9 +25,9 @@ from helixlang.human.clinical_output import (
     VitalsModel,
     _potency_scale,
 )
-from helixlang.human.drug import get_predefined_drug
-from helixlang.human.pharmacokinetics import PBPKConfig, PBPKModel
-from helixlang.human.physiology import create_default_physiology
+from helixlang.plugins.human.drug import get_predefined_drug
+from helixlang.plugins.human.pharmacokinetics import PBPKConfig, PBPKModel
+from helixlang.plugins.human.physiology import create_default_physiology
 
 # ---------------------------------------------------------------------------
 # Fix 1: PBPK state accumulation across steps
@@ -99,13 +99,13 @@ class TestDDIClearanceModifier:
     """DDI rules must apply clearance modifiers correctly."""
 
     def test_create_default_has_rules(self):
-        from helixlang.human.ddi import create_default_ddi_model
+        from helixlang.plugins.human.ddi import create_default_ddi_model
 
         model = create_default_ddi_model()
         assert len(model.rules) > 0
 
     def test_single_drug_no_interaction(self):
-        from helixlang.human.ddi import create_default_ddi_model
+        from helixlang.plugins.human.ddi import create_default_ddi_model
 
         model = create_default_ddi_model()
         cyp_profile = {"CYP2D6": "extensive"}
@@ -121,7 +121,7 @@ class TestRecoveryBiomarkers:
     """Recovery model should relax biomarkers toward baseline."""
 
     def test_biomarker_relaxes_toward_baseline(self):
-        from helixlang.human.recovery import RecoveryModel, Sequela
+        from helixlang.plugins.human.recovery import RecoveryModel, Sequela
 
         baseline = {"alt": 30.0, "creatinine": 1.0}
         current = {"alt": 150.0, "creatinine": 2.5}
@@ -408,7 +408,7 @@ class TestResultChannels:
     """VirtualPatientResult must include all new channels."""
 
     def test_result_has_electrolyte_channels(self):
-        from helixlang.human.virtual_patient import VirtualPatientResult
+        from helixlang.plugins.human.virtual_patient import VirtualPatientResult
 
         result = VirtualPatientResult()
         assert hasattr(result, "calcium")
@@ -421,7 +421,7 @@ class TestResultChannels:
         assert hasattr(result, "qtc_ms")
 
     def test_result_to_dict_includes_all_channels(self):
-        from helixlang.human.virtual_patient import VirtualPatientResult
+        from helixlang.plugins.human.virtual_patient import VirtualPatientResult
 
         result = VirtualPatientResult()
         result.time_h = [0.0, 1.0]
@@ -447,7 +447,7 @@ class TestResultChannels:
         assert "qtc_ms" in vitals
 
     def test_result_summary_format(self):
-        from helixlang.human.virtual_patient import VirtualPatientResult
+        from helixlang.plugins.human.virtual_patient import VirtualPatientResult
 
         result = VirtualPatientResult()
         result.time_h = [0.0]

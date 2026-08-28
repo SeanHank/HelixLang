@@ -14,7 +14,7 @@ from unittest import mock
 import pytest
 
 from helixlang.cli import _stop_codons_from_table, main
-from helixlang.codon_table import (
+from helixlang.core.codon_table import (
     CILIATE_TABLE,
     MITO_VERTEBRATE_TABLE,
     STANDARD_TABLE,
@@ -357,7 +357,7 @@ class TestDnaCodecMode:
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
-            if name == "helixlang.dna_codec":
+            if name == "helixlang.plugins.runtime.dna_codec":
                 raise ImportError("No module named 'biopython'")
             return real_import(name, *args, **kwargs)
 
@@ -373,7 +373,7 @@ class TestDnaCodecMode:
         # Even if dna_codec can be imported, a nonexistent file should still return 2
         # But first ensure dna_codec can be imported (otherwise it returns 1)
         try:
-            import helixlang.dna_codec  # noqa: F401
+            import helixlang.plugins.runtime.dna_codec  # noqa: F401
         except ImportError:
             pytest.skip("biopython not installed")
 

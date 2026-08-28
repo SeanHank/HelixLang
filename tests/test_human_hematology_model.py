@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.hematology_model import (
+from helixlang.plugins.human.hematology_model import (
     NEUTROPHIL_CONFIG,
     ErythropoiesisModel,
     FribergLineage,

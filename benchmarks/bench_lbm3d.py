@@ -33,8 +33,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D  # noqa: E402
-from helixlang.flow import channel_poiseuille_3d  # noqa: E402
+from helixlang.plugins.apps.lattice_boltzmann_3d import LatticeBoltzmann3D  # noqa: E402
+from helixlang.plugins.runtime.flow import channel_poiseuille_3d  # noqa: E402
 
 
 def best_time(fn: Callable[[], Any], *, number: int = 1,

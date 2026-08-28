@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from helixlang.grn import (
+from helixlang.plugins.runtime.grn import (
     GRN,
     ContinuousGRNResult,
     decay_from_half_life_ticks,

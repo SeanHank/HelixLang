@@ -8,7 +8,7 @@ Verification goals:
 - SBOL3 RDF/XML export produces a valid document (displayIds, nested
   ComponentDefinitions, Sequences with IUPAC encoding) and round-trips
   through sbol3_loads preserving display ids, roles, and sequences.
-- The design-automation payload (:mod:`helixlang.apps.synbio_automation`)
+- The design-automation payload (:mod:`helixlang.plugins.apps.synbio_automation`)
   exports and round-trips cleanly.
 
 References:
@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.errors import BioError
+from helixlang.core.errors import BioError
 from helixlang.interop import (
     SBOL_ENCODING_IUPAC,
     SBOL_ROLE_GENE,
@@ -123,7 +123,7 @@ def test_sbml_import_with_bounds_and_objective() -> None:
 
 
 def test_sbml_import_solves() -> None:
-    from helixlang.metabolism import FluxBalanceAnalysis
+    from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis
 
     m = sbml_to_model(_SBML_WITH_BOUNDS)
     fluxes = FluxBalanceAnalysis(m).solve()
@@ -252,7 +252,7 @@ def test_sbol3_loads_empty_document_raises() -> None:
 # ============================================================================
 
 def test_design_payload_roundtrip() -> None:
-    from helixlang.apps.synbio_automation import not_gate
+    from helixlang.plugins.apps.synbio_automation import not_gate
 
     design = not_gate()
     parsed = sbol3_loads(design.sbol3_xml)
@@ -271,7 +271,7 @@ def test_sbol3_encoding_constant() -> None:
 
 def test_interop_no_cobrapy_required() -> None:
     # The whole SBML path must work without cobrapy (pure stdlib+scipy).
-    from helixlang.metabolism import FluxBalanceAnalysis
+    from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis
 
     m = sbml_to_model(_SBML_WITH_BOUNDS)
     assert FluxBalanceAnalysis(m).solve()["BIOMASS"] > 0

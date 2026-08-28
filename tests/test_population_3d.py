@@ -33,8 +33,8 @@ import time
 
 import pytest
 
-from helixlang.environment import ConcentrationField3D
-from helixlang.population import (
+from helixlang.plugins.runtime.environment import ConcentrationField3D
+from helixlang.plugins.runtime.population import (
     _HAS_NUMPY,
     CellPopulation3D,
     PopulationCell,
@@ -237,7 +237,7 @@ def test_population3d_invalid_depth_raises() -> None:
 
 
 def test_population3d_is_cellpopulation() -> None:
-    from helixlang.population import CellPopulation
+    from helixlang.plugins.runtime.population import CellPopulation
 
     p = CellPopulation3D([], PopulationConfig(**GRID))
     assert isinstance(p, CellPopulation)
@@ -389,7 +389,7 @@ def test_flow3d_drift_advects_cells(direction: str, axis: str) -> None:
     half-site rounding threshold, so the cells move one or more lattice
     sites per tick; a stagnant field keeps them in place.
     """
-    from helixlang.flow import (
+    from helixlang.plugins.runtime.flow import (
         channel_poiseuille_3d,
         stagnant_3d,
     )
@@ -427,8 +427,8 @@ def test_lbm3d_refreshes_flow3d_and_obstacle_mask() -> None:
     ``config.lbm`` is stepped each tick, its occupancy mask rasterizes
     the alive cells, and the refreshed FlowField3D is published to
     ``config.flow3d`` (driving drift + environment advection)."""
-    from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
-    from helixlang.flow import FlowField3D
+    from helixlang.plugins.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+    from helixlang.plugins.runtime.flow import FlowField3D
 
     lbm = LatticeBoltzmann3D(width=12, height=12, depth=12, omega=1.2)
     cfg = PopulationConfig(**{**GRID, "lbm": lbm, "flow_substeps": 2,

@@ -12,7 +12,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.annotation.ec_mapping import (
+        from helixlang.plugins.annotation.ec_mapping import (
             ECReactionDB,
             ReactionMapping,
             build_ec_db,

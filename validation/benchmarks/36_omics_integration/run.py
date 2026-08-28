@@ -12,12 +12,12 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.omics._spatial_omics import (
+        from helixlang.plugins.omics._spatial_omics import (
             ExpressionMatrix,
             SpatialAtlas,
             from_arrays,
         )
-        from helixlang.omics.expression_inference import (
+        from helixlang.plugins.omics.expression_inference import (
             ExpressionModel,
             ExpressionState,
             hill_function,

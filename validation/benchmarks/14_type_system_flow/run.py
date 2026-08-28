@@ -24,11 +24,11 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "14_type_system_flow"}
     try:
-        from helixlang.flow import FlowField
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
-        from helixlang.semantic import SemanticAnalyzer
-        from helixlang.type_system import (
+        from helixlang.plugins.runtime.flow import FlowField
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.core.semantic import SemanticAnalyzer
+        from helixlang.core.type_system import (
             HelixType,
             Module,
             SymbolTable,

@@ -5,8 +5,7 @@
     "import_blast_module": true,
     "hit_dataclass": true,
     "search_result_hits_for": true,
-    "diamond_available": true,
-    "diamond_run": true
+    "diamond_live": false
   },
   "details": {
     "hit_fields": {
@@ -18,12 +17,11 @@
     },
     "q1_hit_count": 2,
     "q2_hit_count": 1,
-    "diamond_available": true,
-    "diamond_hit_count": 1,
-    "diamond_first_hit_subject": "s1"
+    "diamond_available": false,
+    "diamond_skip_reason": "diamond binary not found in PATH"
   },
   "reference": {
     "diamond": "Buchfink B et al. 2021, Nat Methods 18:705-708"
   },
-  "runtime_seconds": 0.3076936670113355
+  "runtime_seconds": 0.03146362496772781
 }

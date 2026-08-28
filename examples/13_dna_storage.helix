@@ -21,7 +21,7 @@ ATG GCT GGT GCT GGT GCT GGT TAA
 # Note: the following is a Python API example for DNA data storage
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.apps.dna_storage import DNAStorage
+# from helixlang.plugins.apps.dna_storage import DNAStorage
 #
 # storage = DNAStorage(scheme='erlich')        # Goldman+Erlich high-density rotation code
 # encoded = storage.store(b'Hello DNA')         # bytes -> oligo list (StorageReport)

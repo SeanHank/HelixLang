@@ -1,8 +1,8 @@
 """Lexer unit tests."""
 import pytest
 
-from helixlang.errors import LexError
-from helixlang.lexer import Lexer
+from helixlang.core.errors import LexError
+from helixlang.core.lexer import Lexer
 
 
 def test_simple_dna():

@@ -22,12 +22,12 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.human.microbiome import (
+        from helixlang.plugins.human.microbiome import (
             MicrobiomeCompartment,
             MicrobialSpecies,
             MicrobiomeState,
         )
-        from helixlang.human.organ_crosstalk import (
+        from helixlang.plugins.human.organ_crosstalk import (
             OrganCrosstalk,
             apply_crosstalk,
             create_crosstalk,

@@ -1,7 +1,7 @@
 """GRN unit tests."""
 import pytest
 
-from helixlang.grn import GRN, decay_from_half_life_ticks, hill, sigmoid
+from helixlang.plugins.runtime.grn import GRN, decay_from_half_life_ticks, hill, sigmoid
 
 
 def test_sigmoid_basic():

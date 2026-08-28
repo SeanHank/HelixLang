@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   lint:
@@ -31,6 +30,31 @@ jobs:
           pip install ruff
       - name: Ruff check (src + tests)
         run: ruff check src tests
+
+  silent-fallbacks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project (core only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Silent-fallback lint — core foundation (hard gate)
+        run: |
+          # audited core + _accel must stay clean (doc/36 §3ξ.4)
+          python -m helixlang.core.find_silent_fallbacks \
+            src/helixlang/core src/helixlang/_accel --fail
+      - name: Silent-fallback audit — full tree (hard gate)
+        run: |
+          # Phase 5 item 4: the entire tree must be clean.  Genuinely benign
+          # capability/cache/parse probes carry an explicit `# noqa:
+          # SILENTBENIGN` marker and are excluded by the linter; anything that
+          # still matches is an actionable silent fallback and fails CI.
+          python -m helixlang.core.find_silent_fallbacks src --fail
 
   typecheck:
     runs-on: ubuntu-latest
@@ -96,15 +120,38 @@ jobs:
           # Run the minimal example
           python -m helixlang examples/01_hello_dna.helix
 
+  # ─── Dual-wheel packaging (py + native), doc/36 Phase 4 item 2 ────────────
+  build-wheels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tools + Cython
+        run: |
+          python -m pip install --upgrade pip
+          pip install build setuptools wheel cython
+      - name: Build pure-Python wheel
+        run: python -m build --wheel
+      - name: Build native wheel (HELIX_BUILD_NATIVE=1)
+        run: |
+          # native wheel needs --no-isolation because Cython is not in
+          # [build-system] requires (doc/36 §4.2.1)
+          HELIX_BUILD_NATIVE=1 python -m build --wheel --no-isolation
+      - name: Upload both wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
   # ─── Release (on version tag push or manual trigger) ───────────────────────
   release:
     name: Build & Publish Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, typecheck, test, examples-smoke]
+    needs: [lint, typecheck, test, examples-smoke, build-wheels]
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/helixlang
     steps:
       - uses: actions/checkout@v4
 
@@ -116,7 +163,7 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build twine
+          pip install build setuptools wheel cython twine
 
       - name: Resolve version from tag
         id: version
@@ -141,22 +188,21 @@ jobs:
           fi
           echo "Version verified: $TAG"
 
-      - name: Build sdist + wheel
-        run: python -m build
+      - name: Build sdist
+        run: python -m build --sdist
+      - name: Build pure-Python wheel
+        run: python -m build --wheel
+      - name: Build native wheel (HELIX_BUILD_NATIVE=1, dual-wheel)
+        run: |
+          # native wheel needs --no-isolation because Cython is not in
+          # [build-system] requires (doc/36 §4.2.1)
+          HELIX_BUILD_NATIVE=1 python -m build --wheel --no-isolation
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          # Uses trusted publishing (OIDC). Configure at:
-          # https://pypi.org/manage/project/helixlang/settings/publishing/
-          # Alternatively, set TWINE_USERNAME=__token__ and TWINE_PASSWORD in secrets
-          # password: ${{ secrets.PYPI_API_TOKEN }}
 
       - name: Create GitHub Release
         env:

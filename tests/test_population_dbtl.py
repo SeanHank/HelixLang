@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from itertools import pairwise
 
-from helixlang.apps.population_dbtl import (
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.plugins.apps.population_dbtl import (
     DbtlConfig,
     PopulationDbtl,
     build_species,
@@ -16,9 +18,7 @@ from helixlang.apps.population_dbtl import (
     learn_surrogate,
     run_dbtl,
 )
-from helixlang.apps.population_dbtl import test_strain as strain_growth
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
+from helixlang.plugins.apps.population_dbtl import test_strain as strain_growth
 from helixlang.sim_runtime import run as sim_run
 
 

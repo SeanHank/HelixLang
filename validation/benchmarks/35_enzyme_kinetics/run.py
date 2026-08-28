@@ -12,11 +12,11 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.kinetics.kcat_predictor import (
+        from helixlang.plugins.kinetics.kcat_predictor import (
             KcatPredictor,
             predict_kcat,
         )
-        from helixlang.kinetics.km_estimator import (
+        from helixlang.plugins.kinetics.km_estimator import (
             KmEstimator,
             estimate_km,
         )

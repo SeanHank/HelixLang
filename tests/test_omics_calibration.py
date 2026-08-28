@@ -23,7 +23,7 @@ import random
 
 import pytest
 
-from helixlang.apps.omics_calibration import (
+from helixlang.plugins.apps.omics_calibration import (
     OmicsCalibrationBenchmark,
     de_sign_agreement,
     generate_perturb_seq_data,
@@ -34,7 +34,7 @@ from helixlang.apps.omics_calibration import (
     run_omics_calibration_benchmark,
     vcc_mae,
 )
-from helixlang.virtual_cell import fit_parameters
+from helixlang.plugins.runtime.virtual_cell import fit_parameters
 
 # ============================================================================
 # Noise models

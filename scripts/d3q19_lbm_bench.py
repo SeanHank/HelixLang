@@ -13,8 +13,8 @@ import time
 
 import numpy as np
 
-from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
-from helixlang.flow import channel_poiseuille_3d
+from helixlang.plugins.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+from helixlang.plugins.runtime.flow import channel_poiseuille_3d
 
 SIZE, STEPS, FORCE = 21, 1500, 1.0e-4
 

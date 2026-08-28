@@ -1,7 +1,7 @@
 """Tests for disease progression modeling (doc/28)."""
 from __future__ import annotations
 
-from helixlang.human.disease_progression import (
+from helixlang.plugins.human.disease_progression import (
     ClinicalLabs,
     DiseaseProgressionModel,
     DiseaseStage,

@@ -21,12 +21,12 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3]
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.human.phenotype import (
+        from helixlang.plugins.human.phenotype import (
             PhenotypeCalculator,
             ExternalTraits,
             create_default_traits,
         )
-        from helixlang.human.simulation import (
+        from helixlang.plugins.human.simulation import (
             HumanSimulation,
             HumanSimulationConfig,
         )
@@ -48,7 +48,7 @@ def run() -> dict:
         details["default_bmi"] = traits.bmi
 
         # 3. PhenotypeCalculator: create with default traits, verify instantiation
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
 
         genotype = create_default_genotype()
         calc = PhenotypeCalculator(genotype=genotype, traits=traits)

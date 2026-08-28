@@ -18,9 +18,9 @@ import pathlib
 
 import pytest
 
-from helixlang.grn import GRN
-from helixlang.population import PopulationCell, PopulationConfig
-from helixlang.vectorized import (
+from helixlang.plugins.runtime.grn import GRN
+from helixlang.plugins.runtime.population import PopulationCell, PopulationConfig
+from helixlang.plugins.runtime.vectorized import (
     VectorizedGRN,
     iter_snapshots,
     optional_jit,

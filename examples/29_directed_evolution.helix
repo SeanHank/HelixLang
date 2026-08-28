@@ -19,7 +19,7 @@
 # random-screening baseline, and the oracle's round-1 predictions align
 # with the landscape (Spearman, the ProteinGym benchmark metric).
 # The campaign runs through the #sim extension point
-# (kind=directed_evolution) using helixlang.apps.protein_evolution; the
+# (kind=directed_evolution) using helixlang.plugins.apps.protein_evolution; the
 # #gene below documents the GB1 IgG-binding domain.
 
 #gene name=gb1_domain

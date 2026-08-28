@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.human.drug import (
+from helixlang.plugins.human.drug import (
     Drug,
     get_predefined_drug,
     list_predefined_drugs,

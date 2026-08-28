@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 def run_example_json(helix_path: str) -> dict:
     """Run a .helix file through the full CLI and return JSON result."""
-    from helixlang.lexer import Lexer
-    from helixlang.parser import Parser
+    from helixlang.core.lexer import Lexer
+    from helixlang.core.parser import Parser
     from helixlang.sim_runtime import run
 
     source = Path(helix_path).read_text()
@@ -31,10 +31,10 @@ def run_ecosystem_gem(organism: str, genome_seq: str, medium: str,
     """Run a single-species ecosystem with GEM-driven growth."""
     import tempfile
 
-    from helixlang.apps.ecosystem import (
+    from helixlang.plugins.apps.ecosystem import (
         gem_to_species,
     )
-    from helixlang.apps.gem_pipeline import run_gem_pipeline
+    from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
 
     # Write genome to temp FASTA
     tmp = Path(tempfile.mktemp(suffix=".fasta"))
@@ -70,7 +70,7 @@ def run_ecosystem_gem(organism: str, genome_seq: str, medium: str,
 
         # Build metabolic model
         if result.consensus:
-            from helixlang.gem.bridge import consensus_to_metabolic_model
+            from helixlang.plugins.gem.bridge import consensus_to_metabolic_model
             model = consensus_to_metabolic_model(result.consensus)
         else:
             model = None
@@ -93,8 +93,8 @@ def run_ecosystem_gem(organism: str, genome_seq: str, medium: str,
 
 def run_cli_with_detail(helix_path: str) -> dict:
     """Run example via CLI and capture JSON output."""
-    from helixlang.lexer import Lexer
-    from helixlang.parser import Parser
+    from helixlang.core.lexer import Lexer
+    from helixlang.core.parser import Parser
     from helixlang.sim_runtime import run
 
     source = Path(helix_path).read_text()

@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.ast_nodes import Program
-from helixlang.compiler import Compiler
-from helixlang.lexer import Lexer
-from helixlang.parser import BIO_INSTRUCTION_KINDS, Parser
-from helixlang.vm import CellVM
+from helixlang.core.ast_nodes import Program
+from helixlang.core.compiler import Compiler
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import BIO_INSTRUCTION_KINDS, Parser
+from helixlang.core.vm import CellVM
 
 # ============================================================================
 # Helper functions

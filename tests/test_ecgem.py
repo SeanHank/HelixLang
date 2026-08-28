@@ -1,7 +1,7 @@
 """Tests for ECMpy-style enzyme-constrained GEM builder (doc/26 Phase D)."""
 from __future__ import annotations
 
-from helixlang.gem.ecgem import (
+from helixlang.plugins.gem.ecgem import (
     _EC_TO_REACTION,
     ECGEMBuilder,
     ECGEMResult,
@@ -12,7 +12,7 @@ from helixlang.gem.ecgem import (
 
 
 def _make_simple_model():
-    from helixlang.metabolism import MetabolicModel, Reaction
+    from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction
 
     model = MetabolicModel()
     model.add_reaction(Reaction(

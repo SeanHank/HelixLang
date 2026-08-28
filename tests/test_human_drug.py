@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.drug (doc/27 drug specification layer).
+"""Tests for helixlang.plugins.human.drug (doc/27 drug specification layer).
 
 Covers DrugMolecule/Drug data structures, SMILES parsing with RDKit
 graceful degradation, regimen validation, and the six literature-anchored
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.drug import (
+from helixlang.plugins.human.drug import (
     BIOLOGIC,
     ORAL,
     PREDEFINED_DRUGS,

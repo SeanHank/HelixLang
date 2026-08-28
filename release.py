@@ -11,7 +11,7 @@ Example:
 
 What this script does:
     1. Validates version format
-    2. Syncs version to pyproject.toml, __init__.py, server.py
+    2. Syncs version to pyproject.toml, __init__.py, server/app.py
     3. Runs all quality gates in parallel (ruff, mypy, pytest -n auto, validation, examples)
     4. Syncs metrics to README.md, README_PYPI.md, CONTRIBUTING.md
     5. Builds sdist + wheel
@@ -129,8 +129,8 @@ def sync_version(version: str) -> bool:
 
     replacements = [
         (ROOT / "pyproject.toml", re.compile(r'^version = ".*"', re.MULTILINE), f'version = "{version}"'),
-        (ROOT / "src" / "helixlang" / "__init__.py", re.compile(r'^__version__ = ".*"', re.MULTILINE), f'__version__ = "{version}"'),
-        (ROOT / "src" / "helixlang" / "server.py", re.compile(r'"version": ".*"'), f'"version": "{version}"'),
+        (ROOT / "src" / "helixlang" / "core" / "version.py", re.compile(r'^__version__ = ".*"', re.MULTILINE), f'__version__ = "{version}"'),
+        (ROOT / "src" / "helixlang" / "server" / "app.py", re.compile(r'"version": ".*"'), f'"version": "{version}"'),
     ]
 
     all_ok = True
@@ -145,7 +145,7 @@ def sync_version(version: str) -> bool:
             all_ok = False
 
     # bytecode.py comment only
-    bp = ROOT / "src" / "helixlang" / "bytecode.py"
+    bp = ROOT / "src" / "helixlang" / "core" / "bytecode.py"
     if bp.exists():
         content = bp.read_text()
         if "Frozen as of HelixLang" in content:
@@ -158,7 +158,7 @@ def sync_version(version: str) -> bool:
             ok(f"bytecode.py comment → {version}")
 
     # Verify sync
-    for path in [ROOT / "pyproject.toml", ROOT / "src" / "helixlang" / "__init__.py", ROOT / "src" / "helixlang" / "server.py"]:
+    for path in [ROOT / "pyproject.toml", ROOT / "src" / "helixlang" / "core" / "version.py", ROOT / "src" / "helixlang" / "server" / "app.py"]:
         if path.exists() and version not in path.read_text():
             fail(f"Version mismatch in {path}")
             all_ok = False
@@ -438,9 +438,31 @@ def build() -> bool:
         if egg.is_dir():
             shutil.rmtree(egg)
 
+    # sdist
     r = subprocess.run(
-        [PYTHON, "-B", "-m", "build"],
+        [PYTHON, "-B", "-m", "build", "--sdist"],
         capture_output=True, text=True, cwd=ROOT,
+    )
+    print(r.stdout, end="")
+    if r.stderr:
+        print(r.stderr, end="", file=sys.stderr)
+
+    # Pure-Python wheel
+    r = subprocess.run(
+        [PYTHON, "-B", "-m", "build", "--wheel"],
+        capture_output=True, text=True, cwd=ROOT,
+    )
+    print(r.stdout, end="")
+    if r.stderr:
+        print(r.stderr, end="", file=sys.stderr)
+
+    # Native wheel (dual-wheel shipping, doc/36 Phase 4 item 2).  Requires
+    # Cython on the build host and --no-isolation because Cython is not in
+    # [build-system] requires (doc/36 §4.2.1).
+    native_env = dict(os.environ, HELIX_BUILD_NATIVE="1")
+    r = subprocess.run(
+        [PYTHON, "-B", "-m", "build", "--wheel", "--no-isolation"],
+        capture_output=True, text=True, cwd=ROOT, env=native_env,
     )
     print(r.stdout, end="")
     if r.stderr:

@@ -903,8 +903,8 @@ Further shipped examples: `examples/60_virtual_patient_pregnancy_labetalol.helix
 
 | File | Change |
 |---|---|
-| `src/helixlang/parser.py` | Add `genome`, `traits`, `regimen` to annotation dispatch |
-| `src/helixlang/sim_runtime.py` | Register `"virtual_patient": _run_virtual_patient_simulation` |
+| `src/helixlang/core/parser.py` | Add `genome`, `traits`, `regimen` to annotation dispatch |
+| `src/helixlang/sim_runtime/` | Register `"virtual_patient": _run_virtual_patient_simulation` |
 | `src/helixlang/human/__init__.py` | Re-export new classes |
 | `src/helixlang/human/simulation.py` | Expose internals needed by facade (PBPK engines, bound override hooks) |
 | `README.md` / `README_PYPI.md` | Add virtual patient highlight |

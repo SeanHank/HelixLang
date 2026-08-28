@@ -20,13 +20,29 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+# ---- dev / tooling ----
 dev = ["pytest>=7.4,<9", "pytest-cov>=4.1,<6", "scipy>=1.12,<2", "pytest-benchmark>=4.0,<5", "pytest-xdist>=3.5,<4"]
+# ---- lightweight, pure-Python/numpy acceleration (backward-compat alias) ----
 fast = ["numpy>=1.26,<3"]
+# ---- backend group: per-plugin extra == canonical module name (doc/36 §3.4) ----
+grn = ["numpy>=1.26,<3"]
+fba = ["numpy>=1.26,<3", "scipy>=1.12,<2"]
+pk = ["numpy>=1.26,<3", "scipy>=1.12,<2"]
+disease = ["numpy>=1.26,<3", "scipy>=1.12,<2"]
+annotation = ["numpy>=1.26,<3", "biopython>=1.83,<2", "reedsolo>=1.7,<2"]
+gem = ["numpy>=1.26,<3", "cobra>=0.26,<1"]
+human = ["numpy>=1.26,<3", "scipy>=1.12,<2", "rdkit>=2026.3,<2027"]
+apps = ["numpy>=1.26,<3", "matplotlib>=3.8,<4"]
+# ---- misc capability groups (kept for backward compatibility) ----
 viz = ["matplotlib>=3.8,<4"]
 web = ["flask>=3.0,<4"]   # Web visualization frontend: python -m helixlang --serve
 bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2", "cobra>=0.26,<1"]   # Physical DNA codec + IUPAC validation + genome-scale metabolic models
-ml = ["esm>=2.0", "torch>=2.0"]   # Protein structure prediction + sequence-based kinetics (doc/26 Phase B-C)
-human = ["rdkit>=2026.3,<2027"]   # SMILES parsing + molecular properties for human drug simulation (doc/27)
+ml = ["numpy>=1.26,<3", "esm>=2.0", "torch>=2.0"]   # Protein structure prediction + sequence-based kinetics (doc/26 Phase B-C)
+# ---- everything ----
+all = ["helixlang[grn,fba,pk,disease,annotation,gem,human,apps,web,ml]"]
+# Native builds (Cython/C). `native` is built-at-install when the toolchain
+# exists; otherwise the pure-Python/numpy path is used automatically.
+native = ["cython>=3.0", "setuptools>=68", "wheel", "build"]
 
 [project.scripts]
 helixlang = "helixlang.cli:main"

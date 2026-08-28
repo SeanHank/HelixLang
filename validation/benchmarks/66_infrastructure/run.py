@@ -14,8 +14,8 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        # ── helixlang.units ──────────────────────────────────────────
-        from helixlang.units import (
+        # ── helixlang.core.units ──────────────────────────────────────────
+        from helixlang.core.units import (
             ATP_PER_GLUCOSE,
             LATTICE_SPACING_UM,
             TIME_TICK_MIN,
@@ -40,8 +40,8 @@ def run() -> dict:
         checks["units_NEWBORN_VOLUME"] = UNITS_CELL_VOLUME_NEWBORN_UM3 > 0
         details["UNITS_CELL_VOLUME_NEWBORN_UM3"] = UNITS_CELL_VOLUME_NEWBORN_UM3
 
-        # ── helixlang.seq_utils ──────────────────────────────────────
-        from helixlang.seq_utils import (
+        # ── helixlang.plugins.runtime.seq_utils ──────────────────────────────────────
+        from helixlang.plugins.runtime.seq_utils import (
             gc_content,
             max_homopolymer,
             reverse_complement,
@@ -70,8 +70,8 @@ def run() -> dict:
         checks["homopolymer_AAAA"] = max_homopolymer("AAAA") == 4
         details["max_homopolymer_AAAA"] = max_homopolymer("AAAA")
 
-        # ── helixlang.bio_data ───────────────────────────────────────
-        from helixlang.bio_data import ECOLI_CODON_USAGE
+        # ── helixlang.plugins.runtime.bio_data ───────────────────────────────────────
+        from helixlang.plugins.runtime.bio_data import ECOLI_CODON_USAGE
 
         checks["bio_data_import"] = True
 
@@ -101,8 +101,8 @@ def run() -> dict:
         checks["all_entries_tuple3"] = all_entries_valid
         details["bad_entry_codons"] = bad_entries[:5]
 
-        # ── helixlang.biocodec ───────────────────────────────────────
-        import helixlang.biocodec as biocodec
+        # ── helixlang.plugins.runtime.biocodec ───────────────────────────────────────
+        import helixlang.plugins.runtime.biocodec as biocodec
 
         checks["biocodec_import"] = True
 

@@ -14,7 +14,7 @@ def run() -> dict:
     vp_ran = False
     try:
         # 1. Import VirtualPatient and VirtualPatientConfig
-        from helixlang.human.virtual_patient import (
+        from helixlang.plugins.human.virtual_patient import (
             VirtualPatient,
             VirtualPatientConfig,
             VirtualPatientResult,
@@ -80,7 +80,7 @@ def run() -> dict:
             "VirtualPatientResult",
         ]
         # Re-import to check from the actual module
-        import helixlang.human.virtual_patient as vp_mod
+        import helixlang.plugins.human.virtual_patient as vp_mod
         for cls_name in required_classes:
             assert hasattr(vp_mod, cls_name), (
                 f"virtual_patient module should export {cls_name}"
@@ -91,7 +91,7 @@ def run() -> dict:
         assert isinstance(min_config, VirtualPatientConfig)
 
         # Verify config accepts genotype
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
         custom_config = VirtualPatientConfig(
             genotype=create_default_genotype(),
         )

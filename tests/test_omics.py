@@ -26,9 +26,7 @@ from copy import deepcopy
 
 import pytest
 
-from helixlang.grn import GRN
-from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
-from helixlang.omics import (
+from helixlang.plugins.omics import (
     ExpressionMatrix,
     SpatialAtlas,
     adjusted_rand_index,
@@ -40,6 +38,8 @@ from helixlang.omics import (
     from_arrays,
     read_expression_matrix,
 )
+from helixlang.plugins.runtime.grn import GRN
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
 GENES = ["A", "B", "C", "D", "E", "F"]
 

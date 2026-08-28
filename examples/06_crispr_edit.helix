@@ -18,7 +18,7 @@ ATG GCT GCT GCT GCT GCT GCT GCT GCT GCT TAA
 # Note: the following is a Python API example for CRISPR editing (equivalent to the #crispr annotation above)
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.crispr import design_guide, cut_dna, edit_gene, on_target_score
+# from helixlang.plugins.runtime.crispr import design_guide, cut_dna, edit_gene, on_target_score  # 2026-08-28: plugin path
 #
 # # Target DNA (contains NGG PAM)
 # target = "ATCGATCGATCGATCGATCGGATC"   # ...GGATC, GG = PAM

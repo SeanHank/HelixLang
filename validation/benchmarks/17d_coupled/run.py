@@ -18,7 +18,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "17d_coupled"}
     try:
-        from helixlang.central_dogma import (
+        from helixlang.plugins.runtime.central_dogma import (
             ProteinPool,
             advance_protein_pool,
             coupled_transcription_translation,

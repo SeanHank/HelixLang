@@ -14,10 +14,10 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.annotation.kegg_mapping import KOReactionDB, build_ko_db
-        from helixlang.annotation.sequences import reverse_complement, translate
-        from helixlang.annotation.tf_detection import TF_PFAM_DOMAINS
-        from helixlang.annotation.transporter import TRANSPORT_FAMILIES
+        from helixlang.plugins.annotation.kegg_mapping import KOReactionDB, build_ko_db
+        from helixlang.plugins.annotation.sequences import reverse_complement, translate
+        from helixlang.plugins.annotation.tf_detection import TF_PFAM_DOMAINS
+        from helixlang.plugins.annotation.transporter import TRANSPORT_FAMILIES
         checks["import_all_4_modules"] = True
 
         # --- KEGG database ---

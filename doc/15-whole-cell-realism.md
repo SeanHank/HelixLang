@@ -33,7 +33,7 @@ baseline behaviour intact.
 
 ### 2.1 The integrated cell
 
-`helixlang.virtual_cell.VirtualCell` (`virtual_cell.py:120`) couples four
+`helixlang.plugins.runtime.virtual_cell.VirtualCell` (`virtual_cell.py:120`) couples four
 layers. Each `step()` advances exactly **one minute**
 (`VirtualCellConfig.minutes_per_step = 1.0`):
 

@@ -28,7 +28,7 @@ import random
 
 import pytest
 
-from helixlang.evolution import (
+from helixlang.plugins.runtime.evolution import (
     E_COLI_INDEL_RATE,
     E_COLI_NE,
     E_COLI_SUBSTITUTION_RATE,

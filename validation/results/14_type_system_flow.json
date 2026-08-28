@@ -7,5 +7,5 @@
   "module_import_export": true,
   "valid_program_type_check": true,
   "flow_field_construction": true,
-  "runtime_seconds": 0.2841579590458423
+  "runtime_seconds": 0.07624758296879008
 }

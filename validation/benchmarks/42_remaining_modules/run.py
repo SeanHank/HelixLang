@@ -12,13 +12,13 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.bio_data import ECOLI_CODON_USAGE
+        from helixlang.plugins.runtime.bio_data import ECOLI_CODON_USAGE
         checks["import_bio_data"] = True
         assert len(ECOLI_CODON_USAGE) > 0, "Codon usage table should not be empty"
         details["codon_usage_entries"] = len(ECOLI_CODON_USAGE)
         checks["bio_data_codon_usage_loaded"] = True
 
-        from helixlang.morphology_3d import LSystem3D
+        from helixlang.plugins.runtime.morphology_3d import LSystem3D
         checks["import_morphology_3d"] = True
         preset = LSystem3D(
             axiom="F",
@@ -31,7 +31,7 @@ def run() -> dict:
         assert len(lines) > 0, "3D L-system should produce lines"
         checks["morphology_3d_mesh_created"] = True
 
-        from helixlang.lsystem import LSystem
+        from helixlang.plugins.runtime.lsystem import LSystem
         checks["import_lsystem"] = True
         ls = LSystem(
             axiom="F",
@@ -44,7 +44,7 @@ def run() -> dict:
         assert len(pts) > 0, "L-system should produce points after iteration"
         checks["lsystem_iteration_runs"] = True
 
-        from helixlang.protein_structure import predict_secondary
+        from helixlang.plugins.runtime.protein_structure import predict_secondary
         checks["import_protein_structure"] = True
         seq = "MASKGEELFTGVPVPILVELDGDVNGHK"
         ss_string, segments = predict_secondary(seq)
@@ -55,7 +55,7 @@ def run() -> dict:
         )
         checks["protein_structure_prediction_runs"] = True
 
-        from helixlang.protein_fitness import BLOSUMOracle, blosum62_normalized
+        from helixlang.plugins.runtime.protein_fitness import BLOSUMOracle, blosum62_normalized
         checks["import_protein_fitness"] = True
         ref = "ACDEF"
         var = "ACDEF"
@@ -73,13 +73,13 @@ def run() -> dict:
         )
         checks["protein_fitness_scoring_works"] = True
 
-        from helixlang.units import TIME_TICK_MIN, ticks_to_min
+        from helixlang.core.units import TIME_TICK_MIN, ticks_to_min
         checks["import_units"] = True
         assert TIME_TICK_MIN == 1.0, f"TIME_TICK_MIN should be 1.0, got {TIME_TICK_MIN}"
         assert ticks_to_min(5.0) == 5.0, "ticks_to_min should be identity"
         checks["units_conversion_correct"] = True
 
-        from helixlang.seq_utils import gc_content, reverse_complement
+        from helixlang.plugins.runtime.seq_utils import gc_content, reverse_complement
         checks["import_seq_utils"] = True
         assert gc_content("ATGC") == 0.5, "GC(ATGC) should be 0.5"
         assert gc_content("GGCC") == 1.0, "GC(GGCC) should be 1.0"

@@ -19,8 +19,8 @@ from copy import deepcopy
 
 import pytest
 
-from helixlang.errors import BioError
-from helixlang.metabolism import (
+from helixlang.core.errors import BioError
+from helixlang.plugins.runtime.metabolism import (
     ATP_MAINTENANCE_FLUX,
     ECOLI_CORE_MODEL,
     FluxBalanceAnalysis,

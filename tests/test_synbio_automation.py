@@ -21,7 +21,14 @@ from __future__ import annotations
 
 import itertools
 
-from helixlang.apps.synbio_automation import (
+from helixlang.interop import (
+    SBOL_ROLE_GENE,
+    SBOL_ROLE_PROMOTER,
+    SBOL_ROLE_RBS,
+    SBOL_ROLE_TERMINATOR,
+    sbol3_loads,
+)
+from helixlang.plugins.apps.synbio_automation import (
     GATE_LIBRARY,
     RBS_SEQ,
     REPRESSOR_CDS,
@@ -44,16 +51,9 @@ from helixlang.apps.synbio_automation import (
     synthesize_netlist,
     xor_gate,
 )
-from helixlang.apps.synbio_designer import (
+from helixlang.plugins.apps.synbio_designer import (
     ORIGIN_SEQUENCES,
     SELECTION_MARKERS,
-)
-from helixlang.interop import (
-    SBOL_ROLE_GENE,
-    SBOL_ROLE_PROMOTER,
-    SBOL_ROLE_RBS,
-    SBOL_ROLE_TERMINATOR,
-    sbol3_loads,
 )
 
 # ============================================================================

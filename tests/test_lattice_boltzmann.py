@@ -26,7 +26,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from helixlang.apps.lattice_boltzmann import (
+from helixlang.plugins.apps.lattice_boltzmann import (
     VELOCITIES,
     WEIGHTS,
     LatticeBoltzmann,

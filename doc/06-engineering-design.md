@@ -252,7 +252,7 @@ vm = CellVM(chunk, program); trace = vm.run(program.config.ticks)  # 7. executio
 
 > Signatures match the current implementation in [`src/helixlang/`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang) exactly. Each module lists: public symbols, signatures, invariants, and typical exceptions.
 
-### 3.1 [`errors.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/errors.py)
+### 3.1 [`errors.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/errors.py)
 
 ```python
 class HelixError(Exception):
@@ -271,7 +271,7 @@ class RuntimeHelixError(HelixError): ... # runtime error (avoids the built-in Ru
 - `line == 0` means the position is unknown (displayed as `<unknown>`)
 - `codon_index < 0` means a non-codon-level error (the codon segment is not displayed)
 
-### 3.2 [`codon_table.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/codon_table.py)
+### 3.2 [`codon_table.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/codon_table.py)
 
 ```python
 class Op(IntEnum): ...                    # 31 opcodes (see §4.1)
@@ -291,7 +291,7 @@ def wobble(codon: str) -> int              # third-base wobble position 0..3
 - `len(STANDARD_TABLE) == 64`
 - all 64 `{A,C,G,T}^3` triplets exist in `STANDARD_TABLE`
 
-### 3.3 [`lexer.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/lexer.py)
+### 3.3 [`lexer.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/lexer.py)
 
 ```python
 @dataclass(slots=True)
@@ -333,7 +333,7 @@ class Lexer:
 - `Program.field_decl` (not `field`, to avoid clashing with the built-in)
 - `LSystemDecl.rules` is a nested dict: `{k: {symbol: production}}`, where k is the ruleset number (VM defaults to 0)
 
-### 3.5 [`parser.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/parser.py)
+### 3.5 [`parser.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/parser.py)
 
 ```python
 class Parser:
@@ -344,7 +344,7 @@ class Parser:
 **Key algorithms**:
 
 - **NEWLINE filtering**: at construction time, `self.toks = [t for t in tokens if t.kind != "NEWLINE"]`
-- **ORF recognition** ([`_extract_orf`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/parser.py)): from the first `ATG` to the first codon in `stop_codons` (inclusive); a missing START raises `ParseError`, and a missing STOP raises `ParseError`
+- **ORF recognition** ([`_extract_orf`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/parser.py)): from the first `ATG` to the first codon in `stop_codons` (inclusive); a missing START raises `ParseError`, and a missing STOP raises `ParseError`
 - **Implicit termination**: an annotation block ends implicitly upon `ANNOT_START` / `CODON` / `EOF` (when `allow_no_end=True`)
 - **Anonymous genes**: bare CODON streams are wrapped as `__anon_<n>`
 - **L-system rule parsing**: `rules=0:F->F[+F]F[-F]F,1:F->FF` → `{0: {"F": "F[+F]F[-F]F"}, 1: {"F": "FF"}}`
@@ -365,7 +365,7 @@ class SemanticAnalyzer:
 4. `_check_regulation_cycles`: DFS detects regulation cycles and **appends a warning** (does not error)
 5. `_check_config`: `ticks > 0`, `ops_per_tick > 0`, `react_steps > 0`
 
-### 3.7 [`bytecode.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/bytecode.py)
+### 3.7 [`bytecode.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/bytecode.py)
 
 ```python
 @dataclass(slots=True)
@@ -389,7 +389,7 @@ class Chunk:
 - operands are big-endian encoded (`emit_u16` high byte first)
 - `add_constant` deduplicates with `==` (note the degenerate `nan != nan` case)
 
-### 3.8 [`compiler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/compiler.py)
+### 3.8 [`compiler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/compiler.py)
 
 ```python
 class Compiler:
@@ -518,7 +518,7 @@ class Cell:
     def dump(self) -> str
 ```
 
-### 3.14 [`vm.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/vm.py)
+### 3.14 [`vm.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/vm.py)
 
 ```python
 @dataclass(slots=True)
@@ -574,7 +574,7 @@ def _emit_ppm(vm: CellVM, prefix: str) -> None: ...
 
 ### 4.1 opcode Encoding Space
 
-[`Op`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/codon_table.py) occupies 1 byte, categorized by the high 4 bits:
+[`Op`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/codon_table.py) occupies 1 byte, categorized by the high 4 bits:
 
 | High 4 bits | Category | opcode |
 |---|---|---|
@@ -593,7 +593,7 @@ def _emit_ppm(vm: CellVM, prefix: str) -> None: ...
 
 ### 4.2 Operand Width Table
 
-See [`OP_OPERAND_BYTES`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/codon_table.py):
+See [`OP_OPERAND_BYTES`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/codon_table.py):
 
 - **0 bytes**: all control flow (except CALL/JUMP), stack operations (except PUSH_CONST), arithmetic, `OP_BUILD_PIGMENT`, `OP_TICK`, `OP_DEBUG`
 - **1 byte** (u8): synthesis, behavior, morphology, memory/regulation, `OP_PUSH_CONST`
@@ -953,7 +953,7 @@ from dataclasses import dataclass, field
 # 2. third-party (zero runtime deps; usually empty during prototype)
 
 # 3. this package
-from helixlang.errors import HelixError
+from helixlang.core.errors import HelixError
 ```
 
 ### 12.7 Output Conventions
@@ -1104,12 +1104,12 @@ tick,x,y,energy,alive,proteins,morphology_points,field_total_v
 |---|---|---|---|
 | 1 | create `pyproject.toml` + `pip.conf` + `.python-version` | ✅ | [`pyproject.toml`](file:///Users/admin/PycharmProjects/HelixLang/pyproject.toml) [`pip.conf`](file:///Users/admin/PycharmProjects/HelixLang/pip.conf) [`.python-version`](file:///Users/admin/PycharmProjects/HelixLang/.python-version) |
 | 2 | create `src/helixlang/__init__.py` + `__main__.py` | ✅ | [`__init__.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/__init__.py) [`__main__.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/__main__.py) |
-| 3 | implement `errors.py` + `codon_table.py` (64 codons + three tables + self-check assertions) | ✅ | [`errors.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/errors.py) [`codon_table.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/codon_table.py) |
-| 4 | implement `bytecode.py` + `disassembler.py` | ✅ | [`bytecode.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/bytecode.py) [`disassembler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/disassembler.py) |
-| 5 | implement `lexer.py` + `ast_nodes.py` + `parser.py` + `semantic.py` | ✅ | [`lexer.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/lexer.py) [`ast_nodes.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/ast_nodes.py) [`parser.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/parser.py) [`semantic.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/semantic.py) |
-| 6 | implement `compiler.py` (two-pass compilation + CALL_GENE backfill) | ✅ | [`compiler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/compiler.py) |
+| 3 | implement `errors.py` + `codon_table.py` (64 codons + three tables + self-check assertions) | ✅ | [`errors.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/errors.py) [`codon_table.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/codon_table.py) |
+| 4 | implement `bytecode.py` + `disassembler.py` | ✅ | [`bytecode.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/bytecode.py) [`disassembler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/disassembler.py) |
+| 5 | implement `lexer.py` + `ast_nodes.py` + `parser.py` + `semantic.py` | ✅ | [`lexer.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/lexer.py) [`ast_nodes.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/ast_nodes.py) [`parser.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/parser.py) [`semantic.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/semantic.py) |
+| 6 | implement `compiler.py` (two-pass compilation + CALL_GENE backfill) | ✅ | [`compiler.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/compiler.py) |
 | 7 | implement `grn.py` + `lsystem.py` + `reaction_diffusion.py` + `cell.py` | ✅ | [`grn.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/grn.py) [`lsystem.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/lsystem.py) [`reaction_diffusion.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/reaction_diffusion.py) [`cell.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/cell.py) |
-| 8 | implement `vm.py` (tick main loop + dispatch + feedback) | ✅ | [`vm.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/vm.py) |
+| 8 | implement `vm.py` (tick main loop + dispatch + feedback) | ✅ | [`vm.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/core/vm.py) |
 | 9 | implement `cli.py` | ✅ | [`cli.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/cli.py) |
 | 10 | write `examples/01-05.helix` | ✅ | [`examples/`](file:///Users/admin/PycharmProjects/HelixLang/examples) |
 | 11 | write `tests/test_*.py` (unit + end-to-end) | ✅ | [`tests/`](file:///Users/admin/PycharmProjects/HelixLang/tests) |

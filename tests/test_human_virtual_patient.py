@@ -1,10 +1,10 @@
 """Tests for the Virtual Patient unified facade (doc/28)."""
 from __future__ import annotations
 
-from helixlang.human.drug import Drug, DrugMolecule, get_predefined_drug
-from helixlang.human.genotype import create_default_genotype
-from helixlang.human.phenotype import ExternalTraits
-from helixlang.human.virtual_patient import (
+from helixlang.plugins.human.drug import Drug, DrugMolecule, get_predefined_drug
+from helixlang.plugins.human.genotype import create_default_genotype
+from helixlang.plugins.human.phenotype import ExternalTraits
+from helixlang.plugins.human.virtual_patient import (
     VirtualPatient,
     VirtualPatientConfig,
     VirtualPatientResult,

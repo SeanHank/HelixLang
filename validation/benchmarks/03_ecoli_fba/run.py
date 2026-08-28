@@ -47,7 +47,7 @@ def run() -> dict:
 
         import cobra
 
-        from helixlang.metabolism import FluxBalanceAnalysis, _from_cobra_model
+        from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
         # ── Step 1: load BiGG model via COBRApy ────────────────────────
         old_stdout = sys.stdout

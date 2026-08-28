@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.evolution import calculate_fitness
-from helixlang.protein_fitness import (
+from helixlang.plugins.runtime.evolution import calculate_fitness
+from helixlang.plugins.runtime.protein_fitness import (
     AA20,
     BLOSUM62,
     BLOSUMOracle,
@@ -124,7 +124,7 @@ def test_dna_fitness_translates_and_scores() -> None:
 
 
 def test_protein_to_dna_roundtrip_translation() -> None:
-    from helixlang.dna_codec import translate_dna
+    from helixlang.plugins.runtime.dna_codec import translate_dna
 
     dna = protein_to_dna(WT)
     assert translate_dna(dna) == WT

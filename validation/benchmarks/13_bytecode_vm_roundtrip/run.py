@@ -7,18 +7,18 @@ import sys
 import time
 
 SOURCE = """\
-#gene name=lacI
-ATG AAA TAT ACC GCT TCA CCG GAT AAA ACG TAA
+#gene name=g
+ATG AAA GAA GAA TAA
 #end
 #config ticks=5
 """
 
 
 def _build_chunk_and_program():
-    from helixlang.codon_table import STANDARD_TABLE
-    from helixlang.compiler import Compiler
-    from helixlang.lexer import Lexer
-    from helixlang.parser import Parser
+    from helixlang.core.codon_table import STANDARD_TABLE
+    from helixlang.core.compiler import Compiler
+    from helixlang.core.lexer import Lexer
+    from helixlang.core.parser import Parser
 
     tokens = list(Lexer(SOURCE).tokens())
     program = Parser(tokens).parse()
@@ -27,7 +27,7 @@ def _build_chunk_and_program():
 
 
 def _run_vm(chunk, program, ticks):
-    from helixlang.vm import CellVM
+    from helixlang.core.vm import CellVM
     vm = CellVM(chunk, program)
     return vm.run(ticks)
 
@@ -36,7 +36,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "13_bytecode_vm_roundtrip"}
     try:
-        from helixlang.hxbc import dumps_program, loads_program
+        from helixlang.core.hxbc import dumps_program, loads_program
 
         program, chunk = _build_chunk_and_program()
 

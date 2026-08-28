@@ -1,9 +1,9 @@
 """Compiler unit tests."""
-from helixlang.codon_table import MITO_VERTEBRATE_TABLE, STANDARD_TABLE, Op
-from helixlang.compiler import Compiler
-from helixlang.disassembler import disassemble
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
+from helixlang.core.codon_table import MITO_VERTEBRATE_TABLE, STANDARD_TABLE, Op
+from helixlang.core.compiler import Compiler
+from helixlang.core.disassembler import disassemble
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
 
 
 def compile_src(src, table=STANDARD_TABLE):

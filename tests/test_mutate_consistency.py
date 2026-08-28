@@ -20,8 +20,8 @@ from collections import Counter
 
 import pytest
 
-from helixlang import evolution as evo
-from helixlang.evolution import (
+from helixlang.plugins.runtime import evolution as evo
+from helixlang.plugins.runtime.evolution import (
     Individual,
     mutate,
     mutate_batch,

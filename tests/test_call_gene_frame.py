@@ -16,16 +16,16 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.bytecode import Chunk
-from helixlang.codon_table import STANDARD_TABLE, Op
-from helixlang.compiler import Compiler
+from helixlang.core.bytecode import Chunk
+from helixlang.core.codon_table import STANDARD_TABLE, Op
+from helixlang.core.compiler import Compiler
+from helixlang.core.errors import CompileError
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.core.vm import CellVM, Frame
 from helixlang.debugger import HelixDebugger
-from helixlang.errors import CompileError
-from helixlang.grn import GRN
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.vm import CellVM, Frame
+from helixlang.plugins.runtime.grn import GRN
 
 # ── helpers ──────────────────────────────────────────────────────────
 

@@ -11,7 +11,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "17a_cell"}
     try:
-        from helixlang.cell import (
+        from helixlang.plugins.runtime.cell import (
             CELL_PROTEIN_SLOT_COUNT,
             DEFAULT_CELL_COLOR,
             FEED_ENERGY_AMOUNT,

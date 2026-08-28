@@ -12,16 +12,16 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.apps import full_pipeline
+        from helixlang.plugins.apps import full_pipeline
         checks["import_full_pipeline"] = True
 
-        from helixlang.apps import gem_pipeline
+        from helixlang.plugins.apps import gem_pipeline
         checks["import_gem_pipeline"] = True
 
-        from helixlang.apps import population_calibration
+        from helixlang.plugins.apps import population_calibration
         checks["import_population_calibration"] = True
 
-        from helixlang.apps import virtual_cell_bench
+        from helixlang.plugins.apps import virtual_cell_bench
         checks["import_virtual_cell_bench"] = True
 
         assert hasattr(full_pipeline, "run_full_pipeline"), (

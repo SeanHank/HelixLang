@@ -15,7 +15,7 @@
 # The closed loop validates that the *predicted* truth table matches
 # the *target* truth table before the design is handed to a wet lab.
 # It runs through the #sim extension point (kind=cello_workflow) using
-# helixlang.apps.synbio_automation.run_cello_workflow.
+# helixlang.plugins.apps.synbio_automation.run_cello_workflow.
 
 #gene name=gate_output
 ATG GCT GGT GTA TAA

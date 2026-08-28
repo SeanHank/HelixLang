@@ -1,9 +1,9 @@
 """Parser unit tests."""
 import pytest
 
-from helixlang.errors import ParseError
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
+from helixlang.core.errors import ParseError
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
 
 
 def parse(src, stop_codons=None):

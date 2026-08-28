@@ -10,7 +10,7 @@ TEST_DATA = b"HelloHelixLang"
 
 
 def _test_goldman_roundtrip() -> tuple[bool, dict]:
-    from helixlang.dna_codec import goldman_decode, goldman_encode
+    from helixlang.plugins.runtime.dna_codec import goldman_decode, goldman_encode
     oligos = goldman_encode(TEST_DATA)
     decoded = goldman_decode(oligos, total_len=len(TEST_DATA))
     ok = decoded == TEST_DATA
@@ -22,7 +22,7 @@ def _test_goldman_roundtrip() -> tuple[bool, dict]:
 
 
 def _test_2bit_dna_roundtrip() -> tuple[bool, dict]:
-    from helixlang.dna_codec import _bytes_to_dna_2bit, _dna_to_bytes_2bit
+    from helixlang.plugins.runtime.dna_codec import _bytes_to_dna_2bit, _dna_to_bytes_2bit
     dna = _bytes_to_dna_2bit(TEST_DATA)
     decoded = _dna_to_bytes_2bit(dna)
     ok = decoded == TEST_DATA
@@ -34,7 +34,7 @@ def _test_2bit_dna_roundtrip() -> tuple[bool, dict]:
 
 
 def _test_codon_table() -> tuple[bool, dict]:
-    from helixlang.codon_table import STANDARD_TABLE, Op
+    from helixlang.core.codon_table import STANDARD_TABLE, Op
     all_codons = [f"{a}{c}{g}" for a in "ACGT" for c in "ACGT" for g in "ACGT"]
     assert len(all_codons) == 64
     mapped = sum(1 for c in all_codons if c in STANDARD_TABLE)
@@ -51,7 +51,7 @@ def _test_codon_table() -> tuple[bool, dict]:
 
 
 def _test_gc_content() -> tuple[bool, dict]:
-    from helixlang.seq_utils import gc_content
+    from helixlang.plugins.runtime.seq_utils import gc_content
     gc_at = gc_content("ATATATATAT")
     assert abs(gc_at - 0.0) < 1e-9, f"GC of ATATAT should be 0.0, got {gc_at}"
     gc_gc = gc_content("GCGCGCGCGC")
@@ -66,7 +66,7 @@ def _test_gc_content() -> tuple[bool, dict]:
 
 
 def _test_biocodec() -> tuple[bool, dict]:
-    from helixlang.biocodec import back_translate, find_orfs
+    from helixlang.plugins.runtime.biocodec import back_translate, find_orfs
     protein = "MKYATS"
     dna = back_translate(protein, optimize="cai")
     assert dna[:3] == "ATG", f"back_translate should start with ATG, got {dna[:3]}"

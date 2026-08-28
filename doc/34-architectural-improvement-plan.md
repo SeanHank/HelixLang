@@ -91,9 +91,9 @@ Specific high-risk boundaries:
 **Goal**: Make bytecode a stable boundary that can outlive the Python implementation.
 
 **Files to audit**:
-- `src/helixlang/bytecode.py` — instruction set definition
+- `src/helixlang/core/bytecode.py` — instruction set definition
 - `src/helixlang/hxbc.py` — binary serialization
-- `src/helixlang/vm.py` — execution engine
+- `src/helixlang/core/vm.py` — execution engine
 - `doc/11-helixc-binary-format.md` — format specification
 
 **Action items**:
@@ -108,7 +108,7 @@ Specific high-risk boundaries:
 **Goal**: Same source + same seed + same backend = same result.
 
 **Files to audit**:
-- `src/helixlang/vm.py` — instruction dispatch
+- `src/helixlang/core/vm.py` — instruction dispatch
 - `src/helixlang/cell.py` — cell state management
 - `src/helixlang/cell_body.py` — physical cell model
 - `src/helixlang/central_dogma.py` — transcription/translation
@@ -147,7 +147,7 @@ Create `validation/` at repo root:
 ```
 validation/
 ├── README.md                    # How to run, what each benchmark validates
-├── run_all.sh                   # Single command to run full suite
+├── run_all.py                   # Single command to run full suite
 ├── benchmarks/
 │   ├── 01_codon_translation/
 │   │   ├── input.helix
@@ -329,7 +329,7 @@ Every simulation result should carry:
 ```
 
 **Files to modify**:
-- `src/helixlang/sim_runtime.py` — attach provenance to `SimulationResult`
+- `src/helixlang/sim_runtime/` — attach provenance to `SimulationResult`
 - Add `src/helixlang/provenance.py` — helper to build provenance dict
 
 ---

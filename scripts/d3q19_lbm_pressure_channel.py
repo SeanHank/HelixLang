@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from helixlang.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
-from helixlang.environment import ConcentrationField3D
-from helixlang.flow import channel_poiseuille_3d
+from helixlang.plugins.apps.lattice_boltzmann_3d import LatticeBoltzmann3D
+from helixlang.plugins.runtime.environment import ConcentrationField3D
+from helixlang.plugins.runtime.flow import channel_poiseuille_3d
 
 HEIGHT, DEPTH = 17, 17
 OMEGA = 1.0

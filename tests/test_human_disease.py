@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.disease (doc/27 Stage B pathology layer).
+"""Tests for helixlang.plugins.human.disease (doc/27 Stage B pathology layer).
 
 Covers gene/metabolite perturbation data structures, the non-mutating
 apply_disease_state() constraint propagation, and the literature-anchored
@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.disease import (
+from helixlang.plugins.human.disease import (
     DISEASE_PROFILES,
     DiseaseState,
     GenePerturbation,
     MetabolitePerturbation,
     apply_disease_state,
 )
-from helixlang.metabolism import MetabolicModel, Reaction
+from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction
 
 VALID_CATEGORIES = {
     "enzyme_deficiency",

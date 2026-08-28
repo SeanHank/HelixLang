@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.physiology (doc/27 Stage A domain layer).
+"""Tests for helixlang.plugins.human.physiology (doc/27 Stage A domain layer).
 
 Covers the reference 70 kg adult male, TISSUE_PROFILES organ tables
 (literature-anchored volumes and perfusion from Guyton & Hall 2016),
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.physiology import (
+from helixlang.plugins.human.physiology import (
     DEFAULT_HUMAN,
     TISSUE_PROFILES,
     OrganSpec,

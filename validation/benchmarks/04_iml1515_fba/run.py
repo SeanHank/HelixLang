@@ -71,7 +71,7 @@ def run() -> dict:
             json.dump(cobra_fluxes, fh, indent=2)
 
         # ── Step 3: convert to HelixLang and run FBA ───────────────────
-        from helixlang.metabolism import FluxBalanceAnalysis, _from_cobra_model
+        from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
         helix_model = _from_cobra_model(cobra_model)
         fba = FluxBalanceAnalysis(helix_model)

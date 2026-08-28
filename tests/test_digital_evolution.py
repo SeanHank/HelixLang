@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import random
 
-from helixlang.apps.digital_evolution import (
+from helixlang.plugins.apps.digital_evolution import (
     DigitalEvolution,
     DigitalEvolutionConfig,
     execute,

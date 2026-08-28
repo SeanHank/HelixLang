@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.human.disease_ode_models import (
+from helixlang.plugins.human.disease_ode_models import (
     CancerODE,
     CardiovascularODE,
     HematologicalODE,

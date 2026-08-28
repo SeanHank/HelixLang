@@ -5,8 +5,8 @@ import math
 
 import pytest
 
-from helixlang.human.disease_progression import DiseaseStage
-from helixlang.human.renal_model import (
+from helixlang.plugins.human.disease_progression import DiseaseStage
+from helixlang.plugins.human.renal_model import (
     RenalFunctionModel,
     ckd_epi_2021,
     create_renal_model,

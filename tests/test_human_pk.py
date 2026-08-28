@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.pharmacokinetics (doc/27 PBPK layer).
+"""Tests for helixlang.plugins.human.pharmacokinetics (doc/27 PBPK layer).
 
 Covers the six-compartment well-stirred PBPK model: configuration
 defaults, route-specific dosing inputs (first-order oral absorption,
@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.drug import IV, get_predefined_drug
-from helixlang.human.pharmacokinetics import (
+from helixlang.plugins.human.drug import IV, get_predefined_drug
+from helixlang.plugins.human.pharmacokinetics import (
     ORGAN_NAMES,
     PBPKConfig,
     PBPKModel,
     PBPKResult,
 )
-from helixlang.human.physiology import create_default_physiology
+from helixlang.plugins.human.physiology import create_default_physiology
 
 
 def _physiology():

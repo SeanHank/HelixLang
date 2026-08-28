@@ -32,8 +32,8 @@ def _pearson_r(x: list[float], y: list[float]) -> float:
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.grn import GRN
-        from helixlang.virtual_cell import (
+        from helixlang.plugins.runtime.grn import GRN
+        from helixlang.plugins.runtime.virtual_cell import (
             VirtualCell,
             VirtualCellConfig,
         )

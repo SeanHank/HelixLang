@@ -13,8 +13,8 @@ def run() -> dict:
     try:
         import numpy as np
 
-        from helixlang.grn import GRN
-        from helixlang.sparse_grn import SparseGRN
+        from helixlang.plugins.runtime.grn import GRN
+        from helixlang.plugins.runtime.sparse_grn import SparseGRN
 
         # ── Build a 10-gene GRN with sparse topology ────────────────
         names = [f"G{i}" for i in range(10)]

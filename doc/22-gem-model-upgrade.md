@@ -833,7 +833,7 @@ _MEDIUM_PRESETS = {
 
 | File | Changes |
 |---|---|
-| `src/helixlang/sim_runtime.py` | Remove `_INFEASIBLE_COFACTORS`; expand `_add_gem_core_reactions` with ~80 reactions; update `_run_gem` dynamic FBA dispatch |
+| `src/helixlang/sim_runtime/` | Remove `_INFEASIBLE_COFACTORS`; expand `_add_gem_core_reactions` with ~80 reactions; update `_run_gem` dynamic FBA dispatch |
 | `src/helixlang/metabolism.py` | Add `PhotoautotrophicFluxBalance` class; extend `DynamicFBAConfig` |
 | `src/helixlang/gem/biomass.py` | No changes (biomass components already correct) |
 | `scripts/validate_sim48_49.py` | Update expected ranges; add Synechocystis trajectory check |
@@ -944,7 +944,7 @@ Update stage 6 (`gem_pipeline.py:727-808`):
 
 ```python
 # Stage 6: Integration
-from helixlang.gem.bridge import build_functional_model
+from helixlang.plugins.gem.bridge import build_functional_model
 
 model = build_functional_model(
     consensus=result.consensus,
@@ -1032,7 +1032,7 @@ def test_gem_pipeline_produces_positive_growth():
 ```python
 def test_gem_pipeline_to_ecosystem():
     """GEM pipeline output drives ecosystem simulation."""
-    from helixlang.apps.ecosystem import gem_to_species
+    from helixlang.plugins.apps.ecosystem import gem_to_species
     result = run_gem_pipeline(...)
     params = gem_to_species(result, organism="e_coli_k12")
     assert params["vmax"] > 0
@@ -1081,8 +1081,8 @@ def build_multi_species_ecosystem(
     3. Create Species with metabolic_model attached
     4. Build Ecosystem with gem_driven=True
     """
-    from helixlang.apps.gem_pipeline import run_gem_pipeline
-    from helixlang.apps.ecosystem import (
+    from helixlang.plugins.apps.gem_pipeline import run_gem_pipeline
+    from helixlang.plugins.apps.ecosystem import (
         Ecosystem, EcosystemConfig, PatchConfig, Species,
         SubstrateConfig, gem_to_species, heterotroph,
     )

@@ -24,7 +24,7 @@ class TestGlobalStateAudit:
 
     def test_bytecode_version_is_immutable(self) -> None:
         """OPCODE_VERSION is an int constant, not mutable."""
-        from helixlang.bytecode import OPCODE_VERSION
+        from helixlang.core.bytecode import OPCODE_VERSION
 
         assert isinstance(OPCODE_VERSION, int)
         # Verify it's a simple int (not a list or dict)
@@ -33,7 +33,7 @@ class TestGlobalStateAudit:
 
     def test_codon_tables_are_immutable(self) -> None:
         """Codon tables are dicts but treated as read-only."""
-        from helixlang.codon_table import STANDARD_TABLE
+        from helixlang.core.codon_table import STANDARD_TABLE
 
         assert isinstance(STANDARD_TABLE, dict)
         # Spot-check key entries exist

@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.errors import BioError
-from helixlang.metabolism import (
+from helixlang.core.errors import BioError
+from helixlang.plugins.runtime.metabolism import (
     ATP_MAINTENANCE_FLUX,
     DEFAULT_ENZYME_SCALE,
     DEFAULT_LOWER_BOUND,
@@ -689,7 +689,7 @@ class TestLoadModel:
 
     def test_load_model_unknown_identifier_without_cobra(self):
         """Without cobrapy, a BiGG identifier raises BioError."""
-        from helixlang.errors import BioError
+        from helixlang.core.errors import BioError
         try:
             import cobra  # noqa: F401
         except ImportError:
@@ -834,7 +834,7 @@ class TestEnzymeCapacity:
 
     def test_gene_reaction_table_matches_ko_model(self):
         """The Phase-4 gene->reaction table drives ko_model essentiality."""
-        from helixlang.apps.whole_cell_scale import ECOLI_CORE_GENE_REACTIONS as app_g2r
+        from helixlang.plugins.apps.whole_cell_scale import ECOLI_CORE_GENE_REACTIONS as app_g2r
         assert app_g2r is ECOLI_CORE_GENE_REACTIONS
         assert set(ECOLI_CORE_KCAT) == {
             r for rids in ECOLI_CORE_GENE_REACTIONS.values() for r in rids}

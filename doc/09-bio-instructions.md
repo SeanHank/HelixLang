@@ -1,5 +1,7 @@
 # Bio Instruction Guide
 
+> **2026-08-28 — Legacy import paths updated** for the doc/36 plugin re-layout (flat `helixlang.X` -> `helixlang.plugins.runtime.*`).
+
 > Quick reference for the `.helix` source file annotation syntax + a guide to calling the Python bio modules.
 
 ---
@@ -312,7 +314,7 @@ HelixLang's biological function modules (central dogma, metabolism, protein stru
 ### Central Dogma
 
 ```python
-from helixlang.central_dogma import transcribe, translate, coupled_transcription_translation
+from helixlang.plugins.runtime.central_dogma import transcribe, translate, coupled_transcription_translation
 
 dna = "ATG" + "CTG" * 100 + "TAA"
 result = coupled_transcription_translation(dna, promoter_strength=1.0)
@@ -323,7 +325,7 @@ print(result["mrna_steady_state"])
 ### Metabolic FBA
 
 ```python
-from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
 fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
 fba.set_uptake("GLC", 10.0)
@@ -344,7 +346,7 @@ The same static solve (plus `DynamicFluxBalance` batches) runs in-language as:
 ### Protein Structure Prediction
 
 ```python
-from helixlang.protein_structure import predict_structure
+from helixlang.plugins.runtime.protein_structure import predict_structure
 
 report = predict_structure("MKVLAACDEFGHIKLMNPQRSTVWY" * 3)
 print(report.summary)
@@ -355,7 +357,7 @@ print(f"TM helices: {len(report.transmembrane_helices)}")
 ### CRISPR Gene Editing
 
 ```python
-from helixlang.crispr import design_guide, cut_dna, on_target_score
+from helixlang.plugins.runtime.crispr import design_guide, cut_dna, on_target_score
 
 target = "ATCGATCGATCGATCGATCGGATC"  # contains an NGG PAM
 guide = design_guide(target, cas_variant="SpCas9")
@@ -367,7 +369,7 @@ print(f"Edit type: {result.edit_type}")
 ### Epigenetics
 
 ```python
-from helixlang.epigenetics import find_cpg_sites, methylate_dna, calculate_expression_modifier
+from helixlang.plugins.runtime.epigenetics import find_cpg_sites, methylate_dna, calculate_expression_modifier
 
 dna = "ATCGCGATCGCGATC"
 sites = find_cpg_sites(dna)
@@ -379,7 +381,7 @@ print(f"Expression modifier: {mod['gene1']:.3f}")
 ### Evolution Simulation
 
 ```python
-from helixlang.evolution import EvolutionConfig, Population, mutate
+from helixlang.plugins.runtime.evolution import EvolutionConfig, Population, mutate
 
 config = EvolutionConfig(mutation_rate=1e-5, population_size=100)
 pop = Population(
@@ -466,7 +468,7 @@ ATG TGA GCT TAA
 ```
 # CRISPR concept example: DNA + annotations describing the edit target
 # this example shows the DNA context of a CRISPR edit
-# the actual editing is performed via the Python API (helixlang.crispr)
+# the actual editing is performed via the Python API (helixlang.plugins.runtime.crispr)
 
 #gene name=target_gene
 ATG GCT GCT GCT GCT GCT GCT TAA
@@ -492,7 +494,7 @@ ATG GCT GCT GCT GCT GCT GCT TAA
 | GAA | Glu (E) | OP_SIGNAL |
 | CTC | Leu (L) | OP_GROW |
 
-> See `STANDARD_TABLE` in `src/helixlang/codon_table.py` for the complete mapping.
+> See `STANDARD_TABLE` in `src/helixlang/core/codon_table.py` for the complete mapping.
 
 ---
 
@@ -554,8 +556,8 @@ ATG GAT CAA ACG TTT GAA AGC GAT CCG GTG AAA GCG TAA
 Enabling type checking verifies symbol-reference integrity:
 
 ```python
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
 
 tokens = list(Lexer(src).tokens())
 prog = Parser(tokens, enable_type_check=True).parse()

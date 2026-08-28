@@ -46,7 +46,7 @@ def _amplitude_ratio(vals: list[float]) -> float:
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.grn import GRN, decay_from_half_life_ticks, integrate_grn
+        from helixlang.plugins.runtime.grn import GRN, decay_from_half_life_ticks, integrate_grn
 
         # ── Parameters (shared between ODE and discrete) ──────────────
         protein_half_life = 30.0

@@ -11,7 +11,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "23c_epigenetics"}
     try:
-        from helixlang.epigenetics import (
+        from helixlang.plugins.runtime.epigenetics import (
             find_cpg_sites,
             find_dam_sites,
         )

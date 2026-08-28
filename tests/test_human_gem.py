@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.gem_human (doc/27 human GEM loading).
+"""Tests for helixlang.plugins.human.gem_human (doc/27 human GEM loading).
 
 Covers the E. coli-core fallback loader, tissue-specific exchange
 overlays derived from TISSUE_PROFILES, and the load() tuple contract
@@ -6,8 +6,8 @@ used by the doc/27 simulation engine.
 """
 from __future__ import annotations
 
-from helixlang.human.gem_human import HumanGEMConfig, HumanGEMLoader
-from helixlang.metabolism import MetabolicModel
+from helixlang.plugins.human.gem_human import HumanGEMConfig, HumanGEMLoader
+from helixlang.plugins.runtime.metabolism import MetabolicModel
 
 
 def _loader() -> HumanGEMLoader:

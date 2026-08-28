@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.crispr import (
+from helixlang.plugins.runtime.crispr import (
     GuideRNA,
     OffTargetSite,
     PAMIndex,
@@ -307,13 +307,13 @@ class TestPAMIndexCasVariants:
 
     def test_unknown_cas_variant_raises(self):
         """Unknown Cas variant raises BioError (integrates with the unified exception system)."""
-        from helixlang.errors import BioError
+        from helixlang.core.errors import BioError
         with pytest.raises(BioError):
             PAMIndex("ACGT" * 20, "NotACas")
 
     def test_k_too_small_raises(self):
         """K < 4 raises BioError."""
-        from helixlang.errors import BioError
+        from helixlang.core.errors import BioError
         with pytest.raises(BioError):
             PAMIndex("ACGT" * 20, "SpCas9", K=2)
 

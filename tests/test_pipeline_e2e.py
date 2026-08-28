@@ -6,9 +6,9 @@ drug effects, multi-drug DDI → clinical events, hematology/renal integration.
 
 import pytest
 
-from helixlang.human.drug import Drug, DrugMolecule, get_predefined_drug
-from helixlang.human.genotype import Variant, create_default_genotype
-from helixlang.human.virtual_patient import VirtualPatient, VirtualPatientConfig
+from helixlang.plugins.human.drug import Drug, DrugMolecule, get_predefined_drug
+from helixlang.plugins.human.genotype import Variant, create_default_genotype
+from helixlang.plugins.human.virtual_patient import VirtualPatient, VirtualPatientConfig
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -195,7 +195,7 @@ class TestGenotypeDependentAE:
 
     def test_genotype_affects_clearance_modifier(self) -> None:
         """Different genotypes should produce different clearance modifiers."""
-        from helixlang.human.virtual_patient import _compute_genetic_cyp_modifier
+        from helixlang.plugins.human.virtual_patient import _compute_genetic_cyp_modifier
 
         tramadol = get_predefined_drug("tramadol")
         if tramadol is None:
@@ -233,7 +233,7 @@ class TestMicrobiomeDrugEffects:
 
     def test_microbiome_portal_fluxes(self) -> None:
         """Microbiome should produce portal fluxes."""
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         mc.set_drug_concentration("metformin", 10.0)
         mc.step(dt_h=1.0)
@@ -334,7 +334,7 @@ class TestEpigeneticCYPWiring:
     """Verify epigenetic CYP modifiers reach the clearance chain."""
 
     def test_emergent_complexity_produces_epigenetic_keys(self) -> None:
-        from helixlang.human.emergent_complexity import EmergentComplexityModel
+        from helixlang.plugins.human.emergent_complexity import EmergentComplexityModel
         ecm = EmergentComplexityModel()
         signals = ecm.step(dt_h=1.0, t_h=0.0, drug_concentrations={},
                            il6=1.0, tnf=5.0, crp=0.5)

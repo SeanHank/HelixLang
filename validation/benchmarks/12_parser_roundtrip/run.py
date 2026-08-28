@@ -18,10 +18,10 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "12_parser_roundtrip"}
     try:
-        from helixlang.codon_table import STANDARD_TABLE
-        from helixlang.compiler import Compiler
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
+        from helixlang.core.codon_table import STANDARD_TABLE
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
 
         tokens = list(Lexer(SOURCE).tokens())
         assert len(tokens) > 0, "lexer produced no tokens"

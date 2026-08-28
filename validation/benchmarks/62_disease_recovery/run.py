@@ -22,13 +22,13 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3]
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.human.disease_progression import (
+        from helixlang.plugins.human.disease_progression import (
             DiseaseProgressionModel,
             DiseaseStage,
             create_progression_model,
             PROGRESSION_PROFILES,
         )
-        from helixlang.human.recovery import (
+        from helixlang.plugins.human.recovery import (
             RecoveryModel,
             create_recovery_model,
             ORGAN_RECOVERY_PROFILES,

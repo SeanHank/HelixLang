@@ -12,7 +12,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.apps.synbio_designer import SynBioDesigner
+        from helixlang.plugins.apps.synbio_designer import SynBioDesigner
 
         checks["import_synbio_modules"] = True
 

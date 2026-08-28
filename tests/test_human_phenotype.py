@@ -1,21 +1,21 @@
-"""Tests for helixlang.human.phenotype (doc/28 trait-scaling layer).
+"""Tests for helixlang.plugins.human.phenotype (doc/28 trait-scaling layer).
 
 Covers :class:`ExternalTraits` anthropometrics and the genotype +
 traits folding in :class:`PhenotypeCalculator`: demographic (age,
 sex), obesity, smoking, and pregnancy scalings feeding
-:class:`~helixlang.human.physiology.HumanPhysiology`.
+:class:`~helixlang.plugins.human.physiology.HumanPhysiology`.
 """
 from __future__ import annotations
 
 import pytest
 
-from helixlang.human.genotype import create_default_genotype
-from helixlang.human.phenotype import (
+from helixlang.plugins.human.genotype import create_default_genotype
+from helixlang.plugins.human.phenotype import (
     ExternalTraits,
     PhenotypeCalculator,
     create_default_traits,
 )
-from helixlang.human.physiology import DEFAULT_CYP450_ACTIVITY, HumanPhysiology
+from helixlang.plugins.human.physiology import DEFAULT_CYP450_ACTIVITY, HumanPhysiology
 
 
 def _calc(**overrides: object) -> PhenotypeCalculator:

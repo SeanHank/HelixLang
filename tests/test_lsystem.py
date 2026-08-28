@@ -1,7 +1,7 @@
 """L-system unit tests."""
 import pytest
 
-from helixlang.lsystem import LSystem
+from helixlang.plugins.runtime.lsystem import LSystem
 
 
 def test_simple_iteration():

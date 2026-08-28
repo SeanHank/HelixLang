@@ -298,7 +298,7 @@ src/helixlang/gem/
 - `list_supported_organisms() -> list[str]`
 
 **C3. Refactor `_set_gem_medium()`**
-- File: `src/helixlang/sim_runtime.py`
+- File: `src/helixlang/sim_runtime/`
 - New version: `_set_gem_medium_full(adapter, medium_name, program=None)`
   - Uses `FullModelAdapter` exchange detection
   - No hardcoded reaction IDs
@@ -334,7 +334,7 @@ src/helixlang/gem/
 - Auto-detect: if organism is in `ORGANISM_REGISTRY`, offer to use full model
 
 **D3. Update `sim_runtime.py` GEM runner**
-- File: `src/helixlang/sim_runtime.py`
+- File: `src/helixlang/sim_runtime/`
 - In `_run_gem()`: check if full model is available for organism
 - If yes: load full model, apply medium, solve (skip core injection)
 - If no: fall back to existing behavior

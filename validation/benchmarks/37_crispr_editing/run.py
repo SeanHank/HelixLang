@@ -35,7 +35,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.crispr import (
+        from helixlang.plugins.runtime.crispr import (
             GuideRNA,
             OffTargetSite,
             design_guide,

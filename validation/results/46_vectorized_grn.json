@@ -19,5 +19,5 @@
     "source": "HelixLang grn.py scalar implementation",
     "note": "VectorizedGRN must produce identical output to scalar GRN.step()"
   },
-  "runtime_seconds": 0.2650889999931678
+  "runtime_seconds": 0.4999853749759495
 }

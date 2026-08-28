@@ -4,13 +4,13 @@ import random
 
 import pytest
 
-from helixlang.environment import (
+from helixlang.plugins.runtime.environment import (
     ACETATE_DIFFUSION_UM2_S,
     ConcentrationField,
     Environment,
     EnvironmentConfig,
 )
-from helixlang.population import (
+from helixlang.plugins.runtime.population import (
     DIVISION_ENERGY_THRESHOLD,
     ENERGY_INTAKE_PER_STEP,
     METABOLIC_COST_PER_STEP,
@@ -518,7 +518,7 @@ def test_dfba_cell_owns_batch_and_grows_energy():
 def test_dfba_oxygen_capped_respiration():
     """Reducing-equivalent bounds are capped by the local O2: at low O2 the
     NADH_OX upper bound must drop well below the uncapped value."""
-    from helixlang.population import monod_uptake
+    from helixlang.plugins.runtime.population import monod_uptake
     env = Environment(EnvironmentConfig(width=12, height=12,
                                         oxygen_initial_mm=0.01))
     cfg = PopulationConfig(grid_width=12, grid_height=12, environment=env,
@@ -666,7 +666,7 @@ def _colocated_dfba_population(n, *, shared, ticks=3):
 def test_shared_batch_reduces_lp_solves():
     """Shared-batch mode solves one LP per occupied site, not one per
     cell (surfin_FBA: basis reuse across identical medium states)."""
-    from helixlang.metabolism import FluxBalanceAnalysis
+    from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis
     n_cells = 6
     calls: list[int] = [0]
     base = FluxBalanceAnalysis.solve
@@ -756,7 +756,7 @@ def test_dfba_metabolic_model_config():
     """PopulationConfig.metabolic_model overrides the default ECOLI_CORE_MODEL."""
     from copy import deepcopy
 
-    from helixlang.metabolism import ECOLI_CORE_MODEL
+    from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL
     # Create a minimal model with a single exchange + biomass-like reaction
     model = deepcopy(ECOLI_CORE_MODEL)
     env = Environment(EnvironmentConfig(

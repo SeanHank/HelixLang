@@ -44,7 +44,7 @@ ATG GCT GGT GCT GGT TAA
 # Note: the following is a Python API example for coupled transcription-translation (equivalent to the #transcribe/#translate annotations above)
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.central_dogma import coupled_transcription_translation
+# from helixlang.plugins.runtime.central_dogma import coupled_transcription_translation  # 2026-08-28: plugin path
 #
 # # DNA -> mRNA -> protein, with transcription-translation coupling (prokaryotic mode)
 # result = coupled_transcription_translation(

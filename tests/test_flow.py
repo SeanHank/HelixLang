@@ -2,7 +2,7 @@
 
 Covers:
 
-- :mod:`helixlang.flow`: unit conversions, the analytical Poiseuille
+- :mod:`helixlang.plugins.runtime.flow`: unit conversions, the analytical Poiseuille
   channel profile (peak = 1.5 x mean, no-slip walls) in all four
   directions, the stagnant field and the :class:`FlowField` API;
 - :meth:`ConcentrationField.advect`: conservative first-order upwind
@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.environment import ConcentrationField, Environment, EnvironmentConfig
-from helixlang.flow import (
+from helixlang.plugins.runtime.environment import ConcentrationField, Environment, EnvironmentConfig
+from helixlang.plugins.runtime.flow import (
     FlowField,
     channel_poiseuille,
     stagnant,

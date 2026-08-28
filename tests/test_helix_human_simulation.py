@@ -14,17 +14,17 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.disease import DiseaseState, GenePerturbation, MetabolitePerturbation
-from helixlang.human.drug import Drug, DrugMolecule
-from helixlang.human.genotype import GenotypeProfile, Variant, create_default_genotype
-from helixlang.human.pharmacodynamics import PDEffect, Pharmacodynamics
-from helixlang.human.phenotype import ExternalTraits
-from helixlang.human.virtual_patient import (
+from helixlang.core.parser import parse_source
+from helixlang.plugins.human.disease import DiseaseState, GenePerturbation, MetabolitePerturbation
+from helixlang.plugins.human.drug import Drug, DrugMolecule
+from helixlang.plugins.human.genotype import GenotypeProfile, Variant, create_default_genotype
+from helixlang.plugins.human.pharmacodynamics import PDEffect, Pharmacodynamics
+from helixlang.plugins.human.phenotype import ExternalTraits
+from helixlang.plugins.human.virtual_patient import (
     VirtualPatient,
     VirtualPatientConfig,
     VirtualPatientResult,
 )
-from helixlang.parser import parse_source
 from helixlang.sim_runtime import (
     _build_disease_from_helix,
     _build_drugs_from_helix,
@@ -178,7 +178,7 @@ class TestParserPDEffectAnnotation:
 
     def test_annotation_required_fields_enforced(self):
         """#drug without name= and #pd_effect without drug= raise ParseError."""
-        from helixlang.errors import ParseError
+        from helixlang.core.errors import ParseError
 
         with pytest.raises(ParseError):
             parse_source("#drug dose=10")

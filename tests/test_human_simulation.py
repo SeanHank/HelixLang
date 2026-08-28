@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.simulation (doc/27 Stage F engine).
+"""Tests for helixlang.plugins.human.simulation (doc/27 Stage F engine).
 
 Covers HumanSimulationConfig/Result contracts and end-to-end long-term
 runs coupling PBPK + PD + disease-perturbed dFBA: Gaucher on
@@ -7,10 +7,10 @@ diabetes under metformin.
 """
 from __future__ import annotations
 
-from helixlang.human.disease import DISEASE_PROFILES
-from helixlang.human.drug import get_predefined_drug
-from helixlang.human.pharmacodynamics import PREDEFINED_PD, PDEffect, Pharmacodynamics
-from helixlang.human.simulation import (
+from helixlang.plugins.human.disease import DISEASE_PROFILES
+from helixlang.plugins.human.drug import get_predefined_drug
+from helixlang.plugins.human.pharmacodynamics import PREDEFINED_PD, PDEffect, Pharmacodynamics
+from helixlang.plugins.human.simulation import (
     HumanSimulation,
     HumanSimulationConfig,
     HumanSimulationResult,

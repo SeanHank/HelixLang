@@ -4,7 +4,7 @@ Verifies that simulations produce identical results when run with the same seed.
 """
 from __future__ import annotations
 
-from helixlang.bytecode import OPCODE_VERSION
+from helixlang.core.bytecode import OPCODE_VERSION
 
 
 class TestBytecodeABIVersion:
@@ -17,11 +17,11 @@ class TestBytecodeABIVersion:
         assert OPCODE_VERSION == 1
 
     def test_opcode_version_in_bytecode_module(self) -> None:
-        import helixlang.bytecode as bc
+        import helixlang.core.bytecode as bc
         assert hasattr(bc, "OPCODE_VERSION")
 
     def test_hxbc_format_version_matches(self) -> None:
-        from helixlang.hxbc import FORMAT_VERSION
+        from helixlang.core.hxbc import FORMAT_VERSION
         assert FORMAT_VERSION >= OPCODE_VERSION
 
 
@@ -29,7 +29,7 @@ class TestDeterminismFBA:
     """FBA is deterministic — same model, same result."""
 
     def test_fba_deterministic(self) -> None:
-        from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+        from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
         results = []
         for _ in range(3):
@@ -43,7 +43,7 @@ class TestDeterminismFBA:
         )
 
     def test_fba_nonzero_growth(self) -> None:
-        from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+        from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
         fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
         fba.set_uptake("GLC", 10.0)
@@ -55,7 +55,7 @@ class TestDeterminismGRN:
     """GRN is deterministic for same input."""
 
     def test_grn_deterministic(self) -> None:
-        from helixlang.grn import GRN
+        from helixlang.plugins.runtime.grn import GRN
 
         edges = [("A", "B", -0.8), ("B", "C", 0.5)]
         results = []
@@ -77,9 +77,9 @@ class TestDeterminismVM:
     """Bytecode VM is deterministic with same seed."""
 
     def test_vm_deterministic_same_seed(self) -> None:
-        from helixlang.ast_nodes import Program
-        from helixlang.bytecode import Chunk
-        from helixlang.vm import CellVM
+        from helixlang.core.ast_nodes import Program
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.vm import CellVM
 
         def _build() -> tuple[Chunk, Program]:
             c = Chunk()
@@ -98,11 +98,11 @@ class TestDeterminismVM:
 
     def test_vm_produces_same_trace(self) -> None:
         """Two VM instances with same bytecode produce identical traces."""
-        from helixlang.codon_table import STANDARD_TABLE, Op
-        from helixlang.compiler import Compiler
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
-        from helixlang.vm import CellVM
+        from helixlang.core.codon_table import STANDARD_TABLE, Op
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.core.vm import CellVM
 
         src = "#gene name=g1\nATG GCT TAA\n#end\n#config ticks=3"
         stop = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}
@@ -125,7 +125,7 @@ class TestDeterminismStochastic:
     """Stochastic module is deterministic with same seed."""
 
     def test_gillespie_telegraph_deterministic(self) -> None:
-        from helixlang.stochastic import gillespie_telegraph
+        from helixlang.plugins.runtime.stochastic import gillespie_telegraph
 
         results = []
         for _ in range(3):

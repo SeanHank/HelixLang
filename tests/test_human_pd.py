@@ -1,4 +1,4 @@
-"""Tests for helixlang.human.pharmacodynamics (doc/27 PD layer).
+"""Tests for helixlang.plugins.human.pharmacodynamics (doc/27 PD layer).
 
 Covers the Hill-equation core, inhibition/activation fractions,
 multi-target effect computation, and the six PREDEFINED_PD profiles.
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.human.pharmacodynamics import (
+from helixlang.plugins.human.pharmacodynamics import (
     PREDEFINED_PD,
     PDEffect,
     Pharmacodynamics,

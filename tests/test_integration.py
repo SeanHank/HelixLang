@@ -23,22 +23,26 @@ import pytest
 pytest.importorskip("Bio")
 pytest.importorskip("reedsolo")
 
-from helixlang.biocodec import (
+from helixlang.core.codon_table import Op, get_table
+from helixlang.core.compiler import Compiler
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.core.vm import CellVM
+from helixlang.plugins.runtime.biocodec import (
     LAC_PROMOTER,
     RRNB_T1_TERMINATOR,
     back_translate,
     find_orfs,
     validate_biological,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     dna_to_helix as bio_dna_to_helix,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     helix_to_dna as bio_helix_to_dna,
 )
-from helixlang.codon_table import Op, get_table
-from helixlang.compiler import Compiler
-from helixlang.dna_codec import (
+from helixlang.plugins.runtime.dna_codec import (
     decay_dna,
     dna_to_helix,
     erlich_decode,
@@ -48,10 +52,6 @@ from helixlang.dna_codec import (
     sequence_dna,
     synthesize_dna,
 )
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.vm import CellVM
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 PYTHON = sys.executable
@@ -468,7 +468,7 @@ class TestRealisticGeneScenario:
 
     def test_promoter_strength_integrates_with_grn(self):
         """The lac promoter strength parameter can be passed into the GRN model."""
-        from helixlang.bio_data import lac_promoter_strength, mu_to_grn_strength
+        from helixlang.plugins.runtime.bio_data import lac_promoter_strength, mu_to_grn_strength
         # Repressed/induced promoter strength (verify they are callable)
         lac_promoter_strength(induced=False)
         lac_promoter_strength(induced=True)
@@ -478,7 +478,7 @@ class TestRealisticGeneScenario:
         # The induced threshold should be lower (stronger expression)
         assert threshold_induced < threshold_uninduced
         # Build a GRN for the test
-        from helixlang.grn import GRN
+        from helixlang.plugins.runtime.grn import GRN
         grn = GRN()
         grn.add_gene("lacZ", threshold=threshold_induced)
         # Simulate a few steps (GRN is self-driving; an initial level of 0 only activates with an input edge)

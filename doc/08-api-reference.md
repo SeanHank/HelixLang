@@ -1,5 +1,7 @@
 # API Reference
 
+> **2026-08-28 — Legacy import paths updated** for the doc/36 plugin re-layout (flat `helixlang.X` -> `helixlang.core.*`/`helixlang.plugins.runtime.*`).
+
 > Quick reference for the core HelixLang Python API. Organized by module, listing dataclasses, function signatures, and key parameters.
 
 ---
@@ -25,7 +27,7 @@
 ## 1. codon_table — Codon Table
 
 ```python
-from helixlang.codon_table import (
+from helixlang.core.codon_table import (
     Op,                    # enum: all opcodes
     STANDARD_TABLE,        # dict[str, Op]: standard codon→opcode
     MITO_VERTEBRATE_TABLE,  # mitochondrial table
@@ -559,7 +561,7 @@ ARABIDOPSIS_NE = 4e5
 ## 8. grn — Gene Regulatory Network
 
 ```python
-from helixlang.grn import GRN, decay_from_half_life_ticks
+from helixlang.plugins.runtime.grn import GRN, decay_from_half_life_ticks
 
 class GRN:
     DECAY ≈ 0.994           # universal decay from the 110-min protein half-life
@@ -599,7 +601,7 @@ no per-gene promoter, a default constitutive-noise promoter is used.
 ## 9. units — Physical Unit System
 
 ```python
-from helixlang.units import (
+from helixlang.core.units import (
     TIME_TICK_MIN, TIME_TICK_S, LATTICE_SPACING_UM,
     ATP_PER_GLUCOSE, PROTEIN_HALF_LIFE_MEDIAN_TICKS,
     AI2_DIFFUSION_UM2_S, DIFFUSION_DT_S,
@@ -635,7 +637,7 @@ one minute. The legacy `CALIBRATED` registry and its conversion functions
 ## 10. reaction_diffusion — Reaction-Diffusion
 
 ```python
-from helixlang.reaction_diffusion import (
+from helixlang.plugins.runtime.reaction_diffusion import (
     GrayScott, PRESETS,
 )
 
@@ -655,7 +657,7 @@ PRESETS: dict[str, dict]   # 14 classic parameter sets (Pearson 1993)
 ## 11. lsystem — L-System
 
 ```python
-from helixlang.lsystem import LSystem
+from helixlang.plugins.runtime.lsystem import LSystem
 
 class LSystem:
     def __init__(self, axiom: str,
@@ -673,7 +675,7 @@ class LSystem:
 ## 12. stochastic — Two-State Promoter Noise
 
 ```python
-from helixlang.stochastic import (
+from helixlang.plugins.runtime.stochastic import (
     telegraph_fano_factor, TelegraphPromoter,
     fano_to_noise_std, gillespie_telegraph,
 )
@@ -721,7 +723,7 @@ uptake; the diffusion scheme is the same flux-conservative sub-stepped
 `D_lattice ≤ 0.25` per sub-step, zero-flux boundaries).
 
 ```python
-from helixlang.environment import (
+from helixlang.plugins.runtime.environment import (
     GLUCOSE_DIFFUSION_UM2_S, OXYGEN_DIFFUSION_UM2_S, ACETATE_DIFFUSION_UM2_S,
     GLUCOSE_HALF_SATURATION_MM, OXYGEN_HALF_SATURATION_MM,
     BULK_GLUCOSE_MM, BULK_OXYGEN_MM, SITE_VOLUME_L,
@@ -791,7 +793,7 @@ acetate into a `"acetate"` field created on first use.
 ## Error Hierarchy
 
 ```python
-from helixlang.errors import (
+from helixlang.core.errors import (
     HelixError,            # base class
     LexError,              # lexical error
     ParseError,            # syntax error

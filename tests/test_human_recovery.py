@@ -1,7 +1,7 @@
 """Tests for post-treatment recovery modeling (doc/28)."""
 from __future__ import annotations
 
-from helixlang.human.recovery import RecoveryModel, create_recovery_model
+from helixlang.plugins.human.recovery import RecoveryModel, create_recovery_model
 
 
 class TestRecoveryModel:

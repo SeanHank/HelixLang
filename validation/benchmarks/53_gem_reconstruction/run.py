@@ -16,15 +16,15 @@ def run() -> dict:
     details: dict[str, object] = {}
     reference = "Thiele I, Palsson BO 2010, Nat Protoc 5:93-110"
     try:
-        from helixlang.gem.consensus import (
+        from helixlang.plugins.gem.consensus import (
             ConsensusReaction,
             ConsensusResult,
             consensus_merge,
         )
-        from helixlang.gem.bottom_up import BottomUpResult, GPRRule, ReactionEntry
-        from helixlang.gem.top_down import TopDownResult
-        from helixlang.gem.bridge import consensus_to_metabolic_model
-        from helixlang.gem.sbml_export import model_to_sbml_string
+        from helixlang.plugins.gem.bottom_up import BottomUpResult, GPRRule, ReactionEntry
+        from helixlang.plugins.gem.top_down import TopDownResult
+        from helixlang.plugins.gem.bridge import consensus_to_metabolic_model
+        from helixlang.plugins.gem.sbml_export import model_to_sbml_string
         checks["import_modules"] = True
 
         bu_reactions = [
@@ -94,7 +94,7 @@ def run() -> dict:
         details["high_confidence_ids"] = high_ids
 
         model = consensus_to_metabolic_model(consensus, biomass_rxn_id="PFK")
-        from helixlang.metabolism import MetabolicModel
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
         assert isinstance(model, MetabolicModel), (
             f"Expected MetabolicModel, got {type(model)}"
         )

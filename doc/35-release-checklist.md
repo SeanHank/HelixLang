@@ -43,7 +43,7 @@ python release.py <version>
 ```
 
 ### What the script does
-1. **Syncs version** to `pyproject.toml`, `__init__.py`, `server.py`, `bytecode.py` comment
+1. **Syncs version** to `pyproject.toml`, `__init__.py`, `server/app.py`, `core/bytecode.py` comment
 2. **Runs quality gates in parallel**: ruff, mypy, pytest (`-n auto`), validation, examples
 3. **Syncs metrics** (test count, coverage, validation results) to README.md, README_PYPI.md, CONTRIBUTING.md
 4. **Builds** sdist + wheel via `python -m build`

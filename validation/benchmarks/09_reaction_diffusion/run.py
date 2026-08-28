@@ -129,7 +129,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "09_reaction_diffusion"}
     try:
-        from helixlang.reaction_diffusion import GrayScott
+        from helixlang.plugins.runtime.reaction_diffusion import GrayScott
 
         N, STEPS, SEED = 32, 2000, 42
         F, k, Du, Dv = 0.035, 0.065, 0.16, 0.08

@@ -75,7 +75,7 @@ Two gaps must be bridged: (i) `_PBPKEngine` fixes `k_el_per_h` at construction, 
 Replace the entire `_DrugPBPK` class (lines 595-643) and add one import:
 
 ```python
-from helixlang.human.simulation import _PBPKEngine
+from helixlang.plugins.human.simulation import _PBPKEngine
 
 
 class _DrugPBPK:

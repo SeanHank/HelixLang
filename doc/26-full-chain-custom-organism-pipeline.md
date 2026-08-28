@@ -506,7 +506,7 @@ class ECGEMBuilder:
 **`sim_runtime.py`** — when `#gem ... ecgem=true`:
 ```python
 if ecgem:
-    from helixlang.gem.ecgem import ECGEMBuilder
+    from helixlang.plugins.gem.ecgem import ECGEMBuilder
     builder = ECGEMBuilder(
         base_model=model,
         kcat_predictions=kcat_dict,
@@ -680,7 +680,7 @@ class CommunityFBAExtended:
 ```python
 # When community_fba=true and ecgem=true:
 if community_fba and ecgem:
-    from helixlang.gem.community import CommunityFBAExtended, OrganismModel
+    from helixlang.plugins.gem.community import CommunityFBAExtended, OrganismModel
     org_models = []
     for sp in species:
         ecgem_result = build_ecgem(sp.genome, ...)

@@ -20,7 +20,7 @@ import math
 
 import pytest
 
-from helixlang.bio_data import (
+from helixlang.plugins.runtime.bio_data import (
     ECOLI_CODON_USAGE,
     HUMAN_CODON_USAGE,
     HUMAN_TRNA_ABUNDANCE,
@@ -511,7 +511,7 @@ class TestTRNAAbundance:
 
     def test_trna_ecoli_bridges_central_dogma(self):
         """E. coli tRNA abundance table matches central_dogma.TRNA_ABUNDANCE."""
-        from helixlang.central_dogma import TRNA_ABUNDANCE
+        from helixlang.plugins.runtime.central_dogma import TRNA_ABUNDANCE
         trna = get_species_trna("ecoli")
         for codon in TRNA_ABUNDANCE:
             assert trna[codon] == TRNA_ABUNDANCE[codon]

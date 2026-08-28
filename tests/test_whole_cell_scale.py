@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.whole_cell_scale import (
+from helixlang.plugins.apps.whole_cell_scale import (
     ECOLI_CORE_ESSENTIALITY_NOTES,
     ECOLI_CORE_ESSENTIALITY_REFERENCE,
     Chromosome,
@@ -40,8 +40,8 @@ from helixlang.apps.whole_cell_scale import (
     run_whole_cell_benchmark,
     single_gene_ko_protocol,
 )
-from helixlang.metabolism import ECOLI_CORE_MODEL
-from helixlang.virtual_cell import encode_gene
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL
+from helixlang.plugins.runtime.virtual_cell import encode_gene
 
 PROTEIN = "MAQILARVFFDDV"
 

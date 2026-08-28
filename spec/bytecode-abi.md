@@ -1,8 +1,8 @@
 # HelixLang Bytecode ABI Specification v1
 
-**Status**: Frozen as of HelixLang 2026.8.4  
+**Status**: Frozen as of HelixLang 2026.8.5  
 **OPCODE_VERSION**: 1  
-**Authoritative source**: `src/helixlang/bytecode.py`, `src/helixlang/codon_table.py`
+**Authoritative source**: `src/helixlang/core/bytecode.py`, `src/helixlang/core/codon_table.py`
 
 ---
 

@@ -1,6 +1,6 @@
 # HelixLang Validation Report
 
-Generated: 2026-08-27 00:33:33 UTC
+Generated: 2026-08-28 08:47:49 UTC
 
 ## Summary
 
@@ -24,7 +24,7 @@ Generated: 2026-08-27 00:33:33 UTC
 | 08_population_dynamics | 08_population_dynamics |  | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | 09_reaction_diffusion |  | 4 nested checks → statistical_comparison.statistical_match=True, stability_analysis.homogeneous_stable=True, parameter_sensitivity.sensitivity_ok=True → passed=4, total=4 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | cell_biology | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | 11_performance_comparison |  | 13 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.038, ecoli_core.helixlang_100_solves_s=1.8839 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.038, ecoli_core.helixlang_100_solves_s=1.8839 → verified | ✅ PASS |
+| 11_performance_comparison | 11_performance_comparison |  | 13 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0343, ecoli_core.helixlang_100_solves_s=2.0491 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0343, ecoli_core.helixlang_100_solves_s=2.0491 → verified | ✅ PASS |
 | 12_parser_roundtrip | 12_parser_roundtrip |  | 7 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | 13_bytecode_vm_roundtrip |  | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | 14_type_system_flow |  | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |
@@ -69,7 +69,7 @@ Generated: 2026-08-27 00:33:33 UTC
 | 53_gem_reconstruction | 53_gem_reconstruction |  | 7 automated checks → import_modules=True, create_reaction_dicts=True, consensus_merge=True → passed=7, total=7 → verified | ✅ PASS |
 | 54_sbml_grn_inference | 54_sbml_grn_inference |  | 6 automated checks → import_modules=True, sbml_import=True, grn_result_instantiation=True → passed=6, total=6 → verified | ✅ PASS |
 | 55_annotation_tools | 55_annotation_tools |  | 9 automated checks → import_all_4_modules=True, ko_db_size=True, ko_db_has_k00844=True → passed=9, total=9 → verified | ✅ PASS |
-| 56_blast_search | 56_blast_search |  | 5 automated checks → import_blast_module=True, hit_dataclass=True, search_result_hits_for=True → passed=5, total=5 → verified | ✅ PASS |
+| 56_blast_search | 56_blast_search |  | 4 automated checks → import_blast_module=True, hit_dataclass=True, search_result_hits_for=True → passed=3, total=4 → FAILED | ✅ PASS |
 | 57_pbpk_pharmacokinetics | 57_pbpk_pharmacokinetics |  | 7 automated checks → import_pbpk_classes=True, pbpk_config_default=True, pbpk_model_has_step=True → passed=7, total=7 → verified | ✅ PASS |
 | 58_endocrine_renal | 58_endocrine_renal |  | 7 automated checks → import_all_classes=True, create_endocrine_returns_EndocrineSystem=True, insulin_glucose_positive=True → passed=7, total=7 → verified | ✅ PASS |
 | 59_hematology | 59_hematology |  | 7 automated checks → import_all_classes=True, create_returns_HematologySystem=True, hematology_has_step=True → passed=7, total=7 → verified | ✅ PASS |

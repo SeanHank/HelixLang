@@ -1,6 +1,6 @@
 """Whole-cell parameter calibration closure tests (Phase 5, doc §8.3).
 
-Verifies that :func:`~helixlang.apps.whole_cell_calibration.
+Verifies that :func:`~helixlang.plugins.apps.whole_cell_calibration.
 run_whole_cell_calibration` can recover the Phase 1-4 hidden parameters
 (adder threshold, folding equilibrium, kcat scale and maintenance burn)
 from the mixed observable vector within tolerance.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.whole_cell_calibration import (
+from helixlang.plugins.apps.whole_cell_calibration import (
     DEFAULT_GENOME,
     OBSERVED_ENZYMES,
     TRUTH_ADDER_VOLUME_UM3,
@@ -20,8 +20,8 @@ from helixlang.apps.whole_cell_calibration import (
     _fold_rate_from_k_fold,
     run_whole_cell_calibration,
 )
-from helixlang.metabolism import ECOLI_CORE_GENE_REACTIONS
-from helixlang.virtual_cell import encode_gene
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_GENE_REACTIONS
+from helixlang.plugins.runtime.virtual_cell import encode_gene
 
 
 def test_genome_covers_all_gated_enzymes() -> None:

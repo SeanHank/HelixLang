@@ -1,13 +1,13 @@
 """Tests for community FBA extension (doc/26 Phase E)."""
 from __future__ import annotations
 
-from helixlang.gem.community import (
+from helixlang.plugins.gem.community import (
     CommunityFBAExtended,
     CommunityResult,
     ExchangeNetwork,
     OrganismModel,
 )
-from helixlang.metabolism import MetabolicModel, Reaction
+from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction
 
 
 def _make_model(biomass_id: str = "BIOMASS") -> MetabolicModel:

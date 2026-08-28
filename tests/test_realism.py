@@ -24,7 +24,7 @@ import pytest
 pytest.importorskip("Bio")
 pytest.importorskip("reedsolo")
 
-from helixlang.bio_data import (
+from helixlang.plugins.runtime.bio_data import (
     # decay
     DNA_DECAY_RATES,
     # storage density
@@ -45,7 +45,7 @@ from helixlang.bio_data import (
     dna_decay_half_life,
     dna_survival_fraction,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     LAC_PROMOTER,
     RRNB_T1_TERMINATOR,
     back_translate,
@@ -53,13 +53,13 @@ from helixlang.biocodec import (
     find_orfs,
     validate_biological,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     dna_to_helix as bio_dna_to_helix,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     helix_to_dna as bio_helix_to_dna,
 )
-from helixlang.dna_codec import (
+from helixlang.plugins.runtime.dna_codec import (
     ERLICH_OLIGO_NT,
     ERLICH_OLIGO_SIZE,
     PCR_INDEL_RATE,

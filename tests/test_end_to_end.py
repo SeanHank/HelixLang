@@ -96,13 +96,13 @@ def test_all_examples_compile():
 def test_all_examples_run():
     """Every example must compile and run under the physical-unit runtime
     (ATP-molecule energies, µM signals)."""
-    from helixlang.codon_table import STANDARD_TABLE
-    from helixlang.compiler import Compiler
-    from helixlang.lexer import Lexer
-    from helixlang.parser import Parser
-    from helixlang.semantic import SemanticAnalyzer
-    from helixlang.seq_utils import stop_codons_from_table
-    from helixlang.vm import CellVM
+    from helixlang.core.codon_table import STANDARD_TABLE
+    from helixlang.core.compiler import Compiler
+    from helixlang.core.lexer import Lexer
+    from helixlang.core.parser import Parser
+    from helixlang.core.semantic import SemanticAnalyzer
+    from helixlang.core.vm import CellVM
+    from helixlang.plugins.runtime.seq_utils import stop_codons_from_table
 
     for f in sorted(EXAMPLES.glob("*.helix")):
         src = f.read_text()

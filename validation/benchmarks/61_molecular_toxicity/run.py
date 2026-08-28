@@ -21,7 +21,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3]
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.human.molecular_toxicity import (
+        from helixlang.plugins.human.molecular_toxicity import (
             MolecularToxicityPredictor,
             ToxicityProfile,
             ActivityProfile,

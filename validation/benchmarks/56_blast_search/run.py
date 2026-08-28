@@ -17,7 +17,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.annotation.blast import Hit, SearchResult, run_diamond
+        from helixlang.plugins.annotation.blast import Hit, SearchResult, run_diamond
         checks["import_blast_module"] = True
 
         # --- Hit dataclass ---
@@ -64,17 +64,21 @@ def run() -> dict:
         details["q1_hit_count"] = len(q1_hits)
         details["q2_hit_count"] = len(q2_hits)
 
-        # --- Diamond availability ---
+        # --- Diamond live end-to-end run (optional external tooling) ---
+        # The `diamond` aligner is an external binary (Buchfink et al. 2021), not part
+        # of HelixLang. Its presence in the environment is informational only, so a
+        # machine without it (or with a different PATH) must not fail this benchmark.
+        # Only HelixLang's own wrapper API (Hit / SearchResult / run_diamond /
+        # build_database) is a core check.
         diamond_bin = shutil.which("diamond")
         if diamond_bin is None:
-            checks["diamond_available"] = False
+            checks["diamond_live"] = False
             details["diamond_available"] = False
             details["diamond_skip_reason"] = "diamond binary not found in PATH"
         else:
-            checks["diamond_available"] = True
             details["diamond_available"] = True
 
-            # --- Full diamond test (isolated temp dir, failure is non-fatal) ---
+            # --- Full diamond test (isolated temp dir, failure is recorded but non-fatal) ---
             try:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     query_fasta = Path(tmpdir) / "query.fasta"
@@ -84,7 +88,7 @@ def run() -> dict:
                     query_fasta.write_text(">q1\nMKTIIALSYIFCLVFA\n")
                     db_fasta.write_text(">s1\nMKTIIALSYIFCLVFA\n>s2\nAVLTPVKQKGFTEY\n")
 
-                    from helixlang.annotation.blast import build_database
+                    from helixlang.plugins.annotation.blast import build_database
                     build_database(str(db_fasta), str(db_dmnd), diamond_bin=diamond_bin)
                     dmnd_path = Path(str(db_dmnd) + ".dmnd")
                     assert dmnd_path.exists(), f"DIAMOND database not created at {dmnd_path}"
@@ -97,16 +101,17 @@ def run() -> dict:
                     )
                     assert isinstance(result, SearchResult), "run_diamond should return SearchResult"
                     assert len(result.hits) > 0, "run_diamond should return at least one hit"
-                    checks["diamond_run"] = True
+                    checks["diamond_live"] = True
                     details["diamond_hit_count"] = len(result.hits)
                     details["diamond_first_hit_subject"] = result.hits[0].subject_id
             except Exception as e:
-                checks["diamond_run"] = False
+                checks["diamond_live"] = False
                 details["diamond_error"] = str(e)
 
         elapsed = time.perf_counter() - t0
-        # Core checks must pass; diamond is informational
-        core_checks = {k: v for k, v in checks.items() if k != "diamond_run"}
+        # Core checks = HelixLang's own functionality; the external diamond binary is
+        # informational only and excluded from the pass/fail determination.
+        core_checks = {k: v for k, v in checks.items() if k != "diamond_live"}
         all_pass = all(core_checks.values())
         return {
             "id": "56_blast_search",

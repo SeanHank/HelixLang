@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.kinetics.sequence_predictor import (
+from helixlang.plugins.kinetics.sequence_predictor import (
     SequenceKcatPredictor,
     SequenceKmEstimator,
     _binding_site_score,

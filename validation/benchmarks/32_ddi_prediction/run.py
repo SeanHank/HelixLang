@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.human.ddi import (
+from helixlang.plugins.human.ddi import (
     DEFAULT_DDI_RULES,
     DDIModel,
     DDIRule,

@@ -84,16 +84,33 @@ This is not a toy. The same compiler produces bytecode that runs on a real VM, a
 pip install helixlang
 
 # Full stack
-pip install "helixlang[fast,web,bio,ml,human]"
+pip install "helixlang[grn,fba,pk,disease,annotation,gem,human,apps,web,ml]"
+# or shorthand: pip install "helixlang[all]"
 ```
+
+Optional extras map 1:1 to plugins/backends (doc/36 §3.4); install the ones you
+use.  HelixLang never silently degrades: if a high-fidelity path (FBA model,
+cobra, rdkit, ESM, native accel) is unavailable, the run fails with an
+actionable error naming the missing component and the `pip install
+helixlang[<extra>]` fix — unless you explicitly opt into reduced fidelity with a
+capability flag (`use NAME --low-fidelity` / `--approx-euler` / `--pure-python`).
 
 | Extra | Capability | Dependencies |
 |-------|-----------|--------------|
-| `fast` | vectorized mutation / reaction-diffusion speedup | numpy |
-| `web` | Flask visualization frontend | flask |
-| `bio` | physical DNA codec + full GEM import | biopython, reedsolo, cobra |
-| `ml` | ESM3 protein structure + ESM-2 kinetics | esm, torch |
+| `grn` | GRN kernels | numpy |
+| `fba` | flux-balance analysis + ODE | numpy, scipy |
+| `pk` | pharmacokinetics | numpy, scipy |
+| `disease` | disease models | numpy, scipy |
+| `annotation` | sequence annotation | numpy, biopython, reedsolo |
+| `gem` | genome-scale metabolic models | numpy, cobra |
 | `human` | SMILES parsing + drug simulation | rdkit |
+| `apps` | visualization + pipelines | numpy, matplotlib |
+| `web` | Flask visualization frontend | flask |
+| `ml` | ESM3 structure + ESM-2 kinetics | esm, torch |
+| `all` | everything above | — |
+| `fast` | legacy alias (vectorized speedup) | numpy |
+| `bio` | legacy alias (DNA codec + GEM) | biopython, reedsolo, cobra |
+| `native` | compiled C/Cython/PyO3 accel | cython, setuptools, build |
 | `dev` | tests + coverage (source checkouts) | pytest, scipy |
 
 ### 30-Second Demo
@@ -115,11 +132,11 @@ helixlang --serve
 ### As a Python Library
 
 ```python
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.compiler import Compiler
-from helixlang.vm import CellVM
-from helixlang.codon_table import get_table
+from helixlang import get_table
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.compiler import Compiler
+from helixlang.core.vm import CellVM
 
 src = "#gene name=hello\nATG GCT GGT TAA\n#end\n#config ticks=10\n"
 
@@ -147,11 +164,12 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 135 |
-| Test cases | 3,192 (81% coverage) |
+| Source modules | 168 |
+| Test cases | 3311 (81% coverage) |
 | Validation benchmarks | 67 (67 pass) |
 | `.helix` examples | 60 |
-| Documentation | 36 files, 25,000+ lines |
+| Documentation | 37 files, 25,000+ lines |
+| Runtime dependencies | **zero** (all optional) |
 | Runtime dependencies | **zero** (all optional) |
 
 ---
@@ -254,12 +272,12 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
                                │
                 ┌──────────────┼──────────────┐
                 ▼              ▼              ▼
-         ┌──────────┐  ┌──────────┐  ┌──────────────┐
-         │  CellVM  │  │  sim     │  │  ecosystem   │
-         │ (bytecode│  │ _runtime │  │  / human /   │
-         │  GRN,    │  │ (22      │  │  population  │
-         │  L-sys)  │  │ backends)│  │              │
-         └──────────┘  └──────────┘  └──────────────┘
+         ┌──────────┐  ┌──────────────┐  ┌──────────────┐
+         │ core.vm  │  │ sim_runtime  │  │  plugins.*   │
+         │ (CellVM) │  │  (22         │  │  ecosystem / │
+         │ bytecode │  │   backends)  │  │  human /     │
+         │ GRN,L-sys│  │              │  │  population  │
+         └──────────┘  └──────────────┘  └──────────────┘
 ```
 
 ---
@@ -280,7 +298,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 08 | Population doubling time | Analytical |
 | 09 | Reaction-diffusion pattern | Reference + Robustness |
 | 10 | Whole-cell division time | Analytical |
-| 11-67 | Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
+| 11-67| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 
 ### Scientific Validation Metrics
 
@@ -297,7 +315,7 @@ Every benchmark records: **Reference → Expected range → Helix result → Err
 
 ```bash
 # Run all benchmarks
-bash validation/run_all.sh
+python validation/run_all.py
 
 # Verify golden outputs
 python validation/goldens/verify_goldens.py
@@ -350,7 +368,7 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3,192 test cases**(all passing, 81% coverage)
+- **3311 test cases**(all passing, 81% coverage)
 - [67/67 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
@@ -369,7 +387,7 @@ What `release.py` does:
 
 | Step | Action |
 |------|--------|
-| 1 | Sync version to `pyproject.toml`, `__init__.py`, `server.py` |
+| 1 | Sync version to `pyproject.toml`, `core/version.py`, `server/app.py` |
 | 2 | Run quality gates in parallel (ruff, mypy, pytest -n auto, validation benchmarks, examples smoke test) |
 | 2b | Generate `validation/report.md` from fresh results |
 | 3 | Sync metrics (test count, validation pass rate, modules, examples) to README/CONTRIBUTING |

@@ -4,7 +4,11 @@ Verifies that provenance dicts are correctly built and attached to results.
 """
 from __future__ import annotations
 
-from helixlang.provenance import attach_provenance, build_provenance
+from helixlang.core.provenance import (
+    attach_provenance,
+    build_provenance,
+    provenance_from_registry,
+)
 
 
 class TestBuildProvenance:
@@ -83,3 +87,45 @@ class TestAttachProvenance:
         result = {"data": 1}
         attach_provenance(result, backend="test")
         assert result["data"] == 1
+
+
+class TestFidelityAndRegistryProvenance:
+    """doc/36 §3ξ.6: provenance records backend + fidelity (no 'default' runs)."""
+
+    def test_fidelity_absent_by_default(self) -> None:
+        """Default provenance has no fidelity key (keeps the golden stable)."""
+        prov = build_provenance(seed=42, backend="fba")
+        assert "fidelity" not in prov
+
+    def test_fidelity_stored_when_passed(self) -> None:
+        prov = build_provenance(seed=42, backend="fba", fidelity="reduced")
+        assert prov["fidelity"] == "reduced"
+
+    def test_provenance_from_registry_full_fidelity(self) -> None:
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.core.plugin_registry import Registry
+        from helixlang.core.use_stmt import apply_use_directives
+
+        r = Registry()
+        r.discover("grn")
+        prog = Parser(list(Lexer("#use grn\n").tokens())).parse()
+        apply_use_directives(prog.use_directives, r)
+
+        prov = provenance_from_registry(r, seed=7, parameters={"x": 1})
+        assert "fidelity" in prov
+        assert prov["fidelity"] == "full"
+        assert "grn" in prov["backend"]
+        assert "python" in prov["backend"]
+
+    def test_provenance_from_registry_reduced_fidelity(self) -> None:
+        from helixlang.core.plugin_registry import Registry
+
+        r = Registry()
+        r.discover("grn", "fba")
+        r.declare_capability("--low-fidelity")
+        prov = provenance_from_registry(r, seed=1)
+        assert prov["fidelity"] == "reduced"
+        # No active backends -> empty backend descriptor, but fidelity recorded.
+        assert prov["backend"] == ""
+

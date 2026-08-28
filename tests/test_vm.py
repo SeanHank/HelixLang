@@ -1,14 +1,20 @@
 """VM unit tests."""
 import pytest
 
-from helixlang.bytecode import Chunk
-from helixlang.cell import FEED_ENERGY_AMOUNT, INITIAL_CELL_ENERGY, MOVE_ENERGY_COST, Cell
-from helixlang.codon_table import STANDARD_TABLE, Op
-from helixlang.compiler import Compiler
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.vm import CellVM
+from helixlang.core.bytecode import Chunk
+from helixlang.core.codon_table import STANDARD_TABLE, Op
+from helixlang.core.compiler import Compiler
+from helixlang.core.errors import StackUnderflowError
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.core.vm import CellVM
+from helixlang.plugins.runtime.cell import (
+    FEED_ENERGY_AMOUNT,
+    INITIAL_CELL_ENERGY,
+    MOVE_ENERGY_COST,
+    Cell,
+)
 
 
 def run_src(src, ticks=10, table=STANDARD_TABLE):
@@ -98,7 +104,7 @@ def test_halt_terminates_orf():
 def test_table_switch_different_behavior():
     """The same DNA produces different bytecode under different tables."""
     src = "#gene name=m\nATG TGA GCT TAA\n#end"
-    from helixlang.codon_table import MITO_VERTEBRATE_TABLE
+    from helixlang.core.codon_table import MITO_VERTEBRATE_TABLE
     # Standard: TGA=HALT -> ORF length 2 (ATG TGA)
     stop_std = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}
     prog_std = Parser(list(Lexer(src).tokens()), stop_codons=stop_std).parse()
@@ -113,8 +119,8 @@ def test_table_switch_different_behavior():
 # Opcode coverage tests (construct Chunk directly + drive _dispatch)
 # ============================================================================
 
-from helixlang.ast_nodes import Config, Program  # noqa: E402
-from helixlang.reaction_diffusion import GrayScott  # noqa: E402
+from helixlang.core.ast_nodes import Config, Program  # noqa: E402
+from helixlang.plugins.runtime.reaction_diffusion import GrayScott  # noqa: E402
 
 
 def _make_vm(chunk: Chunk, program: Program | None = None,
@@ -130,7 +136,7 @@ def _make_vm(chunk: Chunk, program: Program | None = None,
         program.config.ops_per_tick = ops_per_tick
     vm = CellVM(chunk, program)
     # Manually push a frame: return_ip points to the end of the code so the frame is popped after execution
-    from helixlang.vm import Frame
+    from helixlang.core.vm import Frame
     vm.frames.append(Frame(return_ip=len(chunk.code), gene_name="test"))
     vm.ip = 0
     return vm
@@ -233,11 +239,11 @@ class TestStackOpcodes:
         assert vm.stack == []
 
     def test_pop_empty_stack_safe(self):
-        """POP on an empty stack should not crash."""
+        """POP on an empty stack is a stack underflow (doc/36 F11)."""
         c = Chunk()
         c.emit(Op.OP_POP)
-        vm = _run_chunk(c)
-        assert vm.stack == []
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
     def test_dup_duplicates_top(self):
         c = Chunk()
@@ -250,8 +256,8 @@ class TestStackOpcodes:
     def test_dup_empty_stack_safe(self):
         c = Chunk()
         c.emit(Op.OP_DUP)
-        vm = _run_chunk(c)
-        assert vm.stack == []
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
     def test_swap_swaps_top_two(self):
         c = Chunk()
@@ -264,13 +270,13 @@ class TestStackOpcodes:
         assert vm.stack == [2, 1]
 
     def test_swap_single_element_safe(self):
-        """SWAP should not crash when fewer than 2 elements are on the stack."""
+        """SWAP needs two operands; one element is a stack underflow (F11)."""
         c = Chunk()
         c.add_constant(1)
         c.emit(Op.OP_PUSH_CONST, 0)
         c.emit(Op.OP_SWAP)
-        vm = _run_chunk(c)
-        assert vm.stack == [1]
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
 
 class TestBuildOpcodes:
@@ -397,7 +403,7 @@ class TestBehaviorOpcodes:
         chunk.emit(Op.OP_FEED, 0)
         prog = Program()
         vm = CellVM(chunk, prog)
-        from helixlang.vm import Frame
+        from helixlang.core.vm import Frame
         vm.frames.append(Frame(return_ip=len(chunk), gene_name="t"))
         vm.ip = 0
         vm.cell = vm0
@@ -485,13 +491,13 @@ class TestArithmeticOpcodes:
         assert vm.stack == [0]
 
     def test_add_insufficient_operands_safe(self):
-        """ADD should not crash when fewer than 2 elements are on the stack."""
+        """ADD with <2 operands is a stack underflow (doc/36 F11)."""
         c = Chunk()
         c.add_constant(1)
         c.emit(Op.OP_PUSH_CONST, 0)
         c.emit(Op.OP_ADD)
-        vm = _run_chunk(c)
-        assert vm.stack == [1]  # unchanged
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
 
 class TestMemoryOpcodes:
@@ -513,11 +519,11 @@ class TestMemoryOpcodes:
         assert vm.stack == []
 
     def test_write_mem_empty_stack_safe(self):
-        """WRITE_MEM on an empty stack should not crash and should not write."""
+        """WRITE_MEM on an empty stack is a stack underflow (doc/36 F11)."""
         c = Chunk()
         c.emit(Op.OP_WRITE_MEM, 0)
-        vm = _run_chunk(c)
-        assert vm.cell.slots[0] is None
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
     def test_read_write_roundtrip(self):
         c = Chunk()
@@ -683,15 +689,16 @@ class TestJumpOpcodes:
         assert vm.stack == [999, 1]
 
     def test_jump_if_zero_empty_stack_pops_zero(self):
-        """JUMP_IF_ZERO on an empty stack pops 0 by default -> jump."""
+        """JUMP_IF_ZERO on an empty stack is a stack underflow (doc/36 F11):
+        it must raise StackUnderflowError, not silently pop 0 / skip."""
         c = Chunk()
         c.emit_u16(Op.OP_JUMP_IF_ZERO, 2)
         c.add_constant(999)
-        c.emit(Op.OP_PUSH_CONST, 0)  # skipped
+        c.emit(Op.OP_PUSH_CONST, 0)  # skipped at runtime
         c.add_constant(1)
         c.emit(Op.OP_PUSH_CONST, 1)
-        vm = _run_chunk(c)
-        assert vm.stack == [1]
+        with pytest.raises(StackUnderflowError):
+            _run_chunk(c)
 
     def test_call_gene_pushes_frame(self):
         """OP_CALL_GENE pushes a new frame and jumps to the u16 offset."""
@@ -815,7 +822,7 @@ class TestGrowLSystem:
 
     def test_grow_lsystem_appends_points(self):
         """GROW_LSYSTEM appends morphology points when an lsystem exists."""
-        from helixlang.lsystem import LSystem
+        from helixlang.plugins.runtime.lsystem import LSystem
         c = Chunk()
         c.emit(Op.OP_GROW_LSYSTEM, 0)
         prog = Program()
@@ -945,7 +952,7 @@ class TestVmRunIntegration:
 # ------------------------------------------------------------------ #
 def test_central_dogma_named_constants_match_legacy_literals():
     """Hardcoded literals were lifted to named constants with identical defaults."""
-    import helixlang.vm as vm
+    import helixlang.core.vm as vm
     assert vm.RIBO_SOME_DENSITY_PER_100NT == 0.1
     assert vm.PROTEIN_YIELD_PER_MRNA_AA == 0.1
     assert vm.PROTEIN_TO_GRN_GAIN == 0.01
@@ -955,7 +962,7 @@ def test_central_dogma_named_constants_match_legacy_literals():
 
 def test_op_feed_uses_named_constant(monkeypatch):
     """OP_FEED must feed the module constant, not a hardcoded literal."""
-    import helixlang.vm as vm
+    import helixlang.core.vm as vm
     monkeypatch.setattr(vm, "FEED_ENERGY_AMOUNT", 37.0)
     src = "#gene name=feeder\nATG GAA TAA\n#end\n#config ticks=1"
     vm_obj, trace = run_src(src, ticks=1)

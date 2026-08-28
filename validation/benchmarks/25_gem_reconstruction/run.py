@@ -13,14 +13,14 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        bridge_mod = importlib.import_module("helixlang.gem.bridge")
-        full_model_mod = importlib.import_module("helixlang.gem.full_model")
-        consensus_mod = importlib.import_module("helixlang.gem.consensus")
-        gapfill_mod = importlib.import_module("helixlang.gem.gapfill")
-        grn_mod = importlib.import_module("helixlang.gem.grn_inference")
-        biomass_mod = importlib.import_module("helixlang.gem.biomass")
-        org_mod = importlib.import_module("helixlang.gem.organism_registry")
-        sbml_mod = importlib.import_module("helixlang.gem.sbml_import")
+        bridge_mod = importlib.import_module("helixlang.plugins.gem.bridge")
+        full_model_mod = importlib.import_module("helixlang.plugins.gem.full_model")
+        consensus_mod = importlib.import_module("helixlang.plugins.gem.consensus")
+        gapfill_mod = importlib.import_module("helixlang.plugins.gem.gapfill")
+        grn_mod = importlib.import_module("helixlang.plugins.gem.grn_inference")
+        biomass_mod = importlib.import_module("helixlang.plugins.gem.biomass")
+        org_mod = importlib.import_module("helixlang.plugins.gem.organism_registry")
+        sbml_mod = importlib.import_module("helixlang.plugins.gem.sbml_import")
 
         checks["import_gem_submodules"] = True
 

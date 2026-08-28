@@ -22,8 +22,8 @@ def run() -> dict:
     try:
         import numpy as np
 
-        from helixlang.grn import GRN
-        from helixlang.vectorized import VectorizedGRN
+        from helixlang.plugins.runtime.grn import GRN
+        from helixlang.plugins.runtime.vectorized import VectorizedGRN
 
         # ── Test 1: Sigmoid-only network (4 genes, 6 cells, 50 ticks) ──────
         grn_sig = GRN()

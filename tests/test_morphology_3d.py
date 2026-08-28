@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from helixlang.morphology_3d import (
+from helixlang.plugins.runtime.morphology_3d import (
     PLANT_PRESETS,
     Line3D,
     LSystem3D,

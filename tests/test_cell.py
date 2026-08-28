@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.cell import (
+from helixlang.plugins.runtime.cell import (
     DEFAULT_MEMBRANE_PERMEABILITY,
     DIRECTIONS,
     FEED_ENERGY_AMOUNT,

@@ -18,7 +18,7 @@ Annotated `.helix` form of this workflow:
 
 Run with:  python examples/directed_evolution_workflow.py
 """
-from helixlang.apps.protein_evolution import (
+from helixlang.plugins.apps.protein_evolution import (
     GB1_WT,
     gbi_landscape,
     guided_directed_evolution,

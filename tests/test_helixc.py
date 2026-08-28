@@ -17,13 +17,13 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from helixlang import hxbc
-from helixlang.codon_table import get_table
-from helixlang.compiler import Compiler
-from helixlang.lexer import Lexer
-from helixlang.parser import Parser
-from helixlang.semantic import SemanticAnalyzer
-from helixlang.seq_utils import stop_codons_from_table
+from helixlang.core import hxbc
+from helixlang.core.codon_table import get_table
+from helixlang.core.compiler import Compiler
+from helixlang.core.lexer import Lexer
+from helixlang.core.parser import Parser
+from helixlang.core.semantic import SemanticAnalyzer
+from helixlang.plugins.runtime.seq_utils import stop_codons_from_table
 
 STANDARD = get_table("standard")
 
@@ -224,6 +224,19 @@ class TestSafety:
         data[4] = 99
         with pytest.raises(hxbc.BinaryVersionError):
             hxbc.loads_program(bytes(data))
+
+    def test_opcode_abi_mismatch_rejected(self, monkeypatch):
+        """doc/36 F9: a precompiled Chunk with a mismatched opcode ABI is a hard
+        ABIVersionError at load, never a wrong-result run."""
+        from helixlang.core.errors import ABIVersionError
+        prog, chunk = parse(CANONICAL_SRC)
+        data = hxbc.dumps_program(prog, chunk=chunk)
+        # An artifact written by a compiler with a *different* OPCODE_VERSION
+        # must be rejected by the running VM (here simulated by bumping the
+        # module's constant post-write).
+        monkeypatch.setattr(hxbc, "OPCODE_VERSION", 99)
+        with pytest.raises(ABIVersionError):
+            hxbc.loads_program(data)
 
     def test_bad_magic_rejected(self):
         prog, chunk = parse(CANONICAL_SRC)

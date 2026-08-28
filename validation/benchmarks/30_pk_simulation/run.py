@@ -6,9 +6,9 @@ import json
 import sys
 import time
 
-from helixlang.human.drug import IV, Drug, DrugMolecule
-from helixlang.human.pharmacokinetics import PBPKConfig, PBPKModel
-from helixlang.human.physiology import create_default_physiology
+from helixlang.plugins.human.drug import IV, Drug, DrugMolecule
+from helixlang.plugins.human.pharmacokinetics import PBPKConfig, PBPKModel
+from helixlang.plugins.human.physiology import create_default_physiology
 
 
 def run() -> dict:

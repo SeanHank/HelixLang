@@ -42,7 +42,7 @@ ATG GCT GCT GCT TAA
 # Note: the following is a Python API example of the toggle topology with inducer pulses
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.grn import GRN, decay_from_half_life_ticks
+# from helixlang.plugins.runtime.grn import GRN, decay_from_half_life_ticks  # 2026-08-28: plugin path
 #
 # g = GRN()
 # g.add_gene("lacI", threshold=0.5, initial_level=1.0,

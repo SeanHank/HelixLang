@@ -3,8 +3,8 @@ import math
 
 import pytest
 
-from helixlang.environment import Environment, EnvironmentConfig
-from helixlang.metabolism import (
+from helixlang.plugins.runtime.environment import Environment, EnvironmentConfig
+from helixlang.plugins.runtime.metabolism import (
     ECOLI_CORE_MODEL,
     DynamicFBAConfig,
     DynamicFluxBalance,

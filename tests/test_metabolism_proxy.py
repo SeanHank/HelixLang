@@ -20,7 +20,7 @@ from copy import deepcopy
 
 import pytest
 
-from helixlang.metabolism import (
+from helixlang.plugins.runtime.metabolism import (
     ECOLI_CORE_MODEL,
     DynamicFBAConfig,
     DynamicFluxBalance,
@@ -102,7 +102,7 @@ def test_proxy_defaults() -> None:
 
 
 def test_proxy_no_features_raises() -> None:
-    from helixlang.metabolism import MetabolicModel
+    from helixlang.plugins.runtime.metabolism import MetabolicModel
 
     empty = MetabolicModel()
     with pytest.raises(ValueError):

@@ -1,7 +1,8 @@
 # HelixLang VM Semantics Specification v1
 
-**Status**: Frozen as of HelixLang 2026.8.4  
-**Authoritative source**: `src/helixlang/vm.py`, `src/helixlang/cell.py`
+**Status**: Frozen as of HelixLang 2026.8.5  
+**2026-08-28 — path updated** for the doc/36 plugin re-layout (`src/helixlang/cell.py` -> `src/helixlang/plugins/runtime/cell.py`).  
+**Authoritative source**: `src/helixlang/core/vm.py`, `src/helixlang/plugins/runtime/cell.py`
 
 ---
 

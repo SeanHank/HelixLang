@@ -72,18 +72,25 @@ git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
 
 # Editable install with every optional extra
-pip install -e ".[dev,fast,web,bio,ml,viz,human]"
+pip install -e ".[dev,grn,fba,pk,disease,annotation,gem,human,apps,web,ml,viz,bio,native]"
 ```
 
 | Extra | What you get |
 |-------|--------------|
 | `dev` | pytest + pytest-cov + scipy (tests & coverage) |
-| `fast` | numpy vectorization (mutation batching, reaction-diffusion) |
+| `grn` | numpy GRN kernels |
+| `fba` | flux-balance analysis + ODE (numpy, scipy) |
+| `pk` | pharmacokinetics (numpy, scipy) |
+| `disease` | disease models (numpy, scipy) |
+| `annotation` | sequence annotation (numpy, biopython, reedsolo) |
+| `gem` | genome-scale metabolic models (numpy, cobra) |
+| `human` | rdkit (SMILES parsing, drug simulation) |
+| `apps` | visualization + pipelines (numpy, matplotlib) |
 | `web` | Flask visualization frontend (`helixlang --serve`) |
-| `bio` | biopython + reedsolo + cobra (DNA codec, GEM import) |
 | `ml` | ESM3 protein structure + ESM-2 kinetics |
 | `viz` | matplotlib (plotting) |
-| `human` | rdkit (SMILES parsing, drug simulation) |
+| `bio` | legacy alias: biopython + reedsolo + cobra (DNA codec, GEM import) |
+| `native` | compiled C/Cython/PyO3 accel (cython, setuptools, build) |
 
 The **core compiler/VM has zero hard dependencies** — the standard library
 only. Optional extras are genuinely optional; keep it that way.
@@ -91,12 +98,16 @@ only. Optional extras are genuinely optional; keep it that way.
 ## Where things live
 
 ```
-src/helixlang/     The package: lexer → parser → semantic → compiler → bytecode → vm
-                   135 source modules across compiler, runtime, human/, gem/, apps/
-tests/             pytest suite (108 files, 3,169 tests) + shared conftest fixtures
+src/helixlang/     The package: three layers —
+                     • core/        minimal dependency-free compiler core
+                       (lexer → parser → semantic → compiler → bytecode → vm)
+                     • plugins/     biological runtime + scientific apps (lazy)
+                     • sim_runtime/ server/ debugger/ interop/ web/ _accel/
+                    169 source modules across core, plugins, and support packages
+tests/             pytest suite (112 files, 3,315 tests) + shared conftest fixtures
 examples/          runnable .helix programs (must always compile & run)
-doc/               All technical documentation (36 files, kept in sync with code)
-validation/        45 reproducible benchmarks with SHA256-verified golden outputs
+doc/               All technical documentation (37 files, kept in sync with code)
+validation/        67 reproducible benchmarks with SHA256-verified golden outputs
 .github/workflows/ CI: lint / typecheck / test / examples-smoke
 ```
 
@@ -107,7 +118,7 @@ Key entry points for contributors:
 - `doc/02-language-spec.md` — the authoritative language spec.
 - `doc/08-api-reference.md` — per-module Python API reference.
 - `doc/34-architectural-improvement-plan.md` — architecture plan + validation suite.
-- `validation/` — 45 reproducible benchmarks with SHA256-verified golden outputs.
+- `validation/` — 67 reproducible benchmarks with SHA256-verified golden outputs.
 - `tests/conftest.py` — shared fixtures (Flask client, example sources, paths).
 
 ## Finding something to work on
@@ -197,7 +208,7 @@ mypy
 
 Strict: `disallow_untyped_defs`, `check_untyped_defs`, `warn_return_any`
 (all in `setup.cfg`). Annotate every function you touch. The Flask view module
-(`server.py`) is the single exempted module — keep it that way.
+(`server/app.py`) is the single exempted module — keep it that way.
 
 ### Examples smoke test
 
@@ -239,7 +250,7 @@ Version format: `YYYY.M.D` or `YYYY.M.D.N` (e.g. `2026.9.1`, `2026.9.1.2`).
 
 | Step | Action |
 |------|--------|
-| 1 | Validate version format, sync to `pyproject.toml`, `__init__.py`, `server.py` |
+| 1 | Validate version format, sync to `pyproject.toml`, `core/version.py`, `server/app.py` |
 | 2 | Run gates in parallel: ruff, mypy, pytest (pytest-xdist), validation benchmarks, examples smoke test |
 | 2b | Regenerate `validation/report.md` from fresh benchmark results |
 | 3 | Sync metrics (test count, pass rate, modules, docs, examples) to README.md, README_PYPI.md, CONTRIBUTING.md |
@@ -258,10 +269,18 @@ exits with a non-zero code and prints the failing gate's last 15 lines.
   meaning (energy costs, decay rates, diffusion coefficients, quorum
   thresholds, coupling gains) belongs in a named module-level constant. Values
   are **physical** (ATP molecules, µM, µm²/s); constants live in
-  `src/helixlang/units.py` or their owning module with a `#:` citation.
+  `src/helixlang/core/units.py` or their owning module with a `#:` citation.
 - **Stdlib-first core.** `src/helixlang` core must import only the standard
   library. numpy / biopython / flask are optional extras — gate imports
   (`try: import numpy as np`), never a hard dependency.
+- **No silent fallbacks (doc/36 §3ξ).** A high-fidelity path (FBA model, cobra,
+  rdkit, esm, native accel) must never silently degrade to a lower-fidelity
+  proxy. When the high-fidelity path is absent, raise the typed error
+  (`PluginDependencyError`/`ModelMissingError`/`NativeBackendError`) naming the
+  component + the `pip install helixlang[<extra>]` fix, and gate any genuine
+  reduced-fidelity mode behind an explicit capability flag (`--low-fidelity` /
+  `--approx-euler` / `--pure-python`) via `core.fidelity`. The
+  `find_silent_fallbacks` lint enforces this over `core/` + `plugins/`.
 - **Performance matters.** The suite includes benchmarks (`tests/test_benchmark.py`)
   and a documented performance report. Avoid O(n²) hot loops; vectorize the
   big-field paths (`OP_REACT`/`OP_DIFFUSE`, population metabolism).
@@ -288,7 +307,7 @@ Rules of thumb:
   not experimentally measured") rather than inventing one.
 - Constants are **directly physical** — no conversion functions or calibration
   registry. To add one, define the named constant in its owning module and add
-  the unit + citation to the docstring (see `src/helixlang/units.py` for the
+  the unit + citation to the docstring (see `src/helixlang/core/units.py` for the
   canonical example). The former `CALIBRATED` registry / `calibrated=` mode was
   removed; `doc/16-gameplay-units-upgrade.md` documents that history.
 - When you change a physical value, update its tests together (e.g. a

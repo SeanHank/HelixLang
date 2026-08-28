@@ -1,9 +1,9 @@
 {
   "id": "13_bytecode_vm_roundtrip",
   "status": "PASS",
-  "serialized_bytes": 941,
+  "serialized_bytes": 564,
   "trace_ticks": 1,
   "deterministic": true,
-  "final_energy": 1000000000.0,
-  "runtime_seconds": 0.2778464580187574
+  "final_energy": 1200000000.0,
+  "runtime_seconds": 0.08991266699740663
 }

@@ -18,14 +18,14 @@ from __future__ import annotations
 
 import random
 
-from helixlang.apps.spatial_evolution import (
+from helixlang.plugins.apps.spatial_evolution import (
     SpatialEvolution,
     SpatialEvolutionConfig,
     evaluate,
     phenotype_of,
     random_genome,
 )
-from helixlang.evolution import mutate
+from helixlang.plugins.runtime.evolution import mutate
 
 
 def test_phenotype_map_ranges() -> None:

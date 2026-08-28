@@ -38,7 +38,7 @@ def _load_cobra_model(model_id: str):
 
 def _benchmark_model(model_id: str, n_solves: int = 100) -> dict | None:
     """Benchmark COBRApy vs HelixLang for a single model."""
-    from helixlang.metabolism import FluxBalanceAnalysis, _from_cobra_model
+    from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
     _suppress_tqdm()
 
@@ -85,7 +85,7 @@ def run() -> dict:
     try:
         import cobra  # noqa: F401 — verify cobra is available
 
-        from helixlang.metabolism import _from_cobra_model  # noqa: F401
+        from helixlang.plugins.runtime.metabolism import _from_cobra_model  # noqa: F401
 
         _suppress_tqdm()
 

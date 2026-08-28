@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.protein_structure import (
+from helixlang.plugins.runtime.protein_structure import (
     _GOR_IV_DSSP_PAIR,
     _GOR_IV_DSSP_SINGLET,
     _GOR_PAIR_INFO,

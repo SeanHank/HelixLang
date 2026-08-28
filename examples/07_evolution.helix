@@ -22,7 +22,7 @@ ATG CTG CTG CTG CTG CTG CTG CTG CTG CTG TAA
 # Note: the following is a Python API example for the evolution simulation (equivalent to the #evolve annotation above)
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.evolution import EvolutionConfig, Population, mutate, dnds_ratio
+# from helixlang.plugins.runtime.evolution import EvolutionConfig, Population, mutate, dnds_ratio  # 2026-08-28: plugin path
 #
 # config = EvolutionConfig(
 #     mutation_rate=2.2e-10,         # E. coli base substitution rate

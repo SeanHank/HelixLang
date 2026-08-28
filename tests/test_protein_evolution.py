@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.protein_evolution import (
+from helixlang.plugins.apps.protein_evolution import (
     GB1_WT,
     DirectedEvolutionResult,
     gbi_landscape,
@@ -118,7 +118,7 @@ def test_spearman_rank_correlation_basic() -> None:
 def test_oracle_vs_landscape_spearman_public() -> None:
     import random
     rng = random.Random(5)
-    from helixlang.apps.protein_evolution import _single_mutant
+    from helixlang.plugins.apps.protein_evolution import _single_mutant
     variants = [_single_mutant(GB1_WT, rng) for _ in range(40)]
     rho = oracle_vs_landscape_spearman(variants)
     assert rho > 0.4

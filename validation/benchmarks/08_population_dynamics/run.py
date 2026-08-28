@@ -51,7 +51,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "08_population_dynamics"}
     try:
-        from helixlang.population import (
+        from helixlang.plugins.runtime.population import (
             CellPopulation,
             PopulationCell,
             PopulationConfig,

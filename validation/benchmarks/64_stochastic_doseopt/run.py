@@ -25,7 +25,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.human.stochastic_ode import (
+        from helixlang.plugins.human.stochastic_ode import (
             SDEConfig,
             SDEDistribution,
             SDETrajectory,
@@ -33,7 +33,7 @@ def run() -> dict:
             solve_sde,
             solve_sde_ensemble,
         )
-        from helixlang.human.dose_optimizer import (
+        from helixlang.plugins.human.dose_optimizer import (
             DoseOptimizer,
             DoseRecommendation,
             PKProfile,

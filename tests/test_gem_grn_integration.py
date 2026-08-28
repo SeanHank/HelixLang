@@ -12,8 +12,8 @@ import math
 
 import pytest
 
-from helixlang.gem.grn_inference import EvidenceLevel, RegulatoryEdge
-from helixlang.metabolism import (
+from helixlang.plugins.gem.grn_inference import EvidenceLevel, RegulatoryEdge
+from helixlang.plugins.runtime.metabolism import (
     ECOLI_CORE_MODEL,
     MetabolicModel,
     Reaction,
@@ -69,7 +69,7 @@ def _edge(
 class TestG7RegulatoryBounds:
 
     def test_repression_scales_upper_bound(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         gpr = {"pfkA": ["PFK"]}
         edges = [_edge(reg_type="repression", confidence=1.0)]
@@ -78,7 +78,7 @@ class TestG7RegulatoryBounds:
         assert model.reactions["PFK"].upper_bound == pytest.approx(900.0)
 
     def test_repression_scales_negative_lower_bound(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         model.reactions["PGI"].lower_bound = -500.0
         gpr = {"pgi": ["PGI"]}
@@ -89,7 +89,7 @@ class TestG7RegulatoryBounds:
         assert model.reactions["PGI"].lower_bound == pytest.approx(-450.0)
 
     def test_activation_preserves_existing_upper(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         model.reactions["PFK"].upper_bound = 500.0
         gpr = {"pfkA": ["PFK"]}
@@ -99,7 +99,7 @@ class TestG7RegulatoryBounds:
         assert model.reactions["PFK"].upper_bound == 500.0
 
     def test_target_reaction_overrides_gpr(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         gpr = {"some_gene": ["PGI"]}
         edges = [_edge(target="some_gene", target_reaction="PFK",
@@ -109,7 +109,7 @@ class TestG7RegulatoryBounds:
         assert model.reactions["PFK"].upper_bound == pytest.approx(500.0)
 
     def test_unknown_reaction_skipped(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         gpr = {"unknown_gene": ["NONEXISTENT"]}
         edges = [_edge(target="unknown_gene")]
@@ -117,13 +117,13 @@ class TestG7RegulatoryBounds:
         assert n == 0
 
     def test_empty_edges_returns_zero(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         n = apply_regulatory_bounds(model, [], {})
         assert n == 0
 
     def test_multiple_edges_modify_multiple_reactions(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = _toy_model()
         gpr = {"pgi": ["PGI"], "pfkA": ["PFK"]}
         edges = [
@@ -212,7 +212,7 @@ class TestG8EnzymeCorrection:
         (is_fba=True), (b) the function returns the correct 3-tuple, and
         (c) g_c is non-negative.
         """
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             Ecosystem,
             EcosystemConfig,
             PatchConfig,
@@ -240,7 +240,7 @@ class TestG8EnzymeCorrection:
         assert g_c >= 0.0
 
     def test_suboptimal_temp_reduces_internal_bounds(self):
-        from helixlang.metabolism import MetabolicModel, Reaction, enzyme_correction
+        from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction, enzyme_correction
         model = MetabolicModel()
         model.add_reaction(Reaction(
             id="PGI", name="PGI",
@@ -304,7 +304,7 @@ class TestG9DensityScaling:
         assert s == pytest.approx(0.1)
 
     def test_last_fba_fluxes_stored(self):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             Ecosystem,
             EcosystemConfig,
             PatchConfig,
@@ -332,7 +332,7 @@ class TestG9DensityScaling:
         assert len(sp.last_fba_fluxes) > 0
 
     def test_high_density_reduces_growth(self):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             Ecosystem,
             EcosystemConfig,
             PatchConfig,
@@ -368,9 +368,9 @@ class TestG9DensityScaling:
 class TestG10EvolutionFBA:
 
     def _make_vm(self):
-        from helixlang.ast_nodes import Program
-        from helixlang.bytecode import Chunk
-        from helixlang.vm import CellVM
+        from helixlang.core.ast_nodes import Program
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.vm import CellVM
         return CellVM(Chunk(), Program())
 
     def test_gem_dirty_flag_default(self):
@@ -464,7 +464,7 @@ class TestG10EvolutionFBA:
 class TestG7EcosystemWiring:
 
     def test_growth_rate_gem_applies_regulatory_bounds(self):
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             Ecosystem,
             EcosystemConfig,
             PatchConfig,
@@ -495,13 +495,13 @@ class TestG7EcosystemWiring:
         assert g_c >= 0.0
 
     def test_species_has_grn_fields(self):
-        from helixlang.apps.ecosystem import Species
+        from helixlang.plugins.apps.ecosystem import Species
         sp = Species(name="test")
         assert sp.grn_edges == []
         assert sp.grn_gpr_map == {}
 
     def test_regulatory_bounds_reduce_exchange_upper(self):
-        from helixlang.gem.bridge import apply_regulatory_bounds
+        from helixlang.plugins.gem.bridge import apply_regulatory_bounds
         model = copy.deepcopy(ECOLI_CORE_MODEL)
         edges = [_edge(target="pfkA", reg_type="repression",
                        confidence=1.0, target_reaction="PFK")]

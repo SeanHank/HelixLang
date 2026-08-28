@@ -35,14 +35,14 @@ This document fixes all six defects and adds comprehensive E2E test coverage.
 **Before:**
 ```python
 if self.ddi_model is None and len(self.drugs) > 1:
-    from helixlang.human.ddi import DDIModel as DDI
+    from helixlang.plugins.human.ddi import DDIModel as DDI
     self.ddi_model = DDI()
 ```
 
 **After:**
 ```python
 if self.ddi_model is None and len(self.drugs) > 1:
-    from helixlang.human.ddi import create_default_ddi_model
+    from helixlang.plugins.human.ddi import create_default_ddi_model
     self.ddi_model = create_default_ddi_model()
 ```
 
@@ -638,7 +638,7 @@ Parser additions:
 |------|--------|
 | `src/helixlang/human/disease_ode_models.py` | `CancerODE`: replace 3 scalars with `pathway_effects` dict; add `TumorClone`, `TumorHeterogeneity`, `TumorBiopsy` dataclasses; add `select_targeted_therapy()` |
 | `src/helixlang/human/virtual_patient.py` | VP wiring: use `TARGET_TO_PATHWAY` mapping instead of substring matching; wire `TumorHeterogeneity.step()` into CancerODE loop; populate `tumor_clone_fractions` and `resistance_mutations` in result |
-| `src/helixlang/parser.py` | Add `#tumor_biopsy` parser rule → `sim_extensions["tumor_biopsy"]` |
-| `src/helixlang/sim_runtime.py` | `_build_tumor_biopsy_from_helix()`: read biopsy fields; pass to `VirtualPatientConfig`; auto-create `TumorHeterogeneity` from biopsy mutations |
+| `src/helixlang/core/parser.py` | Add `#tumor_biopsy` parser rule → `sim_extensions["tumor_biopsy"]` |
+| `src/helixlang/sim_runtime/` | `_build_tumor_biopsy_from_helix()`: read biopsy fields; pass to `VirtualPatientConfig`; auto-create `TumorHeterogeneity` from biopsy mutations |
 | `tests/test_doc33_cancer.py` | E2E tests: pathway-specific inhibition, clonal dynamics, resistance emergence, biomarker selection |
 | `doc/33-100-percent-completion.md` | This section (Phase 4) |

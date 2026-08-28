@@ -11,7 +11,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "23b_stochastic"}
     try:
-        from helixlang.stochastic import (
+        from helixlang.plugins.runtime.stochastic import (
             TelegraphPromoter,
             gillespie_telegraph,
             telegraph_fano_factor,

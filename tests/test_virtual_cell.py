@@ -17,20 +17,20 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.grn import GRN
-from helixlang.metabolism import (
+from helixlang.plugins.runtime.grn import GRN
+from helixlang.plugins.runtime.metabolism import (
     ECOLI_CORE_GENE_REACTIONS,
     ECOLI_CORE_KCAT,
     ECOLI_CORE_MODEL,
     EnzymeCapacity,
     FluxBalanceAnalysis,
 )
-from helixlang.population import (
+from helixlang.plugins.runtime.population import (
     CellPopulation,
     PopulationCell,
     PopulationConfig,
 )
-from helixlang.virtual_cell import (
+from helixlang.plugins.runtime.virtual_cell import (
     CellCyclePhase,
     RepliconSpec,
     VirtualCell,
@@ -82,7 +82,7 @@ def _vc(**cfg_kw) -> VirtualCell:
 def test_encode_gene_round_trips() -> None:
     protein = "MAQILARVFFDDV"
     dna = encode_gene(protein)
-    from helixlang.central_dogma import transcribe, translate
+    from helixlang.plugins.runtime.central_dogma import transcribe, translate
 
     tr = transcribe(dna, promoter_strength=1.0)
     result = translate(tr)
@@ -494,7 +494,7 @@ def test_calibration_prediction_closed_loop() -> None:
     # Challenge 2025): fit the hidden biomass_to_atp coupling constant on
     # a calibration condition, then predict an independent condition and
     # verify the prediction matches a ground-truth cell run.
-    from helixlang.apps.virtual_cell_bench import (
+    from helixlang.plugins.apps.virtual_cell_bench import (
         VirtualCellBench,
         run_virtual_cell_benchmark,
     )
@@ -523,7 +523,7 @@ def test_calibration_prediction_closed_loop() -> None:
 def test_whole_cell_benchmark_four_gates() -> None:
     # Phase-5 exit gate (doc §8.3-8.4): one call returns the four scores
     # and passes only when every gate holds.
-    from helixlang.apps.virtual_cell_bench import run_whole_cell_benchmark
+    from helixlang.plugins.apps.virtual_cell_bench import run_whole_cell_benchmark
 
     result = run_whole_cell_benchmark()
     assert set(result["passed"]) == {

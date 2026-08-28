@@ -22,7 +22,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.human.qsp_binding import (
+        from helixlang.plugins.human.qsp_binding import (
             CompetitiveBinding,
             MassActionBinding,
             QSPBindingModel,

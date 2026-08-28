@@ -4,7 +4,8 @@ import math
 
 import pytest
 
-from helixlang.environment import (
+from helixlang.core.units import ATP_PER_GLUCOSE
+from helixlang.plugins.runtime.environment import (
     BULK_GLUCOSE_MM,
     BULK_OXYGEN_MM,
     CROMICS_CRITICAL_VOLUME_FRACTION,
@@ -30,7 +31,6 @@ from helixlang.environment import (
     photosynthesis_rate,
     q10_rate_modifier,
 )
-from helixlang.units import ATP_PER_GLUCOSE
 
 
 # -- Monod / Michaelis-Menten kinetics --

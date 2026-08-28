@@ -25,7 +25,7 @@ import pytest
 
 pytest.importorskip("Bio")
 
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     LAC_PROMOTER,
     RESTRICTION_SITES,
     RRNB_T1_TERMINATOR,

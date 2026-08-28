@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tempfile
 
-from helixlang.apps.full_pipeline import (
+from helixlang.plugins.apps.full_pipeline import (
     PipelineConfig,
     PipelineResult,
     _is_nucleotide_sequence,

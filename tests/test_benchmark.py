@@ -32,10 +32,10 @@ import pytest
 # CI does not install pytest-benchmark -> the whole module is skipped during collection
 pytest.importorskip("pytest_benchmark")
 
-from helixlang.crispr import GuideRNA, PAMIndex, find_pam_sites
-from helixlang.evolution import Individual, mutate_batch
-from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
-from helixlang.protein_structure import predict_secondary_gor
+from helixlang.plugins.runtime.crispr import GuideRNA, PAMIndex, find_pam_sites
+from helixlang.plugins.runtime.evolution import Individual, mutate_batch
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+from helixlang.plugins.runtime.protein_structure import predict_secondary_gor
 
 # ============================================================================
 # FBA solve hotspot

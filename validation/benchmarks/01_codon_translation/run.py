@@ -6,7 +6,7 @@ import json
 import sys
 import time
 
-from helixlang.codon_table import STANDARD_TABLE, Op
+from helixlang.core.codon_table import STANDARD_TABLE, Op
 
 ALL_CODONS = [
     "".join(b) for b in [
@@ -39,10 +39,10 @@ def run() -> dict:
         stop_codons = [c for c in ALL_CODONS if STANDARD_TABLE.get(c) == Op.OP_HALT]
 
         # --- Part B: VM translation of known sequence ---
-        from helixlang.compiler import Compiler
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
-        from helixlang.vm import CellVM
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.core.vm import CellVM
 
         stop_set = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}
         toks = list(Lexer(SOURCE).tokens())

@@ -12,7 +12,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.apps.dna_storage import DNAStorage
+        from helixlang.plugins.apps.dna_storage import DNAStorage
 
         checks["import_dna_storage_module"] = True
 

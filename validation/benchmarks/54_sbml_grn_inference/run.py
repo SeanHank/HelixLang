@@ -62,8 +62,8 @@ def run() -> dict:
     details: dict[str, object] = {}
     reference = "Keating SM et al. 2020, Nat Biotechnol 38:534-543"
     try:
-        from helixlang.gem.sbml_import import load_sbml_model
-        from helixlang.gem.grn_inference import (
+        from helixlang.plugins.gem.sbml_import import load_sbml_model
+        from helixlang.plugins.gem.grn_inference import (
             GRNInferenceResult,
             RegulatoryEdge,
             EvidenceLevel,
@@ -78,7 +78,7 @@ def run() -> dict:
             tmp_path = f.name
 
         model = load_sbml_model(tmp_path)
-        from helixlang.metabolism import MetabolicModel
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
         assert isinstance(model, MetabolicModel), (
             f"Expected MetabolicModel, got {type(model)}"
         )

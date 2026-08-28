@@ -1,7 +1,7 @@
 """Tests for doc/30-31 new modules: endocrine, QSP binding, immune, organ crosstalk, disease ODEs."""
 import pytest
 
-from helixlang.human.disease_ode_models import (
+from helixlang.plugins.human.disease_ode_models import (
     AutoimmuneRAODE,
     CancerODE,
     CardiovascularODE,
@@ -12,23 +12,23 @@ from helixlang.human.disease_ode_models import (
     RenalODE,
     create_disease_model,
 )
-from helixlang.human.endocrine import (
+from helixlang.plugins.human.endocrine import (
     HPAAxis,
     HPTAxis,
     InsulinGlucoseAxis,
     create_endocrine,
 )
-from helixlang.human.immune import (
+from helixlang.plugins.human.immune import (
     CRPDriver,
     CytokinePool,
     ImmuneCellPopulation,
     create_immune_model,
 )
-from helixlang.human.organ_crosstalk import (
+from helixlang.plugins.human.organ_crosstalk import (
     apply_crosstalk,
     create_crosstalk,
 )
-from helixlang.human.qsp_binding import (
+from helixlang.plugins.human.qsp_binding import (
     CompetitiveBinding,
     MassActionBinding,
     QSPBindingSystem,
@@ -498,24 +498,24 @@ class TestMTXToxicity:
     """Validate methotrexate entries in all three toxicity dictionaries."""
 
     def test_methotrexate_hepatotoxic(self):
-        from helixlang.human.clinical_output import _HEPATOTOXIC_DRUGS
+        from helixlang.plugins.human.clinical_output import _HEPATOTOXIC_DRUGS
         assert "methotrexate" in _HEPATOTOXIC_DRUGS
         alt_rate, ast_rate = _HEPATOTOXIC_DRUGS["methotrexate"]
         assert alt_rate > 0
         assert ast_rate > 0
 
     def test_methotrexate_nephrotoxic(self):
-        from helixlang.human.clinical_output import _NEPHROTOXIC_DRUGS
+        from helixlang.plugins.human.clinical_output import _NEPHROTOXIC_DRUGS
         assert "methotrexate" in _NEPHROTOXIC_DRUGS
         assert _NEPHROTOXIC_DRUGS["methotrexate"] > 0
 
     def test_methotrexate_myelosuppressive(self):
-        from helixlang.human.clinical_output import _MYELOSUPPRESSIVE_DRUGS
+        from helixlang.plugins.human.clinical_output import _MYELOSUPPRESSIVE_DRUGS
         assert "methotrexate" in _MYELOSUPPRESSIVE_DRUGS
         assert _MYELOSUPPRESSIVE_DRUGS["methotrexate"] > 0
 
     def _make_lab_model(self):
-        from helixlang.human.clinical_output import ClinicalLabModel, ClinicalLabs
+        from helixlang.plugins.human.clinical_output import ClinicalLabModel, ClinicalLabs
         labs = ClinicalLabs()
         labs.age_years = 50
         labs.sex = "male"
@@ -547,7 +547,7 @@ class TestImmuneModelReset:
     """Validate that cortisol suppression does not compound across ticks."""
 
     def test_production_rates_not_mutated(self):
-        from helixlang.human.immune import InnateImmuneModel
+        from helixlang.plugins.human.immune import InnateImmuneModel
         model = InnateImmuneModel()
         model.cortisol_suppression = 0.5
         # Record rate after first step (base restored + suppressed)
@@ -561,7 +561,7 @@ class TestImmuneModelReset:
         assert model.cytokines.il6_production_rate == pytest.approx(il6_after_first)
 
     def test_cortisol_suppression_dampens_cytokines(self):
-        from helixlang.human.immune import InnateImmuneModel
+        from helixlang.plugins.human.immune import InnateImmuneModel
         model_suppressed = InnateImmuneModel()
         model_suppressed.cortisol_suppression = 0.8
         model_suppressed.infection_severity = 1.0
@@ -576,7 +576,7 @@ class TestImmuneModelReset:
         assert il6_suppressed < il6_normal
 
     def test_autoimmune_drives_cytokines(self):
-        from helixlang.human.immune import InnateImmuneModel
+        from helixlang.plugins.human.immune import InnateImmuneModel
         model = InnateImmuneModel()
         model.autoimmune_activation = 0.8
         for _ in range(24):
@@ -588,7 +588,7 @@ class TestCircadianCortisol:
     """Validate circadian cortisol rhythm in HPAAxis."""
 
     def test_cortisol_oscillates(self):
-        from helixlang.human.endocrine import HPAAxis
+        from helixlang.plugins.human.endocrine import HPAAxis
         axis = HPAAxis()
         # Run to steady state
         for h in range(48):
@@ -601,7 +601,7 @@ class TestCircadianCortisol:
         assert max(values) > min(values) * 1.1  # at least 10% variation
 
     def test_cortisol_without_clock_advances(self):
-        from helixlang.human.endocrine import HPAAxis
+        from helixlang.plugins.human.endocrine import HPAAxis
         axis = HPAAxis()
         c0 = axis.cortisol_ug_dl
         for _ in range(24):
@@ -609,7 +609,7 @@ class TestCircadianCortisol:
         assert axis.cortisol_ug_dl != c0  # dynamics are active
 
     def test_no_clock_hour_still_changes_cortisol(self):
-        from helixlang.human.endocrine import HPAAxis
+        from helixlang.plugins.human.endocrine import HPAAxis
         axis = HPAAxis()
         # With explicit clock, cortisol oscillates
         values_with_clock = []

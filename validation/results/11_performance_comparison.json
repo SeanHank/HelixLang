@@ -3,20 +3,20 @@
   "status": "PASS",
   "ecoli_core": {
     "n_reactions": 95,
-    "cobrapy_100_solves_s": 0.038,
-    "helixlang_100_solves_s": 1.8839,
-    "speedup_ratio": 0.0202,
-    "cobrapy_avg_ms": 0.3796,
-    "helixlang_avg_ms": 18.8388
+    "cobrapy_100_solves_s": 0.0343,
+    "helixlang_100_solves_s": 2.0491,
+    "speedup_ratio": 0.0167,
+    "cobrapy_avg_ms": 0.3431,
+    "helixlang_avg_ms": 20.4914
   },
   "iml1515": {
     "n_reactions": 2712,
-    "cobrapy_100_solves_s": 1.1281,
-    "helixlang_100_solves_s": 18.8906,
-    "speedup_ratio": 0.0597,
-    "cobrapy_avg_ms": 11.2807,
-    "helixlang_avg_ms": 188.9063
+    "cobrapy_100_solves_s": 2.1684,
+    "helixlang_100_solves_s": 25.2484,
+    "speedup_ratio": 0.0859,
+    "cobrapy_avg_ms": 21.6841,
+    "helixlang_avg_ms": 252.4838
   },
   "note": "Speedup > 1 means HelixLang is faster",
-  "runtime_seconds": 28.289795499993488
+  "runtime_seconds": 40.11129595799139
 }

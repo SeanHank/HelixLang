@@ -9,15 +9,15 @@ import pytest
 cobra = pytest.importorskip("cobra", reason="requires cobra package")
 scipy = pytest.importorskip("scipy", reason="requires scipy package")
 
-from helixlang.gem.bridge import build_functional_model_full  # noqa: E402
-from helixlang.gem.full_model import FullModelAdapter  # noqa: E402
-from helixlang.gem.sbml_import import (  # noqa: E402
+from helixlang.plugins.gem.bridge import build_functional_model_full  # noqa: E402
+from helixlang.plugins.gem.full_model import FullModelAdapter  # noqa: E402
+from helixlang.plugins.gem.sbml_import import (  # noqa: E402
     detect_compartments,
     detect_exchange_reactions,
     get_model_info,
     load_sbml_model,
 )
-from helixlang.metabolism import _HAS_SCIPY, simplex, solve_lp  # noqa: E402
+from helixlang.plugins.runtime.metabolism import _HAS_SCIPY, simplex, solve_lp  # noqa: E402
 
 _CACHE_DIR = Path.home() / ".helixlang" / "gem_cache"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)

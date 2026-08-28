@@ -13,7 +13,7 @@ def run() -> dict:
     details: dict[str, object] = {}
     timing: dict[str, dict[str, float]] = {}
     try:
-        from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+        from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
         checks["import_metabolism_module"] = True
 

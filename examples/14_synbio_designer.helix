@@ -9,7 +9,7 @@
 # This .helix file provides the DNA context of the cassette's GOI (gene of interest);
 # the cassette auto-design (promoter/RBS/terminator selection, codon optimization,
 # restriction-site avoidance, GC targeting, validation) runs through the #sim
-# extension point (kind=synbio_design) using helixlang.apps.synbio_designer.
+# extension point (kind=synbio_design) using helixlang.plugins.apps.synbio_designer.
 
 #promoter name=p_inducible strength=0.6
 

@@ -42,7 +42,7 @@ def run() -> dict:
 
         import cobra
 
-        from helixlang.metabolism import FluxBalanceAnalysis, _from_cobra_model
+        from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
         # Download iJN678 from BiGG
         old_stdout = sys.stdout

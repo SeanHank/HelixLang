@@ -12,7 +12,7 @@ import random
 
 import pytest
 
-from helixlang.apps.ecosystem import (
+from helixlang.plugins.apps.ecosystem import (
     CenturyPools,
     CommunityFBA,
     Ecosystem,
@@ -332,7 +332,7 @@ def test_sealed_microcosm_initial_carbon_pool():
 def test_substrate_carbon_per_mol_auto_default():
     """A SubstrateConfig without an explicit carbon_per_mol uses the
     per-substrate chemical default (glucose=6, acetate=2, co2=1)."""
-    from helixlang.apps.ecosystem import default_carbon_per_mol
+    from helixlang.plugins.apps.ecosystem import default_carbon_per_mol
     assert SubstrateConfig(initial_mm=0.0).carbon_per_mol == 0
     sp, pc = _glucose_consumer_patch(anoxic=True)
     pc.substrates["acetate"] = SubstrateConfig(initial_mm=10.0)
@@ -588,7 +588,7 @@ def test_ecosystem_requires_species_and_patches():
 
 def _gem_species() -> Species:
     """Species backed by ECOLI_CORE_MODEL for GEM-driven tests."""
-    from helixlang.metabolism import ECOLI_CORE_MODEL
+    from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL
     sp = Species(
         name="ecoli_gem",
         consumption={"glucose": (0.02, 0.1)},
@@ -601,7 +601,7 @@ def _gem_species() -> Species:
 
 def test_gem_to_species_extracts_parameters():
     """gem_to_species extracts vmax, ks, yield_c from a pipeline result."""
-    from helixlang.apps.ecosystem import gem_to_species
+    from helixlang.plugins.apps.ecosystem import gem_to_species
 
     class _FakeResult:
         fba_fluxes = {"EX_glc_e": -10.0, "EX_ac_e": 2.0, "ATPM": 8.0}
@@ -620,7 +620,7 @@ def test_gem_to_species_extracts_parameters():
 
 def test_gem_to_species_fallback_defaults():
     """gem_to_species returns safe defaults when pipeline data is sparse."""
-    from helixlang.apps.ecosystem import gem_to_species
+    from helixlang.plugins.apps.ecosystem import gem_to_species
 
     class _EmptyResult:
         fba_fluxes = {}

@@ -1,14 +1,14 @@
 """Tests for clinical lab values and vital-signs dynamics (doc/28)."""
 from __future__ import annotations
 
-from helixlang.human.clinical_output import (
+from helixlang.plugins.human.clinical_output import (
     ClinicalLabModel,
     ClinicalLabs,
     VitalSigns,
     VitalsModel,
     _ckd_epi_2021,
 )
-from helixlang.human.physiology import create_default_physiology
+from helixlang.plugins.human.physiology import create_default_physiology
 
 
 class TestClinicalLabs:

@@ -27,7 +27,7 @@ ATG GCT GCT GCT GCT GCT GCT TAA
 # Note: the following is a Python API example for epigenetics (equivalent to the #methylate/#histone annotations above)
 # --- for use in scripts (not .helix annotations) ---
 #
-# from helixlang.epigenetics import (
+# from helixlang.plugins.runtime.epigenetics import (  # 2026-08-28: plugin path
 #     find_cpg_sites, find_dam_sites, find_cpg_islands,
 #     methylate_dna, add_histone_marks,
 #     calculate_accessibility, calculate_expression_modifier,

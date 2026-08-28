@@ -13,7 +13,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "60_proteome_binding"}
     try:
-        from helixlang.human.proteome_binding import (
+        from helixlang.plugins.human.proteome_binding import (
             ProteomeBindingCascade,
             ProteomeBindingProfile,
             ProteomeDDIPrediction,

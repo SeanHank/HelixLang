@@ -12,7 +12,7 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.apps.ecosystem import (
+        from helixlang.plugins.apps.ecosystem import (
             lotka_volterra_conserved,
             lotka_volterra_step,
         )

@@ -14,11 +14,11 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "02_lac_operon"}
     try:
-        from helixlang.codon_table import STANDARD_TABLE, Op
-        from helixlang.compiler import Compiler
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
-        from helixlang.vm import CellVM
+        from helixlang.core.codon_table import STANDARD_TABLE, Op
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.core.vm import CellVM
 
         source = (EXAMPLES / "02_lac_operon.helix").read_text()
         stop = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}

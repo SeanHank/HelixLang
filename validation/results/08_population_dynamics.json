@@ -135,5 +135,5 @@
     ],
     "note": "Model maps 1 tick = 1 min; TICKS_PER_DIVISION=20 matches 20 min doubling in rich media"
   },
-  "runtime_seconds": 0.35383908299263567
+  "runtime_seconds": 0.3398499580216594
 }

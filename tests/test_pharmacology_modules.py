@@ -10,53 +10,57 @@ import math
 
 import pytest
 
-from helixlang.human.bayesian_denoiser import BayesianDenoiser, DenoiseResult, multi_assay_average
-from helixlang.human.calibration_cascade import CalibrationCascade, CascadeResult
-from helixlang.human.dose_optimizer import BayesianEstimate, DoseOptimizer, PKProfile
-from helixlang.human.emergent_complexity import (
+from helixlang.plugins.human.bayesian_denoiser import (
+    BayesianDenoiser,
+    DenoiseResult,
+    multi_assay_average,
+)
+from helixlang.plugins.human.calibration_cascade import CalibrationCascade, CascadeResult
+from helixlang.plugins.human.dose_optimizer import BayesianEstimate, DoseOptimizer, PKProfile
+from helixlang.plugins.human.emergent_complexity import (
     EmergentComplexityModel,
     EpigeneticModulation,
     LiverGutFeedback,
     StressImmuneEndocrine,
 )
-from helixlang.human.mechanistic_ddi import (
+from helixlang.plugins.human.mechanistic_ddi import (
     DDIPrediction,
     DrugMechanism,
     EnzymeInhibitionLibrary,
     EnzymeProfile,
     MechanisticDDIPredictor,
 )
-from helixlang.human.microbiome import (
+from helixlang.plugins.human.microbiome import (
     MicrobiomeCompartment,
     MicrobiomeDrugEffect,
 )
-from helixlang.human.molecular_toxicity import (
+from helixlang.plugins.human.molecular_toxicity import (
     ActivityProfile,
     MolecularToxicityPredictor,
     ToxicityProfile,
     smiles_autofill,
 )
-from helixlang.human.pharmacogenomic_ae import (
+from helixlang.plugins.human.pharmacogenomic_ae import (
     TOXIC_METABOLITES,
     AEOrgan,
     AERisk,
     GenotypeAEPredictor,
     ToxicMetaboliteAccumulator,
 )
-from helixlang.human.physiology_constraints import (
+from helixlang.plugins.human.physiology_constraints import (
     MassBalanceChecker,
     PhysiologyConstraints,
     ThermodynamicChecker,
 )
-from helixlang.human.proteome_binding import (
+from helixlang.plugins.human.proteome_binding import (
     ProteomeBindingCascade,
     ProteomeBindingProfile,
     ProteomeDDIPrediction,
 )
-from helixlang.human.reduced_order_organ import (
+from helixlang.plugins.human.reduced_order_organ import (
     PODModeGenerator,
 )
-from helixlang.human.stochastic_ode import (
+from helixlang.plugins.human.stochastic_ode import (
     SDEConfig,
     SDEDistribution,
     SDETrajectory,
@@ -64,13 +68,13 @@ from helixlang.human.stochastic_ode import (
     solve_sde,
     solve_sde_ensemble,
 )
-from helixlang.human.tissue_gem import (
+from helixlang.plugins.human.tissue_gem import (
     TISSUE_REACTION_SETS,
     GEMDecomposer,
     OrganCouplingResult,
     OrganGEMCoupler,
 )
-from helixlang.human.virtual_4dvar import AssimilationResult, Observation, Virtual4DVar
+from helixlang.plugins.human.virtual_4dvar import AssimilationResult, Observation, Virtual4DVar
 
 # =============================================================================
 # Molecular Toxicity Tests
@@ -1031,30 +1035,30 @@ class TestExpandedGenotype:
     """Tests for expanded genotype features (transporters, non-CYP enzymes)."""
 
     def test_genotype_has_transporters(self) -> None:
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
         g = create_default_genotype()
         assert hasattr(g, "transporter_status")
         assert len(g.transporter_status) > 0
 
     def test_genotype_has_non_cyp_enzymes(self) -> None:
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
         g = create_default_genotype()
         assert hasattr(g, "non_cyp_enzyme_status")
         assert len(g.non_cyp_enzyme_status) > 0
 
     def test_get_transporter_activity(self) -> None:
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
         g = create_default_genotype()
         # Default transporter activity should be 1.0 (normal)
         assert g.get_transporter_activity("SLCO1B1") == 1.0
 
     def test_get_non_cyp_activity(self) -> None:
-        from helixlang.human.genotype import create_default_genotype
+        from helixlang.plugins.human.genotype import create_default_genotype
         g = create_default_genotype()
         assert g.get_non_cyp_activity("UGT1A1") == 1.0
 
     def test_gene_categories_dict(self) -> None:
-        from helixlang.human.genotype import GENE_CATEGORIES
+        from helixlang.plugins.human.genotype import GENE_CATEGORIES
         assert "CYP_metabolism" in GENE_CATEGORIES
         assert "transporters" in GENE_CATEGORIES
         assert "phase_II" in GENE_CATEGORIES
@@ -1062,7 +1066,7 @@ class TestExpandedGenotype:
         assert "SLCO1B1" in GENE_CATEGORIES["transporters"]
 
     def test_core_cyp_enzymes_expanded(self) -> None:
-        from helixlang.human.genotype import CORE_CYP_ENZYMES
+        from helixlang.plugins.human.genotype import CORE_CYP_ENZYMES
         assert len(CORE_CYP_ENZYMES) == 10
         assert "CYP3A5" in CORE_CYP_ENZYMES
         assert "CYP2B6" in CORE_CYP_ENZYMES
@@ -1079,21 +1083,21 @@ class TestExpandedDrugs:
     """Tests for expanded drug database and SMILES→ADME."""
 
     def test_drug_count(self) -> None:
-        from helixlang.human.drug import PREDEFINED_DRUGS
+        from helixlang.plugins.human.drug import PREDEFINED_DRUGS
         assert len(PREDEFINED_DRUGS) >= 21
 
     def test_smiles_to_adme_exists(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         result = smiles_to_adme("CC(=O)NC1=CC=C(O)C=C1")  # acetaminophen
         assert "molecular_weight" in result or "clearance_ml_per_min" in result
 
     def test_warfarin_has_params(self) -> None:
-        from helixlang.human.drug import PREDEFINED_DRUGS
+        from helixlang.plugins.human.drug import PREDEFINED_DRUGS
         w = PREDEFINED_DRUGS["WARFARIN"]
         assert w.volume_distribution_l > 0
 
     def test_clopidogrel_metabolism(self) -> None:
-        from helixlang.human.drug import PREDEFINED_DRUGS
+        from helixlang.plugins.human.drug import PREDEFINED_DRUGS
         c = PREDEFINED_DRUGS["CLOPIDOGREL"]
         assert c.cyp_metabolism.get("CYP2C19", 0) > 0
 
@@ -1107,21 +1111,21 @@ class TestExpandedDisease:
     """Tests for expanded disease profiles."""
 
     def test_disease_profile_count(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         assert len(DISEASE_PROFILES) >= 25
 
     def test_hypertension_profile(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES, DiseaseState
+        from helixlang.plugins.human.disease import DISEASE_PROFILES, DiseaseState
         assert "HYPERTENSION" in DISEASE_PROFILES
         h = DISEASE_PROFILES["HYPERTENSION"]
         assert isinstance(h, DiseaseState)
 
     def test_depression_profile(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         assert "DEPRESSION" in DISEASE_PROFILES
 
     def test_respiratory_ode_model(self) -> None:
-        from helixlang.human.disease_ode_models import RespiratoryODE
+        from helixlang.plugins.human.disease_ode_models import RespiratoryODE
         m = RespiratoryODE()
         fev1_before = m.fev1_percent
         for _ in range(100):
@@ -1129,7 +1133,7 @@ class TestExpandedDisease:
         assert m.fev1_percent != fev1_before
 
     def test_infectious_disease_ode(self) -> None:
-        from helixlang.human.disease_ode_models import InfectiousDiseaseODE
+        from helixlang.plugins.human.disease_ode_models import InfectiousDiseaseODE
         m = InfectiousDiseaseODE()
         m.hiv_severity = 0.8
         m.tb_severity = 0.5
@@ -1139,7 +1143,7 @@ class TestExpandedDisease:
         assert m.viral_bacterial_load > load_before
 
     def test_gastrointestinal_ode(self) -> None:
-        from helixlang.human.disease_ode_models import GastrointestinalODE
+        from helixlang.plugins.human.disease_ode_models import GastrointestinalODE
         m = GastrointestinalODE()
         m.ibd_severity = 0.7
         m.gerd_severity = 0.5
@@ -1149,7 +1153,7 @@ class TestExpandedDisease:
         assert m.pain_score > pain_before
 
     def test_endocrine_ode(self) -> None:
-        from helixlang.human.disease_ode_models import EndocrineODE
+        from helixlang.plugins.human.disease_ode_models import EndocrineODE
         m = EndocrineODE()
         m.hypothyroid_severity = 0.8
         t4_before = m.t4_level
@@ -1167,17 +1171,17 @@ class TestExpandedMicrobiome:
     """Tests for expanded microbiome features."""
 
     def test_species_count(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         assert len(mc._species) == 10
 
     def test_reaction_count(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         assert len(mc._reactions) >= 19
 
     def test_apply_antibiotic(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         abundances_before = {k: s.abundance for k, s in mc._species.items()}
         mc.apply_antibiotic("ampicillin")
@@ -1189,7 +1193,7 @@ class TestExpandedMicrobiome:
         assert any_decreased
 
     def test_induce_dysbiosis(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         div_before = mc.state.diversity_index
         mc.induce_dysbiosis(severity=0.5)
@@ -1197,7 +1201,7 @@ class TestExpandedMicrobiome:
         assert div_after < div_before
 
     def test_restore_microbiome(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         mc.induce_dysbiosis(severity=0.8)
         mc.restore_microbiome()
@@ -1215,7 +1219,7 @@ class TestCalibrationCascadeGP:
     """Tests for GP-based calibration cascade."""
 
     def test_gp_layer_with_observations(self) -> None:
-        from helixlang.human.calibration_cascade import GPLayer
+        from helixlang.plugins.human.calibration_cascade import GPLayer
         gp_few = GPLayer("few", input_dim=1)
         gp_many = GPLayer("many", input_dim=1)
         for i in range(3):
@@ -1227,7 +1231,7 @@ class TestCalibrationCascadeGP:
         assert ci_many < ci_few
 
     def test_gp_kernel_weighted(self) -> None:
-        from helixlang.human.calibration_cascade import GPLayer
+        from helixlang.plugins.human.calibration_cascade import GPLayer
         gp = GPLayer("test", input_dim=1, sigma_prior=0.5)
         for i in range(20):
             gp.calibrate(100.0 + i * 2, 100.0 + i * 2 + 2.0)
@@ -1238,12 +1242,12 @@ class TestCalibrationCascadeGP:
         assert ci < 2.0
 
     def test_fallback_structural_alerts(self) -> None:
-        from helixlang.human.molecular_toxicity import _match_alerts_fallback
+        from helixlang.plugins.human.molecular_toxicity import _match_alerts_fallback
         # Metformin: no alerts expected
         alerts = _match_alerts_fallback("CN(C)C(=N)NC(=N)N")
         assert isinstance(alerts, list)
 
     def test_fallback_none_input(self) -> None:
-        from helixlang.human.molecular_toxicity import _match_alerts_fallback
+        from helixlang.plugins.human.molecular_toxicity import _match_alerts_fallback
         alerts = _match_alerts_fallback(None)
         assert alerts == []

@@ -1,14 +1,14 @@
-"""Tests for helixlang.human.genotype (doc/28 pharmacogenomics layer).
+"""Tests for helixlang.plugins.human.genotype (doc/28 pharmacogenomics layer).
 
 Covers star-allele diplotypes (CYP2D6*4 poor metabolizer, *1xN
 ultrarapid), the CPIC activity-score mapping, and the simple VCF
-parser that feeds :class:`~helixlang.human.phenotype.PhenotypeCalculator`.
+parser that feeds :class:`~helixlang.plugins.human.phenotype.PhenotypeCalculator`.
 """
 from __future__ import annotations
 
 import pytest
 
-from helixlang.human.genotype import (
+from helixlang.plugins.human.genotype import (
     CORE_CYP_ENZYMES,
     CYPStatus,
     GenotypeProfile,

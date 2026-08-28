@@ -11,7 +11,7 @@
 # The digital organism must learn to emit a 12-bit target signal:
 #   1010 1100 1011
 # The evolutionary dynamics run through the #sim extension point
-# (kind=digital_evolution) using helixlang.apps.digital_evolution; the
+# (kind=digital_evolution) using helixlang.plugins.apps.digital_evolution; the
 # HelixLang #gene below keeps this file in the example suite (a signal
 # gene emitting the standard hello program).
 

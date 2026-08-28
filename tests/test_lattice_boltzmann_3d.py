@@ -30,13 +30,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from helixlang.apps.lattice_boltzmann_3d import (
+from helixlang.plugins.apps.lattice_boltzmann_3d import (
     VELOCITIES,
     WEIGHTS,
     LatticeBoltzmann3D,
     equilibrium,
 )
-from helixlang.flow import FlowField3D, channel_poiseuille_3d
+from helixlang.plugins.runtime.flow import FlowField3D, channel_poiseuille_3d
 
 
 def _duct_peak_mean_ratio(profile: np.ndarray) -> float:

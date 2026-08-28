@@ -12,8 +12,8 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.gem.consensus import ConsensusReaction
-        from helixlang.gem.gapfill import (
+        from helixlang.plugins.gem.consensus import ConsensusReaction
+        from helixlang.plugins.gem.gapfill import (
             GapfillPool,
             GapfillResult,
             gapfill,
@@ -30,7 +30,7 @@ def run() -> dict:
 
         model_loaded = False
         try:
-            from helixlang.gem.full_model import FullModelAdapter
+            from helixlang.plugins.gem.full_model import FullModelAdapter
             adapter = FullModelAdapter.from_bigg("e_coli_k12")
             adapter.apply_medium("glucose_minimal")
             adapter.solve()
@@ -44,7 +44,7 @@ def run() -> dict:
         if model_loaded:
             try:
                 reactions = []
-                from helixlang.annotation.ec_mapping import ECOLI_CORE_EC_REACTIONS
+                from helixlang.plugins.annotation.ec_mapping import ECOLI_CORE_EC_REACTIONS
 
                 for _ec, rxn_ids in list(ECOLI_CORE_EC_REACTIONS.items())[:5]:
                     for rid in rxn_ids:

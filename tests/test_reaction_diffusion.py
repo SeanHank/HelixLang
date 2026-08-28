@@ -2,8 +2,8 @@
 import numpy as np
 import pytest
 
-from helixlang import reaction_diffusion
-from helixlang.reaction_diffusion import GrayScott
+from helixlang.plugins.runtime import reaction_diffusion
+from helixlang.plugins.runtime.reaction_diffusion import GrayScott
 
 
 def test_init():

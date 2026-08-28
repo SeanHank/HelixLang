@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.protein_structure_predictor import (
+from helixlang.plugins.runtime.protein_structure_predictor import (
     ProteinStructure3D,
     _derive_secondary_from_coords,
     _detect_disorder,

@@ -3,8 +3,8 @@ import math
 
 import pytest
 
-from helixlang.grn import GRN, decay_from_half_life_ticks
-from helixlang.stochastic import (
+from helixlang.plugins.runtime.grn import GRN, decay_from_half_life_ticks
+from helixlang.plugins.runtime.stochastic import (
     TelegraphPromoter,
     fano_to_noise_std,
     gillespie_telegraph,

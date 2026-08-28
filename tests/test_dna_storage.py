@@ -22,7 +22,8 @@ import pytest
 pytest.importorskip("Bio")
 pytest.importorskip("reedsolo")
 
-from helixlang.apps.dna_storage import (
+from helixlang.core.errors import BioError
+from helixlang.plugins.apps.dna_storage import (
     DNA_SEQUENCING_COST_PER_BP_USD,
     DNA_SYNTHESIS_COST_PER_BP_USD,
     AnalysisReport,
@@ -35,12 +36,11 @@ from helixlang.apps.dna_storage import (
     format_fasta,
     parse_fasta,
 )
-from helixlang.bio_data import (
+from helixlang.plugins.runtime.bio_data import (
     DNA_STORAGE_DENSITY_BENCHMARKS,
     DNA_STORAGE_SHANNON_LIMIT_BIT_PER_NT,
 )
-from helixlang.dna_codec import ERLICH_OLIGO_SIZE
-from helixlang.errors import BioError
+from helixlang.plugins.runtime.dna_codec import ERLICH_OLIGO_SIZE
 
 # ============================================================================
 # store / retrieve round-trip
@@ -350,7 +350,7 @@ class TestFasta:
         report = storage.store(b"scheme detect")
         fasta = format_fasta(report.oligos, scheme="goldman")
         parsed = parse_fasta(fasta)
-        from helixlang.dna_codec import GoldmanOligo
+        from helixlang.plugins.runtime.dna_codec import GoldmanOligo
         assert all(isinstance(o, GoldmanOligo) for o in parsed)
 
 
@@ -385,7 +385,7 @@ class TestCompareWithBenchmarks:
 
     def test_goldman_density_below_shannon(self):
         """Goldman measured density < Shannon limit."""
-        from helixlang.bio_data import DNA_STORAGE_DENSITY_BENCHMARKS
+        from helixlang.plugins.runtime.bio_data import DNA_STORAGE_DENSITY_BENCHMARKS
         assert DNA_STORAGE_DENSITY_BENCHMARKS["goldman_2013"]["density_bit_per_nt"] < \
                DNA_STORAGE_SHANNON_LIMIT_BIT_PER_NT
 

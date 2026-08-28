@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.dna_storage import (
+from helixlang.plugins.apps.dna_storage import (
     CodecBenchmarkRow,
     benchmark_codecs,
     format_benchmark_table,

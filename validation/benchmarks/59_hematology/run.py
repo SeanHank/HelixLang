@@ -13,7 +13,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "59_hematology"}
     try:
-        from helixlang.human.hematology_model import (
+        from helixlang.plugins.human.hematology_model import (
             FribergLineage,
             ErythropoiesisModel,
             HematologySystem,

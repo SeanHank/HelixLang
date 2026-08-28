@@ -2,6 +2,8 @@
 
 > A domain-specific language (DSL) whose source is biological genetic material, whose intermediate representation is binary bytecode, and whose execution semantics simulate biological behavior/morphology/properties — along with its compiler.
 
+> **2026-08-28 — Layout updated** for the doc/36 plugin re-layout: compiler toolchain moved under `core/`, bio function modules under `plugins/runtime/`, and other subsystems under `plugins/*` / `server/` / `debugger/` / `interop/`. The directory tree below reflects the current layout.
+
 ---
 
 ## 1. Project Vision
@@ -191,102 +193,80 @@ HelixLang/
 ├── src/helixlang/                    # Compiler and runtime implementation
 │   ├── __init__.py                   # Package exports (Layer 1/2/3)
 │   │
-│   │  ===== Compiler toolchain (8 modules) =====
-│   ├── codon_table.py                # (1) 64-codon → opcode mapping
-│   ├── lexer.py                      # (2) DNA splitter + annotation tokens
-│   ├── parser.py                     # (3) Recursive-descent parser → AST
-│   ├── ast_nodes.py                  # (4) AST node definitions
-│   ├── compiler.py                   # (5) AST → bytecode chunk
-│   ├── bytecode.py                   # (6) Chunk / Op / constant pool (OPCODE_VERSION=1)
-│   ├── hxbc.py                       # (6b) Binary serialization (.helixc)
-│   ├── disassembler.py               # (7) Bytecode disassembly
-│   ├── vm.py                         # (8) Stack VM (ribosome)
+│   │  ===== Compiler toolchain (core/) =====
+│   ├── core/
+│   │   ├── codon_table.py            # 64-codon → opcode mapping
+│   │   ├── lexer.py                  # DNA splitter + annotation tokens
+│   │   ├── parser.py                 # Recursive-descent parser → AST
+│   │   ├── ast_nodes.py              # AST node definitions
+│   │   ├── compiler.py               # AST → bytecode chunk
+│   │   ├── bytecode.py               # Chunk / Op / constant pool (OPCODE_VERSION=1)
+│   │   ├── hxbc.py                   # Binary serialization (.helixc)
+│   │   ├── disassembler.py           # Bytecode disassembly
+│   │   ├── vm.py                     # Stack VM (ribosome)
+│   │   ├── type_system.py            # Type system
+│   │   ├── semantic.py               # Semantic analysis
+│   │   ├── units.py                  # Physical units (min/µM/µm²/s/ATP)
+│   │   ├── errors.py                 # Exception hierarchy
+│   │   ├── provenance.py             # Build provenance + auto-attach
+│   │   ├── plugin_registry.py        # Plugin/backend registry
+│   │   └── ... (fidelity, opcode_semantics, use_stmt, version, ...)
 │   │
-│   │  ===== Simulation runtime =====
-│   ├── cell.py                       # (9) Cell state + tick loop
-│   ├── cell_body.py                  # (9b) Physical cell model
-│   ├── grn.py                        # (10) Gene regulatory network
-│   ├── sparse_grn.py                 # (10b) Sparse GRN for large models
-│   ├── lsystem.py                    # (11) L-system morphogenesis
-│   ├── reaction_diffusion.py         # (12) Gray-Scott reaction-diffusion
-│   ├── population.py                 # Population dynamics (2D/3D, mechanics, environments)
-│   ├── environment.py                # Nutrient/O₂/AI-2 fields, Monod uptake, CROMICS crowding
-│   ├── morphology_3d.py              # 3D population + 3D diffusion + LSystem3D
-│   ├── vectorized.py                 # Across-cell numpy GRN, sorting, snapshot iteration
-│   ├── stochastic.py                 # Telegraph-promoter noise + Gillespie SSA
+│   │  ===== Runtime / bio function modules (plugins/runtime/) =====
+│   ├── plugins/
+│   │   ├── runtime/
+│   │   │   ├── central_dogma.py      # Transcription + translation + degradation
+│   │   │   ├── metabolism.py         # FBA: flux balance analysis + dynamic FBA
+│   │   │   ├── protein_structure.py  # Secondary structure + TM + disorder
+│   │   │   ├── protein_structure_predictor.py # ESM3 end-to-end structure
+│   │   │   ├── protein_fitness.py    # PLM fitness oracles + variant ranking
+│   │   │   ├── crispr.py             # CRISPR-Cas gene editing model
+│   │   │   ├── virtual_cell.py       # Virtual-cell budget model + fitting
+│   │   │   ├── bio_data.py           # Real biological data (codon freqs, mutation rates)
+│   │   │   ├── epigenetics.py        # DNA methylation + histone modification
+│   │   │   ├── evolution.py          # Mutation + selection + drift
+│   │   │   ├── dna_codec.py / biocodec.py
+│   │   │   ├── cell.py / cell_body.py    # Cell state + physical model
+│   │   │   ├── grn.py / sparse_grn.py    # Gene regulatory networks
+│   │   │   ├── lsystem.py / reaction_diffusion.py / stochastic.py
+│   │   │   ├── population.py / environment.py / morphology_3d.py / vectorized.py / flow.py
+│   │   │   └── ... (seq_utils, sparse_grn, ...)
+│   │   ├── human/                    # 36 modules (virtual_patient, PBPK/PD, drug, disease, ...)
+│   │   │   ├── virtual_patient.py    # VirtualPatient engine
+│   │   │   ├── pharmacokinetics.py   # 6-compartment PBPK model
+│   │   │   ├── pharmacodynamics.py   # Hill equation + QSP binding
+│   │   │   ├── drug.py               # Drug/Molecule dataclasses (RDKit)
+│   │   │   ├── disease_ode_models.py # 12 disease ODE models
+│   │   │   ├── physiology.py / genotype.py / ddi.py / immune.py / endocrine.py
+│   │   │   ├── clinical_output.py    # 34-analyte clinical lab panel
+│   │   │   └── ... (25 more modules)
+│   │   ├── gem/                      # GEM reconstruction (bridge, full_model, ecgem, community, ...)
+│   │   ├── kinetics/                 # Enzyme kinetics (kcat_predictor, km_estimator, ...)
+│   │   ├── omics/                    # Expression inference, spatial transcriptomics
+│   │   ├── annotation/               # BLAST, EC/KEGG mapping, TF detection, transporter
+│   │   ├── grn/                      # GRN plugin namespace
+│   │   ├── fba/                      # FBA plugin namespace
+│   │   └── apps/                     # 22 modules (full_pipeline, gem_pipeline, ecosystem, ...)
+│   │       ├── full_pipeline.py      # DNA → structure → kinetics → ecGEM → ecosystem
+│   │       ├── gem_pipeline.py       # GEM reconstruction pipeline
+│   │       ├── ecosystem.py          # Lotka-Volterra ecosystem
+│   │       ├── digital_evolution.py / synbio_designer.py / dna_storage.py
+│   │       ├── lattice_boltzmann.py / lattice_boltzmann_3d.py
+│   │       └── ... (15 more modules)
 │   │
-│   │  ===== Bio function modules =====
-│   ├── central_dogma.py              # Central dogma: transcription + translation + degradation
-│   ├── metabolism.py                 # Metabolic network FBA: flux balance analysis + dynamic FBA
-│   ├── protein_structure.py          # Protein structure prediction: secondary structure + TM + disorder
-│   ├── protein_structure_predictor.py # ESM3 end-to-end protein structure (no MSA)
-│   ├── protein_fitness.py            # PLM fitness oracles (BLOSUM62, ESM-2) + variant ranking
-│   ├── crispr.py                     # CRISPR-Cas gene editing model
-│   ├── virtual_cell.py               # Virtual-cell budget model + parameter fitting + benchmarks
-│   ├── interop.py                    # SBML import + SBOL3 export/import
+│   │  ===== Accelerated native backends (_accel/) =====
+│   ├── _accel/                       # Pure-Python + C/Cython/numpy/numba backends
+│   │   ├── _loaders.py               # Backend loader (dispatch/grn_step/simplex/diffusion)
+│   │   ├── build.py                  # Native build helper
+│   │   └── dispatch/                 # C (impl_cext) + Python dispatch backends
 │   │
-│   │  ===== Data / tools / entry points =====
-│   ├── bio_data.py                   # Real biological data (codon frequencies, mutation rates, etc.)
-│   ├── epigenetics.py                # Epigenetics: DNA methylation + histone modification
-│   ├── evolution.py                  # Evolution engine: mutation + selection + drift
-│   ├── dna_codec.py                  # DNA codec (storage/watermark)
-│   ├── biocodec.py                   # Bio codec utilities
-│   ├── type_system.py                # Type system
-│   ├── flow.py                       # Flow analysis
-│   ├── semantic.py                   # Semantic analysis
-│   ├── units.py                      # Physical units (min/µM/µm²/s/ATP)
-│   ├── errors.py                     # Exception hierarchy (7 classes)
-│   ├── debugger.py                   # Debugger
-│   ├── server.py                     # HTTP API server
+│   │  ===== Runtime engines / servers / tools =====
+│   ├── sim_runtime/                  # Simulation runtime engines (coerce/engine/types)
+│   ├── server/
+│   │   └── app.py                    # HTTP API server
+│   ├── debugger/                     # Debugger
+│   ├── interop/                      # SBML import + SBOL3 export/import
 │   ├── cli.py                        # CLI entry point
-│   ├── provenance.py                 # Build provenance + auto-attach
-│   │
-│   │  ===== human/ (36 modules) =====
-│   ├── human/
-│   │   ├── virtual_patient.py        # VirtualPatient engine (2,453 LOC)
-│   │   ├── pharmacokinetics.py       # 6-compartment PBPK model
-│   │   ├── pharmacodynamics.py       # Hill equation + QSP binding
-│   │   ├── drug.py                   # Drug/Molecule dataclasses (RDKit)
-│   │   ├── disease_ode_models.py     # 12 disease ODE models
-│   │   ├── physiology.py             # Organ volumes, blood flows
-│   │   ├── genotype.py               # CYP450 star alleles
-│   │   ├── ddi.py                    # Drug-drug interactions
-│   │   ├── immune.py                 # Innate immune ABM
-│   │   ├── endocrine.py              # Endocrine axes (HPA, HPT, insulin-glucose)
-│   │   ├── clinical_output.py        # 34-analyte clinical lab panel
-│   │   └── ... (25 more modules)
-│   │
-│   │  ===== gem/ (GEM reconstruction) =====
-│   ├── gem/
-│   │   ├── bridge.py                 # SBML/GEM bridge
-│   │   ├── full_model.py             # Full GEM builder
-│   │   ├── ecgem.py                  # Enzyme-constrained GEM
-│   │   ├── community.py              # Community FBA
-│   │   └── ... (5 more modules)
-│   │
-│   │  ===== kinetics/ (enzyme kinetics) =====
-│   ├── kinetics/
-│   │   ├── kcat_predictor.py         # kcat prediction
-│   │   ├── km_estimator.py           # Km estimation
-│   │   ├── sequence_predictor.py     # Sequence-based kinetics
-│   │   └── ...
-│   │
-│   │  ===== omics/ (expression, spatial) =====
-│   ├── omics/
-│   │   ├── expression_inference.py   # Expression → GRN states
-│   │   ├── _spatial_omics.py         # Spatial transcriptomics
-│   │   └── ...
-│   │
-│   │  ===== apps/ (22 modules) =====
-│   ├── apps/
-│   │   ├── full_pipeline.py          # DNA → structure → kinetics → ecGEM → ecosystem
-│   │   ├── gem_pipeline.py           # GEM reconstruction pipeline
-│   │   ├── ecosystem.py              # Lotka-Volterra ecosystem
-│   │   ├── digital_evolution.py      # Digital evolution
-│   │   ├── synbio_designer.py        # Synthetic biology designer
-│   │   ├── dna_storage.py            # DNA storage codec
-│   │   ├── lattice_boltzmann.py      # 2D lattice-Boltzmann
-│   │   └── ... (15 more modules)
 │   │
 │   │  ===== Web frontend =====
 │   └── web/

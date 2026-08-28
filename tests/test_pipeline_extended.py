@@ -15,16 +15,16 @@ Covers:
 
 import pytest
 
-from helixlang.human.disease import DISEASE_PROFILES, DiseaseState
-from helixlang.human.drug import Drug, DrugMolecule, get_predefined_drug
-from helixlang.human.genotype import (
+from helixlang.plugins.human.disease import DISEASE_PROFILES, DiseaseState
+from helixlang.plugins.human.drug import Drug, DrugMolecule, get_predefined_drug
+from helixlang.plugins.human.genotype import (
     NonCYPEnzymeStatus,
     TransporterStatus,
     Variant,
     create_default_genotype,
     create_genotype_from_vcf,
 )
-from helixlang.human.virtual_patient import VirtualPatient, VirtualPatientConfig
+from helixlang.plugins.human.virtual_patient import VirtualPatient, VirtualPatientConfig
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -182,7 +182,7 @@ class TestMicrobiomeWriteback:
         assert "metformin" in result.drug_concentrations
 
     def test_microbiome_portal_fluxes(self) -> None:
-        from helixlang.human.microbiome import MicrobiomeCompartment
+        from helixlang.plugins.human.microbiome import MicrobiomeCompartment
         mc = MicrobiomeCompartment()
         mc.set_drug_concentration("metformin", 15.0)
         mc.step(dt_h=24.0)
@@ -257,7 +257,7 @@ class TestNonCYPVCFParsing:
 class TestSmilesToADME:
 
     def test_aspirin_smiles_to_adme(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         adme = smiles_to_adme("CC(=O)Oc1ccccc1C(=O)O")
         assert "molecular_weight_da" in adme
         assert adme["molecular_weight_da"] > 150.0
@@ -265,12 +265,12 @@ class TestSmilesToADME:
         assert "volume_distribution_l" in adme
 
     def test_caffeine_smiles_to_adme(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         adme = smiles_to_adme("Cn1c(=O)c2c(ncn2C)n(C)c1=O")
         assert adme["molecular_weight_da"] > 100.0
 
     def test_adme_dict_constructs_drug(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         adme = smiles_to_adme("CC(=O)Oc1ccccc1C(=O)O")
         mol = DrugMolecule(
             name="aspirin",
@@ -321,7 +321,7 @@ class TestEpigeneticCYPWiring:
         assert result.auc_plasma.get("warfarin", 0.0) > 0.0
 
     def test_epigenetic_keys_present_in_signals(self) -> None:
-        from helixlang.human.emergent_complexity import EmergentComplexityModel
+        from helixlang.plugins.human.emergent_complexity import EmergentComplexityModel
         ecm = EmergentComplexityModel()
         signals = ecm.step(dt_h=1.0, t_h=0.0, drug_concentrations={},
                            il6=1.0, tnf=5.0, crp=0.5)
@@ -339,7 +339,7 @@ class TestStrengthenedAssertions:
     def test_pm_warfarin_higher_exposure(self) -> None:
         wf = get_predefined_drug("warfarin")
         assert wf is not None
-        from helixlang.human.virtual_patient import _compute_genetic_cyp_modifier
+        from helixlang.plugins.human.virtual_patient import _compute_genetic_cyp_modifier
         normal = create_default_genotype()
         normal_mod = _compute_genetic_cyp_modifier(wf, normal)
         pm = create_default_genotype()
@@ -414,7 +414,7 @@ class TestStrengthenedAssertions:
         assert max_inr >= 1.0, "INR should be at least baseline"
 
     def test_hypertension_bp_elevated(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         disease = DISEASE_PROFILES["HYPERTENSION"]
         disease.severity = 0.8
         cfg = VirtualPatientConfig(
@@ -431,7 +431,7 @@ class TestStrengthenedAssertions:
         assert avg_sbp > 100.0, "hypertension should elevate BP"
 
     def test_diabetes_glucose_elevated(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         disease = DISEASE_PROFILES["DIABETES_T2"]
         disease.severity = 0.7
         cfg = VirtualPatientConfig(
@@ -456,7 +456,7 @@ class TestBiologicsADME:
     """T7: Biologics-specific ADME inference."""
 
     def test_biologics_adme_mab(self) -> None:
-        from helixlang.human.drug import biologics_adme
+        from helixlang.plugins.human.drug import biologics_adme
         params = biologics_adme(150_000.0)
         # Full mAb: long half-life (~21 days), low clearance, plasma-restricted Vd
         assert params["half_life_h"] >= 400.0
@@ -466,7 +466,7 @@ class TestBiologicsADME:
         assert params["renal_fraction"] < 0.3
 
     def test_biologics_adme_fragment(self) -> None:
-        from helixlang.human.drug import biologics_adme
+        from helixlang.plugins.human.drug import biologics_adme
         params = biologics_adme(40_000.0)
         # Small fragment: shorter half-life, higher renal fraction
         assert params["half_life_h"] < 200.0
@@ -474,26 +474,26 @@ class TestBiologicsADME:
         assert params["molecular_weight_da"] == 40_000.0
 
     def test_biologics_adme_very_large(self) -> None:
-        from helixlang.human.drug import biologics_adme
+        from helixlang.plugins.human.drug import biologics_adme
         params = biologics_adme(500_000.0)
         # Very large: long half-life, minimal clearance
         assert params["half_life_h"] >= 500.0
         assert params["clearance_ml_per_min"] < 2.0
 
     def test_smiles_to_adme_biologic_type(self) -> None:
-        from helixlang.human.drug import BIOLOGIC, smiles_to_adme
+        from helixlang.plugins.human.drug import BIOLOGIC, smiles_to_adme
         params = smiles_to_adme("", drug_type=BIOLOGIC, mw_da=150_000.0)
         assert params["half_life_h"] >= 400.0
         assert params["protein_binding"] == 0.99
 
     def test_smiles_to_adme_high_mw_fallback(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         # Even without drug_type, high MW triggers biologic path
         params = smiles_to_adme("C", mw_da=150_000.0)
         assert params["half_life_h"] >= 400.0
 
     def test_smiles_to_adme_small_molecule_unchanged(self) -> None:
-        from helixlang.human.drug import smiles_to_adme
+        from helixlang.plugins.human.drug import smiles_to_adme
         params = smiles_to_adme("CC(=O)Oc1ccccc1C(=O)O")  # aspirin
         # Small molecule: should use normal Lipinski path
         assert params["half_life_h"] < 50.0
@@ -508,7 +508,7 @@ class TestCVNeuroODEFeedback:
     """T8: Cardiovascular and Neurological ODE feedback loops."""
 
     def test_cardiovascularODE_step_with_drug_args(self) -> None:
-        from helixlang.human.disease_ode_models import CardiovascularODE
+        from helixlang.plugins.human.disease_ode_models import CardiovascularODE
         cv = CardiovascularODE()
         initial_map = cv.map_mmhg
         # step with drug modifiers should change MAP
@@ -516,7 +516,7 @@ class TestCVNeuroODEFeedback:
         assert cv.map_mmhg != initial_map or cv.blood_volume_l != 5.0
 
     def test_neurologicalODE_cholinesterase_effect(self) -> None:
-        from helixlang.human.disease_ode_models import NeurologicalODE
+        from helixlang.plugins.human.disease_ode_models import NeurologicalODE
         neuro = NeurologicalODE()
         neuro.synaptic_density = 0.5
         neuro.cholinesterase_inhibition = 0.8
@@ -525,7 +525,7 @@ class TestCVNeuroODEFeedback:
         assert neuro.cognitive_score > neuro.synaptic_density
 
     def test_cv_ode_result_channels(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         disease = DISEASE_PROFILES["HYPERTENSION"]
         disease.severity = 0.6
         cfg = VirtualPatientConfig(
@@ -543,7 +543,7 @@ class TestCVNeuroODEFeedback:
         assert all(50.0 < v < 200.0 for v in result.map_mmhg)
 
     def test_neuro_ode_result_channels(self) -> None:
-        from helixlang.human.virtual_patient import VirtualPatient, VirtualPatientConfig
+        from helixlang.plugins.human.virtual_patient import VirtualPatient, VirtualPatientConfig
         disease = DiseaseState(
             name="test_neurodegeneration",
             category="neurological",
@@ -572,37 +572,46 @@ class TestDiseaseODERobustDispatch:
     """T9: Category-based fallback for exotic disease names."""
 
     def test_category_fallback_cardiovascular(self) -> None:
-        from helixlang.human.disease_ode_models import CardiovascularODE, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import (
+            CardiovascularODE,
+            create_disease_model,
+        )
         model = create_disease_model("rare_valvulopathy", severity=0.5, category="cardiovascular")
         assert isinstance(model, CardiovascularODE)
         assert model.atherosclerosis_severity == 0.5
 
     def test_category_fallback_neurological(self) -> None:
-        from helixlang.human.disease_ode_models import NeurologicalODE, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import NeurologicalODE, create_disease_model
         model = create_disease_model("罕见神经病", severity=0.4, category="neurological")
         assert isinstance(model, NeurologicalODE)
         assert model.synaptic_density < 1.0
 
     def test_category_fallback_autoimmune(self) -> None:
-        from helixlang.human.disease_ode_models import AutoimmuneRAODE, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import AutoimmuneRAODE, create_disease_model
         model = create_disease_model("unknown_autoimmune", severity=0.6, category="autoimmune")
         assert isinstance(model, AutoimmuneRAODE)
         assert model.joint_inflammation == 0.6
 
     def test_category_fallback_oncology(self) -> None:
-        from helixlang.human.disease_ode_models import CancerODE, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import CancerODE, create_disease_model
         model = create_disease_model("rare_sarcoma", severity=0.3, category="oncology")
         assert isinstance(model, CancerODE)
         assert model.tumor_volume > 0.0
 
     def test_keyword_still_preferred_over_category(self) -> None:
-        from helixlang.human.disease_ode_models import CardiovascularODE, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import (
+            CardiovascularODE,
+            create_disease_model,
+        )
         # Keyword match "cardiovascular" should win even if category says "metabolic"
         model = create_disease_model("cardiovascular_disease", severity=0.5, category="metabolic")
         assert isinstance(model, CardiovascularODE)
 
     def test_no_category_no_match_returns_generic(self) -> None:
-        from helixlang.human.disease_ode_models import _GenericDiseaseModel, create_disease_model
+        from helixlang.plugins.human.disease_ode_models import (
+            _GenericDiseaseModel,
+            create_disease_model,
+        )
         model = create_disease_model("totally_unknown_xyz", severity=0.5)
         assert isinstance(model, _GenericDiseaseModel)
 
@@ -615,7 +624,7 @@ class TestGEMPersistentPools:
     """T10: OrganGEMCoupler persistent pool state."""
 
     def test_pool_state_persists_across_ticks(self) -> None:
-        from helixlang.human.tissue_gem import OrganGEMCoupler
+        from helixlang.plugins.human.tissue_gem import OrganGEMCoupler
         coupler = OrganGEMCoupler(gem_interval_ticks=5)
         concs = {
             "liver": {"glucose": 5.0, "lactate": 1.0},
@@ -627,7 +636,7 @@ class TestGEMPersistentPools:
         assert coupler._pool_state  # pool is populated
 
     def test_invalidate_on_dose_forces_recalc(self) -> None:
-        from helixlang.human.tissue_gem import OrganGEMCoupler
+        from helixlang.plugins.human.tissue_gem import OrganGEMCoupler
         coupler = OrganGEMCoupler(gem_interval_ticks=10)
         concs = {"liver": {"glucose": 5.0}, "brain": {"glucose": 3.0}}
         coupler.step(1.0, concs)
@@ -636,7 +645,7 @@ class TestGEMPersistentPools:
         assert coupler._dirty
 
     def test_pool_state_snapshot(self) -> None:
-        from helixlang.human.tissue_gem import OrganGEMCoupler
+        from helixlang.plugins.human.tissue_gem import OrganGEMCoupler
         coupler = OrganGEMCoupler()
         concs = {"liver": {"glucose": 5.0}, "kidney": {"glucose": 4.0}}
         coupler.step(1.0, concs)
@@ -645,7 +654,7 @@ class TestGEMPersistentPools:
         assert "glucose" in snapshot["liver"]
 
     def test_gem_interval_triggers_full_recalc(self) -> None:
-        from helixlang.human.tissue_gem import OrganGEMCoupler
+        from helixlang.plugins.human.tissue_gem import OrganGEMCoupler
         coupler = OrganGEMCoupler(gem_interval_ticks=2)
         concs = {"liver": {"glucose": 5.0}}
         # First tick: dirty=True → full recalc, counter resets to 0
@@ -659,7 +668,7 @@ class TestGEMPersistentPools:
         assert coupler._tick_counter == 0
 
     def test_multi_metabolite_writeback_in_vp(self) -> None:
-        from helixlang.human.disease import DISEASE_PROFILES
+        from helixlang.plugins.human.disease import DISEASE_PROFILES
         disease = DISEASE_PROFILES["DIABETES_T2"]
         disease.severity = 0.5
         cfg = VirtualPatientConfig(

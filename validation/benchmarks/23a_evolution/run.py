@@ -11,7 +11,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "23a_evolution"}
     try:
-        from helixlang.evolution import (
+        from helixlang.plugins.runtime.evolution import (
             EvolutionaryPopulation,
             EvolutionConfig,
             calculate_fitness,

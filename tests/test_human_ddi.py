@@ -1,7 +1,7 @@
 """Tests for drug-drug interaction modeling (doc/28)."""
 from __future__ import annotations
 
-from helixlang.human.ddi import (
+from helixlang.plugins.human.ddi import (
     DEFAULT_DDI_RULES,
     DDIModel,
     DDIRule,

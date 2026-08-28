@@ -29,7 +29,8 @@ import pytest
 # BioPython used for translation validation (same strategy as test_biocodec.py)
 pytest.importorskip("Bio")
 
-from helixlang.apps.synbio_designer import (
+from helixlang.core.errors import BioError
+from helixlang.plugins.apps.synbio_designer import (
     DEFAULT_MCS,
     HIS_TAG_PROTEIN,
     MCS_SITES,
@@ -45,7 +46,7 @@ from helixlang.apps.synbio_designer import (
     genbank_format,
     validate_cassette,
 )
-from helixlang.biocodec import (
+from helixlang.plugins.runtime.biocodec import (
     LAC_PROMOTER,
     RESTRICTION_SITES,
     RRNB_T1_TERMINATOR,
@@ -53,7 +54,6 @@ from helixlang.biocodec import (
     T7_TERMINATOR,
     find_restriction_sites,
 )
-from helixlang.errors import BioError
 
 # ============================================================================
 # Test protein sequence (part of GFP, ~50 aa, commonly used for expression vector tests)

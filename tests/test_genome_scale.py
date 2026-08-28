@@ -24,7 +24,7 @@ import time
 
 import pytest
 
-from helixlang.apps.genome_scale import (
+from helixlang.plugins.apps.genome_scale import (
     MASTER_REGULATORS,
     REGULONDB_DEMO_EDGES,
     GenomeColony,
@@ -35,9 +35,9 @@ from helixlang.apps.genome_scale import (
     parse_regulondb,
     powerlaw_fit,
 )
-from helixlang.apps.whole_cell_scale import ESSENTIALITY_FLUX_TOL
-from helixlang.grn import GRN
-from helixlang.sparse_grn import SparseGRN
+from helixlang.plugins.apps.whole_cell_scale import ESSENTIALITY_FLUX_TOL
+from helixlang.plugins.runtime.grn import GRN
+from helixlang.plugins.runtime.sparse_grn import SparseGRN
 
 try:
     import numpy as np
@@ -288,7 +288,7 @@ class TestNoiseFidelity:
             grn.add_gene(n, 0.5)
         for s, t, w in edges:
             grn.add_edge(s, t, w)
-        from helixlang.stochastic import TelegraphPromoter
+        from helixlang.plugins.runtime.stochastic import TelegraphPromoter
 
         for n in names[:24]:
             grn.nodes[n].noise = TelegraphPromoter(0.5, 2.0, 3.0)
@@ -372,17 +372,17 @@ class TestPopulationIntegration:
 
     @pytest.fixture()
     def pop(self):
-        from helixlang.codon_table import STANDARD_TABLE
-        from helixlang.compiler import Compiler
-        from helixlang.environment import Environment, EnvironmentConfig
-        from helixlang.lexer import Lexer
-        from helixlang.parser import Parser
-        from helixlang.population import (
+        from helixlang.core.codon_table import STANDARD_TABLE
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.lexer import Lexer
+        from helixlang.core.parser import Parser
+        from helixlang.plugins.runtime.environment import Environment, EnvironmentConfig
+        from helixlang.plugins.runtime.population import (
             CellPopulation3D,
             PopulationCell,
             PopulationConfig,
         )
-        from helixlang.seq_utils import stop_codons_from_table
+        from helixlang.plugins.runtime.seq_utils import stop_codons_from_table
 
         src = """#promoter name=p_housekeeping strength=-0.4
 #gene name=adhE promoter=p_housekeeping

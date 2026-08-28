@@ -25,7 +25,7 @@ import math
 
 import pytest
 
-from helixlang.central_dogma import (
+from helixlang.plugins.runtime.central_dogma import (
     CODON_ELONGATION_RATE_AA_PER_S,
     COUPLING_OFFSET_NT,
     E_COLI_POLY_A_TAIL_LENGTH,
@@ -783,7 +783,7 @@ class TestProteinMaturation:
     def test_half_life_matches_110_min_decay(self):
         """The folded pool halved after ~110 ticks with the per-tick decay
         from decay_from_half_life_ticks(110) (Mosteller 1980, Helbig 2011)."""
-        from helixlang.units import decay_from_half_life_ticks
+        from helixlang.core.units import decay_from_half_life_ticks
         decay = decay_from_half_life_ticks(110.0)
         pool = ProteinPool(folded=1.0)
         t = 0
@@ -810,7 +810,7 @@ class TestProteinMaturation:
 
     def test_atp_cost_scales_with_folds(self):
         """Chaperone folding consumes PROTEIN_FOLDING_ATP_PER_PROTEIN per fold."""
-        from helixlang.units import PROTEIN_FOLDING_ATP_PER_PROTEIN
+        from helixlang.core.units import PROTEIN_FOLDING_ATP_PER_PROTEIN
         pool = ProteinPool(unfolded=1.0)
         delta = advance_protein_pool(pool, folded_decay_per_min=None, dt=1e6)
         assert delta["atp_cost"] == pytest.approx(
@@ -820,7 +820,7 @@ class TestProteinMaturation:
     def test_misfolded_flux_partitions_by_qc_rates(self):
         """Misfolded protein is aggregated vs degraded in the ratio
         k_aggregate : k_degraded."""
-        from helixlang.units import (
+        from helixlang.core.units import (
             PROTEIN_AGGREGATION_RATE_PER_MIN,
             PROTEIN_DEGRADED_RATE_PER_MIN,
         )

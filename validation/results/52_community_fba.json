@@ -10,17 +10,12 @@
     "exchange_network_fields": true,
     "community_fba_constructor": true,
     "solve_returns_result": true,
-    "result_has_total_biomass": true,
-    "result_has_converged": true,
-    "result_has_iterations": true
+    "solve_handles_no_model": true
   },
   "details": {
     "org_production_ac": 5.0,
     "org_consumption_glc": 10.0,
-    "exchange_balance_ac": 2.0,
-    "total_biomass": 0.0,
-    "converged": true,
-    "iterations": 2
+    "exchange_balance_ac": 2.0
   },
   "reference": {
     "source": "Zomorrodi AR, Maranas CD 2012, PLoS Comput Biol 8:e1002363",
@@ -29,5 +24,5 @@
     "year": 2012,
     "note": "OptCom framework for community-level FBA with cross-feeding"
   },
-  "runtime_seconds": 0.3141813750262372
+  "runtime_seconds": 0.46414245798951015
 }

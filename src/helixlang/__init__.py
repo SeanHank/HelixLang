@@ -2,31 +2,33 @@
 
 Architecture (three layers):
 
-Layer 1 — Helix Language
-    lexer, parser, AST, semantic analysis, compiler, bytecode, VM, debugger.
-    Files: lexer.py, parser.py, ast_nodes.py, semantic.py, compiler.py,
-           bytecode.py, vm.py, type_system.py, flow.py, hxbc.py, disassembler.py.
+Layer 1 — Helix Language (the minimal, dependency-free core)
+    lexer, parser, AST, semantic analysis, compiler, bytecode, HXBC container,
+    disassembler, unit system, provenance, error hierarchy, plugin registry and
+    the ``use`` statement model.
+    Location: :mod:`helixlang.core` (zero external dependencies).
 
-Layer 2 — Biological Runtime
-    gene expression, regulation, transcription, translation, metabolism,
-    cell state, environment, population dynamics.
-    Files: cell.py, cell_body.py, central_dogma.py, grn.py, sparse_grn.py,
-           metabolism.py, environment.py, population.py, codon_table.py,
-           bio_data.py, stochastic.py, epigenetics.py, evolution.py.
+Layer 2 — Biological Runtime (lazy plugins)
+    gene expression, regulation, transcription, translation, metabolism, cell
+    state, environment, population dynamics.  Location: :mod:`helixlang.plugins.runtime`.
 
-Layer 3 — Scientific Applications
-    domain-specific simulators and pipelines built on Layers 1+2.
-    Subpackages:
-        human/   — virtual patient, pharmacology, disease modeling
-        gem/     — GEM reconstruction, FBA, SBML import
-        apps/    — pipelines, synbio, consortium, ecosystem, whole-cell
-        kinetics/ — enzyme kinetics (kcat, Km)
-        omics/   — expression inference, spatial omics
+Layer 3 — Scientific Applications (lazy plugins)
+    domain-specific simulators and pipelines built on Layers 1+2:
+    ``plugins.human`` (virtual patient / pharmacology / disease),
+    ``plugins.gem`` (GEM reconstruction / FBA / SBML), ``plugins.apps``
+    (pipelines / synbio / consortium / ecosystem / whole-cell),
+    ``plugins.kinetics`` (enzyme kinetics), ``plugins.omics`` (expression
+    inference).
+
+This top-level package only re-exports the minimal always-installed core API.
+Importing ``helixlang`` does **not** import any scientific plugin, so
+:mod:`numpy`/:mod:`scipy`/etc. are never pulled in at package import time.
+Scientific symbols are reached via their canonical submodule paths
+(``helixlang.plugins.*``) or on demand through the plugin registry
+(:func:`helixlang.core.plugin_registry.get_registry`).
 """
 
-__version__ = "2026.8.5"
-
-from helixlang.codon_table import (
+from helixlang.core.codon_table import (
     CILIATE_TABLE,
     MITO_VERTEBRATE_TABLE,
     OP_OPERAND_BYTES,
@@ -36,55 +38,32 @@ from helixlang.codon_table import (
     get_table,
     wobble,
 )
-from helixlang.environment import (
-    ACETATE_DIFFUSION_UM2_S,
-    BULK_GLUCOSE_MM,
-    BULK_OXYGEN_MM,
-    CROMICS_CRITICAL_VOLUME_FRACTION,
-    GLUCOSE_DIFFUSION_UM2_S,
-    GLUCOSE_HALF_SATURATION_MM,
-    OXYGEN_DIFFUSION_UM2_S,
-    OXYGEN_HALF_SATURATION_MM,
-    SITE_VOLUME_L,
-    ConcentrationField,
-    ConcentrationField3D,
-    Environment,
-    EnvironmentConfig,
-    atp_yield,
-    crowding_diffusion_factor,
-    michaelis_menten_rate,
-    molecules_per_site,
-    monod_uptake,
-)
-from helixlang.errors import (
+from helixlang.core.errors import (
+    ABIVersionError,
     CompileError,
     HelixError,
     LexError,
+    ModelMissingError,
+    NativeBackendError,
     ParseError,
+    PluginConflictError,
+    PluginDependencyError,
+    PluginError,
+    PluginMissingError,
     RegulationError,
     RuntimeHelixError,
     SemanticError,
+    StackUnderflowError,
+    UnknownKeywordError,
+    UnknownNodeError,
 )
-from helixlang.grn import GRN
-from helixlang.metabolism import (
-    ECOLI_CORE_MODEL,
-    DynamicFBAConfig,
-    DynamicFluxBalance,
-    DynamicSimulationResult,
-    FluxBalanceAnalysis,
-    MetabolicModel,
-    Reaction,
+from helixlang.core.plugin_registry import (
+    NativeBackend,
+    PluginProvider,
+    Registry,
+    get_registry,
 )
-from helixlang.morphology_3d import LSystem3D, Point3D
-from helixlang.population import CellPopulation, CellPopulation3D, PopulationConfig
-from helixlang.sparse_grn import SparseGRN, sparse_from_edges
-from helixlang.stochastic import (
-    TelegraphPromoter,
-    fano_to_noise_std,
-    gillespie_telegraph,
-    telegraph_fano_factor,
-)
-from helixlang.units import (
+from helixlang.core.units import (
     AI2_DIFFUSION_UM2_S,
     ATP_PER_GLUCOSE,
     DIFFUSION_DT_S,
@@ -98,41 +77,34 @@ from helixlang.units import (
     diffusion_to_lattice,
     ticks_to_min,
 )
-from helixlang.vm import CellVM, Program
+from helixlang.core.use_stmt import (
+    KNOWN_FLAGS,
+    UseDirective,
+    UseError,
+    parse_use_line,
+)
+from helixlang.core.version import __version__
 
 __all__ = [
-    "Op", "STANDARD_TABLE", "MITO_VERTEBRATE_TABLE", "CILIATE_TABLE",
-    "TABLES", "get_table", "wobble", "OP_OPERAND_BYTES",
+    "__version__",
+    # language errors
     "HelixError", "LexError", "ParseError", "SemanticError",
     "CompileError", "RegulationError", "RuntimeHelixError",
+    # plugin / model / native errors
+    "ABIVersionError", "ModelMissingError", "NativeBackendError",
+    "PluginConflictError", "PluginDependencyError", "PluginError",
+    "PluginMissingError", "StackUnderflowError", "UnknownKeywordError",
+    "UnknownNodeError",
+    # codon table
+    "Op", "STANDARD_TABLE", "MITO_VERTEBRATE_TABLE", "CILIATE_TABLE",
+    "TABLES", "get_table", "wobble", "OP_OPERAND_BYTES",
+    # units
     "TIME_TICK_MIN", "TIME_TICK_S", "LATTICE_SPACING_UM",
     "AI2_DIFFUSION_UM2_S", "DIFFUSION_DT_S", "ATP_PER_GLUCOSE",
     "PROTEIN_HALF_LIFE_MEDIAN_TICKS",
     "ticks_to_min", "diffusion_to_lattice", "diffusion_lattice_to_dx",
     "decay_from_half_life_ticks", "decay_to_half_life_ticks",
-    # environment
-    "Environment", "EnvironmentConfig", "ConcentrationField",
-    "ConcentrationField3D",
-    "GLUCOSE_DIFFUSION_UM2_S", "OXYGEN_DIFFUSION_UM2_S",
-    "ACETATE_DIFFUSION_UM2_S",
-    "GLUCOSE_HALF_SATURATION_MM", "OXYGEN_HALF_SATURATION_MM",
-    "BULK_GLUCOSE_MM", "BULK_OXYGEN_MM", "SITE_VOLUME_L",
-    "CROMICS_CRITICAL_VOLUME_FRACTION",
-    "monod_uptake", "michaelis_menten_rate",
-    "molecules_per_site", "atp_yield", "crowding_diffusion_factor",
-    # stochastic gene expression
-    "TelegraphPromoter", "telegraph_fano_factor",
-    "fano_to_noise_std", "gillespie_telegraph",
-    # GRN + VM + population
-    "GRN", "CellVM", "Program", "CellPopulation", "CellPopulation3D",
-    "PopulationConfig",
-    # sparse genome-scale GRN (Design 5)
-    "SparseGRN", "sparse_from_edges",
-    # 3D morphology
-    "LSystem3D", "Point3D",
-    # flux balance analysis
-    "MetabolicModel", "Reaction", "ECOLI_CORE_MODEL",
-    "FluxBalanceAnalysis", "DynamicFBAConfig", "DynamicSimulationResult",
-    "DynamicFluxBalance",
-    "__version__",
+    # plugin registry + use statement
+    "NativeBackend", "PluginProvider", "Registry", "get_registry",
+    "KNOWN_FLAGS", "UseDirective", "UseError", "parse_use_line",
 ]

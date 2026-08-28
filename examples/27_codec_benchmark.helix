@@ -15,7 +15,7 @@
 #   - goldman: fixed native density (built-in 4x overlap), no rate knob.
 #
 # The robustness scan runs through the #sim extension point
-# (kind=codec_benchmark) using helixlang.apps.dna_storage.benchmark_codecs;
+# (kind=codec_benchmark) using helixlang.plugins.apps.dna_storage.benchmark_codecs;
 # the #gene below is the payload being stored.
 
 #gene name=storage_payload

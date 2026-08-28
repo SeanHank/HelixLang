@@ -19,7 +19,7 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "17c_translate"}
     try:
-        from helixlang.central_dogma import TranslationResult, transcribe, translate
+        from helixlang.plugins.runtime.central_dogma import TranslationResult, transcribe, translate
 
         transcript = transcribe(_DNA_SEQ)
         tx_result = translate(transcript)

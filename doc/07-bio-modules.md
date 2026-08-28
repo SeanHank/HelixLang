@@ -1,5 +1,7 @@
 # Bio Modules in Detail
 
+> **2026-08-28 — Legacy import paths updated** for the doc/36 plugin re-layout (flat `helixlang.X` -> `helixlang.core.*`/`helixlang.plugins.runtime.*`).
+
 > HelixLang's biological function modules are implemented based on real literature data, covering six major domains: the central dogma, metabolic networks, protein structure, gene editing, epigenetics, and evolution.
 
 ---
@@ -18,7 +20,7 @@
 
 ## 1. Central Dogma (central_dogma)
 
-**Module file**: `src/helixlang/central_dogma.py`
+**Module file**: `src/helixlang/plugins/runtime/central_dogma.py`
 
 Models the complete information flow from DNA to protein: transcription → translation → mRNA degradation.
 
@@ -44,7 +46,7 @@ coupled_transcription_translation(dna) → dict  # coupled model
 ### Usage Example
 
 ```python
-from helixlang.central_dogma import transcribe, translate
+from helixlang.plugins.runtime.central_dogma import transcribe, translate
 
 # transcription
 dna = "ATGGCTGGTTAA"          # ATG=M, GCT=A, GGT=G, TAA=stop
@@ -72,7 +74,7 @@ where `k = ln(2) / half_life`, `[mRNA]_ss = synthesis_rate / k`.
 
 ## 2. Metabolic FBA (metabolism)
 
-**Module file**: `src/helixlang/metabolism.py`
+**Module file**: `src/helixlang/plugins/runtime/metabolism.py`
 
 Flux Balance Analysis: uses linear programming to solve for optimal metabolic fluxes.
 
@@ -98,7 +100,7 @@ Flux Balance Analysis: uses linear programming to solve for optimal metabolic fl
 ### Usage Example
 
 ```python
-from helixlang.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
+from helixlang.plugins.runtime.metabolism import ECOLI_CORE_MODEL, FluxBalanceAnalysis
 
 fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
 fba.set_uptake("GLC", 10.0)       # glucose uptake 10 mmol/gDW/h
@@ -123,7 +125,7 @@ dS/dt = −v_glc·X                     dP/dt = v_secret·X
 ```
 
 ```python
-from helixlang.metabolism import DynamicFluxBalance, DynamicFBAConfig
+from helixlang.plugins.runtime.metabolism import DynamicFluxBalance, DynamicFBAConfig
 
 d = DynamicFluxBalance(config=DynamicFBAConfig(dt_h=0.25,
                                                initial_glucose_mm=10.0))
@@ -134,7 +136,7 @@ d.growth_rate                        # latest specific growth rate (1/h)
 ```
 
 `update_from_environment(env)`/`apply_to_environment(env)` couple the
-batch pools to `helixlang.environment` fields (glucose in, overflow
+batch pools to `helixlang.plugins.runtime.environment` fields (glucose in, overflow
 acetate out — see §environment coupling under `population.py`). The
 reduced 37-reaction core has no glyoxylate shunt, so overflow acetate is
 not re-consumed: the fermentative phase and glucose-exhaustion arrest of
@@ -161,7 +163,7 @@ Steady-state condition: `S · v = 0` (production rate = consumption rate for eac
 
 ## 3. Protein Structure (protein_structure)
 
-**Module file**: `src/helixlang/protein_structure.py`
+**Module file**: `src/helixlang/plugins/runtime/protein_structure.py`
 
 Pure-Python protein structure prediction: secondary structure + transmembrane helices + intrinsically disordered regions.
 
@@ -188,7 +190,7 @@ Pure-Python protein structure prediction: secondary structure + transmembrane he
 ### Usage Example
 
 ```python
-from helixlang.protein_structure import predict_structure
+from helixlang.plugins.runtime.protein_structure import predict_structure
 
 report = predict_structure("MKVLAACDEFGHIKLMNPQRSTVWY" * 3)
 print(report.summary)
@@ -217,7 +219,7 @@ print(report.disorder_regions)
 
 ## 4. CRISPR Gene Editing (crispr)
 
-**Module file**: `src/helixlang/crispr.py`
+**Module file**: `src/helixlang/plugins/runtime/crispr.py`
 
 CRISPR-Cas gene editing model: sgRNA design + cleavage + off-target prediction + editing outcome.
 
@@ -247,7 +249,7 @@ CRISPR-Cas gene editing model: sgRNA design + cleavage + off-target prediction +
 ### Usage Example
 
 ```python
-from helixlang.crispr import design_guide, cut_dna, edit_gene
+from helixlang.plugins.runtime.crispr import design_guide, cut_dna, edit_gene
 
 target = "ATCGATCGATCGATCGATCGGATC"  # contains an NGG PAM
 guide = design_guide(target, cas_variant="SpCas9")
@@ -266,7 +268,7 @@ edited = edit_gene(target, target_position=10, new_sequence="GGGG")
 
 ## 5. Epigenetics (epigenetics)
 
-**Module file**: `src/helixlang/epigenetics.py`
+**Module file**: `src/helixlang/plugins/runtime/epigenetics.py`
 
 DNA methylation + histone modification models.
 
@@ -298,7 +300,7 @@ DNA methylation + histone modification models.
 ### Usage Example
 
 ```python
-from helixlang.epigenetics import (
+from helixlang.plugins.runtime.epigenetics import (
     find_cpg_sites, methylate_dna, add_histone_marks,
     calculate_expression_modifier,
 )
@@ -314,7 +316,7 @@ mod = calculate_expression_modifier(meth, marks, gene_positions={"gene1": (0, 10
 
 ## 6. Evolution Engine (evolution)
 
-**Module file**: `src/helixlang/evolution.py`
+**Module file**: `src/helixlang/plugins/runtime/evolution.py`
 
 Wright-Fisher evolution model with mutation + selection + drift + recombination.
 
@@ -344,7 +346,7 @@ Wright-Fisher evolution model with mutation + selection + drift + recombination.
 ### Usage Example
 
 ```python
-from helixlang.evolution import EvolutionConfig, Population, mutate
+from helixlang.plugins.runtime.evolution import EvolutionConfig, Population, mutate
 
 config = EvolutionConfig(
     mutation_rate=2.2e-10,
@@ -365,7 +367,7 @@ print(f"Best fitness: {pop.get_generation_stats()[-1]['max_fitness']:.4f}")
 
 ## 7. Real Biological Data (bio_data)
 
-**Module file**: `src/helixlang/bio_data.py`
+**Module file**: `src/helixlang/plugins/runtime/bio_data.py`
 
 Centrally manages real biological data, replacing fabricated parameters.
 
@@ -388,7 +390,7 @@ Centrally manages real biological data, replacing fabricated parameters.
 ### Usage Example
 
 ```python
-from helixlang.bio_data import ECOLI_CODON_USAGE, HUMAN_CODON_USAGE, get_species_trna
+from helixlang.plugins.runtime.bio_data import ECOLI_CODON_USAGE, HUMAN_CODON_USAGE, get_species_trna
 
 # E. coli's most-used Leu codon
 print(ECOLI_CODON_USAGE["CTG"])  # ('L', 48.4, 0.47)

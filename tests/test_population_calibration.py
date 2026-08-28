@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.population_calibration import (
+from helixlang.plugins.apps.population_calibration import (
     TRUTH_DIVISION_THRESHOLD,
     TRUTH_ENERGY_SCALE,
     TRUTH_OXYGEN_MAX_UPTAKE,

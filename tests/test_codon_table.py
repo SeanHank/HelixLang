@@ -1,7 +1,7 @@
 """Codon table unit tests."""
 import pytest
 
-from helixlang.codon_table import (
+from helixlang.core.codon_table import (
     CILIATE_TABLE,
     MITO_VERTEBRATE_TABLE,
     STANDARD_TABLE,
@@ -10,7 +10,7 @@ from helixlang.codon_table import (
     get_table,
     wobble,
 )
-from helixlang.errors import HelixError
+from helixlang.core.errors import HelixError
 
 
 def test_standard_table_has_64_codons():

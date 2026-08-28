@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import pytest
 
-from helixlang.apps.spatial_dfba import (
+from helixlang.plugins.apps.spatial_dfba import (
     SpatialDFBA,
     SpatialDFBAConfig,
 )

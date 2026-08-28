@@ -45,15 +45,15 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from helixlang.ast_nodes import Program  # noqa: E402
-from helixlang.bytecode import Chunk  # noqa: E402
-from helixlang.codon_table import Op  # noqa: E402
-from helixlang.compiler import Compiler  # noqa: E402
-from helixlang.grn import GRN  # noqa: E402
-from helixlang.lexer import Lexer, Token  # noqa: E402
-from helixlang.parser import Parser  # noqa: E402
-from helixlang.semantic import SemanticAnalyzer  # noqa: E402
-from helixlang.vm import CellVM  # noqa: E402
+from helixlang.core.ast_nodes import Program  # noqa: E402
+from helixlang.core.bytecode import Chunk  # noqa: E402
+from helixlang.core.codon_table import Op  # noqa: E402
+from helixlang.core.compiler import Compiler  # noqa: E402
+from helixlang.plugins.runtime.grn import GRN  # noqa: E402
+from helixlang.core.lexer import Lexer, Token  # noqa: E402
+from helixlang.core.parser import Parser  # noqa: E402
+from helixlang.core.semantic import SemanticAnalyzer  # noqa: E402
+from helixlang.core.vm import CellVM  # noqa: E402
 
 # ============================================================================
 # Timing helpers
@@ -267,7 +267,7 @@ def bench_grn_scaling(fast: bool) -> list[dict]:
 
 def bench_gray_scott() -> list[dict]:
     """Gray-Scott per-cell cost at increasing grid sizes (20 steps)."""
-    from helixlang.reaction_diffusion import GrayScott
+    from helixlang.plugins.runtime.reaction_diffusion import GrayScott
     rows = []
     for n in (16, 32, 64, 128):
         gs = GrayScott(n=n, seed=42)

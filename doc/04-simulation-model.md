@@ -108,7 +108,7 @@ Genes without an explicit `decay=` default to the E. coli median protein
 half-life of ~110 min (Mosteller 1980, Helbig 2011). With one tick per minute,
 `γ = decay_from_half_life_ticks(110)` ≈ 0.994 — a gene loses half its level
 after ~110 ticks, and an explicit per-gene `decay=` always overrides the
-universal default (`helixlang.units`).
+universal default (`helixlang.core.units`).
 
 ---
 
@@ -337,7 +337,7 @@ GRN runs independently in each cell.
 The simulator runs on **physical units** end-to-end (no `units=` switch; the
 legacy gameplay-unit catalog was removed). Energy is counted in **ATP
 molecules**, the signal field is in **µM**, diffusion is a physical **µm²/s**
-coefficient, and one tick is one minute (`helixlang.units`):
+coefficient, and one tick is one minute (`helixlang.core.units`):
 
 | Quantity | Default | Physical meaning |
 |---|---|---|

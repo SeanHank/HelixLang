@@ -45,7 +45,7 @@ def _run_reference_dfba(
     nadh_ox_cap: float = 18.0,
 ) -> list[dict]:
     """Independent forward-Euler dFBA using HelixLang's LP solver."""
-    from helixlang.metabolism import FluxBalanceAnalysis
+    from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis
 
     fba = FluxBalanceAnalysis(model)
 
@@ -105,7 +105,7 @@ def _run_reference_dfba(
 def run() -> dict:
     t0 = time.perf_counter()
     try:
-        from helixlang.metabolism import (
+        from helixlang.plugins.runtime.metabolism import (
             ECOLI_CORE_MODEL,
             DynamicFBAConfig,
             DynamicFluxBalance,

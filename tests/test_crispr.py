@@ -23,7 +23,8 @@ import random
 
 import pytest
 
-from helixlang.crispr import (
+from helixlang.core.errors import BioError
+from helixlang.plugins.runtime.crispr import (
     CAS_VARIANTS,
     HDR_EFFICIENCY,
     NHEJ_INDEL_SPECTRUM,
@@ -42,7 +43,6 @@ from helixlang.crispr import (
     off_target_score_indexed,
     on_target_score,
 )
-from helixlang.errors import BioError
 
 # ============================================================================
 # Cas variant configuration completeness

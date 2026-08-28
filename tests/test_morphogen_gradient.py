@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 
-from helixlang.apps.morphogen_gradient import (
+from helixlang.plugins.apps.morphogen_gradient import (
     MorphogenGene,
     MorphogenGradient,
     MorphogenGradientConfig,

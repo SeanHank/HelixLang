@@ -23,7 +23,7 @@ import random
 
 import pytest
 
-from helixlang.epigenetics import (
+from helixlang.plugins.runtime.epigenetics import (
     # Constants
     HISTONE_MARK_TYPES,
     ChromatinState,

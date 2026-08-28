@@ -979,7 +979,7 @@ in `program.sim_extensions`:
 # The backend function:
 def _run_human_simulation(program: Program) -> SimResult:
     """``#sim kind=human`` — human pathology + drug simulation."""
-    from helixlang.human.simulation import HumanSimulation, HumanSimulationConfig
+    from helixlang.plugins.human.simulation import HumanSimulation, HumanSimulationConfig
     config = _build_human_config(program)
     sim = HumanSimulation(config)
     result = sim.run()
@@ -1094,8 +1094,8 @@ validate simulation accuracy:
 
 | File | Change |
 |---|---|
-| `src/helixlang/parser.py` | Add `human`, `disease`, `drug`, `pk`, `pd` to annotation dispatch |
-| `src/helixlang/sim_runtime.py` | Register `"human": _run_human_simulation` in `_SIM_BACKENDS` |
+| `src/helixlang/core/parser.py` | Add `human`, `disease`, `drug`, `pk`, `pd` to annotation dispatch |
+| `src/helixlang/sim_runtime/` | Register `"human": _run_human_simulation` in `_SIM_BACKENDS` |
 | `src/helixlang/gem/organism_registry.py` | Add `human_recon3d` entry (Recon3D SBML path) |
 | `src/helixlang/gem/biomass.py` | Add `HUMAN_MAMMALIAN` biomass template |
 | `src/helixlang/__init__.py` | Re-export human module classes |

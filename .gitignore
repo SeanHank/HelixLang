@@ -36,6 +36,9 @@ dmypy.json
 .pytest_cache/
 .cache/
 
+# pytest-benchmark storage
+.benchmarks/
+
 # Environments
 .venv/
 venv/
