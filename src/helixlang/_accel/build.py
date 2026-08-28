@@ -19,6 +19,7 @@ the program declared ``--pure-python``.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 _BASE = Path(__file__).resolve().parent          # helixlang/_accel
 _PKG = "helixlang"
@@ -42,7 +43,7 @@ def _bootstrap_imports():
     try:
         from Cython.Build import cythonize
     except ImportError:
-        cythonize = None  # type: ignore[assignment]
+        cythonize = cast(Any, None)
     from setuptools import Extension
     from setuptools.command.build_ext import build_ext
     from setuptools.dist import Distribution
