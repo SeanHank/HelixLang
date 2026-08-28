@@ -12,6 +12,7 @@ silent fallback: :func:`step` raises
 from __future__ import annotations
 
 import math
+from typing import Any, cast
 
 from helixlang.core.errors import NativeBackendError
 
@@ -20,8 +21,8 @@ try:
     from numba import njit
     _HAS_NUMBA = True
 except ImportError:  # pragma: no cover - numba is optional
-    np = None  # type: ignore[assignment]
-    njit = None  # type: ignore[assignment]
+    np = cast(Any, None)
+    njit = cast(Any, None)
     _HAS_NUMBA = False
 
 
