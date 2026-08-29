@@ -1,0 +1,33 @@
+{
+  "id": "73_ir_serialization",
+  "status": "PASS",
+  "checks": {
+    "rich_roundtrip": true,
+    "metadata_preserved": true,
+    "typed_operands": true,
+    "dict_roundtrip": true,
+    "dump_deterministic": true,
+    "version_guard": true,
+    "corrupt_rejected": true
+  },
+  "details": {
+    "genes": [
+      "caller",
+      "target"
+    ],
+    "call_targets": {
+      "caller": "target"
+    },
+    "lsystems": {
+      "tree": [
+        "F",
+        {},
+        25.7,
+        1.0
+      ]
+    },
+    "config_ticks": 42
+  },
+  "reference": "doc/37 \u00a75.3 HLIR serialization (ir_serialize.py)",
+  "runtime_seconds": 0.0289798749727197
+}

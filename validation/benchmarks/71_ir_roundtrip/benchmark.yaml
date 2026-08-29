@@ -1,0 +1,22 @@
+id: 71_ir_roundtrip
+name: Helix IR pipeline round-trip and optimizer correctness
+layer: compiler
+reference: doc/37 Helix-IR-first-class §5-6
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - builder_gene_mapping
+    - builder_opcode_faithful
+    - lowering_byte_golden
+    - compile_vs_compile_ir
+    - ir_vs_lower_code
+    - optimizer_semantic_parity
+    - optimizer_idempotent
+    - effect_boundary_preserved
+    - serialize_roundtrip
+    - serialize_stable
+    - call_target_resolved
+    - config_snapshot_preserved

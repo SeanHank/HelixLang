@@ -1533,6 +1533,7 @@ class CellPopulation:
 
         def override(_time_h: float, batch: DynamicFluxBalance
                      ) -> dict[str, float]:
+            assert colony is not None
             if row < 0 or row >= colony.levels.shape[0]:
                 return {}
             levels = colony.levels[row]

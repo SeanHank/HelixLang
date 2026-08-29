@@ -189,7 +189,7 @@ class VectorizedGRN:
                         + (1 - self._decays[g]) * act[g]))
             return cast(np.ndarray, out)
         inputs = np.asarray(levels, dtype=float) @ self._W.T
-        act = self.activation(inputs)
+        act = self.activation(np.asarray(inputs, dtype=float))
         new = self._decays[None, :] * np.asarray(levels, dtype=float) \
             + (1.0 - self._decays)[None, :] * act
         return cast(np.ndarray, np.clip(new, 0.0, 1.0))

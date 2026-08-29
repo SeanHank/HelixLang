@@ -1,12 +1,12 @@
 # HelixLang Validation Report
 
-Generated: 2026-08-28 08:47:49 UTC
+Generated: 2026-08-29 00:29:38 UTC
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks | **67/67** pass |
+| Benchmarks | **73/73** pass |
 | Failures | 0 |
 | Skipped | 0 |
 
@@ -24,7 +24,7 @@ Generated: 2026-08-28 08:47:49 UTC
 | 08_population_dynamics | 08_population_dynamics |  | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | 09_reaction_diffusion |  | 4 nested checks → statistical_comparison.statistical_match=True, stability_analysis.homogeneous_stable=True, parameter_sensitivity.sensitivity_ok=True → passed=4, total=4 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | cell_biology | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | 11_performance_comparison |  | 13 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0343, ecoli_core.helixlang_100_solves_s=2.0491 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0343, ecoli_core.helixlang_100_solves_s=2.0491 → verified | ✅ PASS |
+| 11_performance_comparison | 11_performance_comparison |  | 13 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0311, ecoli_core.helixlang_100_solves_s=1.6566 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0311, ecoli_core.helixlang_100_solves_s=1.6566 → verified | ✅ PASS |
 | 12_parser_roundtrip | 12_parser_roundtrip |  | 7 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | 13_bytecode_vm_roundtrip |  | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | 14_type_system_flow |  | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |
@@ -81,5 +81,11 @@ Generated: 2026-08-28 08:47:49 UTC
 | 65_qsp_binding | 65_qsp_binding |  | 8 automated checks → import_all_classes=True, mass_action_occupancy_at_100nM=True, mass_action_occupancy_at_0nM=True → passed=8, total=8 → verified | ✅ PASS |
 | 66_infrastructure | 66_infrastructure |  | 25 automated checks → units_import=True, units_TIME_TICK_MIN=True, units_LATTICE_SPACING_UM=True → passed=25, total=25 → verified | ✅ PASS |
 | 67_microbiome_crosstalk | 67_microbiome_crosstalk |  | 10 automated checks → import_all_classes=True, microbiome_compartment_instantiates=True, microbial_species_fields_accessible=True → passed=10, total=10 → verified | ✅ PASS |
+| 68_bio_validity | 68_bio_validity |  | 5 automated checks → scope_in_out_detection=True, parameter_fit_improves=True, uncertainty_ci_valid=True → passed=5, total=5 → verified | ✅ PASS |
+| 69_performance_benchmark | 69_performance_benchmark |  | 5 automated checks → profiler_produces_report=True, snapshot_downsampling_bounds_memory=True, long_run_bounded_trace=True → passed=5, total=5 → verified | ✅ PASS |
+| 70_decoupling_verify | 70_decoupling_verify |  | 5 automated checks → core_no_module_level_plugin_imports=True, registry_sole_bridge=True, core_no_sim_runtime_import=True → passed=5, total=5 → verified | ✅ PASS |
+| 71_ir_roundtrip | 71_ir_roundtrip |  | 12 automated checks → builder_gene_mapping=True, builder_opcode_faithful=True, lowering_byte_golden=True → passed=12, total=12 → verified | ✅ PASS |
+| 72_batch_runtime_parity | 72_batch_runtime_parity |  | 6 automated checks → numpy_parity=True, jax_parity=True, engine_agree=True → passed=6, total=6 → verified | ✅ PASS |
+| 73_ir_serialization | 73_ir_serialization |  | 7 automated checks → rich_roundtrip=True, metadata_preserved=True, typed_operands=True → passed=7, total=7 → verified | ✅ PASS |
 
-**67/67 benchmarks passed.**
+**73/73 benchmarks passed.**

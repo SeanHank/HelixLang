@@ -1515,7 +1515,7 @@ class VirtualPatient:
                 mi_effects = self._microbiome_compartment.step(dt_h)
                 for dk, effect in mi_effects.items():
                     if dk in drug_concs:
-                        drug_concs[dk] *= effect.bioavailability_modifier
+                        drug_concs[dk] *= getattr(effect, "bioavailability_modifier", 1.0)
                 # Portal fluxes → liver impact
                 portal = self._microbiome_compartment.get_portal_fluxes()
                 ammonia_flux = portal.get("ammonia", 0.0)
@@ -1725,12 +1725,11 @@ class VirtualPatient:
                                 labs.crp_mg_per_l + dt_h * 0.05 * neuro_inflam)
                     elif hasattr(self._disease_ode, 'stem_cell_pool'):
                         # HematologicalODE
-                        self._disease_ode.step(dt_h)
-                        # MDS → cytopenias
-                        heme = self._disease_ode
-                        labs.wbc_per_ul = max(500.0, 7000.0 * heme.stem_cell_pool)
-                        labs.hemoglobin_g_per_dl = max(5.0, 14.0 * heme.stem_cell_pool)
-                        labs.platelets_per_ul = max(10000.0, 250000.0 * heme.stem_cell_pool)
+                        heme_ode: Any = self._disease_ode
+                        heme_ode.step(dt_h)
+                        labs.wbc_per_ul = max(500.0, 7000.0 * heme_ode.stem_cell_pool)
+                        labs.hemoglobin_g_per_dl = max(5.0, 14.0 * heme_ode.stem_cell_pool)
+                        labs.platelets_per_ul = max(10000.0, 250000.0 * heme_ode.stem_cell_pool)
                     elif hasattr(self._disease_ode, 'airway_resistance'):
                         # RespiratoryODE (asthma / COPD)
                         # Map PD targets to respiratory drug effects

@@ -274,8 +274,8 @@ def _gpr_annotations(model: MetabolicModel) -> str:
 
 def _objective_element(model: MetabolicModel) -> str:
     """Return <listOfObjectives> with biomass as the objective."""
-    obj_id = model.biomass_reaction or next(
-        iter(model.reactions), "biomass"
+    obj_id = model.biomass_reaction or (
+        next(iter(model.reactions), "biomass") or "biomass"
     )
     return (
         '    <listOfObjectives>\n'

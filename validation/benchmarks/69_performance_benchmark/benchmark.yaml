@@ -1,0 +1,14 @@
+id: 69_performance_benchmark
+name: Performance optimization — dispatch acceleration + snapshot downsampling
+layer: performance
+reference: doc/13 performance report, doc/37 §3
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - profiler_produces_report
+    - snapshot_downsampling_bounds_memory
+    - accel_backend_available
+    - vm_runs_end_to_end

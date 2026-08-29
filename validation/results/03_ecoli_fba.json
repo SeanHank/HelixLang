@@ -37,7 +37,7 @@
   "comparison": {
     "growth_rate_rel_error": 8.473515659247073e-13,
     "growth_rate_tolerance": 0.05,
-    "pearson_r_top10_fluxes": 0.9999999999999999,
+    "pearson_r_top10_fluxes": 1.0000000000000002,
     "pearson_r_threshold": 0.99,
     "top10_reactions": [
       "ATPS4r",
@@ -47,8 +47,8 @@
       "EX_h2o_e",
       "EX_co2_e",
       "CO2t",
-      "O2t",
       "EX_o2_e",
+      "O2t",
       "EX_h_e"
     ],
     "top10_cobrapy": [
@@ -59,8 +59,8 @@
       29.17582713556585,
       22.80983331020497,
       -22.80983331020497,
-      21.799492655998773,
       -21.799492655998773,
+      21.799492655998773,
       17.530865429786694
     ],
     "top10_helixlang": [
@@ -71,8 +71,8 @@
       29.17582713554839,
       22.809833310193312,
       -22.8098333101899,
-      21.799492655986228,
       -21.79949265598634,
+      21.799492655986228,
       17.530865429785877
     ]
   },
@@ -92,5 +92,5 @@
     "note": "FBA predicts max growth rate under given constraints; experimental values vary by strain and conditions"
   },
   "errors": [],
-  "runtime_seconds": 5.682366708992049
+  "runtime_seconds": 2.5904524169745855
 }

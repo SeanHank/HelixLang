@@ -525,6 +525,9 @@ class CellVM:
         self._signal_emissions: int = 0              # OP_SIGNAL emission count
         seed = int(self.program.config.sim.get("seed", "0"))
         self._rng = random.Random(seed)
+        # doc/37 §3.3: snapshot downsampling for bounded memory
+        from helixlang.core.performance import SnapshotDownsampler
+        self._snapshot_downsampler = SnapshotDownsampler()
         self._init_subsystems()
         # P2 refactor: instruction dispatch delegated to BioInstructionDispatcher
         self._dispatcher = BioInstructionDispatcher(self)
@@ -606,6 +609,8 @@ class CellVM:
         (P0-1.2) is enabled: each tick first processes bio instructions, then does transcription-translation coupling,
         then morphology update and snapshot; otherwise the original GRN + bytecode execution path is used.
         """
+        # doc/37 §3.3: configure snapshot downsampling for bounded memory
+        self._snapshot_downsampler.configure(max_ticks)
         while self.tick < max_ticks and self.cell.alive:
             if self.program.config.use_central_dogma:
                 # P0-1.2: central dogma pipeline
@@ -881,6 +886,11 @@ class CellVM:
 
     # -------- snapshot --------
     def _snapshot(self) -> None:
+        # doc/37 §3.3: downsampling — only store every Nth tick for bounded memory
+        ds = self._snapshot_downsampler
+        max_ticks_int = self.program.config.ticks
+        if not ds.should_snapshot(self.tick, max_ticks_int) and not ds.is_final(self.tick, max_ticks_int, self.cell.alive):
+            return
         snap = {
             "tick": self.tick,
             "x": self.cell.x,

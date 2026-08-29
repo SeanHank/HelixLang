@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from helixlang.plugins.human.disease import DiseaseState
@@ -2211,7 +2211,7 @@ def _run_gem(program: Program) -> SimResult:
                                 {}).items():
                             if isinstance(genes, list):
                                 for g in genes:
-                                    _gpr_map.setdefault(g, []).append(rxn_id)
+                                    _gpr_map.setdefault(cast(str, g), []).append(rxn_id)
                     _n = apply_regulatory_bounds(
                         model, result.grn.regulatory_edges, _gpr_map)
                     _extra_meta["grn_bounds_applied"] = _n

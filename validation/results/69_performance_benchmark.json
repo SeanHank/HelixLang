@@ -1,0 +1,25 @@
+{
+  "id": "69_performance_benchmark",
+  "status": "PASS",
+  "checks": {
+    "profiler_produces_report": true,
+    "snapshot_downsampling_bounds_memory": true,
+    "long_run_bounded_trace": true,
+    "accel_backend_available": true,
+    "vm_runs_end_to_end": true
+  },
+  "details": {
+    "ticks_executed": 500,
+    "vm_run_time_ms": 2.958,
+    "compile_time_ms": 0.066,
+    "downsample_interval_20k": 40,
+    "long_trace_entries": 501,
+    "long_ticks": 1500,
+    "long_snapshot_interval": 3,
+    "accel_backend": "native",
+    "dispatch_ops_consumed": 3,
+    "dispatch_result": 15.0
+  },
+  "reference": "doc/13 performance report; doc/37 \u00a73 performance optimization",
+  "runtime_seconds": 0.07504966703709215
+}

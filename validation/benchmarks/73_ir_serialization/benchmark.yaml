@@ -1,0 +1,17 @@
+id: 73_ir_serialization
+name: HLIR serialization robustness
+layer: compiler
+reference: doc/37 Helix-IR-first-class §5.3/§6
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - rich_roundtrip
+    - metadata_preserved
+    - typed_operands
+    - dict_roundtrip
+    - dump_deterministic
+    - version_guard
+    - corrupt_rejected

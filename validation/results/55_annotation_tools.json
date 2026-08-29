@@ -25,5 +25,5 @@
     "kegg": "Kanehisa M, Goto S 2000, Nucleic Acids Res 28:27-30",
     "pfam": "El-Gebali S et al. 2019, Nucleic Acids Res 47:D427"
   },
-  "runtime_seconds": 0.028973165957722813
+  "runtime_seconds": 0.027867875003721565
 }

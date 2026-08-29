@@ -30,6 +30,9 @@ from helixlang.core.errors import (
     SemanticError,
     SimConfigError,
 )
+from helixlang.core.ir_batch_runtime import BatchRuntime, StackDepthError
+from helixlang.core.ir_runtime import IRRuntime
+from helixlang.core.ir_serialize import dumps as ir_dumps
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
 from helixlang.core.semantic import SemanticAnalyzer
@@ -58,6 +61,21 @@ def main(argv: list[str] | None = None) -> int:
                    help="write morphology field PNG (PPM format)")
     p.add_argument("--ticks", type=int, default=None,
                    help="override #config ticks")
+    # Helix IR pipeline (doc/37 §7): first-class typed IR + alternative runtimes
+    p.add_argument("--ir-text", action="store_true",
+                   help="print the typed HLIR (assembled IR) and exit")
+    p.add_argument("--dump-ir", metavar="PATH", default=None,
+                   help="write HLIR JSON to PATH and exit")
+    p.add_argument("--optimize", action="store_true",
+                   help="run IR optimization (fold/dead/unreachable) before run")
+    p.add_argument("--runtime", choices=["classic", "ir", "batch"], default="classic",
+                   help="execution runtime (classic=CellVM+C dispatch kernel, "
+                        "ir=portable typed-IR VM, batch=vectorised numpy/JAX "
+                        "engine over N virtual cells)")
+    p.add_argument("--batch-n", type=int, default=4,
+                   help="number of virtual cells for --runtime batch (default: 4)")
+    p.add_argument("--batch-backend", choices=["numpy", "jax"], default="numpy",
+                   help="vector engine for --runtime batch (default: numpy)")
     # Simulation backends (wiring.md §6.1, §9)
     p.add_argument("--backend", choices=sorted(BACKENDS), default=None,
                    help="override #config backend (classic keeps the bytecode "
@@ -247,25 +265,59 @@ def main(argv: list[str] | None = None) -> int:
 
     # ----- classic bytecode pipeline (bit-identical to before) -----
     try:
-        chunk = Compiler(table).compile(program)
+        ir, chunk = Compiler(table).compile_ir(program, optimize=args.optimize)
     except CompileError as e:
         print(f"compile error: {e}", file=sys.stderr)
         return 1
+
+    if args.ir_text:
+        print(ir.disassemble())
+        return 0
+
+    if args.dump_ir:
+        try:
+            text = ir_dumps(ir) + "\n"
+        except (TypeError, ValueError) as e:
+            print(f"dump error: {e}", file=sys.stderr)
+            return 1
+        Path(args.dump_ir).write_text(text)
+        print(f"=== dumped HLIR -> {args.dump_ir} ===")
+        return 0
 
     if args.disassemble:
         print(disassemble(chunk, args.source.name))
         return 0
 
+    # ----- Helix-IR runtimes (doc/37 §7.4): portable VM / vector batch -----
+    if args.runtime == "ir":
+        ir_vm = IRRuntime(ir, program)
+        ir_vm.debug = args.debug
+        try:
+            trace = ir_vm.run(program.config.ticks)
+        except (RuntimeHelixError, ValueError, IndexError, KeyError) as e:
+            print(f"runtime error: {e}", file=sys.stderr)
+            return 1
+        return _emit_vm_summary(args, program, trace, ir_vm)
+
+    if args.runtime == "batch":
+        try:
+            traces = BatchRuntime(ir, program, n=args.batch_n,
+                                  backend=args.batch_backend).run(
+                                      program.config.ticks)
+        except (RuntimeHelixError, ValueError, IndexError, KeyError,
+                StackDepthError) as e:
+            print(f"runtime error: {e}", file=sys.stderr)
+            return 1
+        return _emit_batch_summary(args, program, traces)
+
+    # default: classic CellVM (+ C dispatch kernel, snapsh automation)
     vm = CellVM(chunk, program)
     vm.debug = args.debug
-
     try:
         trace = vm.run(program.config.ticks)
     except (RuntimeHelixError, ValueError, IndexError, KeyError) as e:
         print(f"runtime error: {e}", file=sys.stderr)
         return 1
-
-    # output
     if args.csv:
         _emit_csv(trace)
     if args.png:
@@ -281,6 +333,47 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  morphology points: {len(vm.cell.morphology_points)}")
         if vm.field:
             print(f"  field total V: {vm.field.total_v():.3f}")
+    return 0
+
+
+def _emit_vm_summary(args: argparse.Namespace, program: Program,
+                     trace: list[dict], vm: CellVM) -> int:
+    """Render the classic-style trace summary for an IR/runtime VM run."""
+    if args.csv:
+        _emit_csv(trace)
+    if args.png:
+        _emit_ppm(vm, args.png)
+    if not args.csv and not args.png:
+        print(f"=== {args.source.name} | table={args.table} "
+              f"ticks={program.config.ticks} ===")
+        for s in trace[-5:]:
+            print(f"  tick={s['tick']:>3} pos=({s['x']},{s['y']}) "
+                  f"energy={s['energy']} alive={int(s['alive'])} "
+                  f"proteins={s['proteins']}")
+        if vm.cell.morphology_points:
+            print(f"  morphology points: {len(vm.cell.morphology_points)}")
+        if vm.field:
+            print(f"  field total V: {vm.field.total_v():.3f}")
+    return 0
+
+
+def _emit_batch_summary(args: argparse.Namespace, program: Program,
+                        traces: list[list[dict]]) -> int:
+    """Render a per-cell summary for the vector batch runtime."""
+    if args.csv:
+        for i, trace in enumerate(traces):
+            print(f"# cell {i}")
+            _emit_csv(trace)
+        return 0
+    print(f"=== {args.source.name} | table={args.table} "
+          f"ticks={program.config.ticks} | batch cells={len(traces)} ===")
+    for i, trace in enumerate(traces[:4]):
+        s = trace[-1]
+        print(f"  cell {i}: tick={s['tick']:>3} pos=({s['x']},{s['y']}) "
+              f"energy={s['energy']} alive={int(s['alive'])} "
+              f"proteins={s['proteins']}")
+    if len(traces) > 4:
+        print(f"  ... {len(traces) - 4} more cells")
     return 0
 
 

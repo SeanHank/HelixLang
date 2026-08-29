@@ -1,0 +1,15 @@
+id: 70_decoupling_verify
+name: Decoupling verification — core vs simulation vs language
+layer: architecture
+reference: doc/36 plugin architecture, doc/37 §4
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - core_no_module_level_plugin_imports
+    - registry_sole_bridge
+    - core_no_sim_runtime_import
+    - lazy_import_pattern
+    - clean_runtime_import

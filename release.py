@@ -7,7 +7,12 @@ Usage:
     python release.py <version>
 
 Example:
-    python release.py 2026.8.5
+    python release.py 2026.9.0
+
+Version format: YYYY.M.D or YYYY.M.D.N (e.g. 2026.9.1, 2026.9.1.2):
+    D = iteration release of the month, starting from 0 (first release is YYYY.M.0)
+    N (optional) = patch version of that iteration release (2026.9.1.2 is the 2nd
+                   patch of the month's 2nd release)
 
 What this script does:
     1. Validates version format
@@ -114,8 +119,7 @@ def report_gate(result: GateResult) -> bool:
         if result.log_file.exists():
             lines = result.log_file.read_text().splitlines()
             if lines:
-                print(f"    {RED}Last 15 lines:{NC}")
-                for line in lines[-15:]:
+                for line in lines:
                     print(f"    {line}")
         return False
 
@@ -283,25 +287,48 @@ def generate_report() -> None:
 # ─── Step 3: Sync metrics ────────────────────────────────────────────────────
 
 
+def _stale_metric_values(content: str, val_pass: str | int,
+                         val_total: str | int) -> list[str]:
+    """Confirm every validation-benchmark count occurrence matches the target
+    (val_pass/val_total read from validation/report.md)."""
+    vp, vt = int(val_pass), int(val_total)
+    stale: list[str] = []
+    for m in re.finditer(r"\| Validation benchmarks \| (\d+) \((\d+) pass\)", content):
+        if (int(m.group(2)), int(m.group(1))) != (vp, vt):
+            stale.append(f"table {m.group(1)} ({m.group(2)} pass)")
+    for m in re.finditer(r"\| Benchmarks passing \| \*\*(\d+)/(\d+)\*\*", content):
+        if (int(m.group(1)), int(m.group(2))) != (vp, vt):
+            stale.append(f"passing {m.group(1)}/{m.group(2)}")
+    for m in re.finditer(r"\[(\d+)/(\d+) validation benchmarks\]", content):
+        if (int(m.group(1)), int(m.group(2))) != (vp, vt):
+            stale.append(f"badge {m.group(1)}/{m.group(2)}")
+    for m in re.finditer(r"(\d+) reproducible benchmarks", content):
+        if int(m.group(1)) != vt:
+            stale.append(f"reproducible {m.group(1)}")
+    for m in re.finditer(r"\| 11-(\d+)\s*\|", content):
+        if int(m.group(1)) != vt:
+            stale.append(f"range 11-{m.group(1)}")
+    for m in re.finditer(r"\*\*(\d+)/(\d+)\*\* benchmarks PASS\b", content):
+        if (int(m.group(1)), int(m.group(2))) != (vp, vt):
+            stale.append(f"PASS-bullet {m.group(1)}/{m.group(2)}")
+    return stale
+
+
 def _replacer(pattern: str, replacement: str, text: str) -> str:
     return re.sub(pattern, replacement, text)
 
 
-def sync_metrics(gate_dir: Path) -> None:
+def sync_metrics(gate_dir: Path) -> bool:
     banner("Step 3: Sync metrics to README / README_PYPI / CONTRIBUTING")
 
     # Extract pytest stats
     pytest_log = gate_dir / "pytest.log"
     test_count = ""
-    coverage = ""
     if pytest_log.exists():
         content = pytest_log.read_text()
         m = re.search(r"(\d+) passed", content)
         if m:
             test_count = m.group(1)
-        m = re.search(r"TOTAL.*?(\d+)%", content)
-        if m:
-            coverage = m.group(1) + "%"
 
     # Extract validation stats from report.md
     val_pass = ""
@@ -333,6 +360,7 @@ def sync_metrics(gate_dir: Path) -> None:
     log(f"Discovered: {test_count or '?'} tests, {test_files} test files, {src_modules} modules, {doc_count} docs, {example_count} examples")
 
     # Sync to docs
+    sync_failed = False
     for fname in ["README.md", "README_PYPI.md", "CONTRIBUTING.md"]:
         fpath = ROOT / fname
         if not fpath.exists():
@@ -378,11 +406,35 @@ def sync_metrics(gate_dir: Path) -> None:
                 content,
             )
 
-        # 5. Benchmark range in table — "| 11-45 |" → "| 11-67 |"
+        # 4b. "N reproducible benchmarks with" (CONTRIBUTING) — "67 reproducible benchmarks with"
         if val_total:
             content = re.sub(
-                r"(\| 11-)\d+ (\|)",
+                r"\d+ reproducible benchmarks with",
+                f"{val_total} reproducible benchmarks with",
+                content,
+            )
+
+        # 5. Benchmark range in table — "| 11-45 |" or "| 11-67|" → "| 11-73 |"/"| 11-73|"
+        if val_total:
+            content = re.sub(
+                r"(\| 11-)\d+(\s*\|)",
                 rf"\g<1>{val_total}\g<2>",
+                content,
+            )
+
+        # 5b. Linked badge — "[67/67 validation benchmarks]" → "[73/73 validation benchmarks]"
+        if val_pass and val_total:
+            content = re.sub(
+                r"\[(\d+)/(\d+) validation benchmarks\]",
+                f"[{val_pass}/{val_total} validation benchmarks]",
+                content,
+            )
+
+        # 5c. PASS bullet (CONTRIBUTING) — "**67/67** benchmarks PASS" → "**73/73** benchmarks PASS"
+        if val_pass and val_total:
+            content = re.sub(
+                r"\*\*(\d+)/(\d+)\*\* benchmarks PASS\b",
+                f"**{val_pass}/{val_total}** benchmarks PASS",
                 content,
             )
 
@@ -421,7 +473,19 @@ def sync_metrics(gate_dir: Path) -> None:
 
         fpath.write_text(content)
 
+        # Confirm every validation-benchmark count in the file is now synced.
+        if val_pass and val_total:
+            stale = _stale_metric_values(content, val_pass, val_total)
+            if stale:
+                for s in stale:
+                    fail(f"{fname}: stale validation-benchmark count: {s}")
+                sync_failed = True
+            else:
+                ok(f"{fname}: validation-benchmark counts synced "
+                   f"({val_pass}/{val_total})")
+
     ok(f"Docs synced: tests={test_count or '?'}, val={val_pass or '?'}/{val_total or '?'}, modules={src_modules}, examples={example_count}")
+    return not sync_failed
 
 
 # ─── Step 4: Build ───────────────────────────────────────────────────────────
@@ -483,7 +547,12 @@ def main() -> int:
         description="HelixLang release script — sync version, gate, build.",
         usage="python release.py <version>",
     )
-    parser.add_argument("version", help="Version in YYYY.M.D or YYYY.M.D.N format")
+    parser.add_argument(
+        "version",
+        help="Version in YYYY.M.D or YYYY.M.D.N format: D = 0-based iteration "
+             "release of the month, N (optional) = patch of that iteration "
+             "(e.g. 2026.9.1, 2026.9.1.2)",
+    )
     args = parser.parse_args()
 
     version = args.version
@@ -512,7 +581,8 @@ def main() -> int:
         generate_report()
 
         # Step 3: Sync metrics
-        sync_metrics(gate_dir)
+        if not sync_metrics(gate_dir):
+            return 1
 
     # Step 4: Build
     if not build():
