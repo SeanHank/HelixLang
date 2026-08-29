@@ -55,7 +55,8 @@ source (.helix) ──Lexer──> tokens ──Parser──> AST ──Semantic
 
 **Whitespace.** Inside DNA blocks, all whitespace and newlines are ignored, so a gene body
 may be wrapped across lines for readability. Inside annotation blocks, line structure is
-preserved (each line carries its own fields).
+preserved (each line carries its own fields). A trailing backslash joins a physical line
+with the next one (Python-style line continuation, §2.3).
 
 ### 2.2 DNA Blocks
 
@@ -92,6 +93,37 @@ Field value forms:
 | identifier | `cas=SpCas9` | bare identifier |
 | string | `new_sequence="GGGG"` | double-quoted string (quotes stripped by the parser) |
 | arrow | `lacI -> p_lac` | relationship (only in `#regulate`) |
+
+#### Line continuation (backslash)
+
+A physical line that ends in a backslash (`\`) — the last character before the
+newline — is joined with the following physical line into a single **logical
+line** (Python-style). The backslash and the newline are deleted, and the next
+line's leading indentation is skipped:
+
+```
+#config rounds=5 \
+    transport=on \
+    population=50
+```
+
+- Joining works inside annotation blocks: field lists, `field->target` arrows
+  (e.g. `#regulate lacI ->` continued on the next line), and `use` directives:
+  `#use numpy --array \` + `--fft` lexes as a single directive.
+- An unquoted `field=value` whose value ends in `\` is joined too, so a long
+  value may be split mid-token:
+  ```
+  #gene name=very_long_identifier_part1\
+      _part2
+  #end
+  ```
+  lexes as `name=very_long_identifier_part1_part2`.
+- Inside DNA blocks everything is already line-independent, so `\` there is
+  accepted and ignored like other whitespace.
+- A `\` inside a **comment** carries no meaning — a trailing `\` in a line
+  comment does **not** continue the line.
+- As in Python, the `\` must be the very last character of the physical line; a
+  trailing space after it disables the continuation.
 
 ### 2.4 Complete Grammar (EBNF)
 

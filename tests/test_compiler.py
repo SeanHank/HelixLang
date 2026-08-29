@@ -13,6 +13,18 @@ def compile_src(src, table=STANDARD_TABLE):
     return Compiler(table).compile(prog)
 
 
+def test_backslash_continuation_compiles_identically():
+    """A backslash-continued annotation produces bytecode identical to the
+    equivalent single physical line (doc/02 §2.3)."""
+    continued = compile_src(
+        "#gene name=hello \\\n    count=3\nATG GCT TAA\n#end")
+    flat = compile_src(
+        "#gene name=hello count=3\nATG GCT TAA\n#end")
+    assert continued.code == flat.code
+    assert continued.constants == flat.constants
+    assert continued.gene_offsets == flat.gene_offsets
+
+
 def test_compile_simple_gene():
     chunk = compile_src("#gene name=hello\nATG GCT TAA\n#end")
     assert len(chunk.gene_offsets) == 1

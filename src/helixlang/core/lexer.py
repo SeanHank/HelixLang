@@ -82,6 +82,10 @@ class Lexer:
                 yield from self._scan_dna()
             elif c in ' \t\r':
                 self._advance()
+            elif c == '\\' and self._at_line_continuation():
+                # Python-style line continuation at the top level (e.g. a
+                # continuation line leading into a DNA block or annotation).
+                self._skip_line_continuation()
             elif c == '\n':
                 yield Token("NEWLINE", "\\n", self.line, self.col)
                 self._advance(newline=True)
@@ -91,25 +95,31 @@ class Lexer:
         yield Token("EOF", "", self.line, self.col)
 
     # -------- DNA scanning --------
+    def _skip_dna_gap(self) -> None:
+        """Skip whitespace/newlines (and backslash line continuations) between
+        DNA bases.  Inside a DNA block they are insignificant."""
+        while self.pos < len(self.src):
+            c = self.src[self.pos]
+            if c in ' \t\r':
+                self._advance()
+            elif c == '\n':
+                self._advance(newline=True)
+            elif c == '\\' and self._at_line_continuation():
+                self._skip_line_continuation()
+            else:
+                break
+
     def _scan_dna(self) -> Iterator[Token]:
         buf: list[str] = []
         start_line, start_col = self.line, self.col
         # Skip leading whitespace/newlines
-        while self.pos < len(self.src) and self.src[self.pos] in ' \t\r\n':
-            if self.src[self.pos] == '\n':
-                self._advance(newline=True)
-            else:
-                self._advance()
+        self._skip_dna_gap()
         # Collect DNA bases, skipping whitespace/newlines between them
         while self.pos < len(self.src) and self.src[self.pos] in self.BASES:
             buf.append(self.src[self.pos])
             self._advance()
             # Skip whitespace/newlines within DNA block
-            while self.pos < len(self.src) and self.src[self.pos] in ' \t\r\n':
-                if self.src[self.pos] == '\n':
-                    self._advance(newline=True)
-                else:
-                    self._advance()
+            self._skip_dna_gap()
         if len(buf) % 3 != 0:
             raise LexError(
                 f"DNA length {len(buf)} not multiple of 3",
@@ -141,11 +151,26 @@ class Lexer:
         if name.lower() == "use":
             # `use` is the plugin opt-in statement (doc/36 §4).  Emit a dedicated
             # USERDIRECTIVE token carrying the raw remainder of the line so the
-            # parser can canonicalize plugin name + capability flags.
+            # parser can canonicalize plugin name + capability flags.  A trailing
+            # '\' joins the directive with the next physical line (Python-style).
             rest_start = self.pos
-            while self.pos < len(self.src) and self.src[self.pos] != '\n':
-                self._advance()
-            rest = self.src[rest_start:self.pos].strip()
+            parts: list[str] = []
+            while True:
+                while self.pos < len(self.src) and self.src[self.pos] != '\n':
+                    self._advance()
+                piece = self.src[rest_start:self.pos].rstrip('\r')
+                if piece.endswith('\\'):
+                    parts.append(piece[:-1])
+                    if self.pos < len(self.src):
+                        self._advance(newline=True)
+                    while self.pos < len(self.src) \
+                            and self.src[self.pos] in ' \t':
+                        self._advance()
+                    rest_start = self.pos
+                    continue
+                parts.append(piece)
+                break
+            rest = ''.join(parts).strip()
             yield Token("USERDIRECTIVE", rest, start_line, start_col)
             if self.pos < len(self.src) and self.src[self.pos] == '\n':
                 self._advance(newline=True)
@@ -159,6 +184,10 @@ class Lexer:
         # Field format: ident=value | ident->ident
         while self.pos < len(self.src):
             c = self.src[self.pos]
+            if c == '\\' and self._at_line_continuation():
+                # Python-style line continuation: join with the next line
+                self._skip_line_continuation()
+                continue
             if c == '\n':
                 self._advance(newline=True)
                 return
@@ -186,6 +215,8 @@ class Lexer:
                 self._advance()
                 self._advance()
                 self._skip_spaces()
+                if self._at_line_continuation():
+                    self._skip_line_continuation()
                 target = self._read_ident()
                 yield Token("ARROW", f"{ident}->{target}", start_line, start_col)
             else:
@@ -211,14 +242,51 @@ class Lexer:
             if self.pos < len(self.src):
                 self._advance()  # closing "
             return f'"{s}"'
+        # Unquoted value; a trailing '\' joins the value with the next line
+        # (the backslash and the newline are deleted, Python-style).
+        parts: list[str] = []
         start = self.pos
-        while self.pos < len(self.src) and self.src[self.pos] not in ' \t\r\n#':
+        while self.pos < len(self.src):
+            c = self.src[self.pos]
+            if c in ' \t\r\n#':
+                break
+            if c == '\\' and self._at_line_continuation():
+                parts.append(self.src[start:self.pos])
+                self._skip_line_continuation()
+                start = self.pos
+                continue
             self._advance()
-        return self.src[start:self.pos]
+        parts.append(self.src[start:self.pos])
+        return ''.join(parts)
 
     def _skip_spaces(self) -> None:
         while self.pos < len(self.src) and self.src[self.pos] in ' \t':
             self._advance()
+
+    def _at_line_continuation(self) -> bool:
+        """True if the current char is a backslash that is the very last
+        character of the physical line (Python-style line continuation: the
+        backslash must be followed only by the newline, optionally a CRLF)."""
+        if self.pos >= len(self.src) or self.src[self.pos] != '\\':
+            return False
+        nxt = self.src[self.pos + 1] if self.pos + 1 < len(self.src) else ''
+        if nxt == '\n':
+            return True
+        if nxt == '\r' and self.pos + 2 < len(self.src) \
+                and self.src[self.pos + 2] == '\n':
+            return True
+        return False
+
+    def _skip_line_continuation(self) -> None:
+        """Consume '\\' + newline and the next line's leading whitespace, as if
+        the two physical lines had been joined into one logical line."""
+        self._advance()                      # backslash
+        if self.pos < len(self.src) and self.src[self.pos] == '\r':
+            self._advance()                  # CR (CRLF line ending)
+        if self.pos < len(self.src) and self.src[self.pos] == '\n':
+            self._advance(newline=True)      # newline (updates line/col)
+        while self.pos < len(self.src) and self.src[self.pos] in ' \t':
+            self._advance()                  # next line's indentation
 
     def _skip_to_newline(self) -> None:
         while self.pos < len(self.src) and self.src[self.pos] != '\n':
