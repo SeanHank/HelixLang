@@ -136,7 +136,7 @@ jobs:
             osname: linux
           - os: macos-14
             osname: macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             osname: macos-x86_64
           - os: windows-latest
             osname: windows
