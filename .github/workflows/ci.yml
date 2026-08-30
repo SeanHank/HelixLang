@@ -6,13 +6,9 @@ on:
   pull_request:
   # Manual release: a human dispatches this workflow after the push-triggered
   # tests have passed.  The release job (last step) only runs for the manual
-  # trigger and depends on every gate in this same run.
+  # trigger and depends on every gate in this same run.  No version input needed:
+  # the version is read from pyproject.toml (one-click publish).
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release (e.g. 2026.9.1) — must match pyproject.toml"
-        required: true
-        type: string
 
 permissions:
   contents: write
@@ -185,10 +181,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
 
-      - name: Resolve version from input
+      - name: Resolve version from pyproject.toml
         id: version
         run: |
-          echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing version: $VERSION"
 
       - name: Verify version consistency
         run: |
@@ -197,14 +195,9 @@ jobs:
             echo "ERROR: invalid version format: $VERSION"
             exit 1
           fi
-          PKG_VER=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          if [ "$VERSION" != "$PKG_VER" ]; then
-            echo "ERROR: input ($VERSION) != pyproject.toml version ($PKG_VER)"
-            exit 1
-          fi
           INIT_VER=$(python -c "exec(open('src/helixlang/__init__.py').read()); print(__version__)")
           if [ "$VERSION" != "$INIT_VER" ]; then
-            echo "ERROR: input ($VERSION) != __init__.py version ($INIT_VER)"
+            echo "ERROR: pyproject.toml version ($VERSION) != __init__.py version ($INIT_VER)"
             exit 1
           fi
           echo "Version verified: $VERSION"
@@ -223,7 +216,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v${{ inputs.version }}"
+          TAG="v${{ steps.version.outputs.value }}"
           git tag -f "$TAG"
           git push origin "$TAG" -f
 
@@ -231,7 +224,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ inputs.version }}"
+          VERSION="${{ steps.version.outputs.value }}"
           TAG="v${VERSION}"
           echo "HelixLang ${VERSION}" > /tmp/release-notes.md
           # Delete existing release if re-triggering
