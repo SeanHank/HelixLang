@@ -684,12 +684,13 @@ def build() -> bool:
     if r.stderr:
         print(r.stderr, end="", file=sys.stderr)
 
-    # Native wheel (dual-wheel shipping, doc/36 Phase 4 item 2).  Requires
-    # Cython on the build host and --no-isolation because Cython is not in
-    # [build-system] requires (doc/36 §4.2.1).
+    # Native wheel (dual-wheel shipping, doc/36 Phase 4 item 2).  Cython is in
+    # [build-system].requires, so the isolated build downloads it and the same
+    # setuptools>=68 version constraint applies on every build host (doc/36
+    # §4.2.1).
     native_env = dict(os.environ, HELIX_BUILD_NATIVE="1")
     r = subprocess.run(
-        [PYTHON, "-B", "-m", "build", "--wheel", "--no-isolation"],
+        [PYTHON, "-B", "-m", "build", "--wheel"],
         capture_output=True, text=True, cwd=ROOT, env=native_env,
     )
     print(r.stdout, end="")

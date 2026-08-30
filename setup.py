@@ -5,11 +5,11 @@ produces a ``py3-none-any`` wheel with **no** compiled hot-loop backends (no
 compiler required, ~2 MB install).  Set ``HELIX_BUILD_NATIVE=1`` to compile the
 Cython/C accelerators into the wheel (platform-tagged ``cp311-cp311-*``):
 
-    HELIX_BUILD_NATIVE=1 pip install cython
     HELIX_BUILD_NATIVE=1 python -m build --wheel
 
 This implements the CI dual-wheel (py + native) shipping requirement (doc/36
-§10 Phase 4 item 2).  The hot-loop sources discovered here mirror
+§10 Phase 4 item 2).  ``cython>=3.0`` is declared in ``[build-system].requires``
+so isolated builds provide it; the hot-loop sources discovered here mirror
 ``helixlang/_accel/build.py``.
 """
 from __future__ import annotations

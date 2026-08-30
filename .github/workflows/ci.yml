@@ -155,9 +155,9 @@ jobs:
         run: python -m build --wheel
       - name: Build native wheel (HELIX_BUILD_NATIVE=1)
         run: |
-          # native wheel needs --no-isolation because Cython is not in
-          # [build-system] requires (doc/36 §4.2.1)
-          python -m build --wheel --no-isolation
+          # Cython is in [build-system].requires, so the isolated build env
+          # provides it — no --no-isolation needed (doc/36 §4.2.1).
+          python -m build --wheel
         env:
           HELIX_BUILD_NATIVE: "1"
       - name: Upload wheels

@@ -1124,9 +1124,11 @@ Phase 3 (GRN Cython/C, simplex Cython, VM+population C, numba diffusion) is now
   aliased `plugins.*` have been **fully removed** (2026-08-28): the default
   namespace is clean and code imports `helixlang.plugins.*` directly.
 - [x] Dual-wheel (py + native) CI shipping — `ci.yml` gains a `build-wheels` job
-  (pure-Python wheel + native wheel via `HELIX_BUILD_NATIVE=1` with
-  `--no-isolation`, uploading `dist/`); the release job builds sdist + py wheel
-  + native wheel. `release.py` `build()` now emits sdist + both wheels.
+  (pure-Python wheel + native wheel via `HELIX_BUILD_NATIVE=1`; `cython>=3.0`
+  lives in `[build-system].requires`, so the native build uses the normal
+  isolated build env instead of `--no-isolation`); the release job builds sdist
+  + py wheel + native wheel. `release.py` `build()` now emits sdist + both
+  wheels.
 - [x] README/CONTRIBUTING/doc updated to the plugin layout + the
   no-silent-fallback policy.
 
