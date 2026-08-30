@@ -3,13 +3,15 @@ name: CI
 on:
   push:
     branches: [main, master]
-    tags: ["v*"]
   pull_request:
+  # Manual release: a human dispatches this workflow after the push-triggered
+  # tests have passed.  The release job (last step) only runs for the manual
+  # trigger and depends on every gate in this same run.
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 2026.9.1)"
-        required: false
+        description: "Version to release (e.g. 2026.9.1) — must match pyproject.toml"
+        required: true
         type: string
 
 permissions:
@@ -120,9 +122,24 @@ jobs:
           # Run the minimal example
           python -m helixlang examples/01_hello_dna.helix
 
-  # ─── Dual-wheel packaging (py + native), doc/36 Phase 4 item 2 ────────────
+  # ─── Cross-platform dual-wheel packaging (py + native), doc/36 Phase 4 item 2:
+  # builds on every runner OS so the GitHub Release ships Linux + macOS (arm64
+  # and x86_64) + Windows native wheels alongside the pure-Python wheel. ──────
   build-wheels:
-    runs-on: ubuntu-latest
+    name: build-wheels (${{ matrix.osname }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            osname: linux
+          - os: macos-14
+            osname: macos-arm64
+          - os: macos-13
+            osname: macos-x86_64
+          - os: windows-latest
+            osname: windows
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -134,23 +151,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install build setuptools wheel cython
       - name: Build pure-Python wheel
+        if: matrix.osname == 'linux'
         run: python -m build --wheel
       - name: Build native wheel (HELIX_BUILD_NATIVE=1)
         run: |
           # native wheel needs --no-isolation because Cython is not in
           # [build-system] requires (doc/36 §4.2.1)
-          HELIX_BUILD_NATIVE=1 python -m build --wheel --no-isolation
-      - name: Upload both wheels
+          python -m build --wheel --no-isolation
+        env:
+          HELIX_BUILD_NATIVE: "1"
+      - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ matrix.osname }}
           path: dist/
 
-  # ─── Release (on version tag push or manual trigger) ───────────────────────
+  # ─── Release (manual only, after all gates above pass) ─────────────────────
   release:
     name: Build & Publish Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, typecheck, test, examples-smoke, build-wheels]
+    if: github.event_name == 'workflow_dispatch'
+    needs: [lint, silent-fallbacks, typecheck, test, examples-smoke, build-wheels]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -163,87 +183,59 @@ jobs:
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          pip install build setuptools wheel cython twine
+          pip install build
 
-      - name: Resolve version from tag
+      - name: Resolve version from input
         id: version
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          echo "value=$TAG" >> "$GITHUB_OUTPUT"
-          echo "tag=$GITHUB_REF" >> "$GITHUB_OUTPUT"
-          echo "Releasing version: $TAG"
+          echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Verify version consistency
         run: |
-          TAG="${{ steps.version.outputs.value }}"
+          VERSION="${{ steps.version.outputs.value }}"
+          if [[ ! "$VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]+)?$ ]]; then
+            echo "ERROR: invalid version format: $VERSION"
+            exit 1
+          fi
           PKG_VER=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          if [ "$TAG" != "$PKG_VER" ]; then
-            echo "ERROR: Tag ($TAG) != pyproject.toml version ($PKG_VER)"
+          if [ "$VERSION" != "$PKG_VER" ]; then
+            echo "ERROR: input ($VERSION) != pyproject.toml version ($PKG_VER)"
             exit 1
           fi
           INIT_VER=$(python -c "exec(open('src/helixlang/__init__.py').read()); print(__version__)")
-          if [ "$TAG" != "$INIT_VER" ]; then
-            echo "ERROR: Tag ($TAG) != __init__.py version ($INIT_VER)"
+          if [ "$VERSION" != "$INIT_VER" ]; then
+            echo "ERROR: input ($VERSION) != __init__.py version ($INIT_VER)"
             exit 1
           fi
-          echo "Version verified: $TAG"
+          echo "Version verified: $VERSION"
 
       - name: Build sdist
         run: python -m build --sdist
-      - name: Build pure-Python wheel
-        run: python -m build --wheel
-      - name: Build native wheel (HELIX_BUILD_NATIVE=1, dual-wheel)
-        run: |
-          # native wheel needs --no-isolation because Cython is not in
-          # [build-system] requires (doc/36 §4.2.1)
-          HELIX_BUILD_NATIVE=1 python -m build --wheel --no-isolation
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Download platform wheels
+        uses: actions/download-artifact@v4
         with:
-          name: dist
+          pattern: dist-*
           path: dist/
+          merge-multiple: true
+
+      - name: Create release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ inputs.version }}"
+          git tag -f "$TAG"
+          git push origin "$TAG" -f
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ steps.version.outputs.value }}"
-          VERSION="${TAG}"
-
-          # Build release notes
-          cat > /tmp/release-notes.md << NOTES_EOF
-          ## HelixLang ${VERSION}
-
-          ### Installation
-
-          \`\`\`bash
-          pip install helixlang==${VERSION}
-          \`\`\`
-
-          ### What's Changed
-
-          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-
-          ### Scientific Validation
-
-          - 39/45 benchmarks passing (6 require optional COBRApy/gem dependencies)
-          - 33+ published references cited
-          - Median quantitative error: ~3.0%
-
-          ### Quality Gates
-
-          - Ruff lint: 0 errors
-          - Mypy type check: 0 errors
-          - Pytest: all tests passing (parallel via pytest-xdist)
-          - Coverage: 80%+ gate
-
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${TAG}
-          NOTES_EOF
-
+          VERSION="${{ inputs.version }}"
+          TAG="v${VERSION}"
+          echo "HelixLang ${VERSION}" > /tmp/release-notes.md
           # Delete existing release if re-triggering
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-
           gh release create "$TAG" dist/* \
             --repo "${{ github.repository }}" \
             --title "HelixLang ${VERSION}" \
