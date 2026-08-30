@@ -132,6 +132,10 @@ class Config:
     # Backend selector: classic (bytecode VM) | whole_cell | population |
     # fba | calibration | benchmark (see 12-helix-language-wiring.md)
     backend: str = "classic"
+    # doc/38 §2.2: allow the tick loop to hand arithmetic segments to the
+    # optional C-dispatch accelerator. The VM observes what actually ran
+    # (accel_used / accel_ops), never the request.
+    use_accel: bool = True
     # Simulation parameters not consumed by the classic pipeline, preserved
     # verbatim as strings; coerced by the backend adapter (sim_runtime.py).
     sim: dict[str, str] = field(default_factory=dict)
@@ -187,5 +191,23 @@ class Program:
     pools: list[PoolDecl] = field(default_factory=list)
     # Open #sim key=value extension point (forward-compatible long-tail hook)
     sim_extensions: dict[str, Any] = field(default_factory=dict)
+    # Typed extension namespace (doc/38 §6.3); a view over sim_extensions.
+    _extensions_cached: Any = field(default=None, init=False, repr=False,
+                                    compare=False)
     # Plugin opt-in statements (`use <plugin> [--flag ...]`, doc/36 §4)
     use_directives: list[UseDecl] = field(default_factory=list)
+
+    @property
+    def extensions(self) -> Any:
+        """Typed, namespaced extension sections (doc/38 §6.3 E2).
+
+        ``program.extensions.human.drugs`` reads the ``human`` section's
+        ``drugs`` field; ``program.extensions.extension_for(k, v)`` routes a
+        write to its owner.  A read-only-type view over ``sim_extensions`` for
+        the migration window (single store, byte-identical legacy codecs).
+        """
+        if self._extensions_cached is None:
+            from helixlang.core.extensions import ProgramExtensions
+
+            self._extensions_cached = ProgramExtensions(self)
+        return self._extensions_cached

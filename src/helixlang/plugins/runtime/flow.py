@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from helixlang.core.units import DIFFUSION_DT_S, LATTICE_SPACING_UM
+from helixlang.api.units import DIFFUSION_DT_S, LATTICE_SPACING_UM
 
 try:
     import numpy as np

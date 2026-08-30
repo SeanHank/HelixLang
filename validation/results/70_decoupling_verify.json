@@ -11,6 +11,8 @@
   "details": {
     "module_level_violations": [],
     "core_plugin_mentioning": [
+      "codon_table.py",
+      "find_core_imports.py",
       "ir_runtime.py",
       "opcode_semantics.py",
       "plugin_registry.py",
@@ -18,8 +20,8 @@
       "vm.py"
     ],
     "sim_runtime_violations": [],
-    "lazy_import_sites": 22
+    "lazy_import_sites": 23
   },
   "reference": "doc/36 plugin architecture \u00a72, doc/37 \u00a74 decoupling verification",
-  "runtime_seconds": 0.1796396659919992
+  "runtime_seconds": 0.2349233750719577
 }

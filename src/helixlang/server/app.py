@@ -1,7 +1,7 @@
 """HelixLang web visualization server (Flask).
 
 Usage:
-    /opt/anaconda3/envs/helix/bin/python -m helixlang --serve [--port 5000]
+    python -m helixlang --serve [--port 5000]
     helixlang --serve
 
 Provides REST API:
@@ -24,15 +24,14 @@ if TYPE_CHECKING:
     from helixlang.core.ast_nodes import Program
     from helixlang.core.bytecode import Chunk
 
-from helixlang.core.codon_table import Op, get_table
 from helixlang.core.compiler import Compiler
 from helixlang.core.disassembler import disassemble
 from helixlang.core.errors import HelixError, SimConfigError
+from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
 from helixlang.core.semantic import SemanticAnalyzer
 from helixlang.core.vm import CellVM
-from helixlang.plugins.runtime.seq_utils import stop_codons_from_table as _stop_codons_from_table
 from helixlang.sim_runtime import run
 from helixlang.web.serializers import (
     _parse_lsystem_rules,
@@ -64,15 +63,17 @@ def _get_debug_lock() -> Any:
     return _DEBUG_LOCK
 
 
-def _pipeline(source: str, table_name: str) -> tuple[dict[str, Op], Program, Chunk]:
-    """Run the compile pipeline, returning (table, program, chunk). Raises on failure."""
-    table = get_table(table_name)
-    stop_codons = _stop_codons_from_table(table)
+def _pipeline(source: str, table_name: str
+              ) -> tuple[Any, Program, Chunk]:
+    """Run the compile pipeline via one LanguageConfig (doc/38 §4).
+
+    Returns ``(config, program, chunk)``; raises on failure."""
+    config = LanguageConfig.for_table(table_name)
     tokens = list(Lexer(source).tokens())
-    program = Parser(tokens, stop_codons=stop_codons).parse()
+    program = Parser(tokens, config=config).parse()
     SemanticAnalyzer(program).check()
-    chunk = Compiler(table).compile(program)
-    return table, program, chunk
+    chunk = Compiler(config=config).compile(program)
+    return config, program, chunk
 
 
 def create_app() -> Flask:
@@ -123,7 +124,7 @@ def create_app() -> Flask:
         table_name = body.get("table", "standard")
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
-        table, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline(source, table_name)
         disasm = disassemble(chunk, "preview")
         return jsonify({
             "ok": True,
@@ -141,7 +142,7 @@ def create_app() -> Flask:
         ticks = body.get("ticks")
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
-        table, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline(source, table_name)
         if ticks is not None:
             program.config.ticks = int(ticks)
         vm = CellVM(chunk, program)
@@ -170,7 +171,7 @@ def create_app() -> Flask:
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
         try:
-            _table, program, _chunk = _pipeline(source, table_name)
+            _config, program, chunk = _pipeline(source, table_name)
         except HelixError as e:
             return jsonify({"ok": False, "error": str(e)}), 400
         ticks = body.get("ticks")
@@ -1007,7 +1008,7 @@ def create_app() -> Flask:
         import uuid
 
         from helixlang.debugger import HelixDebugger
-        table, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline(source, table_name)
         vm = CellVM(chunk, program)
         debugger = HelixDebugger(vm, program)
         debugger.start()

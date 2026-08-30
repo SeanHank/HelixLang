@@ -197,6 +197,65 @@ def stop_codons_from_table(table: dict) -> set:
     return {codon for codon, op in table.items() if op == Op.OP_HALT}
 
 
+def start_codons_from_table(table: dict) -> set:
+    """Extract the set of start codons from a codon->Op mapping table.
+
+    Start codons = codons mapped to ``OP_START`` (ATG in the standard table,
+    ATG/ATA in the mitochondrial table).  Derived, never hardcoded.
+
+    Args:
+        table: ``{codon: Op}`` mapping (from :func:`get_table`)
+
+    Returns:
+        Set of start codon strings.
+    """
+    return {codon for codon, op in table.items() if op == Op.OP_START}
+
+
+# ── Amino-acid translation, single source (doc/38 §4) ───────────────────────
+# NCBI standard genetic code (translation table 1 / 11).  Codons present here
+# are the 64 canonical triples, keyed exactly like STANDARD_TABLE so lookups
+# never fail.  The plugins that used to define their own private copies
+# (helixlang.plugins.annotation.sequences, plugins.apps.full_pipeline) now
+# import this map instead.
+STANDARD_AMINO_ACIDS: dict[str, str] = {
+    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
+    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
+    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
+    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
+    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
+    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
+    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
+    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
+    "TAT": "Y", "TAC": "Y", "TAA": "*", "TAG": "*",
+    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
+    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
+    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
+    "TGT": "C", "TGC": "C", "TGA": "*", "TGG": "W",
+    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
+    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
+    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G",
+}
+
+
+def translation_table_from_ncbi(codon_to_op: dict | None = None) -> dict:
+    """codon -> amino-acid map, derived from one canonical source.
+
+    ``*`` marks a stop codon.  When a custom ``{codon: Op}`` table is passed,
+    the result is restricted to the codons it contains (a custom grammar never
+    leaks codons it does not define).
+
+    Args:
+        codon_to_op: optional ``{codon: Op}`` map; defaults to standard.
+
+    Returns:
+        ``{codon: amino-acid}`` dict.
+    """
+    keys = (codon_to_op or STANDARD_TABLE).keys()
+    return {c: STANDARD_AMINO_ACIDS[c] for c in STANDARD_AMINO_ACIDS
+            if c in keys}
+
+
 # Invariant self-check
 assert len(STANDARD_TABLE) == 64, f"STANDARD_TABLE must have 64 codons, got {len(STANDARD_TABLE)}"
 assert all(c in STANDARD_TABLE for c in (

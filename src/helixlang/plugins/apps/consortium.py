@@ -42,12 +42,12 @@ import math
 import random
 from dataclasses import dataclass, field
 
-from helixlang.core.errors import BioError
-from helixlang.core.units import (
+from helixlang.api.units import (
     DIFFUSION_DT_S,
     LATTICE_SPACING_UM,
     diffusion_to_lattice,
 )
+from helixlang.core.errors import BioError
 from helixlang.plugins.runtime.population import (
     DIVISION_ENERGY_THRESHOLD,
     ENERGY_INTAKE_PER_STEP,
@@ -425,11 +425,8 @@ def run_consortium_quorum(cells_per_side: int,
     returns whether quorum was reached (``proteins["quorum"] == 1.0`` on
     the first cell), mirroring ``examples/21_quorum_circuit.helix``.
     """
-    from helixlang.core.codon_table import STANDARD_TABLE
-    from helixlang.core.compiler import Compiler
-    from helixlang.core.lexer import Lexer
-    from helixlang.core.parser import Parser
-    from helixlang.core.semantic import SemanticAnalyzer
+    from helixlang.api.compiler import Compiler, Lexer, Parser, SemanticAnalyzer
+    from helixlang.api.language import STANDARD_TABLE
     from helixlang.plugins.runtime.population import (
         CellPopulation,
         PopulationCell,

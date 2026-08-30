@@ -29,9 +29,9 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING
 
-from helixlang.core.ast_nodes import Program
-from helixlang.core.bytecode import Chunk
-from helixlang.core.units import (
+from helixlang.api.ast import Program
+from helixlang.api.bytecode import Chunk
+from helixlang.api.units import (
     AI2_DIFFUSION_UM2_S,
     DIFFUSION_DT_S,
     LATTICE_SPACING_UM,
@@ -1006,11 +1006,12 @@ class CellPopulation:
         per-tick op quota is exhausted."""
         if self.config.chunk is None:
             return
-        from helixlang.core.codon_table import OP_OPERAND_BYTES, Op
-        from helixlang.core.opcode_semantics import (
+        from helixlang.api.bytecode import (
             BIND_LEVEL_BOOST,
+            OP_OPERAND_BYTES,
             REGULATE_EDGE_WEIGHT,
             SIGNAL_EMISSION_AMOUNT,
+            Op,
         )
         from helixlang.plugins.runtime.cell import (
             DIRECTIONS,

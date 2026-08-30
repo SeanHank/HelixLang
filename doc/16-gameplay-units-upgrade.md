@@ -21,7 +21,7 @@
 > literature.
 >
 > Baseline: `ruff` + `mypy` clean
-> (`/opt/anaconda3/envs/helix/bin/python`).
+> (`python`).
 
 ---
 
@@ -366,7 +366,7 @@ by dependency (units.py first, then consumers).
 
 ## 7. Verification Strategy
 
-Every batch, under `/opt/anaconda3/envs/helix/bin/python`:
+Every batch, under `python`:
 
 ```bash
 ruff check src tests                     # lint gate
@@ -393,7 +393,7 @@ Coverage gate stays ≥ 80% (new registry + constants add coverage, not reduce i
 
 ## 8. Implementation Batches
 
-Status ledger for §5. Every batch is verified under `/opt/anaconda3/envs/helix/bin/python`
+Status ledger for §5. Every batch is verified under `python`
 with the gates of §7. Totals after batches 1–8 land: ruff + mypy clean. Validation suite: `tests/test_units.py` + calibrated sections in
 `tests/{test_cell,test_grn,test_population,test_vm,test_central_dogma,test_semantic,
 test_parser,test_server,test_end_to_end}.py`.

@@ -19,19 +19,41 @@ from __future__ import annotations
 
 from helixlang.core.ast_nodes import Program
 from helixlang.core.bytecode import Chunk
-from helixlang.core.codon_table import STANDARD_TABLE, Op
+from helixlang.core.codon_table import TABLES, Op
 from helixlang.core.errors import CompileError  # noqa: F401  (re-exported)
 from helixlang.core.ir import IRProgram
 from helixlang.core.ir_builder import IRBuilder
 from helixlang.core.ir_lower import IRLowerer
 from helixlang.core.ir_opt import IROpt
+from helixlang.core.language import LanguageConfig
+
+
+def _table_name_of(table: dict[str, Op]) -> str:
+    """Resolve a codon->Op dict to its registered name, if known."""
+    for name, tbl in TABLES.items():
+        if tbl is table:
+            return name
+    return "standard"
 
 
 class Compiler:
     """Program -> typed IR -> Chunk."""
 
-    def __init__(self, table: dict[str, Op] = STANDARD_TABLE):
-        self.table = table
+    def __init__(self, table: dict[str, Op] | None = None, *,
+                 config: LanguageConfig | None = None):
+        if config is not None and table is not None:
+            raise CompileError("pass exactly one of 'config' or 'table' to Compiler")
+        if config is None:
+            # Legacy path: a bare table dict (may be STANDARD_TABLE or custom).
+            config = LanguageConfig.for_table(
+                _table_name_of(table) if table is not None else "standard")
+        self._config = config
+        self.table = dict(config.codon_to_op)
+
+    @property
+    def config(self) -> LanguageConfig:
+        """The resolved :class:`LanguageConfig` (doc/38 §4)."""
+        return self._config
 
     def compile(self, program: Program) -> Chunk:
         """Compile the AST straight to bytecode (IR path, no optimization).

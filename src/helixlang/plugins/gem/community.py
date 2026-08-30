@@ -110,8 +110,8 @@ class CommunityFBAExtended:
             # FBA solver crash silently zeroing an organism's biomass would
             # understate the community objective (doc/36 §3ξ.3, F2/F3).  Surface
             # it unless the program explicitly opted into reduced fidelity.
-            from helixlang.core import fidelity
-            if not fidelity.opt_in("--low-fidelity"):
+            from helixlang.api.capabilities import opt_in
+            if not opt_in("--low-fidelity"):
                 from helixlang.core.errors import ModelMissingError
                 raise ModelMissingError(
                     f"{org.organism_id} FBA", "fba",

@@ -8,7 +8,10 @@ Provides:
 The C dispatch kernel handles the arithmetic/stack subset (HALT, PUSH_CONST,
 POP, ADD, SUB, MUL) at ~50 ns/op.  For segments containing only these opcodes
 we delegate to the native kernel; for segments with bio-opcodes we fall back to
-the Python dispatcher.
+the Python dispatcher.  ``_segment_admissible`` gates delegation so the
+accelerator is **tick-for-tick equivalent** to the pure loop on the live operand
+stack (doc/38 §2.2): the kernel only sees segments it can run on a fresh stack,
+and HALT/quota accounting is restored to pure-loop semantics.
 """
 from __future__ import annotations
 
@@ -34,16 +37,6 @@ _OPERAND_BYTES: dict[int, int] = {
 }
 
 
-def _segment_simple(code: bytes | bytearray, start: int, end: int) -> bool:
-    ip = start
-    while ip < end:
-        op = code[ip]
-        if op not in _SIMPLE_OPS:
-            return False
-        ip += 1 + _OPERAND_BYTES.get(op, 0)
-    return True
-
-
 def _find_simple_segments(code: bytes | bytearray, start: int, end: int) -> list[tuple[int, int]]:
     segments: list[tuple[int, int]] = []
     ip = start
@@ -61,6 +54,51 @@ def _find_simple_segments(code: bytes | bytearray, start: int, end: int) -> list
     return segments
 
 
+def _segment_admissible(code: bytes | bytearray, seg_start: int, seg_end: int,
+                        n_consts: int) -> int | None:
+    """Op count of ``[seg_start, seg_end)`` if the whole segment can be handed
+    to ``run_quota`` transparently, else ``None``.
+
+    Guards for exact parity with the Python dispatcher:
+
+    - every PUSH_CONST operand must index an existing constant (the classic
+      dispatcher falls back to pushing the raw byte, but ``run_quota`` would
+      raise IndexError);
+    - the segment must be executable on a *fresh* dispatch-kernel stack: the
+      kernel starts empty and never sees values already on the VM operand
+      stack, so every op is checked for its own precondition (POP needs one
+      value, ADD/SUB/MUL need two).  Violations fall back to the Python
+      dispatcher which reads the live stack.
+    """
+    depth = 0
+    count = 0
+    ip = seg_start
+    while ip < seg_end:
+        op = code[ip]
+        if op == 0x11:  # HALT (per-gene return guard)
+            ip += 1
+            count += 1
+        elif op == 0x20:  # PUSH_CONST  idx
+            if ip + 1 >= seg_end or code[ip + 1] >= n_consts:
+                return None
+            depth += 1
+            ip += 2
+            count += 1
+        elif op == 0x21:  # POP: needs one value on the kernel stack
+            if depth < 1:
+                return None
+            depth -= 1
+            ip += 1
+            count += 1
+        else:  # ADD / SUB / MUL: need two values on the kernel stack
+            if depth < 2:
+                return None
+            depth -= 1
+            ip += 1
+            count += 1
+    return count
+
+
 def accelerated_execute_pending(vm: CellVM) -> None:
     """Execute bytecode with C-dispatch acceleration for arithmetic segments.
 
@@ -69,8 +107,13 @@ def accelerated_execute_pending(vm: CellVM) -> None:
     dispatch kernel.  Bio-opcodes and control flow fall back to the Python
     dispatcher.
 
-    The acceleration is transparent: the VM state (stack, ip, frames) is
-    updated identically to the pure-Python path.
+    The acceleration is transparent and **tick-for-tick equivalent** to the
+    pure loop (doc/38 §2.2, asserted by ``tests/test_performance.py``):
+    ``_segment_admissible`` only hands the kernel segments that are runnable on
+    a fresh stack with in-range constants and that fit the remaining quota; a
+    HALT resumes the caller within the same tick and is charged against the
+    quota exactly like the pure dispatcher, so the (stack, ip, frames) state
+    and per-tick snapshots are identical.
     """
     quota = vm.program.config.ops_per_tick
     if quota <= 0:
@@ -101,6 +144,15 @@ def accelerated_execute_pending(vm: CellVM) -> None:
             for seg_start, seg_end_pos in segments:
                 if seg_start != vm.ip:
                     break
+                # run_quota returns only (ops_consumed, stack, halted), not
+                # the final instruction index, so accelerate only segments
+                # whose whole op stream fits inside the remaining quota;
+                # otherwise the tail of the segment would be skipped when
+                # vm.ip jumps to seg_end_pos.
+                seg_ops = _segment_admissible(code, seg_start, seg_end_pos,
+                                              len(constants))
+                if seg_ops is None or seg_ops > quota:
+                    break
                 seg_code = bytes(code[seg_start:seg_end_pos])
                 seg_consts = list(constants)
                 ops_consumed, stack_result, halted = run_quota(
@@ -109,11 +161,32 @@ def accelerated_execute_pending(vm: CellVM) -> None:
                     vm.stack.append(v)
                 vm.ip = seg_end_pos
                 quota -= ops_consumed
+                # doc/38 §2.2: count native ops as executed, so accel_used is
+                # an observation of what really ran rather than a request.
+                vm.ops_executed += ops_consumed
+                vm.accel_native_ops += ops_consumed
                 if halted:
-                    vm.frames.pop()
+                    # run_quota reports ops_consumed excluding the HALT, but
+                    # the pure loop charges quota for it like any op; restore
+                    # identical tick-boundary accounting.
+                    vm.ops_executed += 1
+                    vm.accel_native_ops += 1
+                    quota -= 1
+                    returned = vm.frames.pop()
+                    # HALT is the per-gene return guard: resume at the address
+                    # recorded on the returned frame (pure dispatcher: pops one
+                    # frame and uses ITS return address) and keep going within
+                    # this tick exactly like the pure loop.
                     if vm.frames:
-                        vm.ip = vm.frames[-1].return_ip
-                    return
+                        vm.ip = returned.return_ip
+                    else:
+                        return
+            # A segment that consumed the whole code region leaves ip at
+            # len(code); the pure loop re-checks against the frame bound at the
+            # top of every iteration, so do the same here before falling into
+            # the Python dispatch below (code[vm.ip] would be out of range).
+            if vm.ip >= len(code):
+                continue
 
         op_byte = code[vm.ip]
         vm.ip += 1
@@ -121,6 +194,9 @@ def accelerated_execute_pending(vm: CellVM) -> None:
             from helixlang.core.codon_table import Op
             op = Op(op_byte)
         except ValueError:
+            # Forward-compat skip (doc/11 §5.5) tracked via the VM's counter
+            # (doc/38 §10): the accelerated path must agree with the pure loop.
+            vm.skipped_unknown += 1
             if vm.debug:
                 print(f"[tick={vm.tick} ip={vm.ip - 1}] "
                       f"<unknown 0x{op_byte:02X}>")
@@ -178,6 +254,7 @@ class VMProfileResult:
     trace_entries: int = 0
     snapshot_interval: int = 1
     accel_used: bool = False
+    accel_ops: int = 0
     component_times: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -193,6 +270,7 @@ class VMProfileResult:
             "trace_entries": self.trace_entries,
             "snapshot_interval": self.snapshot_interval,
             "accel_used": self.accel_used,
+            "accel_ops": self.accel_ops,
             "component_times": {
                 k: round(v, 2) for k, v in self.component_times.items()
             },
@@ -221,7 +299,6 @@ class VMProfiler:
         from helixlang.core.vm import CellVM
 
         result = VMProfileResult()
-        result.accel_used = use_accel
 
         tracemalloc_was_running = tracemalloc.is_tracing()
         if self._enable_tracemalloc and not tracemalloc_was_running:
@@ -235,7 +312,7 @@ class VMProfiler:
         result.compile_time_ms = (t_compile - t0) * 1000
         result.component_times["compile"] = result.compile_time_ms
 
-        vm = CellVM(chunk, program)
+        vm = CellVM(chunk, program, use_accel=use_accel)
 
         if snapshot_interval is not None:
             vm._snapshot_downsampler = SnapshotDownsampler(interval=snapshot_interval)
@@ -258,7 +335,14 @@ class VMProfiler:
         if result.vm_run_time_ms > 0:
             result.ticks_per_sec = (
                 result.ticks_executed / (result.vm_run_time_ms / 1000))
-        result.ops_per_sec = 0.0
+        # doc/38 §2.1: ops_per_sec is measured from the counters the VM really
+        # accumulated, never a placeholder.
+        result.ops_executed = vm.ops_executed
+        result.accel_ops = vm.accel_native_ops
+        result.accel_used = vm.accel_native_ops > 0
+        if result.vm_run_time_ms > 0:
+            result.ops_per_sec = (
+                result.ops_executed / (result.vm_run_time_ms / 1000))
 
         if self._enable_tracemalloc and not tracemalloc_was_running:
             current, peak = tracemalloc.get_traced_memory()

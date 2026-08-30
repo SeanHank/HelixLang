@@ -99,7 +99,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 from collections.abc import Callable
 
-from helixlang.core.plugin_registry import PluginProvider
+from helixlang.api.registry import PluginProvider
 
 
 def _check(pkg: str) -> bool:

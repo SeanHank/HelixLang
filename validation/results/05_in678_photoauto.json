@@ -21,5 +21,5 @@
     "n_active_fluxes": 87,
     "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)"
   },
-  "runtime_seconds": 3.181782250001561
+  "runtime_seconds": 4.685123041970655
 }

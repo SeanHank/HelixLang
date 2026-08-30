@@ -28,7 +28,7 @@ import math
 import random
 from dataclasses import dataclass
 
-from helixlang.core.units import (
+from helixlang.api.units import (
     DIFFUSION_DT_S,
     LATTICE_SPACING_UM,
     diffusion_to_lattice,

@@ -74,8 +74,8 @@ def get_esm2_embedding(sequence: str) -> list[float]:
         return _aa_composition_features(sequence)
     _ensure_esm2()
     if not _ESM2_AVAILABLE or _esm2_model is None or _esm2_tokenizer is None:
-        from helixlang.core import fidelity
-        if not fidelity.opt_in("--low-fidelity"):
+        from helixlang.api.capabilities import opt_in
+        if not opt_in("--low-fidelity"):
             from helixlang.core.errors import PluginDependencyError
             raise PluginDependencyError("get_esm2_embedding", "esm2", "ml")
         return _aa_composition_features(sequence)

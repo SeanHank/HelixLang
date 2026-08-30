@@ -18,7 +18,7 @@ References:
 """
 from __future__ import annotations
 
-from helixlang.core.codon_table import stop_codons_from_table as stop_codons_from_table
+from helixlang.api.language import stop_codons_from_table as stop_codons_from_table
 
 # IUPAC base complement table (including ambiguous bases)
 _COMPLEMENT: dict[str, str] = {

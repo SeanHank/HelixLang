@@ -13,6 +13,7 @@ import json
 from typing import Any, TextIO
 
 from helixlang.core.codon_table import Op
+from helixlang.core.dimensions import Dimension
 from helixlang.core.ir import (
     IR_VERSION,
     IRFunction,  # imported here for _fn_from_dict
@@ -26,6 +27,13 @@ FMT_NAME = "hlir"
 
 class IRFormatError(ValueError):
     """Raised when an HLIR payload is malformed or too-new."""
+
+
+def idim_to_dim(data: list[int] | tuple[int, ...]) -> Dimension:
+    """Debase a serialized DIM tag (7 SI exponents) into a Dimension."""
+    if len(data) != 7:
+        raise IRFormatError(f"DIM tag must have 7 exponents, got {data!r}")
+    return Dimension(*data)
 
 
 def dumps(ir: IRProgram, *, indent: int | None = 2) -> str:
@@ -67,13 +75,18 @@ def _fn_to_dict(fn: IRFunction) -> dict[str, Any]:
 
 
 def _inst_to_dict(inst: IRInst) -> dict[str, Any]:
-    return {
+    d: dict[str, Any] = {
         "op": inst.opcode.name,
         "operand": inst.operand,
         "value_type": inst.value_type.value if inst.value_type else None,
         "line": inst.line,
         "codon_index": inst.codon_index,
     }
+    # doc/38 §8.2: IR dimensional metadata round-trips as a DIM tag; a reader
+    # that predates the tag ignores it (payload version gate still applies).
+    if inst.dim is not None:
+        d["dim"] = list(inst.dim)
+    return d
 
 
 def from_dict(payload: dict[str, Any]) -> IRProgram:
@@ -109,10 +122,13 @@ def _fn_from_dict(payload: dict[str, Any]) -> IRFunction:
         opcode = Op[name]
         vtype = inst.get("value_type")
         value_type = IRType.from_string(vtype) if vtype else None
+        dim_data = inst.get("dim")
+        dim = idim_to_dim(dim_data) if dim_data is not None else None
         fn.instrs.append(IRInst(
             opcode=opcode,
             operand=inst.get("operand"),
             value_type=value_type,
+            dim=dim,
             line=int(inst.get("line", 0)),
             codon_index=int(inst.get("codon_index", -1)),
         ))

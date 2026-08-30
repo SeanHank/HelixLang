@@ -59,6 +59,9 @@ ENV/
 *.png.bak
 helixlang.egg-info/
 
+# Release run logs (persistent transcripts + gate logs)
+release_logs/
+
 # Reference databases
 data/
 

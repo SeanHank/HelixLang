@@ -16,10 +16,23 @@ Version format: YYYY.M.D or YYYY.M.D.N (e.g. 2026.9.1, 2026.9.1.2):
 
 What this script does:
     1. Validates version format
-    2. Syncs version to pyproject.toml, __init__.py, server/app.py
-    3. Runs all quality gates in parallel (ruff, mypy, pytest -n auto, validation, examples)
-    4. Syncs metrics to README.md, README_PYPI.md, CONTRIBUTING.md
-    5. Builds sdist + wheel
+    2. Checks every version-bearing source for drift and fails fast on mismatch (doc/38 §2.3)
+    3. Syncs version to pyproject.toml, core/version.py, server/app.py (+ bytecode.py comment)
+    4. Runs all quality gates in parallel (ruff, mypy, pytest -n auto, validation, examples)
+    5. Syncs metrics to README.md, README_PYPI.md, CONTRIBUTING.md
+    6. Builds sdist + wheel
+
+Every run persists its complete results — the full transcript, each gate's
+stdout/stderr, and a per-gate exit-code summary — under ``release_logs/``
+(overridable with ``--log-dir DIR``), one directory per run:
+
+    release_logs/<version>-<YYYYMMDD-HHMMSS>/
+        release.log     full transcript of this run (ANSI-stripped)
+        gates/          <gate>.log + <gate>.exit for every gate
+        summary.txt     version, per-gate status, overall result, artifacts
+
+Nothing is deleted after a run, including on failure, so a failed release can
+always be diagnosed from disk.
 """
 from __future__ import annotations
 
@@ -29,9 +42,9 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
@@ -73,6 +86,95 @@ def banner(msg: str) -> None:
     print(f"\n{BOLD}{CYAN}═══ {msg} ═══{NC}\n")
 
 
+# ─── Run log persistence ─────────────────────────────────────────────────────
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_DEFAULT_LOG_ROOT = ROOT / "release_logs"
+
+
+def strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
+
+
+class _Tee:
+    """A file-like writer that mirrors one stream to the terminal AND to an
+    ANSI-stripped log file, so the full transcript survives the run."""
+
+    def __init__(self, real: object, log_file: object) -> None:
+        self._real = real
+        self._log = log_file
+
+    def write(self, s: str) -> int:
+        self._real.write(s)
+        self._log.write(strip_ansi(s))
+        self._log.flush()
+        return len(s)
+
+    def flush(self) -> None:
+        self._real.flush()
+        self._log.flush()
+
+    def isatty(self) -> bool:
+        try:
+            return bool(self._real.isatty())
+        except Exception:
+            return False
+
+    def fileno(self) -> int:
+        return self._real.fileno()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._real, name)
+
+
+def setup_run_log(version: str, log_root: Path | None = None) -> tuple[Path, Path]:
+    """Create a per-run directory and redirect stdout/stderr into a release.log.
+
+    Returns ``(run_dir, gates_dir)``.  Nothing is cleaned up afterwards — the
+    transcripts and gate logs persist even when the release fails.
+    """
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = (log_root or _DEFAULT_LOG_ROOT) / f"{version}-{ts}"
+    gates_dir = run_dir / "gates"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    gates_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = open(run_dir / "release.log", "a", encoding="utf-8")
+    sys.stdout = _Tee(sys.stdout, log_file)
+    sys.stderr = _Tee(sys.stderr, log_file)
+
+    log(f"Run directory : {run_dir}/")
+    log(f"Full transcript: {run_dir / 'release.log'}")
+    log(f"Gate logs     : {gates_dir}/")
+    return run_dir, gates_dir
+
+
+def write_summary(run_dir: Path, version: str, *,
+                  result: str, gates: list[GateResult] | None = None,
+                  elapsed: float) -> None:
+    """Write an ANSI-free summary.txt describing the whole run."""
+    lines = [
+        "HelixLang release run — summary",
+        f"Version     : {version}",
+        f"Started     : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Elapsed     : {elapsed:.1f}s",
+        f"Result      : {result}",
+        f"Transcript  : {run_dir / 'release.log'}",
+        "",
+    ]
+    if gates:
+        lines.append(f"{'gate':<10} {'exit':>4}  status")
+        lines.append(f"{'-'*10} {'-'*4}  {'-'*6}")
+        order = {"ruff": 0, "mypy": 1, "boundary": 2, "pytest": 3, "val": 4,
+                 "examples": 5}
+        for g in sorted(gates, key=lambda r: order.get(r.name, 99)):
+            status = "PASS" if g.exit_code == 0 else "FAIL"
+            lines.append(f"{g.name:<10} {g.exit_code:>4}  {status}")
+        lines.append("")
+    (run_dir / "summary.txt").write_text("\n".join(lines) + "\n")
+
+
 # ─── Gate runner ──────────────────────────────────────────────────────────────
 
 
@@ -84,7 +186,11 @@ class GateResult:
 
 
 def run_gate(name: str, cmd: list[str], gate_dir: Path, cwd: Path | None = None) -> GateResult:
-    """Run a command, capture output to gate_dir, return exit code."""
+    """Run a command, capture output to gate_dir, return exit code.
+
+    No timeout gate: every gate (including the full pytest suite) runs to
+    completion, however long it takes (doc/38 release notes).
+    """
     log_file = gate_dir / f"{name}.log"
     exit_file = gate_dir / f"{name}.exit"
 
@@ -93,16 +199,11 @@ def run_gate(name: str, cmd: list[str], gate_dir: Path, cwd: Path | None = None)
             cmd,
             capture_output=True,
             text=True,
-            timeout=1800,
             cwd=cwd or ROOT,
         )
         log_file.write_text(result.stdout + "\n--- STDERR ---\n" + result.stderr)
         exit_file.write_text(str(result.returncode))
         return GateResult(name=name, exit_code=result.returncode, log_file=log_file)
-    except subprocess.TimeoutExpired:
-        log_file.write_text("TIMEOUT: gate exceeded 1800s")
-        exit_file.write_text("124")
-        return GateResult(name=name, exit_code=124, log_file=log_file)
     except Exception as e:
         log_file.write_text(f"ERROR: {e}")
         exit_file.write_text("1")
@@ -122,6 +223,67 @@ def report_gate(result: GateResult) -> bool:
                 for line in lines:
                     print(f"    {line}")
         return False
+
+
+# ─── Step 0: Version drift check ─────────────────────────────────────────────
+
+#: Every place a release version is written, so a partial sync can be detected
+#: before release.py overwrites anything (doc/38 §2.3).
+_VERSION_LOCATIONS: list[tuple[str, Path, re.Pattern[str]]] = [
+    ("pyproject.toml", ROOT / "pyproject.toml",
+     re.compile(r'^version = "([^"]+)"', re.MULTILINE)),
+    ("core/version.py", ROOT / "src" / "helixlang" / "core" / "version.py",
+     re.compile(r'^__version__ = "([^"]+)"', re.MULTILINE)),
+    ("server/app.py", ROOT / "src" / "helixlang" / "server" / "app.py",
+     re.compile(r'"version": "([^"]+)"')),
+    ("core/bytecode.py", ROOT / "src" / "helixlang" / "core" / "bytecode.py",
+     re.compile(r"Frozen as of HelixLang (\d+\.\d+\.\d+(?:\.\d+)?)")),
+]
+
+
+def read_versions() -> dict[str, str]:
+    """Current version string from every location, keyed by a short name."""
+    found: dict[str, str] = {}
+    for name, path, pattern in _VERSION_LOCATIONS:
+        if path.exists():
+            m = pattern.search(path.read_text())
+            if m:
+                found[name] = m.group(1)
+    return found
+
+
+def check_versions() -> bool:
+    """Fail-fast drift gate: every version-bearing source must agree.
+
+    Returns True when all present locations carry the same version and every
+    location is readable; otherwise the release aborts before any write.
+    """
+    banner("Step 0: Version drift check")
+    found = read_versions()
+    if not found:
+        fail("No version strings found — nothing to check")
+        return False
+
+    first = next(iter(found.values()))
+    all_ok = True
+    for name in ("pyproject.toml", "core/version.py", "server/app.py",
+                 "core/bytecode.py"):
+        if name in found:
+            if found[name] == first:
+                ok(f"{name} → {found[name]}")
+            else:
+                fail(f"{name} → {found[name]} (drifted from {first})")
+                all_ok = False
+        else:
+            fail(f"{name}: version string not found")
+            all_ok = False
+
+    if all_ok:
+        ok(f"All {len(found)} version strings agree ({first})")
+    else:
+        print(f"\n{RED}Version drift detected. Fix it before releasing.{NC}",
+              file=sys.stderr)
+    return all_ok
 
 
 # ─── Step 1: Version sync ────────────────────────────────────────────────────
@@ -188,6 +350,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
         ("ruff", [PYTHON, "-m", "ruff", "check", "src", "tests"], ROOT),
         ("mypy", [PYTHON, "-m", "mypy", "src/helixlang/"], ROOT),
         ("pytest", [PYTHON, "-B", "-m", "pytest", "tests/", "-n", "auto", "--tb=short", "-q"], ROOT),
+        ("boundary", [PYTHON, "-m", "helixlang.core.find_core_imports", "--strict"], ROOT),
     ]
 
     # Validation gate
@@ -219,7 +382,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
                 for f in helix_files:
                     r = subprocess.run(
                         [PYTHON, "-B", "-m", "helixlang", str(f), "--disassemble"],
-                        capture_output=True, text=True, timeout=60, cwd=ROOT,
+                        capture_output=True, text=True, cwd=ROOT,
                     )
                     if r.returncode != 0:
                         lines.append(f"COMPILE FAIL: {f}")
@@ -229,7 +392,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
                 if hello.exists():
                     r = subprocess.run(
                         [PYTHON, "-B", "-m", "helixlang", str(hello)],
-                        capture_output=True, text=True, timeout=60, cwd=ROOT,
+                        capture_output=True, text=True, cwd=ROOT,
                     )
                     if r.returncode != 0:
                         lines.append(f"RUN FAIL: {hello}")
@@ -244,7 +407,8 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
             results.append(future.result())
 
     # Sort by original order
-    order = {"ruff": 0, "mypy": 1, "pytest": 2, "val": 3, "examples": 4}
+    order = {"ruff": 0, "mypy": 1, "boundary": 2, "pytest": 3, "val": 4,
+             "examples": 5}
     results.sort(key=lambda r: order.get(r.name, 99))
 
     log("Waiting for gates...")
@@ -553,6 +717,14 @@ def main() -> int:
              "release of the month, N (optional) = patch of that iteration "
              "(e.g. 2026.9.1, 2026.9.1.2)",
     )
+    parser.add_argument(
+        "--check-versions", action="store_true",
+        help="Only verify every version-bearing source agrees; write nothing.",
+    )
+    parser.add_argument(
+        "--log-dir", metavar="DIR", default=None,
+        help="Persist run + gate logs under DIR (default: release_logs/).",
+    )
     args = parser.parse_args()
 
     version = args.version
@@ -564,48 +736,78 @@ def main() -> int:
 
     os.chdir(ROOT)
 
-    # Step 1: Sync version
-    if not sync_version(version):
-        return 1
+    # Everything from here on is mirrored to a persistent per-run release.log,
+    # and gate logs live in the same directory, so a failed run can be
+    # diagnosed from disk afterwards.
+    log_root = Path(args.log_dir) if args.log_dir else None
+    run_dir, gates_dir = setup_run_log(version, log_root)
+    start = datetime.now()
 
-    # Step 2: Quality gates
-    with tempfile.TemporaryDirectory(prefix="release_gates_") as tmpdir:
-        gate_dir = Path(tmpdir)
-        results = run_quality_gates(gate_dir)
+    results: list[GateResult] = []
+
+    def finish(code: int, result: str) -> int:
+        elapsed = (datetime.now() - start).total_seconds()
+        write_summary(run_dir, version, result=result,
+                      gates=results or None, elapsed=elapsed)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        return code
+
+    try:
+        # Step 0: Fail fast if a previous sync partially applied (doc/38 §2.3)
+        if not check_versions():
+            return finish(1, "ABORTED — version drift")
+
+        if args.check_versions:
+            return finish(0, "PASS — check-versions only")
+
+        # Step 1: Sync version
+        if not sync_version(version):
+            return finish(1, "FAILED — version sync")
+
+        # Step 2: Quality gates (logs persist in gates_dir/)
+        results = run_quality_gates(gates_dir)
 
         failed = [r for r in results if r.exit_code != 0]
         if failed:
-            return 1
+            return finish(1, "FAILED — some gates failed")
 
         # Step 2b: Generate report
         generate_report()
 
         # Step 3: Sync metrics
-        if not sync_metrics(gate_dir):
-            return 1
+        if not sync_metrics(gates_dir):
+            return finish(1, "FAILED — metric sync")
 
-    # Step 4: Build
-    if not build():
-        return 1
+        # Step 4: Build
+        if not build():
+            return finish(1, "FAILED — build")
 
-    # Summary
-    banner(f"Release Complete: {version}")
+        # Summary
+        banner(f"Release Complete: {version}")
 
-    print(f"  {BOLD}Files modified:{NC}")
-    r = subprocess.run(["git", "diff", "--name-only", "HEAD"], capture_output=True, text=True, cwd=ROOT)
-    if r.stdout.strip():
-        for line in r.stdout.strip().splitlines():
-            print(f"    {line}")
-    else:
-        print("    (none)")
+        print(f"  {BOLD}Files modified:{NC}")
+        r = subprocess.run(["git", "diff", "--name-only", "HEAD"], capture_output=True, text=True, cwd=ROOT)
+        if r.stdout.strip():
+            for line in r.stdout.strip().splitlines():
+                print(f"    {line}")
+        else:
+            print("    (none)")
 
-    print()
-    print(f"  {BOLD}Next steps:{NC}")
-    print("    1. Review changes:  git diff")
-    print(f"    2. Commit:          git add -A && git commit -m 'release: v{version}'")
-    print()
+        print()
+        print(f"  {BOLD}Next steps:{NC}")
+        print("    1. Review changes:  git diff")
+        print(f"    2. Commit:          git add -A && git commit -m 'release: v{version}'")
+        print()
 
-    return 0
+        return finish(0, "SUCCESS — release complete")
+    except KeyboardInterrupt:
+        return finish(2, "ABORTED — keyboard interrupt")
+    except Exception as e:  # noqa: BLE001 — top-level release guard
+        import traceback
+        traceback.print_exc()
+        fail(f"Unhandled error: {e}")
+        return finish(1, f"ERROR — {type(e).__name__}")
 
 
 if __name__ == "__main__":

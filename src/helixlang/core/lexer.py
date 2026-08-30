@@ -9,6 +9,38 @@ from dataclasses import dataclass
 
 from helixlang.core.errors import LexError
 
+#: #keywords always treated as annotations (never gene-ID markers), matched
+#: case-exact against the lexed identifier (doc/38 §5).  Plugin grammars are
+#: recognized dynamically through the shared grammar registry instead of this
+#: tuple, so a new #keyword needs no lexer edit.
+ANNOTATION_KEYWORDS = frozenset({
+    "use", "gem", "config", "sim", "end", "species", "genome",
+    "media", "patch", "type", "enzyme", "metabolite",
+    "regulate", "export", "reaction",
+    "gene", "promoter", "lsystem", "morphogen",
+    "crispr", "evolve", "methylate", "histone",
+    "transcribe", "translate", "quorum",
+    "gff", "sequence", "table", "field",
+    "person", "trait", "disease", "disease_gene",
+    "disease_metabolite", "drug", "pd_effect",
+    "qsp_binding", "endocrine_config", "immune_config",
+    "tumor_biopsy",
+})
+
+
+def _is_annotation_keyword(name: str) -> bool:
+    """Core keywords plus anything a (plugin) grammar registered.
+
+    ``name`` is matched case-exact: a registered grammar keyword is an
+    annotation (``ANNOT_START``); anything else that looks like ``#ident`` is a
+    gene-ID marker (``GENE_ID``).
+    """
+    if name in ANNOTATION_KEYWORDS:
+        return True
+    from helixlang.core import grammar_registry as _grammar
+
+    return _grammar.grammar_registry.contains(name)
+
 
 @dataclass(slots=True)
 class Token:
@@ -53,20 +85,8 @@ class Lexer:
                     gene_id = peek[:m_end]
                     # Check if '=' appears soon (annotation) or not (gene ID)
                     after_id = peek[m_end:m_end + 5].lstrip()
-                    if not after_id.startswith('=') and gene_id not in (
-                        "use",
-                        "gem", "config", "sim", "end", "species", "genome",
-                        "media", "patch", "type", "enzyme", "metabolite",
-                        "regulate", "export", "reaction",
-                        "gene", "promoter", "lsystem", "morphogen",
-                        "crispr", "evolve", "methylate", "histone",
-                        "transcribe", "translate", "quorum",
-                        "gff", "sequence", "table", "field",
-                        "person", "trait", "disease", "disease_gene",
-                        "disease_metabolite", "drug", "pd_effect",
-                        "qsp_binding", "endocrine_config", "immune_config",
-                        "tumor_biopsy",
-                    ):
+                    if not after_id.startswith('=') and not \
+                            _is_annotation_keyword(gene_id):
                         # Gene ID marker — emit GENE_ID token
                         start_line, start_col = self.line, self.col
                         for _ in range(m_end + 1):

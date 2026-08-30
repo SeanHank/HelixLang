@@ -74,6 +74,10 @@ def run() -> dict:
             "performance.py",       # lazy _accel integration
             "units.py",             # docstring: Layer-2 runtime constants
             "opcode_semantics.py",  # docstring: Layer-2 runtime constants
+            "find_core_imports.py", # the boundary scanner itself: scans the
+                                    # plugins tree and matches plugin-prefixed
+                                    # modules (KNOWN_COMPLIANT_EXCEPTIONS)
+            "codon_table.py",       # comment only: provenance of plugin split
         }
         checks["registry_sole_bridge"] = (
             "plugin_registry.py" in registry_mentions

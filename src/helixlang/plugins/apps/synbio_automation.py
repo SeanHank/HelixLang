@@ -32,7 +32,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from math import prod
 
-from helixlang.interop import (
+from helixlang.api.sbol import (
     SBOL_ROLE_GENE,
     SBOL_ROLE_PROMOTER,
     SBOL_ROLE_RBS,

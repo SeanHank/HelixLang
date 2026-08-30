@@ -1,0 +1,38 @@
+{
+  "id": "74_incremental_jit",
+  "status": "PASS",
+  "checks": {
+    "full_build_rebuilds_all": true,
+    "unchanged_source_rebuilds_nothing": true,
+    "leaf_edit_rebuilds_closure_only": true,
+    "all_patches_byte_identical_to_full": true,
+    "edit_cost_proportional_to_closure": true
+  },
+  "details": {
+    "genes": 16,
+    "full_rebuild_seconds": 0.00013995904009789228,
+    "per_edit_closure_sizes": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1
+    ],
+    "incremental_total_seconds": 0.0043921268079429865,
+    "naive_recompile_total_seconds": 0.0020993856014683843,
+    "work_reduction_ratio": 0.4779883854154049
+  },
+  "reference": "doc/38 \u00a73 incremental JIT (core/incr.py)",
+  "runtime_seconds": 0.04440100002102554
+}

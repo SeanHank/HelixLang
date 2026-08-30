@@ -14,7 +14,7 @@
 #
 # Usage:
 #   helixlang examples/59_full_pipeline_genotype_drug_disease.helix --json
-#   /opt/anaconda3/envs/helix/bin/python examples/59_full_pipeline_genotype_drug_disease.py
+#   python examples/59_full_pipeline_genotype_drug_disease.py
 
 # ─── PATIENT ──────────────────────────────────────────────────────────────
 # 42-year-old female, East Asian, autoimmune vasculitis

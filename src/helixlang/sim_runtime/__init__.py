@@ -5,7 +5,6 @@ Package facade re-exporting the simulation dispatch engine.
 from __future__ import annotations
 
 from ._engine import (
-    _SIM_BACKENDS,
     _add_gem_core_reactions,
     _add_gem_transport_reactions,
     _build_disease_from_helix,
@@ -35,7 +34,7 @@ from ._types import (
 
 __all__ = [
     "BACKENDS", "SimResult", "HistoryResult", "FluxResult", "ColonyResult", "ScoreResult",
-    "run", "_SIM_BACKENDS",
+    "run",
     "_add_gem_core_reactions", "_add_gem_transport_reactions",
     "_build_disease_from_helix", "_build_drugs_from_helix", "_build_ecosystem_patches",
     "_build_endocrine_config_from_helix", "_build_genotype_from_helix", "_build_grn",

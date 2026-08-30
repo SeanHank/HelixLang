@@ -4,6 +4,7 @@ from __future__ import annotations
 __all__ = ["_TRUE", "_FALSE", "_coerce_float", "_coerce_int", "_coerce_bool", "_coerce_enum", "_opt_float", "_opt_int", "_opt_bool", "_opt_enum", "_opt_int_or_none", "_opt_float_or_none", "_opt_float_dict", "_opt_float_list", "_opt_str_list", "_opt_replicon_specs", "_select_columns", "_project"]
 
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -52,24 +53,24 @@ def _coerce_enum(key: str, raw: str, allowed: frozenset[str]) -> str:
         f"sim key {key!r}: expected one of {sorted(allowed)}, got {raw!r}")
 
 
-def _opt_float(sim: dict[str, str], key: str, default: float) -> float:
+def _opt_float(sim: Mapping[str, Any], key: str, default: float) -> float:
     return _coerce_float(key, sim[key]) if key in sim else default
 
 
-def _opt_int(sim: dict[str, str], key: str, default: int) -> int:
+def _opt_int(sim: Mapping[str, Any], key: str, default: int) -> int:
     return _coerce_int(key, sim[key]) if key in sim else default
 
 
-def _opt_bool(sim: dict[str, str], key: str, default: bool) -> bool:
+def _opt_bool(sim: Mapping[str, Any], key: str, default: bool) -> bool:
     return _coerce_bool(key, sim[key]) if key in sim else default
 
 
-def _opt_enum(sim: dict[str, str], key: str, default: str,
+def _opt_enum(sim: Mapping[str, Any], key: str, default: str,
               allowed: frozenset[str]) -> str:
     return _coerce_enum(key, sim[key], allowed) if key in sim else default
 
 
-def _opt_int_or_none(sim: dict[str, str], key: str,
+def _opt_int_or_none(sim: Mapping[str, Any], key: str,
                      default: int | None) -> int | None:
     if key not in sim:
         return default
@@ -78,7 +79,7 @@ def _opt_int_or_none(sim: dict[str, str], key: str,
     return _coerce_int(key, sim[key])
 
 
-def _opt_float_or_none(sim: dict[str, str], key: str,
+def _opt_float_or_none(sim: Mapping[str, Any], key: str,
                        default: float | None) -> float | None:
     if key not in sim:
         return default
@@ -87,7 +88,7 @@ def _opt_float_or_none(sim: dict[str, str], key: str,
     return _coerce_float(key, sim[key])
 
 
-def _opt_float_dict(sim: dict[str, str], key: str,
+def _opt_float_dict(sim: Mapping[str, Any], key: str,
                     default: dict[str, float]) -> dict[str, float]:
     """Coerce ``"a=1.0,b=2.5"`` -> ``{"a": 1.0, "b": 2.5}`` (§6.3 dict)."""
     if key not in sim:
@@ -108,7 +109,7 @@ def _opt_float_dict(sim: dict[str, str], key: str,
     return out
 
 
-def _opt_float_list(sim: dict[str, str], key: str,
+def _opt_float_list(sim: Mapping[str, Any], key: str,
                     default: tuple[float, ...]) -> tuple[float, ...]:
     """Coerce ``"0.5,1.0,1.5"`` -> ``(0.5, 1.0, 1.5)``."""
     if key not in sim:
@@ -121,7 +122,7 @@ def _opt_float_list(sim: dict[str, str], key: str,
     return tuple(out)
 
 
-def _opt_str_list(sim: dict[str, str], key: str,
+def _opt_str_list(sim: Mapping[str, Any], key: str,
                   default: tuple[str, ...]) -> tuple[str, ...]:
     """Coerce ``"goldman,fountain"`` -> ``("goldman", "fountain")``."""
     if key not in sim:
@@ -129,7 +130,7 @@ def _opt_str_list(sim: dict[str, str], key: str,
     return tuple(p.strip() for p in sim[key].split(",") if p.strip())
 
 
-def _opt_replicon_specs(sim: dict[str, str], key: str,
+def _opt_replicon_specs(sim: Mapping[str, Any], key: str,
                         ) -> dict[str, RepliconSpec]:
     """Coerce ``"pBR322:20,pUC19:500"`` -> replicon specs (Phase-C C2).
 
@@ -161,7 +162,7 @@ def _select_columns(program: Program, rows: list[dict[str, Any]],
     """``#config output=`` / ``#sim output=`` column selection (§6.7);
     else ``default`` or the first-seen union of the row keys."""
     requested = program.config.output
-    ext_output = program.sim_extensions.get("output")
+    ext_output = program.extensions.get("output")
     if ext_output:
         requested = [c.strip() for c in ext_output.split(",") if c.strip()]
     if requested and requested != ["stdout"]:

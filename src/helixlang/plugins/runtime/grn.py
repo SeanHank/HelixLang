@@ -33,10 +33,10 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from helixlang.core.units import (
+from helixlang.api.units import (
     PROTEIN_HALF_LIFE_MEDIAN_TICKS,
 )
-from helixlang.core.units import (
+from helixlang.api.units import (
     decay_from_half_life_ticks as units_decay_from_half_life_ticks,
 )
 from helixlang.plugins.runtime.stochastic import (
@@ -307,7 +307,7 @@ class GRN:
             ValueError: if the graph uses Hill kinetics or telegraph noise, which
                 the equivalent-fidelity kernel does not mirror.
         """
-        from helixlang._accel.grn_step.backend import step as accel_step
+        from helixlang.api.accel import grn_step as accel_step
 
         if self.noise_enabled:
             raise ValueError(

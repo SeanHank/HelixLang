@@ -9,7 +9,7 @@
 > for the maintainer.
 >
 > Date: 2026-08 · Baseline: `ruff` + `mypy` clean
-> (`/opt/anaconda3/envs/helix/bin/python`). Runtime runs on physical units end-to-end
+> (`python`). Runtime runs on physical units end-to-end
 > (1 tick = 1 min, ATP molecule counts, µM signals, µm²/s diffusion — see `units.py`).
 
 ---

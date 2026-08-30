@@ -16,6 +16,8 @@ P0-1.3 type system integration: supports type annotations
 """
 from __future__ import annotations
 
+from typing import Any
+
 from helixlang.core.ast_nodes import (
     BioInstruction,
     Codon,
@@ -33,6 +35,16 @@ from helixlang.core.ast_nodes import (
     UseDecl,
 )
 from helixlang.core.errors import ParseError, UnknownKeywordError
+from helixlang.core.grammar_registry import (
+    BEFORE_SIM,
+    AnnotationGrammar,
+    dict_entry_decompile,
+    gem_inline_decompile,
+    grammar_registry,
+    prefix_decompile,
+    sim_entry_decompile,
+)
+from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer, Token
 from helixlang.core.use_stmt import UseError, parse_use_line
 
@@ -43,17 +55,45 @@ BIO_INSTRUCTION_KINDS = frozenset({
 })
 
 
+def _parse_float(value: str, what: str, line: int) -> float:
+    """Parse a numeric annotation field; garbage is a typed ParseError, never
+    a bare ValueError (doc/38 §10 fuzzing invariant: typed errors only)."""
+    try:
+        return float(value)
+    except ValueError:
+        raise ParseError(
+            f"invalid {what} {value!r}", line=line) from None
+
+
+def _parse_int(value: str, what: str, line: int) -> int:
+    """Parse an integer annotation field as a typed ParseError (see above)."""
+    try:
+        return int(value)
+    except ValueError:
+        raise ParseError(
+            f"invalid {what} {value!r}", line=line) from None
+
+
 class Parser:
     """Recursive-descent Parser."""
 
     def __init__(self, tokens: list[Token],
                  stop_codons: set[str] | None = None,
+                 config: LanguageConfig | None = None,
                  enable_type_check: bool = False):
         self.toks = [t for t in tokens if t.kind != "NEWLINE"]
         self.i = 0
         self.anon_counter = 0
-        # Stop codon set (can be derived from the translation table); defaults to the standard table
-        self.stop_codons = stop_codons or {"TAA", "TAG", "TGA"}
+        # Stop-codon truth comes from the LanguageConfig (doc/38 §4), never a
+        # hardcoded literal: the default is the standard table's OP_HALT set.
+        # ``stop_codons`` remains a backward-compatible override.
+        if config is None:
+            config = LanguageConfig.for_table("standard")
+        elif stop_codons is not None:
+            raise ParseError(
+                "pass exactly one of 'config' or 'stop_codons' to Parser")
+        self.config = config
+        self.stop_codons = stop_codons or set(config.stop_codons)
         self.enable_type_check = enable_type_check
         self._type_errors: list[str] = []
 
@@ -63,88 +103,17 @@ class Parser:
         while self._peek() and self._peek().kind != "EOF":
             t = self._peek()
             if t.kind == "ANNOT_START":
-                handler = {
-                    "promoter": self._parse_promoter,
-                    "gene": self._parse_gene,
-                    "regulate": self._parse_regulate,
-                    "lsystem": self._parse_lsystem,
-                    "field": self._parse_field,
-                    "morphogen": self._parse_morphogen,
-                    "config": self._parse_config,
-                    "type": self._parse_type_annotation,
-                    "media": self._parse_media,
-                    "enzyme": self._parse_enzyme,
-                    "reaction": self._parse_reaction,
-                    "metabolite": self._parse_metabolite,
-                    "sim": self._parse_sim,
-                    "genome": self._parse_genome,
-                    "species": self._parse_species,
-                    "patch": self._parse_patch,
-                    "gem": self._parse_gem,
-                    "person": self._parse_person,
-                    "trait": self._parse_trait,
-                    "disease": self._parse_disease,
-                    "disease_gene": self._parse_disease_gene,
-                    "disease_metabolite": self._parse_disease_metabolite,
-                    "drug": self._parse_drug,
-                    "pd_effect": self._parse_pd_effect,
-                    "qsp_binding": self._parse_qsp_binding,
-                    "endocrine_config": self._parse_endocrine_config,
-                    "immune_config": self._parse_immune_config,
-                    "tumor_biopsy": self._parse_tumor_biopsy,
-                }.get(t.value)
-                # Biological instructions (P0-1.1)
-                if t.value in BIO_INSTRUCTION_KINDS:
-                    self._parse_bio_instruction(prog, t.value)
-                    continue
-                if handler is None:
+                # Registry-driven dispatch (doc/38 §5): the annotation
+                # grammars — including plugin grammars — live in
+                # grammar_registry, not in a literal dict here.
+                grammar = grammar_registry.get(t.value)
+                if grammar is None or grammar.parse is None:
                     # doc/36 F7: an unknown #keyword is never silently dropped —
                     # it is a hard SemanticError naming the keyword.
                     raise UnknownKeywordError(
                         f"unknown keyword #{t.value}", line=t.line, col=t.col)
-                handler(prog)
-                # After #gem, consume any inline DNA block (GENE_ID + CODON)
-                if t.value == "gem" and self._peek() and \
-                        self._peek().kind in ("GENE_ID", "CODON", "NEWLINE"):
-                    # Skip leading NEWLINEs
-                    while self._peek() and self._peek().kind == "NEWLINE":
-                        self._advance()
-                    # We're in an inline DNA block — collect genes + sequences
-                    gene_entries: list[list[str]] = []
-                    current_gene_id: str | None = None
-                    codons: list[str] = []
-                    while self._peek().kind in ("GENE_ID", "CODON", "NEWLINE"):
-                        if self._peek().kind == "NEWLINE":
-                            self._advance()
-                            continue
-                        if self._peek().kind == "GENE_ID":
-                            if codons:
-                                gene_entries.append([
-                                    current_gene_id or f"gene_{len(gene_entries)}",
-                                    "".join(codons),
-                                ])
-                                codons = []
-                            gt = self._advance()
-                            current_gene_id = gt.value
-                        else:
-                            ct = self._advance()
-                            codons.append(ct.value)
-                    if codons:
-                        gene_entries.append([
-                            current_gene_id or f"gene_{len(gene_entries)}",
-                            "".join(codons),
-                        ])
-                    if gene_entries:
-                        prog.sim_extensions["gem_inline_genes"] = gene_entries
-                        prog.sim_extensions["gem_inline_genome"] = "".join(
-                            s for _, s in gene_entries
-                        )
-                    # Consume #end if present
-                    if self._peek() and self._peek().kind == "ANNOT_END":
-                        self._advance()
-                    # Consume trailing NEWLINE
-                    if self._peek() and self._peek().kind == "NEWLINE":
-                        self._advance()
+                grammar.parse(self, prog)
+                continue
             elif t.kind == "USERDIRECTIVE":
                 prog.use_directives.append(self._parse_use(t))
             elif t.kind == "CODON":
@@ -225,11 +194,7 @@ class Parser:
             if not fields.get("name"):
                 raise ParseError("#gene requires name= field", line=t.line)
             entry = {k: self._clean_value(v) for k, v in fields.items()}
-            existing = prog.sim_extensions.setdefault("genes", [])
-            if isinstance(existing, list):
-                existing.append(entry)
-            else:
-                prog.sim_extensions["genes"] = [entry]
+            prog.extensions.extension_for("genes", entry).append("genes", entry)
             return
         # Collect CODON stream (before #end)
         codons: list[Codon] = []
@@ -262,12 +227,12 @@ class Parser:
         prog.regulations.append(Regulation(source=src, target=tgt, strength=strength))
 
     def _parse_lsystem(self, prog: Program) -> None:
-        self._advance()
+        t = self._advance()
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         name = fields.get("name", "default")
         axiom = fields.get("axiom", "F")
-        angle = float(fields.get("angle", "25"))
-        step = float(fields.get("step", "1.0"))
+        angle = _parse_float(fields.get("angle", "25"), "angle", t.line)
+        step = _parse_float(fields.get("step", "1.0"), "step", t.line)
         # rules field format: "0:F->F[+F]F[-F]F;1:F->FF"
         rules: dict[int, dict[str, str]] = {}
         rules_str = fields.get("rules", "")
@@ -291,13 +256,13 @@ class Parser:
             name=name, axiom=axiom, rules=rules, angle=angle, step=step)
 
     def _parse_field(self, prog: Program) -> None:
-        self._advance()  # ANNOT_START
+        t = self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
-        size = int(fields.get("size", "32"))
-        F = float(fields.get("F", "0.035"))
-        k = float(fields.get("k", "0.065"))
-        Du = float(fields.get("Du", "0.16"))
-        Dv = float(fields.get("Dv", "0.08"))
+        size = _parse_int(fields.get("size", "32"), "size", t.line)
+        F = _parse_float(fields.get("F", "0.035"), "F", t.line)
+        k = _parse_float(fields.get("k", "0.065"), "k", t.line)
+        Du = _parse_float(fields.get("Du", "0.16"), "Du", t.line)
+        Dv = _parse_float(fields.get("Dv", "0.08"), "Dv", t.line)
         prog.field_decl = FieldDecl(size=size, F=F, k=k, Du=Du, Dv=Dv)
 
     def _parse_morphogen(self, prog: Program) -> None:
@@ -325,18 +290,18 @@ class Parser:
             gene=gene, channel=channel, gain=gain))
 
     def _parse_config(self, prog: Program) -> None:
-        self._advance()
+        t = self._advance()
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         if "ticks" in fields:
-            prog.config.ticks = int(fields["ticks"])
+            prog.config.ticks = _parse_int(fields["ticks"], "ticks", t.line)
         if "output" in fields:
             prog.config.output = [s.strip() for s in fields["output"].split(",") if s.strip()]
         if "table" in fields:
             prog.config.table = fields["table"]
         if "ops_per_tick" in fields:
-            prog.config.ops_per_tick = int(fields["ops_per_tick"])
+            prog.config.ops_per_tick = _parse_int(fields["ops_per_tick"], "ops_per_tick", t.line)
         if "react_steps" in fields:
-            prog.config.react_steps = int(fields["react_steps"])
+            prog.config.react_steps = _parse_int(fields["react_steps"], "react_steps", t.line)
         # P0-1.2: central dogma pipeline switch
         if "use_central_dogma" in fields:
             prog.config.use_central_dogma = fields["use_central_dogma"].lower() in ("true", "1", "yes")
@@ -351,10 +316,23 @@ class Parser:
         consumed = {
             "ticks", "output", "table", "ops_per_tick", "react_steps",
             "use_central_dogma", "species", "backend",
+            # ``#config sim <fields>`` documents that the following fields are
+            # sim parameters (12-helix-language-wiring.md §6.1); the marker is
+            # consumed, not stored as an empty-valued sim parameter.
+            "sim",
         }
         for k, v in fields.items():
-            if k not in consumed:
-                prog.config.sim[k] = v
+            if k in consumed:
+                continue
+            # doc/38 §10: an empty-valued sim parameter is a silent no-op that
+            # also breaks decompile→reparse canonicality (``key= next=val``
+            # merges in the lexer) — reject it with a typed ParseError instead.
+            if not v:
+                raise ParseError(
+                    f"#config {k}= has an empty value (sim parameters must be "
+                    f"non-empty; use a quoted \"\" if truly empty)",
+                    line=t.line)
+            prog.config.sim[k] = v
 
     def _parse_media(self, prog: Program) -> None:
         """Parse #media nutrient=GLC concentration=10.0 [diffusion_um2_s=300].
@@ -443,10 +421,10 @@ class Parser:
         name = fields.get("name", rxn_id)
         substrate = fields.get("substrate", "")
         product = fields.get("product", "")
-        sub_coeff = float(fields.get("substrate_coeff", "-1"))
-        prod_coeff = float(fields.get("product_coeff", "1"))
-        lb = float(fields.get("lower_bound", "0"))
-        ub = float(fields.get("upper_bound", "1000"))
+        sub_coeff = _parse_float(fields.get("substrate_coeff", "-1"), "substrate_coeff", t.line)
+        prod_coeff = _parse_float(fields.get("product_coeff", "1"), "product_coeff", t.line)
+        lb = _parse_float(fields.get("lower_bound", "0"), "lower_bound", t.line)
+        ub = _parse_float(fields.get("upper_bound", "1000"), "upper_bound", t.line)
         subsystem = fields.get("subsystem", "other")
         reversible = fields.get("reversible", "false").lower() in ("true", "1", "yes")
         if reversible:
@@ -493,7 +471,7 @@ class Parser:
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for k, v in fields.items():
-            prog.sim_extensions[k] = v
+            prog.extensions.extension_for(k, v).set(k, v)
 
     def _parse_genome(self, prog: Program) -> None:
         """Parse #genome source=... (doc/18-programmable-cell-population-simulation.md §13 Design 5, task 1).
@@ -514,9 +492,10 @@ class Parser:
         """
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
-        prog.sim_extensions["genome"] = "true"
+        prog.extensions.extension_for("genome", "true").set("genome", "true")
         for k, v in fields.items():
-            prog.sim_extensions[f"genome_{k}"] = v
+            prog.extensions.extension_for(f"genome_{k}", v)\
+                .set(f"genome_{k}", v)
 
     def _parse_species(self, prog: Program) -> None:
         """Parse #species name=... (doc/19 §5.3 A2; ecosystem spine).
@@ -563,7 +542,8 @@ class Parser:
                 self._advance()
         for k, v in fields.items():
             if k != "name":
-                prog.sim_extensions[f"species.{name}.{k}"] = v
+                key = f"species.{name}.{k}"
+                prog.extensions.extension_for(key, v).set(key, v)
 
     def _parse_gem(self, prog: Program) -> None:
         """Parse #gem organism=... [genome=... | DNA block].
@@ -611,50 +591,6 @@ class Parser:
             raise ParseError(
                 "#gem requires organism= field", line=t.line)
 
-            # Inline DNA support: if no genome= field and DNA follows
-            if "genome" not in fields and self._peek().kind in ("CODON", "GENE_ID"):
-                # Collect DNA sequences, tracking gene IDs from #gene_id markers
-                gene_entries: list[list[str]] = []
-                current_gene_id: str | None = None
-                codons: list[str] = []
-
-                while self._peek().kind in ("CODON", "GENE_ID"):
-                    if self._peek().kind == "GENE_ID":
-                        # Save previous gene if any
-                        if codons:
-                            seq = "".join(codons)
-                            gene_entries.append([
-                                current_gene_id or f"gene_{len(gene_entries)}",
-                                seq,
-                            ])
-                        codons = []
-                    gt = self._advance()
-                    current_gene_id = gt.value
-                else:  # CODON
-                    ct = self._advance()
-                    codons.append(ct.value)
-
-            # Save last gene
-            if codons:
-                seq = "".join(codons)
-                gene_entries.append([
-                    current_gene_id or f"gene_{len(gene_entries)}",
-                    seq,
-                ])
-
-            if gene_entries:
-                # Multiple genes: store as structured list
-                fields["inline_genome"] = "".join(
-                    seq for _, seq in gene_entries
-                )
-                # Store gene list in sim_extensions directly (Any-typed)
-                prog.sim_extensions["gem_inline_genes"] = gene_entries
-            else:
-                fields["inline_genome"] = ""
-
-            if self._peek().kind == "ANNOT_END":
-                self._advance()
-
         if "genome" in fields and self._peek().kind == "CODON":
             raise ParseError(
                 f"#gem {fields['organism']}: use either a genome= field or "
@@ -662,7 +598,44 @@ class Parser:
 
         # Store all fields under gem_ prefix
         for k, v in fields.items():
-            prog.sim_extensions[f"gem_{k}"] = v
+            prog.extensions.extension_for(f"gem_{k}", v).set(f"gem_{k}", v)
+
+        # Inline DNA block (doc/38 §5): consuming the GENE_ID/CODON stream that
+        # follows a #gem line is a property of the ``gem`` grammar, not a
+        # Parser special case.
+        if self._peek() and self._peek().kind in ("GENE_ID", "CODON"):
+            gene_entries: list[list[str]] = []
+            current_gene_id: str | None = None
+            codons: list[str] = []
+            while self._peek() and self._peek().kind in ("GENE_ID", "CODON"):
+                if self._peek().kind == "GENE_ID":
+                    if codons:
+                        gene_entries.append([
+                            current_gene_id or f"gene_{len(gene_entries)}",
+                            "".join(codons),
+                        ])
+                        codons = []
+                    gt = self._advance()
+                    current_gene_id = gt.value
+                else:
+                    ct = self._advance()
+                    codons.append(ct.value)
+            if codons:
+                gene_entries.append([
+                    current_gene_id or f"gene_{len(gene_entries)}",
+                    "".join(codons),
+                ])
+            if gene_entries:
+                prog.extensions.extension_for("gem_inline_genes", gene_entries)\
+                    .set("gem_inline_genes", gene_entries)
+                prog.extensions.extension_for(
+                    "gem_inline_genome", "").set(
+                        "gem_inline_genome", "".join(
+                            s for _, s in gene_entries)
+                    )
+            # Consume #end if present
+            if self._peek() and self._peek().kind == "ANNOT_END":
+                self._advance()
 
     def _parse_patch(self, prog: Program) -> None:
         """Parse #patch name=... (doc/19 §5.3 A2; multi-environment, G10).
@@ -698,7 +671,8 @@ class Parser:
             raise ParseError("#patch requires name= field", line=t.line)
         for k, v in fields.items():
             if k != "name":
-                prog.sim_extensions[f"patch.{name}.{k}"] = v
+                key = f"patch.{name}.{k}"
+                prog.extensions.extension_for(key, v).set(key, v)
 
     # -------- Human patient simulation annotations --------
     @staticmethod
@@ -724,7 +698,9 @@ ethnicity=european
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for k, v in fields.items():
-            prog.sim_extensions[f"person_{k}"] = self._clean_value(v)
+            key = f"person_{k}"
+            prog.extensions.extension_for(key, v).set(
+                key, self._clean_value(v))
 
     def _parse_trait(self, prog: Program) -> None:
         """Parse #trait smoking=former pack_years=10 ... (patient lifestyle).
@@ -740,7 +716,9 @@ ethnicity=european
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for k, v in fields.items():
-            prog.sim_extensions[f"trait_{k}"] = self._clean_value(v)
+            key = f"trait_{k}"
+            prog.extensions.extension_for(key, v).set(
+                key, self._clean_value(v))
 
     def _parse_disease(self, prog: Program) -> None:
         """Parse #disease name=... category=... severity=0.7 onset_age=45.
@@ -757,7 +735,9 @@ severity=0.7 onset_age=45
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for k, v in fields.items():
-            prog.sim_extensions[f"disease_{k}"] = self._clean_value(v)
+            key = f"disease_{k}"
+            prog.extensions.extension_for(key, v).set(
+                key, self._clean_value(v))
 
     def _append_sim_list(
             self, prog: Program, key: str,
@@ -767,11 +747,7 @@ severity=0.7 onset_age=45
         The list is created on first use so repeated annotations accumulate.
         """
         entry = {k: self._clean_value(v) for k, v in fields.items()}
-        existing = prog.sim_extensions.setdefault(key, [])
-        if isinstance(existing, list):
-            existing.append(entry)
-        else:
-            prog.sim_extensions[key] = [entry]
+        prog.extensions.extension_for(key, entry).append(key, entry)
 
     def _parse_disease_gene(self, prog: Program) -> None:
         """Parse #disease_gene gene=INSR type=downregulate activity=0.3.
@@ -915,17 +891,33 @@ mw=129.16 dose=500 route=oral interval=8 duration=90
         """
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
-        prog.sim_extensions["tumor_biopsy"] = fields
+        prog.extensions.extension_for("tumor_biopsy", fields).set(
+            "tumor_biopsy", fields)
 
     # -------- Type annotation parsing (P0-1.3) --------
     def _parse_type_annotation(self, prog: Program) -> None:
         """Parse #type annotations.
 
-        Format: #type gene_name=Protein
+        Format: #type gene_name=Protein, or a unit-carrying
+        ``#type gene_name=Float<µM>`` (doc/38 §7.4).  A conflicting repeat of
+        the same symbol (``Protein`` then ``Float``) is a hard error naming
+        the symbol — never a silent overwrite (doc/38 §7.2 constant solving).
         """
         self._advance()  # ANNOT_START
         fields = self._collect_fields_until_block_end(allow_no_end=True)
         for name, type_name in fields.items():
+            prior = prog.type_annotations.get(name)
+            if prior is not None and prior != type_name:
+                raise ParseError(
+                    f"conflicting #type for {name!r}: {prior!r} vs "
+                    f"{type_name!r}")
+            try:
+                from helixlang.core.dimensions import UnitError
+                from helixlang.core.errors import SemanticError as _SE
+                from helixlang.core.type_system import parse_type_annotation
+                parse_type_annotation(type_name)
+            except (_SE, UnitError) as exc:  # bad type or unknown dimension
+                raise ParseError(f"#type {name}={type_name!r}: {exc}") from exc
             prog.type_annotations[name] = type_name
 
     def _run_type_check(self, prog: Program) -> None:
@@ -1013,12 +1005,13 @@ mw=129.16 dose=500 route=oral interval=8 duration=90
                      start_line: int) -> list[Codon]:
         start_idx = None
         for i, c in enumerate(codons):
-            if c.seq == "ATG":
+            if c.seq in self.config.start_codons:
                 start_idx = i
                 break
         if start_idx is None:
             raise ParseError(
-                f"#gene {gene_name!r} has no START codon (ATG)",
+                f"#gene {gene_name!r} has no START codon "
+                f"({'/'.join(sorted(self.config.start_codons))})",
                 line=start_line,
             )
         for j in range(start_idx, len(codons)):
@@ -1067,12 +1060,133 @@ mw=129.16 dose=500 route=oral interval=8 duration=90
         return self._advance()
 
 
-def parse_source(source: str, stop_codons: set[str] | None = None) -> Program:
+def parse_source(source: str, stop_codons: set[str] | None = None,
+                 config: LanguageConfig | None = None) -> Program:
     """Parse a helix program directly from source text.
 
     Convenience wrapper that lexes ``source`` and runs the
     recursive-descent parser, returning the resulting
     :class:`~helixlang.core.ast_nodes.Program`.
+
+    Args:
+        source: .helix source text.
+        stop_codons: legacy override; do not combine with ``config``.
+        config: :class:`LanguageConfig` providing table, stop/start codons and
+            the amino-acid map (doc/38 §4).  Defaults to ``standard``.
     """
     tokens = list(Lexer(source).tokens())
-    return Parser(tokens, stop_codons=stop_codons).parse()
+    return Parser(tokens, stop_codons=stop_codons, config=config).parse()
+
+
+def _bio_parse(kind: str) -> Any:
+    """Adapter matching the P0-1.1 bio-instruction signature to a grammar hook."""
+
+    def _parse(parser: Parser, prog: Program) -> None:
+        parser._parse_bio_instruction(prog, kind)
+
+    return _parse
+
+
+def register_core_grammars() -> None:
+    """Register the built-in core annotation grammars (doc/38 §5).
+
+    This is the complete grammar table that used to live as the literal
+    annotation-dispatch dict inside ``Parser.parse``, now exposed through the
+    shared :data:`grammar_registry`.  Decompile hooks let ``hxbc`` write
+    ``sim_extensions`` back in their original annotation form; plugins add
+    grammars via ``helixlang.core.grammar_registry.register_grammar``.
+
+    Idempotent: core grammars are registered once per process (at import and
+    again via :func:`~helixlang.core.grammar_registry.ensure_core_grammars`).
+    """
+    global _GRAMMARS_REGISTERED
+    if _GRAMMARS_REGISTERED:
+        return
+    grammars = [
+        # ---- structural annotations backed by typed AST sections ----
+        AnnotationGrammar("promoter", parse=Parser._parse_promoter),
+        # #gene is also the pharmacology genotype record (no DNA block).
+        AnnotationGrammar("gene", parse=Parser._parse_gene,
+                          decompile=sim_entry_decompile("genes", "gene"),
+                          list_valued_keys=frozenset({"genes"})),
+        AnnotationGrammar("regulate", parse=Parser._parse_regulate),
+        AnnotationGrammar("lsystem", parse=Parser._parse_lsystem),
+        AnnotationGrammar("field", parse=Parser._parse_field),
+        AnnotationGrammar("morphogen", parse=Parser._parse_morphogen),
+        AnnotationGrammar("config", parse=Parser._parse_config),
+        AnnotationGrammar("type", parse=Parser._parse_type_annotation),
+        AnnotationGrammar("media", parse=Parser._parse_media),
+        AnnotationGrammar("enzyme", parse=Parser._parse_enzyme),
+        AnnotationGrammar("reaction", parse=Parser._parse_reaction),
+        AnnotationGrammar("metabolite", parse=Parser._parse_metabolite),
+        AnnotationGrammar("sim", parse=Parser._parse_sim),
+        AnnotationGrammar("genome", parse=Parser._parse_genome),
+        AnnotationGrammar("species", parse=Parser._parse_species),
+        AnnotationGrammar("patch", parse=Parser._parse_patch),
+        AnnotationGrammar("gem", parse=Parser._parse_gem,
+                          decompile=gem_inline_decompile(),
+                          extension_keys=frozenset(
+                              {"gem_inline_genes", "gem_inline_genome"})),
+        # ---- biological instructions (P0-1.1) ----
+        *(AnnotationGrammar(kind, parse=_bio_parse(kind))
+          for kind in sorted(BIO_INSTRUCTION_KINDS)),
+        # ---- human-simulation annotations round-tripping via sim_extensions.
+        # Prefix-valued grammars are emitted ahead of the generic #sim fallback
+        # in the canonical .helix layout (historic ordering preserved).
+        AnnotationGrammar("disease", parse=Parser._parse_disease,
+                          decompile=prefix_decompile("disease_", "disease"),
+                          extension_prefixes=frozenset({"disease_"}),
+                          sim_section=BEFORE_SIM),
+        AnnotationGrammar("person", parse=Parser._parse_person,
+                          decompile=prefix_decompile("person_", "person"),
+                          extension_prefixes=frozenset({"person_"}),
+                          sim_section=BEFORE_SIM),
+        AnnotationGrammar("trait", parse=Parser._parse_trait,
+                          decompile=prefix_decompile("trait_", "trait"),
+                          extension_prefixes=frozenset({"trait_"}),
+                          sim_section=BEFORE_SIM),
+        # ---- list/dict-valued grammars (emitted after the generic #sim loop).
+        AnnotationGrammar("drug", parse=Parser._parse_drug,
+                          decompile=sim_entry_decompile("drugs", "drug"),
+                          list_valued_keys=frozenset({"drugs"})),
+        AnnotationGrammar("disease_gene", parse=Parser._parse_disease_gene,
+                          decompile=sim_entry_decompile("disease_genes",
+                                                        "disease_gene"),
+                          list_valued_keys=frozenset({"disease_genes"})),
+        AnnotationGrammar("disease_metabolite",
+                          parse=Parser._parse_disease_metabolite,
+                          decompile=sim_entry_decompile("disease_metabolites",
+                                                        "disease_metabolite"),
+                          list_valued_keys=frozenset({"disease_metabolites"})),
+        AnnotationGrammar("pd_effect", parse=Parser._parse_pd_effect,
+                          decompile=sim_entry_decompile("pd_effects", "pd_effect"),
+                          list_valued_keys=frozenset({"pd_effects"})),
+        AnnotationGrammar("qsp_binding", parse=Parser._parse_qsp_binding,
+                          decompile=sim_entry_decompile("qsp_bindings",
+                                                        "qsp_binding"),
+                          list_valued_keys=frozenset({"qsp_bindings"})),
+        AnnotationGrammar("endocrine_config",
+                          parse=Parser._parse_endocrine_config,
+                          decompile=sim_entry_decompile("endocrine_configs",
+                                                        "endocrine_config"),
+                          list_valued_keys=frozenset({"endocrine_configs"})),
+        AnnotationGrammar("immune_config", parse=Parser._parse_immune_config,
+                          decompile=sim_entry_decompile("immune_configs",
+                                                        "immune_config"),
+                          list_valued_keys=frozenset({"immune_configs"})),
+        AnnotationGrammar("tumor_biopsy", parse=Parser._parse_tumor_biopsy,
+                          decompile=dict_entry_decompile("tumor_biopsy",
+                                                         "tumor_biopsy"),
+                          extension_keys=frozenset({"tumor_biopsy"})),
+    ]
+    grammar_registry.register_all(grammars)
+    _GRAMMARS_REGISTERED = True
+
+
+_GRAMMARS_REGISTERED = False
+
+
+# Register on import: Parser dispatch depends on the registry being populated
+# before the first parse.  Idempotent (re-registration of the same grammar
+# objects is a no-op), so ensure_core_grammars() can safely call this again.
+register_core_grammars()

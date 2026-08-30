@@ -5,11 +5,20 @@ Implements ``doc/11-helixc-binary-format.md``: a versioned container holding
 - a ``PROG`` section: the serialized ``Program`` AST (authoritative payload),
 - an optional ``CHNK`` section: the precompiled bytecode ``Chunk``,
 - an optional ``SRC`` section: the original source text,
+- a ``META`` section: the artifact semantic manifest (doc/38 §2.4) — language
+  spec / AST schema / simulation semantics / reference data versions,
 - an ``EOF`` trailer with a SHA-256 checksum of all preceding sections.
 
 The container is a self-describing, typed, length-checked byte stream -- never
 ``pickle``/``marshal`` -- so loading an artifact never executes code and any
 corruption fails fast with :class:`BinaryFormatError`.
+
+Semantic manifest (doc/38 §2.4): every new artifact embeds a ``META`` section
+carrying LANGUAGE_SPEC / AST_SCHEMA / SIMULATION_SEMANTICS / REFERENCE_DATA
+versions.  A surface *newer* than this build is a hard
+:class:`SemanticVersionError` (never a wrong-result run); an *older* surface
+warns; reference-data drift warns in either direction.  Artifacts written before
+the manifest existed load with ``manifest=None`` (no enforcement).
 
 Public API::
 
@@ -31,16 +40,19 @@ Round-trip invariants (tests/test_helixc.py):
 - ``parse(decompile(p))`` recompiles to the same ``Chunk`` as ``p``.
 - canonical source round-trips; an embedded ``SRC`` decompiles byte-for-byte.
 - ``dumps_program`` is deterministic (sorted map keys, no timestamps).
+- the META manifest round-trips (all four versions preserved on load).
 """
 from __future__ import annotations
 
 import hashlib
 import struct
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
+from helixlang.core import version as _version
 from helixlang.core.ast_nodes import (
     BioInstruction,
     Codon,
@@ -57,8 +69,27 @@ from helixlang.core.ast_nodes import (
     Regulation,
 )
 from helixlang.core.bytecode import OPCODE_VERSION, Chunk
-from helixlang.core.codon_table import TABLES, get_table
-from helixlang.core.errors import ABIVersionError, HelixError
+from helixlang.core.codon_table import TABLES
+from helixlang.core.errors import (
+    ABIVersionError,
+    HelixError,
+    PluginMissingError,
+    SemanticVersionError,
+)
+from helixlang.core.extensions import (
+    GOVERNED_IDS,
+    PLUGIN_EXT_ABI,
+    split_sim_extensions,
+)
+from helixlang.core.grammar_registry import (
+    AFTER_SIM,
+    BEFORE_SIM,
+    ensure_core_grammars,
+    fmt_fields,
+    fmt_float,
+    fmt_str,
+    grammar_registry,
+)
 
 __all__ = [
     "ArtifactInfo",
@@ -67,6 +98,11 @@ __all__ = [
     "BinaryVersionError",
     "FORMAT_VERSION",
     "LoadedArtifact",
+    "PluginBinaryError",
+    "SECTION_META",
+    "SemanticManifest",
+    "SemanticVersionError",
+    "SemanticVersionWarning",
     "compile_file",
     "decompile",
     "decompile_to_file",
@@ -82,6 +118,7 @@ FORMAT_VERSION = 1
 SECTION_PROG = b"PROG"
 SECTION_CHNK = b"CHNK"
 SECTION_SRC = b"SRC "
+SECTION_META = b"META"
 SECTION_EOF = b"EOF "
 
 _TABLE_IDS: dict[str, int] = {"standard": 0, "mito_vertebrate": 1, "ciliate": 2}
@@ -102,6 +139,9 @@ _TAG_REACTION = 0x0B
 _TAG_CONFIG = 0x0B
 _TAG_BIO_INSTR = 0x0C
 _TAG_PROGRAM = 0x0D
+#: Namespaced plugin-extension record (doc/38 §6.7) appended after the legacy
+#: flat ``sim_extensions`` list inside the PROG body.
+_TAG_PLUGIN_EXT = 0x0E
 
 # Value tags for the generic constant-pool codec
 _V_NONE = 0x00
@@ -142,6 +182,105 @@ class BinaryFormatError(BinaryError):
 
 class BinaryVersionError(BinaryFormatError):
     """Unknown .helixc format version."""
+
+
+class PluginBinaryError(BinaryError):
+    """A ``PLUGIN_EXT`` payload cannot be loaded as-is (doc/38 §6.7).
+
+    Raised when a plugin section is absent (unregistered extension id) or its
+    ``abi_version`` no longer matches the running codec — a hard error, never
+    a wrong-result run.
+    """
+
+
+# ---------------------------------------------------------------------------
+# Semantic manifest (doc/38 §2.4)
+# ---------------------------------------------------------------------------
+class SemanticVersionWarning(UserWarning):
+    """An artifact surface is *older* than this build (compatible, but flagged).
+
+    Raised as a ``warnings.warn`` so callers can choose to ignore or surface it.
+    """
+
+
+@dataclass(slots=True, frozen=True)
+class SemanticManifest:
+    """The four artifact semantic surface versions (doc/38 §2.4).
+
+    Surfaces are dimension-independent: language spec (grammar/lexing), AST
+    schema (PROG encoding), simulation semantics, and reference data.  ``None``
+    on artifacts written before the manifest existed.
+    """
+
+    language_spec: int
+    ast_schema: int
+    simulation_semantics: int
+    reference_data: int
+
+
+def _current_manifest() -> SemanticManifest:
+    """The semantic versions the running build understands (read live, not
+    cached, so tests and patch-level consumers can drive the policy)."""
+    return SemanticManifest(
+        language_spec=_version.LANGUAGE_SPEC_VERSION,
+        ast_schema=_version.AST_SCHEMA_VERSION,
+        simulation_semantics=_version.SIMULATION_SEMANTICS_VERSION,
+        reference_data=_version.REFERENCE_DATA_VERSION,
+    )
+
+
+def _encode_manifest(mf: SemanticManifest) -> bytes:
+    w = _Writer()
+    w.u32(mf.language_spec)
+    w.u32(mf.ast_schema)
+    w.u32(mf.simulation_semantics)
+    w.u32(mf.reference_data)
+    return bytes(w.buf)
+
+
+def _decode_manifest(data: bytes) -> SemanticManifest:
+    r = _Reader(data, "META")
+    mf = SemanticManifest(
+        language_spec=r.u32(),
+        ast_schema=r.u32(),
+        simulation_semantics=r.u32(),
+        reference_data=r.u32(),
+    )
+    if not r.at_end():
+        r._fail(f"trailing {r.remaining()} bytes in META section")  # noqa: SLF001
+    return mf
+
+
+def _check_manifest(mf: SemanticManifest) -> None:
+    """Enforce the doc/38 §2.4 load policy for a decoded manifest.
+
+    - surface newer than this build  → hard :class:`SemanticVersionError`
+    - surface older than this build  → :class:`SemanticVersionWarning`
+    - reference data drift (either way) → :class:`SemanticVersionWarning`
+    """
+    cur = _current_manifest()
+    for attr, surface in (
+        ("language_spec", "LANGUAGE_SPEC"),
+        ("ast_schema", "AST_SCHEMA"),
+        ("simulation_semantics", "SIMULATION_SEMANTICS"),
+    ):
+        got, want = getattr(mf, attr), getattr(cur, attr)
+        if got > want:
+            raise SemanticVersionError(surface, want, got)
+        if got < want:
+            warnings.warn(
+                f"artifact {surface} version {got} predates this build's "
+                f"{surface} {want}; results may reflect older grammar/"
+                f"semantics.",
+                SemanticVersionWarning, stacklevel=3,
+            )
+    got, want = mf.reference_data, cur.reference_data
+    if got != want:
+        warnings.warn(
+            f"artifact REFERENCE_DATA set {got} differs from this build's "
+            f"{want}.",
+            SemanticVersionWarning, stacklevel=3,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -567,8 +706,10 @@ def _encode_program_body(w: _Writer, prog: Program) -> None:
         w.u8(_TAG_POOL)
         w.str_(pl.name)
         w.f64(pl.init)
-    # sim_extensions (sorted)
-    ext = sorted(prog.sim_extensions.items())
+    # sim_extensions: legacy flat TAG carries the unowned ("core") keys only,
+    # then one namespaced PLUGIN_EXT record per governed section (doc/38 §6.7).
+    owned, unowned = split_sim_extensions(prog)
+    ext = sorted(unowned.items())
     w.u16(len(ext))
     for k, v in ext:
         w.str_(k)
@@ -579,6 +720,24 @@ def _encode_program_body(w: _Writer, prog: Program) -> None:
             import json
             w.u8(0x01)
             w.str_(json.dumps(v))
+    for sid in GOVERNED_IDS:
+        section = owned.get(sid)
+        if not section:
+            continue
+        w.u8(_TAG_PLUGIN_EXT)
+        w.str_(sid)
+        w.u32(PLUGIN_EXT_ABI)
+        items = sorted(section.items())
+        w.u16(len(items))
+        for k, v in items:
+            w.str_(k)
+            if isinstance(v, str):
+                w.u8(0x00)
+                w.str_(v)
+            else:
+                import json
+                w.u8(0x01)
+                w.str_(json.dumps(v))
 
 
 def _decode_program(data: bytes) -> Program:
@@ -606,6 +765,7 @@ def _decode_program_body(r: _Reader, prog: Program) -> None:
     _decode_reactions(r, prog)
     _decode_pools(r, prog)
     _decode_ext(r, prog)
+    _decode_plugin_ext(r, prog)
 
 
 def _decode_genes(r: _Reader, prog: Program) -> None:
@@ -778,6 +938,40 @@ def _decode_ext(r: _Reader, prog: Program) -> None:
         prog.sim_extensions[k] = v
 
 
+def _decode_plugin_ext(r: _Reader, prog: Program) -> None:
+    """Decode trailing ``PLUGIN_EXT`` records (doc/38 §6.7).
+
+    Old artifacts (pre-migration) have no records here — the flat list above
+    carried every key — so a missing record is not an error.  A present record
+    with an unregistered extension id or a stale ``abi_version`` is a hard
+    :class:`PluginBinaryError` / missing-plugin error, never a wrong-result run.
+    """
+    import json
+    while not r.at_end():
+        if r.u8() != _TAG_PLUGIN_EXT:
+            r._fail(f"expected PLUGIN_EXT tag 0x{_TAG_PLUGIN_EXT:02X}")  # noqa: SLF001
+        pid = r.str_()
+        abi = r.u32()
+        if pid not in GOVERNED_IDS:
+            raise PluginMissingError(pid, "helixlang[core]")
+        if abi != PLUGIN_EXT_ABI:
+            raise PluginBinaryError(
+                f"extension '{pid}' written with ABI {abi}, running ABI "
+                f"{PLUGIN_EXT_ABI}; recompile the helix source")
+        for _ in range(r._count(f"plugin-ext:{pid}")):
+            k = r.str_()
+            tag = r.u8()
+            v_raw = r.str_()
+            if tag == 0x01:
+                try:
+                    v = json.loads(v_raw)
+                except (json.JSONDecodeError, ValueError):
+                    v = v_raw
+            else:
+                v = v_raw
+            prog.sim_extensions[k] = v
+
+
 # ---------------------------------------------------------------------------
 # CHNK section encoding
 # ---------------------------------------------------------------------------
@@ -868,6 +1062,7 @@ class LoadedArtifact:
     source: str | None = None
     table: str = "standard"
     chunk_stale: bool = False
+    manifest: SemanticManifest | None = None
 
 
 @dataclass(slots=True)
@@ -879,6 +1074,7 @@ class ArtifactInfo:
     chunk: Chunk | None
     table: str
     source: str | None
+    manifest: SemanticManifest | None
 
 
 def dumps_program(program: Program, *, chunk: Chunk | None = None,
@@ -896,6 +1092,9 @@ def dumps_program(program: Program, *, chunk: Chunk | None = None,
     if source is not None:
         flags |= 0x02
         sections.append((SECTION_SRC, source.encode("utf-8")))
+    # Semantic manifest always travels last so the loader can enforce the
+    # doc/38 §2.4 policy before anything runs (used by `helixc info`).
+    sections.append((SECTION_META, _encode_manifest(_current_manifest())))
 
     pre_eof = bytearray()
     for magic, payload in sections:
@@ -959,7 +1158,7 @@ def loads_program(data: bytes) -> LoadedArtifact:
     while pos < end:
         magic = data[pos:pos + 4]
         length = struct.unpack_from(">I", data, pos + 4)[0]
-        if magic not in (SECTION_PROG, SECTION_CHNK, SECTION_SRC):
+        if magic not in (SECTION_PROG, SECTION_CHNK, SECTION_SRC, SECTION_META):
             raise BinaryFormatError(f"unknown section {magic!r}")
         if pos + 8 + length > end:
             raise BinaryFormatError(f"section {magic!r} overruns trailer")
@@ -974,6 +1173,8 @@ def loads_program(data: bytes) -> LoadedArtifact:
         expected_order.append(SECTION_CHNK)
     if flags & 0x02:
         expected_order.append(SECTION_SRC)
+    if SECTION_META in sections:
+        expected_order.append(SECTION_META)
     if order != expected_order:
         raise BinaryFormatError(f"unexpected section order {order!r}")
 
@@ -984,6 +1185,12 @@ def loads_program(data: bytes) -> LoadedArtifact:
     source: str | None = None
     if flags & 0x02:
         source = sections[SECTION_SRC].decode("utf-8")
+
+    # Semantic manifest: enforce doc/38 §2.4 before the artifact can run.
+    manifest: SemanticManifest | None = None
+    if SECTION_META in sections:
+        manifest = _decode_manifest(sections[SECTION_META])
+        _check_manifest(manifest)
 
     # CHNK is a derived cache: structurally consistent + consistent with PROG,
     # otherwise drop it so the caller recompiles from the authoritative AST.
@@ -999,6 +1206,7 @@ def loads_program(data: bytes) -> LoadedArtifact:
         source=source,
         table=_TABLE_NAMES[table_id],
         chunk_stale=chunk_stale,
+        manifest=manifest,
     )
 
 
@@ -1044,21 +1252,22 @@ def compile_file(src_path: str | Path, out_path: str | Path, *,
                  include_chunk: bool = True, include_source: bool = True,
                  table: str = "standard") -> ArtifactInfo:
     """Parse + semantically check + compile a .helix source into a .helixc."""
-    from helixlang.core.codon_table import stop_codons_from_table
     from helixlang.core.compiler import Compiler
+    from helixlang.core.language import LanguageConfig
     from helixlang.core.lexer import Lexer
     from helixlang.core.parser import Parser
     from helixlang.core.semantic import SemanticAnalyzer
 
     source = Path(src_path).read_text()
-    tbl = get_table(table)
-    stop_codons = stop_codons_from_table(tbl)
+    # Single LanguageConfig drives lexer/parser/compiler (doc/38 §4) so stop
+    # codons, start codons, and the AA map always agree across the pipeline.
+    config = LanguageConfig.for_table(table)
     tokens = list(Lexer(source).tokens())
-    program = Parser(tokens, stop_codons=stop_codons).parse()
+    program = Parser(tokens, config=config).parse()
     SemanticAnalyzer(program).check()
     chunk: Chunk | None = None
     if include_chunk:
-        chunk = Compiler(tbl).compile(program)
+        chunk = Compiler(config=config).compile(program)
     emb_source = source if include_source else None
     save_program(program, Path(out_path), chunk=chunk, source=emb_source)
     return ArtifactInfo(
@@ -1067,6 +1276,7 @@ def compile_file(src_path: str | Path, out_path: str | Path, *,
         chunk=chunk,
         table=table,
         source=emb_source,
+        manifest=_current_manifest(),
     )
 
 
@@ -1074,27 +1284,15 @@ def compile_file(src_path: str | Path, out_path: str | Path, *,
 # Decompiler
 # ---------------------------------------------------------------------------
 def _fmt_float(x: float) -> str:
-    s = repr(x)
-    if "." in s:
-        s = s.rstrip("0").rstrip(".")
-    return s
+    return fmt_float(x)
 
 
 def _fmt_str(s: str) -> str:
-    if any(c in s for c in " \t=#"):  # noqa: SIM300
-        return f'"{s}"'
-    return s
+    return fmt_str(s)
 
 
 def _fmt_fields(d: dict[str, str]) -> str:
-    parts = []
-    for k, v in sorted(d.items()):
-        already_quoted = (len(v) >= 2 and v.startswith('"') and v.endswith('"'))
-        if (" " in v or "\t" in v) and not already_quoted:
-            parts.append(f'{k}="{v}"')
-        else:
-            parts.append(f"{k}={v}")
-    return " ".join(parts)
+    return fmt_fields(d)
 
 
 def _fmt_codons(codons: list[Codon], per_line: int = 12) -> str:
@@ -1201,114 +1399,26 @@ def decompile(program: Program) -> str:
         parts.append(f"{k}={cfg.sim[k]}")
     lines.append("#config " + " ".join(parts))
 
-    _INLINE_GENE_KEYS = {"gem_inline_genes", "gem_inline_genome"}
-    # List-valued entries (from _append_sim_list) cannot round-trip through
-    # #sim key=value lines; they are written back as their original annotation
-    # form below.
-    _LIST_VALUED_KEYS = {
-        "disease_genes", "disease_metabolites", "pd_effects",
-        "qsp_bindings", "endocrine_configs", "immune_configs",
-        "drugs", "genes",
-    }
-    # Keys prefixed with these are written back as their original annotations
-    # (#person, #trait, #disease) rather than #sim, because values may contain
-    # spaces that break the key=value parser.
-    _ANNOTATION_PREFIX_MAP = {
-        "person_": "#person",
-        "trait_": "#trait",
-        "disease_": "#disease",
-    }
-    _skip_keys: set[str] = set()
+    # ---- sim_extensions are written back by their owning grammars (doc/38
+    # §5): prefix-valued forms (#disease/#person/#trait) first so they stay
+    # ahead of the generic #sim fallback, then list/dict-valued forms.
+    ensure_core_grammars()
+    for gram in grammar_registry.sim_grammars(BEFORE_SIM):
+        if gram.decompile is not None and gram.has_data(program):
+            lines.extend(gram.decompile(program))
 
-    # Collect keys that belong to original annotation forms
-    for prefix, ann in sorted(_ANNOTATION_PREFIX_MAP.items()):
-        ann_keys = {k for k in program.sim_extensions if k.startswith(prefix)}
-        if ann_keys:
-            fields = {k[len(prefix):]: str(program.sim_extensions[k])
-                      for k in sorted(ann_keys)
-                      if not isinstance(program.sim_extensions[k], list)}
-            if fields:
-                lines.append(f"{ann} " + _fmt_fields(fields))
-            _skip_keys.update(ann_keys)
-
-    # Dict-valued single-key annotations written back in their original form
-    _DICT_VALUED_KEYS = {"tumor_biopsy"}
-    _skip_keys.update(_DICT_VALUED_KEYS)
-
-    for k in sorted(program.sim_extensions):
-        if k in _INLINE_GENE_KEYS or k in _skip_keys:
-            continue
-        v = program.sim_extensions[k]
-        if k in _LIST_VALUED_KEYS and isinstance(v, list):
+    # Generic #sim fallback: keys no registered grammar owns.  (Owned keys —
+    # e.g. ``genes``, ``drugs``, ``tumor_biopsy`` and the ``disease_`` /
+    # ``person_`` / ``trait_`` prefixes — were written back above / will be
+    # written back below in their original annotation form.)
+    for k, v in sorted(program.sim_extensions.items()):
+        if grammar_registry.owns_key(k, v):
             continue
         lines.append(f"#sim {k}={v}")
 
-    # --- Write list-valued annotations in their original annotation form ---
-    for entry in program.sim_extensions.get("genes", []):
-        if isinstance(entry, dict):
-            lines.append("#gene " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("drugs", []):
-        if isinstance(entry, dict):
-            lines.append("#drug " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("disease_genes", []):
-        if isinstance(entry, dict):
-            lines.append("#disease_gene " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("disease_metabolites", []):
-        if isinstance(entry, dict):
-            lines.append("#disease_metabolite " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("pd_effects", []):
-        if isinstance(entry, dict):
-            lines.append("#pd_effect " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("qsp_bindings", []):
-        if isinstance(entry, dict):
-            lines.append("#qsp_binding " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("endocrine_configs", []):
-        if isinstance(entry, dict):
-            lines.append("#endocrine_config " + _fmt_fields(entry))
-    for entry in program.sim_extensions.get("immune_configs", []):
-        if isinstance(entry, dict):
-            lines.append("#immune_config " + _fmt_fields(entry))
-
-    # Tumor biopsy (dict-valued, written back as #tumor_biopsy)
-    tumor_biopsy = program.sim_extensions.get("tumor_biopsy")
-    if isinstance(tumor_biopsy, dict) and tumor_biopsy:
-        lines.append("#tumor_biopsy " + _fmt_fields(tumor_biopsy))
-
-    # Output inline gene DNA blocks inside a #gem block (doc/20 §12)
-    inline_genes = program.sim_extensions.get("gem_inline_genes")
-    if isinstance(inline_genes, list) and inline_genes:
-        # Find gem parameters from sim_extensions
-        gem_params = []
-        for k in ("gem_organism", "gem_medium", "gem_use_database",
-                   "gem_include_spontaneous", "gem_gapfill",
-                   "gem_target_organism", "gem_dynamic", "gem_duration",
-                   "gem_dt", "gem_expression"):
-            v = program.sim_extensions.get(k, "")
-            if v:
-                param_name = k[4:]  # strip "gem_" prefix
-                gem_params.append(f"{param_name}={v}")
-        if gem_params:
-            lines.append("#gem " + " ".join(gem_params))
-        else:
-            lines.append("#gem organism=e_coli_k12")
-
-        for entry in inline_genes:
-            if isinstance(entry, (list, tuple)) and len(entry) == 2:
-                gene_id, seq = entry
-                lines.append(f"#{gene_id}")
-                seq_upper = str(seq).upper()
-                codons = [seq_upper[i:i+3] for i in range(0, len(seq_upper), 3)]
-                current_line = ""
-                for codon in codons:
-                    test = (current_line + " " + codon) if current_line else codon
-                    if len(test) > 78:
-                        lines.append(current_line)
-                        current_line = codon
-                    else:
-                        current_line = test
-                if current_line:
-                    lines.append(current_line)
-        lines.append("#end")
+    for gram in grammar_registry.sim_grammars(AFTER_SIM):
+        if gram.decompile is not None and gram.has_data(program):
+            lines.extend(gram.decompile(program))
 
     return "\n".join(lines) + "\n"
 

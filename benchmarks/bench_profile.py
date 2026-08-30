@@ -67,6 +67,9 @@ def run_profile(ticks: int, json_out: str | None) -> None:
     print(f"  trace_entries       : {report['trace_entries']}")
     print(f"  snapshot_interval   : {report['snapshot_interval']}")
     print(f"  peak_memory_bytes   : {report['peak_memory_bytes']}")
+    print(f"  ops_executed        : {report['ops_executed']}")
+    print(f"  ops_per_sec         : {report['ops_per_sec']:.1f}")
+    print(f"  accel_ops           : {report['accel_ops']}")
     print(f"  acceleration        : {'native C' if report['accel_used'] else 'python'}")
     print("  component_times     :")
     for k, v in report["component_times"].items():

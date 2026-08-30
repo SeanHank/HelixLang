@@ -24,12 +24,12 @@
 
 | Item | Value |
 |---|---|
-| Interpreter absolute path | `/opt/anaconda3/envs/helix/bin/python` |
+| Interpreter absolute path | project env `python` (locale-dependent; keep out of the repo) |
 | Version | 3.11.15 |
 | Virtual environment | conda env `helix` |
 | Key dependency features | `match/case` (3.10+), `@dataclass(slots=True)` (3.10+), `Self` type hints (3.11+), `tomllib` stdlib (3.11+) |
 
-> **Mandatory constraint**: all command-line examples, CI scripts, and IDE Run Configurations must use the absolute path above, to avoid accidentally using the system Python. `pyproject.toml` declares `requires-python = ">=3.11"`.
+> **Mandatory constraint**: never hardcode the absolute interpreter path in the repo. Command-line examples, CI scripts, and IDE Run Configurations must rely on the active project env (`conda activate helix`, or the `PYTHON` indirection used by `release.py`), to avoid accidentally using the system Python. `pyproject.toml` declares `requires-python = ">=3.11"`.
 
 ### 1.2 Reproducing the conda Environment
 
@@ -41,20 +41,20 @@ conda create -y -n helix python=3.11.15
 conda activate helix
 
 # 2. verify
-/opt/anaconda3/envs/helix/bin/python --version
+python --version
 # expected output: Python 3.11.15
 ```
 
 Reproduce the environment (when `requirements-dev.txt` already exists):
 
 ```bash
-/opt/anaconda3/envs/helix/bin/python -m pip install \
+python -m pip install \
   -r requirements-dev.txt \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   --trusted-host pypi.tuna.tsinghua.edu.cn
 
 # install this package in development mode
-/opt/anaconda3/envs/helix/bin/python -m pip install -e . \
+python -m pip install -e . \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   --trusted-host pypi.tuna.tsinghua.edu.cn
 ```
@@ -115,8 +115,8 @@ viz = ["matplotlib>=3.8"]
 
 ```bash
 # generate the lock file
-/opt/anaconda3/envs/helix/bin/python -m pip install pip-tools
-/opt/anaconda3/envs/helix/bin/python -m piptools compile \
+python -m pip install pip-tools
+python -m piptools compile \
   --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
   --output-file requirements-dev.txt \
   pyproject.toml --extra dev --extra fast --extra viz
@@ -126,8 +126,8 @@ viz = ["matplotlib>=3.8"]
 
 | Tool | Configuration |
 |---|---|
-| PyCharm | Project SDK = `/opt/anaconda3/envs/helix/bin/python`; Package Manager = pip |
-| VS Code | `python.defaultInterpreterPath = "/opt/anaconda3/envs/helix/bin/python"` |
+| PyCharm | Project SDK = the project env's `python` (`conda activate helix`, then point the SDK at `$(which python)`); Package Manager = pip |
+| VS Code | pick the project env interpreter in the interpreter picker (do not commit `python.defaultInterpreterPath` with a hardcoded absolute path) |
 | pytest | `python_files = ["test_*.py"]`, `testpaths = ["tests"]`, `addopts = "-ra --strict-markers"` |
 | `.python-version` | content fixed to `3.11` (pyenv compatible) |
 
@@ -817,12 +817,12 @@ CI fails on timeout (using `pytest --timeout=30` or `@pytest.mark.timeout`).
 
 ```bash
 cd /Users/admin/PycharmProjects/HelixLang
-/opt/anaconda3/envs/helix/bin/python -m pip install -e . \
+python -m pip install -e . \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   --trusted-host pypi.tuna.tsinghua.edu.cn
 
 # including dev dependencies
-/opt/anaconda3/envs/helix/bin/python -m pip install -e '.[dev]' \
+python -m pip install -e '.[dev]' \
   -i https://pypi.tuna.tsinghua.edu.cn/simple \
   --trusted-host pypi.tuna.tsinghua.edu.cn
 ```
@@ -839,24 +839,24 @@ helixlang examples/05_table_switch.helix --table=mito_vertebrate
 helixlang examples/01_hello_dna.helix --disassemble
 
 # python -m form (no installation required)
-/opt/anaconda3/envs/helix/bin/python -m helixlang examples/01_hello_dna.helix
+python -m helixlang examples/01_hello_dna.helix
 ```
 
 ### 10.3 Testing
 
 ```bash
-/opt/anaconda3/envs/helix/bin/python -m pytest -v
-/opt/anaconda3/envs/helix/bin/python -m pytest --cov=helixlang --cov-report=term-missing
+python -m pytest -v
+python -m pytest --cov=helixlang --cov-report=term-missing
 
 # no package installation required
-PYTHONPATH=src /opt/anaconda3/envs/helix/bin/python -m pytest
+PYTHONPATH=src python -m pytest
 ```
 
 ### 10.4 Wheel Build
 
 ```bash
-/opt/anaconda3/envs/helix/bin/python -m pip install build
-/opt/anaconda3/envs/helix/bin/python -m build --wheel
+python -m pip install build
+python -m build --wheel
 # artifact: dist/helixlang-0.1.0-py3-none-any.whl
 ```
 
@@ -1076,7 +1076,7 @@ tick,x,y,energy,alive,proteins,morphology_points,field_total_v
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| accidentally using the system Python | inconsistent environment | docs mandate the absolute path `/opt/anaconda3/envs/helix/bin/python`; CI pins 3.11.15 |
+| accidentally using the system Python | inconsistent environment | docs mandate the project 3.11 env (`conda activate helix` / `PYTHON` indirection, never a hardcoded absolute path); CI pins 3.11.15 |
 | `pip.conf` not taking effect | downloads go to the default source and time out | CI explicitly passes `-i` + `--trusted-host`; shells set `PIP_INDEX_URL` |
 | 64 codons are insufficient for all desired semantics | insufficient expressiveness | wobble 4× expansion + constant pool + `OP_NOP`-prefix extension slots (§5.4) |
 | GRN dispatch deadlock/starvation | some genes never trigger | `ops_per_tick` quota + `DECAY=0.7` decay + constitutive genes with `initial=1.0` |
@@ -1121,17 +1121,17 @@ tick,x,y,energy,alive,proteins,morphology_points,field_total_v
 
 ```bash
 # environment check
-/opt/anaconda3/envs/helix/bin/python --version
+python --version
 # Python 3.11.15
 
 # full test run
-/opt/anaconda3/envs/helix/bin/python -m pytest -v
+python -m pytest -v
 # 70 passed
 
 # example smoke tests
-/opt/anaconda3/envs/helix/bin/python -m helixlang examples/01_hello_dna.helix
-/opt/anaconda3/envs/helix/bin/python -m helixlang examples/05_table_switch.helix --table=mito_vertebrate
-/opt/anaconda3/envs/helix/bin/python -m helixlang examples/01_hello_dna.helix --disassemble
+python -m helixlang examples/01_hello_dna.helix
+python -m helixlang examples/05_table_switch.helix --table=mito_vertebrate
+python -m helixlang examples/01_hello_dna.helix --disassemble
 ```
 
 ---

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from helixlang.core.plugin_registry import PluginProvider
+from helixlang.api.registry import PluginProvider
 from helixlang.plugins.annotation.blast import run_diamond
 from helixlang.plugins.annotation.tf_detection import detect_transcription_factors
 from helixlang.plugins.annotation.transporter import classify_transporters

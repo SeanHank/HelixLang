@@ -92,29 +92,164 @@ class TestAcceleratedExecution:
     def test_importable(self) -> None:
         assert callable(accelerated_execute_pending)
 
+    @staticmethod
+    def _simple_chunk(program) -> None:
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+
+        chunk = Chunk()
+        chunk.gene_offsets[program.genes[0].name] = 0
+        c0 = chunk.add_constant(1.0)
+        # Note: no OP_START here — the native kernel covers only the
+        # arithmetic/stack subset {HALT, PUSH_CONST, POP, ADD, SUB, MUL}
+        # (doc/36 §5.5), so a fully-native chunk must not open with a bio op.
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_ADD)
+        chunk.emit(Op.OP_HALT)
+        return chunk
+
     def test_accel_matches_python_for_simple_segments(self, simple_program) -> None:
-        """Verify C-accelerated execution produces identical results when the
-        bytecode is entirely simple (arithmetic/stack ops)."""
-        from helixlang.core.compiler import Compiler
+        """Verify accelerated execution is tick-equivalent to pure Python when
+        the bytecode is entirely simple (arithmetic/stack ops + HALT guard)."""
         from helixlang.core.vm import CellVM
 
-        compiler = Compiler()
-        chunk = compiler.compile(simple_program)
+        chunk = self._simple_chunk(simple_program)
 
-        # Pure Python path
-        vm_pp = CellVM(chunk, simple_program)
+        # Pure Python path (doc/38 §2.2: accel is opt-out per VM)
+        vm_pp = CellVM(chunk, simple_program, use_accel=False)
         trace_pp = vm_pp.run(20)
 
-        # Accelerated segment path
+        # Accelerated segment path (the pre-wired default)
         vm_acc = CellVM(chunk, simple_program)
-        # monkeypatch the run loop to use accelerated_execute_pending once
-        original_pending = vm_acc._execute_pending
-        vm_acc._execute_pending = lambda: accelerated_execute_pending(vm_acc)
-        try:
-            trace_acc = vm_acc.run(20)
-        finally:
-            vm_acc._execute_pending = original_pending
+        trace_acc = vm_acc.run(20)
 
-        # Both should execute the same number of ticks
+        # Identical ticks, identical traces, identical total work
         assert len(trace_pp) == len(trace_acc)
         assert vm_pp.tick == vm_acc.tick
+        assert trace_pp == trace_acc
+        assert vm_pp.ops_executed == vm_acc.ops_executed
+        # doc/38 §2.2: counters are observations, not requests
+        assert vm_acc.ops_executed > 0
+        assert vm_acc.accel_native_ops == vm_acc.ops_executed
+        assert vm_pp.accel_native_ops == 0
+
+    def test_nested_call_halts_stay_in_tick(self, simple_program) -> None:
+        """A gene that CALLs a simple helper must resume the caller in the SAME
+        tick (pure-loop semantics).  The pre-fix accelerator returned on HALT,
+        deferring the caller's tail to the next tick and changing the trace."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM
+
+        prog = parse_source(
+            "#gene name=gfp\nATG GCT GGT GCT TAA\n#end\n"
+            "#config ticks=12\n"
+        )
+        SemanticAnalyzer(prog).check()
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        # main: START | PUSH PUSH ADD | CALL helper | PUSH PUSH ADD | HALT
+        chunk.emit(Op.OP_START)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_ADD)
+        # helper lives after CALL (3 bytes) + tail (PUSH 2 + PUSH 2 + ADD 1
+        # + HALT 1 = 6 bytes), i.e. 9 bytes after the current code length.
+        helper_off = len(chunk.code) + 9
+        chunk.emit_u16(Op.OP_CALL_GENE, helper_off)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_ADD)
+        chunk.emit(Op.OP_HALT)
+        chunk.gene_offsets["__hlx_helper"] = len(chunk.code)
+        # helper: START | PUSH PUSH ADD POP | HALT
+        chunk.emit(Op.OP_START)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_ADD)
+        chunk.emit(Op.OP_POP)
+        chunk.emit(Op.OP_HALT)
+        assert helper_off == chunk.gene_offsets["__hlx_helper"]
+
+        vm_pp = CellVM(chunk, prog, use_accel=False)
+        trace_pp = vm_pp.run(12)
+        vm_acc = CellVM(chunk, prog)
+        trace_acc = vm_acc.run(12)
+
+        assert trace_pp == trace_acc
+        assert vm_pp.ops_executed == vm_acc.ops_executed
+        assert vm_acc.accel_native_ops > 0
+
+    def test_quota_gate_never_skips_segment_tail(self, simple_program) -> None:
+        """A simple body longer than the per-tick quota must not skip ops when
+        vm.ip jumps to the segment end (run_quota stops at its quota budget)."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM
+
+        prog = parse_source(
+            "#gene name=gfp\nATG GCT GGT GCT TAA\n#end\n"
+            "#config ticks=20 ops_per_tick=4\n"
+        )
+        SemanticAnalyzer(prog).check()
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(2.0)
+        chunk.emit(Op.OP_START)
+        for _ in range(12):
+            chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_HALT)
+
+        vm_pp = CellVM(chunk, prog, use_accel=False)
+        trace_pp = vm_pp.run(20)
+        vm_acc = CellVM(chunk, prog)
+        trace_acc = vm_acc.run(20)
+
+        assert trace_pp == trace_acc
+        assert vm_pp.ops_executed == vm_acc.ops_executed
+
+    def test_out_of_range_const_falls_back_to_python(self, simple_program) -> None:
+        """PUSH_CONST with an operand that is not a constants-table index is
+        dispatched in Python (run_quota would raise IndexError)."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM
+
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        chunk.emit(Op.OP_START)
+        chunk.emit(Op.OP_PUSH_CONST, 0xF0)  # no such constant index
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_ADD)
+        chunk.emit(Op.OP_HALT)
+
+        vm = CellVM(chunk, simple_program)
+        trace = vm.run(8)
+        assert len(trace) == 8
+        assert vm.ops_executed > 0
+        assert vm.accel_native_ops < vm.ops_executed
+
+
+class TestVMProfilerCounters:
+    def test_profiler_reports_measured_counters(self, simple_program) -> None:
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=20)
+        # doc/38 §2.2: accel_used is an OBSERVATION of real native ops, and with
+        # the byte-identical segment executor even a bio-heavy body accelerates
+        # its trailing per-tick HALT guard, so it legitimately reports on here.
+        assert result.ops_executed > 0
+        assert result.accel_used == (result.accel_ops > 0)
+        assert result.accel_ops <= result.ops_executed
+        assert result.ops_per_sec > 0
+
+    def test_profiler_accel_off_reports_no_native_ops(self, simple_program) -> None:
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=20, use_accel=False)
+        assert result.accel_used is False
+        assert result.accel_ops == 0
+        assert result.ops_executed > 0
+        assert result.ops_per_sec > 0

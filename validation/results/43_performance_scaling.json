@@ -12,20 +12,20 @@
     "model_metabolites": 37,
     "helixlang_growth_rate": 0.0,
     "cobrapy_growth_rate": 0.8739215069684303,
-    "speedup_ratio": 0.8437737978380984,
+    "speedup_ratio": 0.9744874120877439,
     "timing": {
       "helixlang_ecoli_core": {
-        "ms": 1.4367499970830977
+        "ms": 1.4339169720187783
       },
       "cobrapy_ecoli_core": {
-        "ms": 1.2122920015826821
+        "ms": 1.3973340392112732
       },
       "comparison": {
-        "helixlang_ms": 1.4367499970830977,
-        "cobrapy_ms": 1.2122920015826821,
-        "speedup_ratio": 0.8437737978380984
+        "helixlang_ms": 1.4339169720187783,
+        "cobrapy_ms": 1.3973340392112732,
+        "speedup_ratio": 0.9744874120877439
       }
     }
   },
-  "runtime_seconds": 1.7690977079910226
+  "runtime_seconds": 1.989606124931015
 }

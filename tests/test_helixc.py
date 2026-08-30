@@ -5,14 +5,18 @@ Covers doc/11-helixc-binary-format.md:
 - decompiler invariants R1 (reparse -> same chunk), R2 (canonical
   byte-for-byte), R3 (embedded source byte-for-byte)
 - deterministic dumps, integrity/version errors, stale-chunk rebuild
+- semantic manifest (doc/38 §2.4): round-trip, newer-surface refusal, older/
+  reference-data warnings, legacy artifacts without META
 - CLI: --compile / --decompile / --compare, run classic + sim from binary,
   --disassemble and --debug equivalence with the source path
 - compile + load-verify for every examples/*.helix
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+import struct
 from contextlib import redirect_stdout
 
 import pytest
@@ -55,6 +59,24 @@ def normalize_lines(prog):
     for inst in prog.bio_instructions:
         inst.line = 0
     return prog
+
+
+def _strip_meta_segment(data: bytes) -> bytes:
+    """Simulate a pre-manifest artifact (format v1, no META section).
+
+    Removes the META section, adjusts the header payload length, and re-does
+    the SHA-256 trailer so the result is a *valid* legacy artifact.
+    """
+    pos = 12
+    while True:
+        magic = data[pos:pos + 4]
+        length = struct.unpack_from(">I", data, pos + 4)[0]
+        if magic == b"META":
+            pre_eof = data[12:pos]
+            header = data[:8] + struct.pack(">I", len(pre_eof) + 40)
+            return (header + pre_eof + b"EOF " + struct.pack(">I", 32)
+                    + hashlib.sha256(pre_eof).digest())
+        pos += 8 + length
 
 
 def strip_headers(out: str) -> str:
@@ -270,6 +292,74 @@ class TestSafety:
         path.write_bytes(bytes(raw))
         with pytest.raises(hxbc.BinaryFormatError):
             hxbc.verify(path)
+
+
+# ============================================================================
+# semantic manifest (doc/38 §2.4)
+# ============================================================================
+class TestSemanticManifest:
+    def test_roundtrip_preserves_manifest(self):
+        prog, chunk = parse(CANONICAL_SRC)
+        art = hxbc.loads_program(
+            hxbc.dumps_program(prog, chunk=chunk, source=CANONICAL_SRC))
+        assert art.manifest is not None
+        assert art.manifest == hxbc._current_manifest()  # noqa: SLF001
+        assert art.manifest == hxbc.SemanticManifest(
+            language_spec=2, ast_schema=1,
+            simulation_semantics=1, reference_data=1)
+
+    def test_artifact_info_surfaces_manifest(self, tmp_path):
+        src = tmp_path / "p.helix"
+        src.write_text(CANONICAL_SRC)
+        out = tmp_path / "p.helixc"
+        info = hxbc.compile_file(src, out)
+        assert info.manifest is not None
+        assert hxbc.load_program(out).manifest == info.manifest
+
+    def test_newer_language_spec_refused(self, monkeypatch):
+        import helixlang.core.version as ver
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        monkeypatch.setattr(ver, "LANGUAGE_SPEC_VERSION", 0)
+        with pytest.raises(hxbc.SemanticVersionError, match="LANGUAGE_SPEC"):
+            hxbc.loads_program(data)
+
+    def test_newer_ast_schema_refused(self, monkeypatch):
+        import helixlang.core.version as ver
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        monkeypatch.setattr(ver, "AST_SCHEMA_VERSION", 0)
+        with pytest.raises(hxbc.SemanticVersionError, match="AST_SCHEMA"):
+            hxbc.loads_program(data)
+
+    def test_newer_sim_semantics_refused(self, monkeypatch):
+        import helixlang.core.version as ver
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        monkeypatch.setattr(ver, "SIMULATION_SEMANTICS_VERSION", 0)
+        with pytest.raises(hxbc.SemanticVersionError,
+                           match="SIMULATION_SEMANTICS"):
+            hxbc.loads_program(data)
+
+    def test_older_sim_semantics_warns(self, monkeypatch):
+        import helixlang.core.version as ver
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        monkeypatch.setattr(ver, "SIMULATION_SEMANTICS_VERSION", 2)
+        with pytest.warns(hxbc.SemanticVersionWarning,
+                          match="SIMULATION_SEMANTICS"):
+            hxbc.loads_program(data)
+
+    def test_reference_data_drift_warns_not_raises(self, monkeypatch):
+        import helixlang.core.version as ver
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        monkeypatch.setattr(ver, "REFERENCE_DATA_VERSION", 2)
+        with pytest.warns(hxbc.SemanticVersionWarning, match="REFERENCE_DATA"):
+            art = hxbc.loads_program(data)
+        assert art.program is not None
+
+    def test_legacy_artifact_without_meta_loads(self):
+        data = hxbc.dumps_program(parse(CANONICAL_SRC)[0])
+        legacy = _strip_meta_segment(data)
+        art = hxbc.loads_program(legacy)
+        assert art.manifest is None
+        assert art.program is not None
 
 
 # ============================================================================

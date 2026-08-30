@@ -7,7 +7,7 @@
 
 > Goal: replace every simplified / education-oriented implementation in `src/helixlang/` with engineering-grade equivalents backed by primary literature, while preserving the public API surface, the compiler/VM pipeline, and a fully green test suite.
 >
-> Baseline: tests passing under `/opt/anaconda3/envs/helix/bin/python`; `ruff check` and `mypy` clean.
+> Baseline: tests passing under `python`; `ruff check` and `mypy` clean.
 
 ---
 
@@ -248,7 +248,7 @@ Hard rules for every batch:
 
 ## 6. Verification Strategy
 
-Every batch, in the `helix` conda env (`/opt/anaconda3/envs/helix/bin/python`):
+Every batch, in the `helix` conda env (`python`):
 
 ```bash
 ruff check src tests                     # lint gate
@@ -272,7 +272,7 @@ Coverage gate: `pytest --cov=helixlang --cov-fail-under=80` must stay ≥80% (ne
 
 ## 7. Implementation Batches
 
-Status ledger for the §4 tiers. Every batch is verified under `/opt/anaconda3/envs/helix/bin/python` with the gates of §6. ruff clean, mypy clean, coverage ≥80% (gate), benchmarks pass.
+Status ledger for the §4 tiers. Every batch is verified under `python` with the gates of §6. ruff clean, mypy clean, coverage ≥80% (gate), benchmarks pass.
 
 ### Batch 1 — §4.1 `crispr.py` (Doench 2016 Rule Set 2) — DONE
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from helixlang.core.ast_nodes import Program
+from helixlang.core.ast_nodes import Gene, Program
 from helixlang.core.codon_table import Op, wobble
 from helixlang.core.errors import CompileError
 from helixlang.core.ir import IRFunction, IRInst, IRProgram, IRType
@@ -64,24 +64,48 @@ class IRBuilder:
         resolver = _call_target_resolver(program, table, ir.call_targets)
 
         for gene in program.genes:
-            instrs: list[IRInst] = []
-            for codon in gene.orf:
-                if codon.seq not in table:
-                    raise CompileError(
-                        f"unknown codon {codon.seq!r} (table has "
-                        f"{len(table)} entries)",
-                        line=codon.line, codon_index=codon.index)
-                op = table[codon.seq]
-                if op is Op.OP_CALL_GENE:
-                    target = resolver(gene.name, codon.seq)
-                    instrs.append(RawIR.inst(
-                        op, target, None, codon.line, codon.index))
-                else:
-                    instrs.append(RawIR.inst(
-                        op, wobble(codon.seq) if _has_operand(op) else None,
-                        _type_of(op), codon.line, codon.index))
-            ir.functions.append(IRFunction(name=gene.name, instrs=instrs))
+            ir.functions.append(self._function(gene, table, resolver))
         return ir
+
+    def build_function(self, program: Program, gene: Gene,
+                       table_name: str = "standard") -> IRFunction:
+        """Rebuild the IR function of a single gene (doc/38 §3).
+
+        Resolves call targets exactly as a whole-program build does, so a
+        patched function is byte-identical to the one a from-scratch build
+        would produce for that gene.  Used by :mod:`helixlang.core.incr` to
+        re-derive only the invalidated closure of an edited program.
+        """
+        table = self._table
+        if table is None:
+            from helixlang.core.codon_table import STANDARD_TABLE
+
+            table = STANDARD_TABLE
+        call_targets = {g.name: str(g.fields.get("call_target"))
+                        for g in program.genes if g.fields.get("call_target")}
+        resolver = _call_target_resolver(program, table, call_targets)
+        return self._function(gene, table, resolver)
+
+    def _function(self, gene: Gene, table: dict[str, Op],
+                  resolver: Callable[[str, str], str]) -> IRFunction:
+        """Lower one gene's ORF to an IR function."""
+        instrs: list[IRInst] = []
+        for codon in gene.orf:
+            if codon.seq not in table:
+                raise CompileError(
+                    f"unknown codon {codon.seq!r} (table has "
+                    f"{len(table)} entries)",
+                    line=codon.line, codon_index=codon.index)
+            op = table[codon.seq]
+            if op is Op.OP_CALL_GENE:
+                target = resolver(gene.name, codon.seq)
+                instrs.append(RawIR.inst(
+                    op, target, None, codon.line, codon.index))
+            else:
+                instrs.append(RawIR.inst(
+                    op, wobble(codon.seq) if _has_operand(op) else None,
+                    _type_of(op), codon.line, codon.index))
+        return IRFunction(name=gene.name, instrs=instrs)
 
 
 class RawIR:

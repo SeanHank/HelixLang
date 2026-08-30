@@ -46,7 +46,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from helixlang.core.codon_table import (
+from helixlang.api.language import (
     STANDARD_TABLE,
 )
 from helixlang.plugins.runtime import bio_data

@@ -384,8 +384,8 @@ class ECGEMBuilder:
                 return fluxes.get(model.biomass_reaction, 0.0)
         except Exception as exc:  # noqa: BLE001
             # Solver crash must not silently read as zero growth (doc/36 §3ξ.3).
-            from helixlang.core import fidelity
-            if not fidelity.opt_in("--low-fidelity"):
+            from helixlang.api.capabilities import opt_in
+            if not opt_in("--low-fidelity"):
                 from helixlang.core.errors import ModelMissingError
                 raise ModelMissingError(
                     "ecGEM growth solve", "fba",
@@ -401,8 +401,8 @@ class ECGEMBuilder:
             if model.biomass_reaction:
                 return fba.solve(objective=model.biomass_reaction, maximize=True)
         except Exception as exc:  # noqa: BLE001
-            from helixlang.core import fidelity
-            if not fidelity.opt_in("--low-fidelity"):
+            from helixlang.api.capabilities import opt_in
+            if not opt_in("--low-fidelity"):
                 from helixlang.core.errors import ModelMissingError
                 raise ModelMissingError(
                     "ecGEM flux solve", "fba",

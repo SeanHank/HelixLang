@@ -10,8 +10,8 @@
   },
   "details": {
     "ticks_executed": 500,
-    "vm_run_time_ms": 2.958,
-    "compile_time_ms": 0.066,
+    "vm_run_time_ms": 7.591,
+    "compile_time_ms": 0.085,
     "downsample_interval_20k": 40,
     "long_trace_entries": 501,
     "long_ticks": 1500,
@@ -21,5 +21,5 @@
     "dispatch_result": 15.0
   },
   "reference": "doc/13 performance report; doc/37 \u00a73 performance optimization",
-  "runtime_seconds": 0.07504966703709215
+  "runtime_seconds": 0.10974904196336865
 }

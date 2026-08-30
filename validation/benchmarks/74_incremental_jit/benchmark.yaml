@@ -1,0 +1,15 @@
+id: 74_incremental_jit
+name: Incremental JIT — closure-limited gene recompile
+layer: compiler
+reference: doc/38 §3 incremental JIT (goal 1) and §11 Phase C gate
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - full_build_rebuilds_all
+    - unchanged_source_rebuilds_nothing
+    - leaf_edit_rebuilds_closure_only
+    - all_patches_byte_identical_to_full
+    - edit_cost_proportional_to_closure

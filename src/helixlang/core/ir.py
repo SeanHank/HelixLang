@@ -40,6 +40,7 @@ from enum import Enum
 from typing import Any
 
 from helixlang.core.codon_table import Op
+from helixlang.core.dimensions import Dimension
 
 # ── HLIR ABI version ─────────────────────────────────────────────────────
 # Independent of the bytecode OPCODE_VERSION. Bump when the IR layout changes
@@ -137,12 +138,18 @@ class IRInst:
             operand-less opcodes.
         value_type: type of the value this instruction pushes onto the stack
             (``None`` for effect-only instructions).
+        dim: physical dimension of the value pushed (doc/38 §8.2 IR
+            dimensional metadata).  ``None`` for dimensionless values and for
+            the default lowering path; ``ir_serialize`` round-trips it with a
+            ``DIM`` tag.  The runtime treats it as metadata-only (like source
+            maps) — ``CellVM`` / ``IRRuntime`` behavior is unchanged.
         line / codon_index: source provenance for diagnostics and disassembly.
     """
 
     opcode: Op
     operand: int | str | None = None
     value_type: IRType | None = None
+    dim: Dimension | None = None
     line: int = 0
     codon_index: int = -1
 
@@ -225,3 +232,18 @@ class IRProgram:
             lines.append(f"gene {fn.name}:")
             lines.append(fn.disassemble())
         return "\n".join(lines)
+
+    def patch_gene(self, name: str, ir_function: IRFunction) -> IRProgram:
+        """Replace one gene's IR function in place (doc/38 §3 step 3).
+
+        Only ``name``'s function is touched; the caller is responsible for
+        invalidating exactly the dependency closure of ``name`` (see
+        :mod:`helixlang.core.incr`).  The chunk must be re-lowered afterwards
+        to refresh ``Chunk.gene_offsets`` and the ``OP_CALL_GENE``
+        back-patches.  Returns ``self`` for chaining.
+        """
+        for i, fn in enumerate(self.functions):
+            if fn.name == name:
+                self.functions[i] = ir_function
+                return self
+        raise KeyError(f"patch_gene: no gene {name!r} in IR program")

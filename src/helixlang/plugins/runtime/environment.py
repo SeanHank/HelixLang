@@ -37,7 +37,7 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from helixlang.core.units import (
+from helixlang.api.units import (
     ATP_PER_GLUCOSE,
     DIFFUSION_DT_S,
     LATTICE_SPACING_UM,

@@ -39,7 +39,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from helixlang.core.units import TIME_TICK_MIN
+from helixlang.api.units import TIME_TICK_MIN
 from helixlang.plugins.runtime.environment import (
     ConcentrationField,
     DiurnalForcing,

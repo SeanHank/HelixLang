@@ -27,6 +27,7 @@ from typing import Any
 
 from helixlang.core.codon_table import Op
 from helixlang.core.ir import IRInst, IRProgram
+from helixlang.core.language import LanguageConfig
 from helixlang.core.vm import CellVM, Frame
 
 
@@ -34,7 +35,8 @@ class IRRuntime(CellVM):
     """Portable IR interpreter.  Drop-in for ``CellVM(chunk, program)`` on the
     classic (non-central-dogma) execution path: ``run(max_ticks) -> trace``."""
 
-    def __init__(self, ir: IRProgram, program: Any, *, registry: Any = None):
+    def __init__(self, ir: IRProgram, program: Any, *, registry: Any = None,
+                 config: LanguageConfig | None = None):
         # do not call super().__init__ with a chunk: bypass the bytecode setup
         # but keep all cell/GRN/field/frames/trace infrastructure.
         from helixlang.plugins.runtime.cell import Cell
@@ -43,9 +45,17 @@ class IRRuntime(CellVM):
         self.ir = ir
         self.program = program
         self._registry = registry
+        # doc/38 §4: like CellVM, carry the LanguageConfig for provenance.
+        self.config = config or LanguageConfig.for_table(program.config.table)
         self.ip = 0
         self.stack: list = []
         self.frames: list[Frame] = []
+        # doc/38 §2: op-level observability (the IR runtime has no C-dispatch
+        # accelerator yet, so use_accel is False and native ops stay at 0).
+        self.ops_executed: int = 0
+        self.accel_native_ops: int = 0
+        self.use_accel: bool = False
+        self.skipped_unknown: int = 0
         self.cell = Cell()
         self.grn = GRN()
         self.lsystems: dict[str, Any] = {}
@@ -123,6 +133,7 @@ class IRRuntime(CellVM):
             if self.debug:
                 print(f"[tick={self.tick} ip={self.ip - 1}] {op.name} "
                       f"stack={self.stack}")
+            self.ops_executed += 1
             self._dispatch(op)
             quota -= 1
 

@@ -161,9 +161,9 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 177 |
-| Test cases | 3417 (81% coverage) |
-| Validation benchmarks | 73 (73 pass) |
+| Source modules | 204 |
+| Test cases | 3614 (81% coverage) |
+| Validation benchmarks | 75 (75 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
@@ -280,7 +280,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 ## Validation
 
-73 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
+75 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
 
 | # | Benchmark | Evidence |
 |---|-----------|----------|
@@ -294,13 +294,13 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 08 | Population doubling time | Analytical |
 | 09 | Reaction-diffusion pattern | Reference + Robustness |
 | 10 | Whole-cell division time | Analytical |
-| 11-73| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
+| 11-75| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 
 ### Scientific Validation Metrics
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **73/73** |
+| Benchmarks passing | **75/75** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
@@ -321,7 +321,7 @@ python validation/goldens/verify_goldens.py
 
 ## Documentation
 
-Full technical documentation in [`doc/`](https://github.com/SeanHank/HelixLang/tree/main/doc) (38 files, 25,000+ lines):
+Full technical documentation in [`doc/`](https://github.com/SeanHank/HelixLang/tree/main/doc) (39 files, 25,000+ lines):
 
 | Document | What it covers |
 |----------|---------------|
@@ -364,8 +364,8 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3417 test cases**(all passing, 81% coverage)
-- [73/73 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
+- **3614 test cases**(all passing, 81% coverage)
+- [75/75 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

@@ -344,12 +344,9 @@ def build_functional_model(
             ))
 
     # 3. Inject core metabolism
-    from helixlang.sim_runtime import (
-        _add_gem_core_reactions,
-        _add_gem_transport_reactions,
-    )
-    _add_gem_core_reactions(model)
-    _add_gem_transport_reactions(model)
+    from helixlang.api.gem import add_gem_core_reactions, add_gem_transport_reactions
+    add_gem_core_reactions(model)
+    add_gem_transport_reactions(model)
 
     # 4. Build biomass with component filtering
     from helixlang.plugins.gem.biomass import build_biomass_reaction
@@ -377,8 +374,8 @@ def build_functional_model(
 
     # 5. Set medium bounds
     fba = FluxBalanceAnalysis(model)
-    from helixlang.sim_runtime import _set_gem_medium
-    _set_gem_medium(fba, medium, organism=organism, model=model)
+    from helixlang.api.gem import set_gem_medium
+    set_gem_medium(fba, medium, organism=organism, model=model)
 
     # 6. Solve FBA
     try:

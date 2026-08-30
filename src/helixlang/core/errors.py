@@ -203,6 +203,28 @@ class ABIVersionError(HelixError):
         self.got = got
 
 
+class SemanticVersionError(HelixError):
+    """Artifact semantic-surface mismatch (doc/38 §2.4).
+
+    Loading an artifact whose ``LANGUAGE_SPEC`` / ``AST_SCHEMA`` /
+    ``SIMULATION_SEMANTICS`` surface is *newer* than this build is a hard
+    error — never a silent wrong-result run, mirroring :class:`ABIVersionError`.
+    Unknown/older surfaces warn; reference-data drift never raises.
+    """
+
+    def __init__(self, surface: str, expected: int, got: int, *,
+                 line: int = 0, col: int = 0):
+        msg = (
+            f"{surface} mismatch: this build supports {surface} {expected} but "
+            f"the artifact declares {got}. Recompile the helix source with the "
+            "current compiler."
+        )
+        super().__init__(msg, line=line, col=col)
+        self.surface = surface
+        self.expected = expected
+        self.got = got
+
+
 class NativeBackendError(HelixError):
     """A native accelerator failed to load or consumed invalid data (doc/36).
 

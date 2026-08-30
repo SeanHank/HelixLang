@@ -56,5 +56,5 @@
     "roundtrip_output": "MKFLIV"
   },
   "reference": "Kanehisa M 2000, Nucleic Acids Res 28:27; NCBI Standard Codon Table; Neidhardt 1996 (units); Sharp & Li 1987 Nucleic Acids Res 15:1281-1295 (CAI)",
-  "runtime_seconds": 0.026877166994381696
+  "runtime_seconds": 0.04324441694188863
 }

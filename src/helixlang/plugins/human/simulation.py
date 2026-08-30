@@ -461,8 +461,8 @@ class HumanSimulation:
                 self._ensure_biomass(model)
                 return model
             except (OSError, ValueError, KeyError, BioError) as exc:
-                from helixlang.core import fidelity
-                if not fidelity.opt_in("--low-fidelity"):
+                from helixlang.api.capabilities import opt_in
+                if not opt_in("--low-fidelity"):
                     from helixlang.core.errors import ModelMissingError
                     raise ModelMissingError(
                         f"base model from {path}", "fba",

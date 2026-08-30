@@ -267,6 +267,7 @@ class BatchRuntime:
                         self._scalar_step(i)
                 for i in rows:
                     self._quotas[i] -= 1
+                    self.cells[i].ops_executed += 1
 
     # -------- step kernels --------
     def _vector_step(self, rows: list[int], inst: IRInst) -> None:

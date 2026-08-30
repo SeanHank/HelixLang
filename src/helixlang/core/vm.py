@@ -26,6 +26,7 @@ from helixlang.core.ast_nodes import BioInstruction, Program
 from helixlang.core.bytecode import Chunk
 from helixlang.core.codon_table import OP_OPERAND_BYTES, Op
 from helixlang.core.errors import StackUnderflowError
+from helixlang.core.language import LanguageConfig
 from helixlang.core.opcode_semantics import (
     BIND_LEVEL_BOOST,
     CONSTITUTIVE_PROMOTER_STRENGTH,
@@ -483,15 +484,33 @@ class BioInstructionDispatcher:
 class CellVM:
     """Bytecode VM + cell simulator."""
 
-    def __init__(self, chunk: Chunk, program: Program, *, registry: Any = None):
+    def __init__(self, chunk: Chunk, program: Program, *,
+                 registry: Any = None, use_accel: bool | None = None,
+                 config: LanguageConfig | None = None):
         from helixlang.plugins.runtime.cell import Cell
         from helixlang.plugins.runtime.grn import GRN
         self.chunk = chunk
         self.program = program
         self._registry = registry
+        # doc/38 §4: VMs accept the LanguageConfig the artifact was built with
+        # (the compiled chunk already embeds resolved semantics; the config is
+        # carried for provenance/round-tripping rather than re-derived).
+        self.config = config or LanguageConfig.for_table(program.config.table)
         self.ip = 0
         self.stack: list = []
         self.frames: list[Frame] = []
+        # doc/38 §2: op-execution observability.  ``ops_executed`` counts every
+        # dispatched operation (native + Python fallback); ``accel_native_ops``
+        # counts only ops committed by the C dispatch kernel so ``accel_used``
+        # is an observation, not a request.
+        self.ops_executed: int = 0
+        self.accel_native_ops: int = 0
+        # doc/38 §10: forward-compat instrumentation — unknown opcode bytes in
+        # an artifact from a newer compiler are skipped (doc/11 §5.5 forward
+        # compat), but never silently: the skip is observable via this counter.
+        self.skipped_unknown: int = 0
+        self.use_accel: bool = program.config.use_accel \
+            if use_accel is None else use_accel
         # All simulation quantities are in physical units (helixlang.core.units):
         # Cell energy in ATP molecules, GRN decay from the 110 min protein
         # half-life, signals in µM.
@@ -769,7 +788,17 @@ class CellVM:
         self.ip = off
 
     def _execute_pending(self) -> None:
-        """Execute bytecode until the frames are empty or the tick quota is exhausted."""
+        """Execute bytecode until the frames are empty or the tick quota is exhausted.
+
+        With ``use_accel`` (default on) the loop hands arithmetic segments to the
+        optional C-dispatch accelerator (doc/37 §3, doc/38 §2.2); the accelerator
+        is transparent (identical VM state updates) and falls back to Python
+        dispatch per-op for bio/control opcodes, so the trace is unchanged.
+        """
+        if self.use_accel:
+            from helixlang.core.performance import accelerated_execute_pending
+            accelerated_execute_pending(self)
+            return
         quota = self.program.config.ops_per_tick
         while self.frames and quota > 0:
             # Frame depth guard: prevent unbounded frame accumulation across ticks (leftover from exhausted quota + GRN continuously pushing frames)
@@ -786,7 +815,10 @@ class CellVM:
             try:
                 op = Op(op_byte)
             except ValueError:
-                # Unknown byte: cannot determine the operand length, skip only 1 byte; record it in debug mode
+                # Unknown byte: cannot determine the operand length, skip only
+                # 1 byte; record it (doc/38 §10 keeps this observable instead
+                # of silent) and in debug mode print the byte.
+                self.skipped_unknown += 1
                 if self.debug:
                     print(f"[tick={self.tick} ip={self.ip - 1}] "
                           f"<unknown 0x{op_byte:02X}>")
@@ -800,6 +832,7 @@ class CellVM:
 
     # -------- dispatch (thin wrapper, delegated to the dispatcher; keeps backward compatibility) --------
     def _dispatch(self, op: Op) -> None:
+        self.ops_executed += 1
         self._dispatcher.dispatch(op)
 
     # -------- read operands --------

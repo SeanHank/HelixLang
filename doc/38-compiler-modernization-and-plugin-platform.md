@@ -751,8 +751,8 @@ sections as they land.
 
 - Every phase ends with the count-synced benchmark set: any new
   `validation/benchmarks/NN_*/run.py` updates README/README_PYPI/CONTRIBUTING
-  totals (73/73 today) and re-runs `release.py <version>` under
-  `PYTHON=/opt/anaconda3/envs/helix/bin/python ...` as the acceptance command.
+  totals (73/73 today) and re-runs `release.py <version>` as the acceptance
+  command (with the 3.11 project env active, or `PYTHON=<path-to-3.11-python>`).
 - New core modules join the mypy/ruff gates (`disallow_untyped_defs=True` — new
   classes must be fully typed); doc/36/37 invariants (typed errors only, no silent
   fallback, explicit opt-in) are checked by the fuzz suites before they are merged.

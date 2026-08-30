@@ -18,7 +18,6 @@ from pathlib import Path
 from helixlang.core import hxbc
 from helixlang.core.ast_nodes import Program
 from helixlang.core.bytecode import Chunk
-from helixlang.core.codon_table import Op, get_table
 from helixlang.core.compiler import Compiler
 from helixlang.core.disassembler import disassemble
 from helixlang.core.errors import (
@@ -33,12 +32,16 @@ from helixlang.core.errors import (
 from helixlang.core.ir_batch_runtime import BatchRuntime, StackDepthError
 from helixlang.core.ir_runtime import IRRuntime
 from helixlang.core.ir_serialize import dumps as ir_dumps
+from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
 from helixlang.core.semantic import SemanticAnalyzer
 from helixlang.core.vm import CellVM
-from helixlang.plugins.runtime.seq_utils import stop_codons_from_table as _stop_codons_from_table
-from helixlang.sim_runtime import _SIM_BACKENDS, BACKENDS, SimResult, run
+from helixlang.plugins.runtime.seq_utils import (
+    stop_codons_from_table as _stop_codons_from_table,  # noqa: F401  (re-exported; tests + doc/38 §4 legacy consumers)
+)
+from helixlang.sim_runtime import BACKENDS, SimResult, run
+from helixlang.sim_runtime.backends import get_backend_registry
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,7 +63,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--png", metavar="PREFIX", default=None,
                    help="write morphology field PNG (PPM format)")
     p.add_argument("--ticks", type=int, default=None,
-                   help="override #config ticks")
+                    help="override program tick count")
+    p.add_argument("--watch", action="store_true",
+                   help="recompile and rerun whenever the source changes "
+                        "(incremental JIT, doc/38 §3)")
+    p.add_argument("--watch-iterations", type=int, default=None, metavar="N",
+                   help="limit --watch to N poll iterations (default: until "
+                        "Ctrl+C; used by tests)")
+    p.add_argument("--watch-interval", type=float, default=1.0,
+                   metavar="SECONDS", help="poll interval for --watch")
     # Helix IR pipeline (doc/37 §7): first-class typed IR + alternative runtimes
     p.add_argument("--ir-text", action="store_true",
                    help="print the typed HLIR (assembled IR) and exit")
@@ -77,7 +88,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--batch-backend", choices=["numpy", "jax"], default="numpy",
                    help="vector engine for --runtime batch (default: numpy)")
     # Simulation backends (wiring.md §6.1, §9)
-    p.add_argument("--backend", choices=sorted(BACKENDS), default=None,
+    p.add_argument("--backend",
+                   choices=sorted(BACKENDS | frozenset(get_backend_registry().ids())),
+                   default=None,
                    help="override #config backend (classic keeps the bytecode "
                         "VM; whole_cell/population/fba/calibration/benchmark "
                         "run the simulation library)")
@@ -112,7 +125,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-source", action="store_true",
                     help="--compile without embedding the original source")
     p.add_argument("--check-bytecode-version", action="store_true",
-                    help="print OPCODE_VERSION and exit")
+                     help="print OPCODE_VERSION and exit")
+    p.add_argument("--info", action="store_true",
+                     help="list registered annotation grammars and exit "
+                          "(doc/38 §5, 'helixc info')")
     # GEM reconstruction pipeline (doc/20)
     p.add_argument("--gem", action="store_true",
                    help="run GEM reconstruction pipeline from #species genome data")
@@ -145,6 +161,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.check_bytecode_version:
         from helixlang.core.bytecode import OPCODE_VERSION
         print(f"OPCODE_VERSION={OPCODE_VERSION}")
+        return 0
+
+    # ----- Grammar registry info (doc/38 §5, 'helixc info') -----
+    if args.info:
+        from helixlang.core.grammar_registry import (
+            ensure_core_grammars,
+            grammar_registry,
+        )
+
+        ensure_core_grammars()
+        for g in sorted(grammar_registry.grammars(), key=lambda x: x.keyword):
+            kind = "core" if g.core else "plugin"
+            hooks = [n for n, offer in
+                     (("parse", g.parse is not None),
+                      ("validate", g.validate is not None),
+                      ("decompile", g.decompile is not None)) if offer]
+            print(f"#{g.keyword:<18} {kind:<7} (owner: {g.owner_name:<8}) "
+                  f"[{', '.join(hooks)}]")
         return 0
 
     # ----- compile/run mode -----
@@ -236,10 +270,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         # parse + semantic check (shared by every backend)
-        table = get_table(args.table)
-        stop_codons = _stop_codons_from_table(table)
+        config = LanguageConfig.for_table(args.table)
         tokens = list(Lexer(src).tokens())
-        program = Parser(tokens, stop_codons=stop_codons).parse()
+        program = Parser(tokens, config=config).parse()
         SemanticAnalyzer(program).check()
     except (LexError, ParseError, SemanticError, CompileError) as e:
         print(f"compile error: {e}", file=sys.stderr)
@@ -253,19 +286,20 @@ def main(argv: list[str] | None = None) -> int:
         effective_backend = "gem"
     else:
         effective_backend = args.backend or program.config.backend
-    # Wire --dynamic through sim_extensions
+    # Wire --dynamic through the gem extension section (doc/38 §6.3)
     if args.dynamic:
-        program.sim_extensions["gem_dynamic"] = "true"
-        program.sim_extensions["gem_duration"] = str(args.duration)
-        program.sim_extensions["gem_dt"] = str(args.dt)
+        gem = program.extensions.extension("gem")
+        gem.set("gem_dynamic", "true")
+        gem.set("gem_duration", str(args.duration))
+        gem.set("gem_dt", str(args.dt))
     if not args.disassemble and (
-            program.sim_extensions.get("kind") in _SIM_BACKENDS
+            get_backend_registry().has(kind=program.sim_extensions.get("kind"))
             or effective_backend != "classic"):
         return _run_sim(program, args, effective_backend)
 
     # ----- classic bytecode pipeline (bit-identical to before) -----
     try:
-        ir, chunk = Compiler(table).compile_ir(program, optimize=args.optimize)
+        ir, chunk = Compiler(config=config).compile_ir(program, optimize=args.optimize)
     except CompileError as e:
         print(f"compile error: {e}", file=sys.stderr)
         return 1
@@ -310,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return _emit_batch_summary(args, program, traces)
 
+    # incremental JIT watch mode (doc/38 §3 step 4): recompile + rerun whenever
+    # the source changes, recomputing only the edited gene's closure
+    if args.watch:
+        return _run_watch(args, config)
+
     # default: classic CellVM (+ C dispatch kernel, snapsh automation)
     vm = CellVM(chunk, program)
     vm.debug = args.debug
@@ -334,6 +373,79 @@ def main(argv: list[str] | None = None) -> int:
         if vm.field:
             print(f"  field total V: {vm.field.total_v():.3f}")
     return 0
+
+
+def _run_watch(args: argparse.Namespace, config: LanguageConfig) -> int:
+    """Incremental JIT watch loop (doc/38 §3 step 4).
+
+    Re-lex/re-parse the source on each poll, recompile only the edited gene's
+    dependency closure via :class:`helixlang.core.incr.IncrementalCompiler`,
+    then rerun the classic CellVM and print the trace summary.  Exits on
+    Ctrl+C; ``--watch-iterations N`` bounds the loop for tests.
+    """
+    import time
+
+    from helixlang.core.incr import (
+        CompileResult,
+        IncrementalCache,
+        IncrementalCompiler,
+    )
+    from helixlang.core.ir import IRProgram
+
+    incr = IncrementalCompiler(config)
+    previous_ir: IRProgram | None = None
+    previous_cache: IncrementalCache | None = None
+    iteration = 0
+
+    def _watch_compile(src: str) -> tuple[Program, CompileResult]:
+        nonlocal previous_ir, previous_cache, iteration
+        iteration += 1
+        tokens = list(Lexer(src).tokens())
+        program = Parser(tokens, config=config).parse()
+        SemanticAnalyzer(program).check()
+        if args.ticks is not None:
+            program.config.ticks = args.ticks
+        result = incr.compile(
+            program, previous_ir=previous_ir, previous_cache=previous_cache)
+        previous_ir, previous_cache = result.ir, result.cache
+        if result.stats.full_build:
+            print(f"[jit] iteration {iteration}: full build "
+                  f"({len(result.stats.rebuilt)} genes)")
+        else:
+            print(f"[jit] iteration {iteration}: rebuilt "
+                  f"{sorted(result.stats.rebuilt) or '(none)'}, reused "
+                  f"{len(result.stats.reused)} genes")
+        return program, result
+
+    while True:
+        try:
+            src = args.source.read_text()
+            program, result = _watch_compile(src)
+        except (LexError, ParseError, SemanticError, CompileError) as e:
+            print(f"compile error: {e}", file=sys.stderr)
+        except OSError as e:
+            print(f"read error: {e}", file=sys.stderr)
+        else:
+            vm = CellVM(result.chunk, program)
+            vm.debug = args.debug
+            try:
+                trace = vm.run(program.config.ticks)
+            except (RuntimeHelixError, ValueError, IndexError, KeyError) as e:
+                print(f"runtime error: {e}", file=sys.stderr)
+            else:
+                print(f"=== {args.source.name} | table={args.table} "
+                      f"ticks={program.config.ticks} ===")
+                for s in trace[-3:]:
+                    print(f"  tick={s['tick']:>3} pos=({s['x']},{s['y']}) "
+                          f"energy={s['energy']} alive={int(s['alive'])} "
+                          f"proteins={s['proteins']}")
+        if args.watch_iterations is not None:
+            if iteration >= args.watch_iterations:
+                return 0
+        try:
+            time.sleep(args.watch_interval)
+        except KeyboardInterrupt:
+            return 0
 
 
 def _emit_vm_summary(args: argparse.Namespace, program: Program,
@@ -439,8 +551,13 @@ def _run_artifact_mode(args: argparse.Namespace) -> int:
             print(f"compile error: {e}", file=sys.stderr)
             return 1
         size = info.path.stat().st_size
+        mf = info.manifest
+        manifest = (
+            f"lang={mf.language_spec} ast={mf.ast_schema} "
+            f"sim={mf.simulation_semantics} refdata={mf.reference_data}"
+            if mf is not None else "legacy")
         print(f"=== compiled {args.source.name} -> {args.output} ===")
-        print(f"  {size} bytes | table={info.table} | "
+        print(f"  {size} bytes | table={info.table} | manifest=({manifest}) | "
               f"chunk={'embedded' if info.chunk is not None else 'omitted'} | "
               f"source={'embedded' if info.source is not None else 'omitted'}")
         return 0
@@ -528,20 +645,20 @@ def _run_artifact(args: argparse.Namespace) -> int:
         program.config.ticks = args.ticks
     effective_backend = args.backend or program.config.backend
     if not args.disassemble and (
-            program.sim_extensions.get("kind") in _SIM_BACKENDS
+            get_backend_registry().has(kind=program.sim_extensions.get("kind"))
             or effective_backend != "classic"):
         return _run_sim(program, args, effective_backend)
 
     # classic bytecode path
     if args.table != "standard":
         # explicit --table override -> recompile from the AST
-        chunk = _compile_from_program(program, get_table(args.table))
+        chunk = _compile_from_program(program, LanguageConfig.for_table(args.table))
         if chunk is None:
             return 1
     elif art.chunk is not None:
         chunk = art.chunk
     else:
-        chunk = _compile_from_program(program, get_table(art.table))
+        chunk = _compile_from_program(program, LanguageConfig.for_table(art.table))
         if chunk is None:
             return 1
 
@@ -576,10 +693,10 @@ def _run_artifact(args: argparse.Namespace) -> int:
 
 
 def _compile_from_program(program: Program,
-                          table: dict[str, Op]) -> Chunk | None:
+                          config: LanguageConfig) -> Chunk | None:
     """Compile a chunk, returning None (after reporting) on CompileError."""
     try:
-        return Compiler(table).compile(program)
+        return Compiler(config=config).compile(program)
     except CompileError as e:
         print(f"compile error: {e}", file=sys.stderr)
         return None

@@ -4,25 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-# Standard codon table (NCBI translation table 11)
-_CODON_TABLE: dict[str, str] = {
-    "TTT": "F", "TTC": "F", "TTA": "L", "TTG": "L",
-    "CTT": "L", "CTC": "L", "CTA": "L", "CTG": "L",
-    "ATT": "I", "ATC": "I", "ATA": "I", "ATG": "M",
-    "GTT": "V", "GTC": "V", "GTA": "V", "GTG": "V",
-    "TCT": "S", "TCC": "S", "TCA": "S", "TCG": "S",
-    "CCT": "P", "CCC": "P", "CCA": "P", "CCG": "P",
-    "ACT": "T", "ACC": "T", "ACA": "T", "ACG": "T",
-    "GCT": "A", "GCC": "A", "GCA": "A", "GCG": "A",
-    "TAT": "Y", "TAC": "Y", "TAA": "*", "TAG": "*",
-    "CAT": "H", "CAC": "H", "CAA": "Q", "CAG": "Q",
-    "AAT": "N", "AAC": "N", "AAA": "K", "AAG": "K",
-    "GAT": "D", "GAC": "D", "GAA": "E", "GAG": "E",
-    "TGT": "C", "TGC": "C", "TGA": "*", "TGG": "W",
-    "CGT": "R", "CGC": "R", "CGA": "R", "CGG": "R",
-    "AGT": "S", "AGC": "S", "AGA": "R", "AGG": "R",
-    "GGT": "G", "GGC": "G", "GGA": "G", "GGG": "G",
-}
+# Standard codon table (NCBI translation table 11) — single source of truth
+# lives in core.codon_table (doc/38 §4); this module only imports it.
+from helixlang.api.language import STANDARD_AMINO_ACIDS
 
 
 def reverse_complement(seq: str) -> str:
@@ -36,7 +20,7 @@ def translate(seq: str) -> str:
     protein = []
     for i in range(0, len(seq) - 2, 3):
         codon = seq[i:i + 3].upper()
-        aa = _CODON_TABLE.get(codon, "X")
+        aa = STANDARD_AMINO_ACIDS.get(codon, "X")
         if aa == "*":
             break
         protein.append(aa)

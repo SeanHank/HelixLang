@@ -1,0 +1,17 @@
+id: 75_unit_safety
+name: Unit system & dimensional safety
+layer: compiler
+reference: doc/38 §8 unit system & dimensional safety (goal 10), Phase D gate
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - minutes_seconds_exact
+    - base_value_equality
+    - cross_unit_arithmetic_rejected
+    - dimension_tree_in_message
+    - unknown_unit_rejected
+    - dims_do_not_change_chunk
+    - dims_do_not_change_trace

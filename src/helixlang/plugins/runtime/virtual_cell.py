@@ -42,7 +42,7 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
-from helixlang.core.units import (
+from helixlang.api.units import (
     PROTEIN_AGGREGATION_RATE_PER_MIN,
     PROTEIN_DEGRADED_RATE_PER_MIN,
     PROTEIN_FOLD_RATE_PER_MIN,

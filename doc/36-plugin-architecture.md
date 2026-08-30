@@ -1132,7 +1132,7 @@ Phase 3 (GRN Cython/C, simplex Cython, VM+population C, numba diffusion) is now
 
 Phase 4 (full plugin migration + dual-wheel shipping) is now **DONE — the
 no-silent-fallback policy is enforced across `core/` + `_accel/` + the full
-tree**. Tests run in `/opt/anaconda3/envs/helix` (3.11 + Cython for
+tree**. Tests run in the project env (3.11 + Cython for
 native builds) and the canonical 3.13 test env; 67/67 validation benchmarks
 remain green.
 

@@ -104,8 +104,8 @@ class HumanGEMLoader:
             if adapter is not None:
                 return adapter
         except Exception as exc:  # noqa: BLE001
-            from helixlang.core import fidelity
-            if not fidelity.opt_in("--low-fidelity"):
+            from helixlang.api.capabilities import opt_in
+            if not opt_in("--low-fidelity"):
                 from helixlang.core.errors import ModelMissingError
                 raise ModelMissingError(
                     f"human GEM from {path}", "human",
