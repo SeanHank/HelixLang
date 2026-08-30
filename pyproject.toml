@@ -9,7 +9,7 @@ description = "A domain-specific language where biological genetic material is t
 readme = "README_PYPI.md"
 requires-python = ">=3.11,<3.12"
 authors = [{name = "Sean Hank"}]
-license = "AGPL-3.0-only"
+license = { text = "AGPL-3.0-only" }
 keywords = ["DSL", "DNA", "compiler", "artificial-life", "biological-simulation"]
 classifiers = [
     "Programming Language :: Python :: 3",

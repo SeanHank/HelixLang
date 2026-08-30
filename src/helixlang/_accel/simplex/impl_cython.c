@@ -5,7 +5,7 @@
     "distutils": {
         "name": "helixlang._accel.simplex.impl_cython",
         "sources": [
-            "/Users/admin/PycharmProjects/HelixLang/src/helixlang/_accel/simplex/impl_cython.pyx"
+            "src/helixlang/_accel/simplex/impl_cython.pyx"
         ]
     },
     "module_name": "helixlang._accel.simplex.impl_cython"

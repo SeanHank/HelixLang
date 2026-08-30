@@ -7,7 +7,7 @@
         "language": "c",
         "name": "helixlang._accel.grn_step.impl_cython",
         "sources": [
-            "/Users/admin/PycharmProjects/HelixLang/src/helixlang/_accel/grn_step/impl_cython.pyx"
+            "src/helixlang/_accel/grn_step/impl_cython.pyx"
         ]
     },
     "module_name": "helixlang._accel.grn_step.impl_cython"
