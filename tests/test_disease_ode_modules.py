@@ -21,7 +21,9 @@ from helixlang.plugins.human.endocrine import (
 from helixlang.plugins.human.immune import (
     CRPDriver,
     CytokinePool,
+    IFNPool,
     ImmuneCellPopulation,
+    InnateImmuneModel,
     create_immune_model,
 )
 from helixlang.plugins.human.organ_crosstalk import (
@@ -623,3 +625,101 @@ class TestCircadianCortisol:
         # Both should have non-trivial cortisol (not 0)
         assert values_with_clock[-1] > 5.0
         assert axis2.cortisol_ug_dl > 5.0
+
+
+# ============================================================================
+# doc/40 Phase A: Innate Immune Realism
+# ============================================================================
+
+
+class TestIFNPool:
+    def test_baseline_zero(self):
+        ifn = IFNPool()
+        assert ifn.ifn_alpha_beta == 0.0
+
+    def test_rises_with_pathogen(self):
+        ifn = IFNPool()
+        for _ in range(48):
+            ifn.step(1.0, pathogen_signal=1.0)
+        assert ifn.ifn_alpha_beta > 1.0
+
+    def test_antiviral_suppresses_pathogen(self):
+        ifn = IFNPool()
+        ifn.ifn_alpha_beta = 10.0
+        eff = ifn.effective_pathogen(1.0)
+        assert 0.0 <= eff < 1.0  # suppressed but not negative
+
+
+class TestCRPDriverV2:
+    def test_hill_saturates(self):
+        crp = CRPDriver()
+        # Saturating IL-6 → CRP plateaus near Vmax/clearance, not unbounded
+        for _ in range(1000):
+            crp.step(1.0, il6_pg_ml=1000.0)
+        assert crp.crp_mg_l <= crp.max_crp
+        assert crp.crp_mg_l > 500.0  # strong acute-phase response
+
+    def test_lag_delays_crp(self):
+        # Lag compartment means CRP is driven by the lagged (slower) IL-6,
+        # not the instantaneous stimulus.
+        crp = CRPDriver()
+        crp.step(1.0, il6_pg_ml=50.0)
+        # After one step the lagged IL-6 is well below the instantaneous 50
+        assert crp._il6_lagged < 50.0
+
+    def test_apr_panel_tracks_il6(self):
+        crp = CRPDriver()
+        crp._il6_lagged = 50.0
+        crp.step(1.0, il6_pg_ml=50.0)
+        assert crp.saa_mg_l > 0
+        assert crp.pct_ng_ml > 0
+        assert crp.ferritin_ng_ml > 50.0
+        assert crp.fibrinogen_g_l > 3.0
+
+
+class TestFribergTransit:
+    def test_friberg_no_nadir_without_kill(self):
+        pop = ImmuneCellPopulation()
+        anc0 = pop.neutrophils
+        for _ in range(72):
+            pop.step(1.0, il6=1.0, tnf=5.0)
+        # No drug kill → no nadir; ANC stays healthy
+        assert pop.neutrophils > anc0 * 0.5
+
+    def test_friberg_drug_kill_depletes_anc(self):
+        pop = ImmuneCellPopulation()
+        pop.friberg_drug_kill = 0.5
+        for _ in range(24):
+            pop.step(1.0, il6=1.0, tnf=5.0)
+        # Cytotoxic kill on proliferating precursors → ANC drops (nadir)
+        assert pop.neutrophils < 4.0
+
+
+class TestImmuneCircadianCortisol:
+    def test_default_no_circadian_variation(self):
+        # amplitude = 0 must not modulate cortisol: with explicit constant
+        # suppression, IL-6 follows a smooth monotone trajectory (no burst
+        # correlated with a 24 h cycle).
+        m1 = InnateImmuneModel(circadian_amplitude=0.0)
+        m1.cortisol_suppression = 0.3
+        m1.infection_severity = 0.5
+        il6s = []
+        for _ in range(48):
+            m1.step(1.0)
+            il6s.append(m1.get_il6())
+        # Once reaching a quasi-steady envelope, successive differences are tiny
+        tail = il6s[-8:]
+        assert max(tail[-1] - tail[0], 0.0) < 0.05
+
+    def test_circadian_oscillates_il6(self):
+        # Circadian-modulated cortisol suppresses IL-6 production in a 24 h
+        # rhythm, producing a measurable oscillation in IL-6.
+        m = InnateImmuneModel(circadian_amplitude=0.6)
+        m.cortisol_suppression = 0.6
+        m.infection_severity = 0.5
+        vals = []
+        for _ in range(96):
+            m.step(1.0)
+            vals.append(m.get_il6())
+        tail = vals[-48:]
+        assert max(tail) > min(tail) * 1.5

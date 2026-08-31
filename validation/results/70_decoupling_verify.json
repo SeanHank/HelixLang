@@ -23,7 +23,7 @@
     "lazy_import_sites": 23
   },
   "reference": "doc/36 plugin architecture \u00a72, doc/37 \u00a74 decoupling verification",
-  "runtime_seconds": 0.2131601250730455,
+  "runtime_seconds": 0.33369079197291285,
   "layer": "architecture",
   "name": "Decoupling verification \u2014 core vs simulation vs language",
   "level": "L2"

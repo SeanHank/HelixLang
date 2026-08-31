@@ -42,7 +42,7 @@
         "torch": "2.13.0",
         "esm": "3.2.1.post1"
       },
-      "timestamp": "2026-08-31T01:29:13Z",
+      "timestamp": "2026-08-31T11:26:08Z",
       "source_hash": "",
       "model_version": "",
       "parameter_set": {
@@ -95,7 +95,7 @@
     },
     "fidelity_mode": "full"
   },
-  "runtime_seconds": 0.37242083298042417,
+  "runtime_seconds": 0.5198201249586418,
   "layer": "provenance",
   "name": "Provenance \u2014 all simulation results carry provenance metadata",
   "level": "L0"

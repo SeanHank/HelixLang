@@ -29,7 +29,7 @@
     "config_ticks": 42
   },
   "reference": "doc/37 \u00a75.3 HLIR serialization (ir_serialize.py)",
-  "runtime_seconds": 0.03360529197379947,
+  "runtime_seconds": 0.06712208304088563,
   "layer": "compiler",
   "name": "HLIR serialization robustness",
   "level": "L0"

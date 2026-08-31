@@ -15,7 +15,7 @@
     "CELL_PROTEIN_SLOT_COUNT": 256,
     "MIN_DIVISION_ENERGY": 20000000.0
   },
-  "runtime_seconds": 0.04483949998393655,
+  "runtime_seconds": 0.035123915993608534,
   "layer": "molecular",
   "name": "Cell class",
   "level": "L0"

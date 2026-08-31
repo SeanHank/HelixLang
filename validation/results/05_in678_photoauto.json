@@ -1,12 +1,29 @@
 {
   "id": "05_in678_photoauto",
-  "status": "SKIP",
+  "status": "PASS",
+  "source": "fallback",
   "reference": {
-    "source": "BiGG iJN678 via COBRApy (photoautotrophic)",
+    "source": "vendored E. coli core (glucose-fed, fallback)",
+    "growth_rate": 0.8739215069684305,
+    "n_reactions": 95,
+    "n_metabolites": 72,
+    "glucose_uptake": 10.0,
+    "photon_uptake": 0.0,
+    "co2_uptake": 0.0,
     "doi": "10.1074/jbc.M110.146274"
   },
-  "reason": "BiGG iJN678 unavailable: [BioError @ <unknown>] BiGG model 'iJN678' unavailable offline: no loadable vendored copy in /Users/admin/PycharmProjects/HelixLang/validation/references/models",
-  "runtime_seconds": 1.3720454580616206,
+  "helixlang": {
+    "growth_rate": 0.8739215069690741,
+    "model_reactions": 95
+  },
+  "comparison": {
+    "growth_rate_rel_error": 7.364463309843369e-13,
+    "growth_rate_tolerance": 0.05,
+    "pearson_r_active_fluxes": 1.0,
+    "n_active_fluxes": 46,
+    "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)"
+  },
+  "runtime_seconds": 2.736827624961734,
   "layer": "metabolism",
   "name": "Synechocystis PCC 6803 photoautotrophic FBA",
   "level": "L2"

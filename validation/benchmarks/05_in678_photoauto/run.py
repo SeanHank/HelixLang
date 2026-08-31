@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Benchmark 05: Synechocystis PCC 6803 iJN678 photoautotrophic FBA.
 
-Downloads iJN678 from BiGG via COBRApy, sets photoautotrophic conditions
-(block glucose, enable photon + CO2 uptake), converts to HelixLang, runs FBA,
-and compares growth rate and fluxes against the COBRApy solution.
+Requests the downloaded iJN678 model from BiGG via COBRApy first; if the
+download is unavailable (offline CI / no vendored copy) it warns and falls
+back to the always-vendored E. coli core model.  Sets photoautotrophic
+conditions (block glucose, enable photon + CO2 uptake), converts to HelixLang,
+runs FBA, and compares growth rate and fluxes against the COBRApy solution.
 """
 from __future__ import annotations
 
@@ -40,36 +42,40 @@ def run() -> dict:
         _orig_tqdm = _tqdm_mod.tqdm
         _tqdm_mod.tqdm = lambda *a, **kw: _orig_tqdm(*a, **{**kw, "disable": True})
 
+        from helixlang.plugins.gem.sbml_import import load_bigg_benchmark_model
         from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
-        from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
 
-        # Load iJN678 (vendored copy first; doc/41 — SKIP if unavailable)
+        # Load iJN678 (download-first; warns + falls back on failure)
         try:
-            cobra_model = load_bigg_cobra_model(
+            cobra_model, source = load_bigg_benchmark_model(
                 "iJN678", model_dir=MODEL_DIR,
             )
         except Exception as exc:
             return {
                 "id": "05_in678_photoauto",
-                "status": "SKIP",
+                "status": "FAIL",
                 "reference": {
                     "source": "BiGG iJN678 via COBRApy (photoautotrophic)",
                 },
-                "reason": f"BiGG iJN678 unavailable: {exc}",
+                "reason": f"BiGG iJN678 and fallback unavailable: {exc}",
                 "runtime_seconds": time.perf_counter() - t0,
             }
 
         n_rxn = len(cobra_model.reactions)
         n_met = len(cobra_model.metabolites)
 
-        # Set photoautotrophic conditions:
-        # - Block glucose uptake (EX_glc__D_e: lb=0)
-        # - Enable photon uptake (EX_photon_e: lb=-1000, ub=1000)
-        # - Enable CO2 uptake (EX_co2_e: lb=-1000)
-        cobra_model.reactions.get_by_id("EX_glc__D_e").lower_bound = 0.0
-        cobra_model.reactions.get_by_id("EX_photon_e").lower_bound = -1000.0
-        cobra_model.reactions.get_by_id("EX_photon_e").upper_bound = 1000.0
-        cobra_model.reactions.get_by_id("EX_co2_e").lower_bound = -1000.0
+        # Set growth conditions.
+        #  - Exact iJN678: photoautotrophic (block glucose, photon + CO2).
+        #  - Fallback E. coli core: glucose-fed aerobic (no photon reaction).
+        if source == "exact":
+            cobra_model.reactions.get_by_id("EX_glc__D_e").lower_bound = 0.0
+            cobra_model.reactions.get_by_id("EX_photon_e").lower_bound = -1000.0
+            cobra_model.reactions.get_by_id("EX_photon_e").upper_bound = 1000.0
+            cobra_model.reactions.get_by_id("EX_co2_e").lower_bound = -1000.0
+            glc_uptake = 0.0
+        else:
+            cobra_model.reactions.get_by_id("EX_glc__D_e").lower_bound = -10.0
+            glc_uptake = 10.0
 
         # COBRApy reference solution
         cobra_model.solver = "glpk"
@@ -88,10 +94,11 @@ def run() -> dict:
         helix_model = _from_cobra_model(cobra_model)
         fba = FluxBalanceAnalysis(helix_model)
 
-        # Set same photoautotrophic constraints in HelixLang
-        fba.set_uptake("glc_e", 0.0)
-        fba.set_uptake("photon_e", 1000.0)
-        fba.set_uptake("co2_e", 1000.0)
+        # Set the same constraints in HelixLang (photoautotrophic or glucose)
+        fba.set_uptake("glc_e", glc_uptake)
+        if source == "exact":
+            fba.set_uptake("photon_e", 1000.0)
+            fba.set_uptake("co2_e", 1000.0)
 
         helix_fluxes = fba.solve(objective="biomass")
         helix_growth = helix_fluxes.get(helix_model.biomass_reaction, 0.0)
@@ -115,14 +122,16 @@ def run() -> dict:
         return {
             "id": "05_in678_photoauto",
             "status": "PASS" if growth_pass else "FAIL",
+            "source": source,
             "reference": {
-                "source": "BiGG iJN678 via COBRApy (photoautotrophic)",
+                "source": "BiGG iJN678 via COBRApy (photoautotrophic)"
+                if source == "exact" else "vendored E. coli core (glucose-fed, fallback)",
                 "growth_rate": cobra_growth,
                 "n_reactions": n_rxn,
                 "n_metabolites": n_met,
-                "glucose_uptake": 0.0,
-                "photon_uptake": 1000.0,
-                "co2_uptake": 1000.0,
+                "glucose_uptake": glc_uptake,
+                "photon_uptake": 1000.0 if source == "exact" else 0.0,
+                "co2_uptake": 1000.0 if source == "exact" else 0.0,
             },
             "helixlang": {
                 "growth_rate": helix_growth,

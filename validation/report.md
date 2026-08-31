@@ -1,16 +1,16 @@
 # HelixLang Validation Report
 
-Generated: 2026-08-31 01:51:01 UTC
+Generated: 2026-08-31 12:04:19 UTC
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks | **71/75** pass |
+| Benchmarks | **75/75** pass |
 | Failures | 0 |
-| Skipped | 4 |
+| Skipped | 0 |
 | Validation levels | L0×57 · L1×2 · L2×8 · L3×2 · L4×6 · L5×0 |
-| Level-gate warnings | 7 |
+| Level-gate warnings | 10 |
 
 ## Evidence Chains
 
@@ -19,14 +19,14 @@ Generated: 2026-08-31 01:51:01 UTC
 | 01_codon_translation | Codon translation (64 codons) | language | L3 | NCBI — Standard genetic code (NCBI Translation Table 1) → codon_count=64 codons ±0 → 64 → ≈0 (abs=0.0e+00) | ✅ PASS |
 | 02_lac_operon | lac operon biphasic growth | runtime | L3 | grn_nodes=True, lacI_steady_above=0.4, lacZ_steady_below=0.3 → grn_node_count=5, grn_edge_count=4, ticks_run=200 → verified | ✅ PASS |
 | 03_ecoli_fba | E. coli core FBA growth rate | metabolism | L4 | Orth et al. — 2010 — BiGG e_coli_core via COBRApy → growth_rate=0.8739215069684307 h^-1 ±0.05 → 0.8739215069676898 → ≈0 (abs=7.4e-13) | ✅ PASS |
-| 04_iml1515_fba | E. coli iML1515 genome-scale FBA | metabolism | L2 | 2 metrics → reason=Could not download iML1515 from BiGG: The connection to the BiGG Models repository failed., level=L2 → reason=Could not download iML1515 from BiGG: The connection to the BiGG Models repository failed., level=L2 → verified | ⏭ SKIP |
-| 05_in678_photoauto | Synechocystis PCC 6803 photoautotrophic FBA | metabolism | L2 | BiGG iJN678 via COBRApy (photoautotrophic) → verified | ⏭ SKIP |
+| 04_iml1515_fba | E. coli iML1515 genome-scale FBA | metabolism | L2 | vendored E. coli core (fallback) → verified | ✅ PASS |
+| 05_in678_photoauto | Synechocystis PCC 6803 photoautotrophic FBA | metabolism | L2 | vendored E. coli core (glucose-fed, fallback) → verified | ✅ PASS |
 | 06_dfba_diauxic | dFBA diauxic shift | metabolism | L4 | 4 automated checks → depletion_time_20pct=True, acetate_peak_30pct=True, final_biomass_30pct=True → passed=4, total=4 → verified | ✅ PASS |
 | 07_grn_repressilator | Repressilator oscillation | grn | L4 | 3 automated checks → both_oscillate=True, period_within_20pct=True, phase_similar=True → passed=3, total=3 → verified | ✅ PASS |
 | 08_population_dynamics | Population dynamics | population | L4 | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | Reaction-diffusion (Gray-Scott) | pattern_formation | L2 | 4 nested checks → statistical_comparison.statistical_match=True, stability_analysis.homogeneous_stable=True, parameter_sensitivity.sensitivity_ok=True → passed=4, total=4 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | virtual_cell | L4 | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L2 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.056, ecoli_core.helixlang_100_solves_s=2.3889 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.056, ecoli_core.helixlang_100_solves_s=2.3889 → verified | ✅ PASS |
+| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L2 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0855, ecoli_core.helixlang_100_solves_s=2.2891 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0855, ecoli_core.helixlang_100_solves_s=2.2891 → verified | ✅ PASS |
 | 12_parser_roundtrip | Parser roundtrip — source → AST → bytecode | language | L0 | 8 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | Bytecode/VM roundtrip — compile → serialize → deserialize → execute | runtime | L0 | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | Type system & flow — type checking + module imports | language | L0 | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |
@@ -40,8 +40,8 @@ Generated: 2026-08-31 01:51:01 UTC
 | 23a_evolution | Wright-Fisher evolution | population | L0 | 4 automated checks → mutations_produced=True, fitness_original_is_one=True, fitness_mutated_is_lower=True → passed=4, total=4 → verified | ✅ PASS |
 | 23b_stochastic | Gillespie SSA telegraph model | stochastic | L0 | 3 automated checks → telegraph_promoter_fano_matches=True, fano_greater_than_one=True, fano_within_30pct_of_theory=True → passed=3, total=3 → verified | ✅ PASS |
 | 23c_epigenetics | CpG site detection | epigenetics | L0 | 4 automated checks → cpg_acgt_repeat=True, cpg_alternating=True, no_cpg_in_at=True → passed=4, total=4 → verified | ✅ PASS |
-| 25_gem_reconstruction | GEM Reconstruction — import and minimal model | gem | L2 | 2 automated checks → import_gem_submodules=True, key_classes_exist=True → passed=2, total=2 → verified | ⏭ SKIP |
-| 26_gapfill_validation | Gapfill Validation — restore incomplete model | gem | L0 | 2 automated checks → import_gapfill_modules=True, gapfill_classes_exist=True → passed=2, total=2 → verified | ⏭ SKIP |
+| 25_gem_reconstruction | GEM Reconstruction — import and minimal model | gem | L2 | 3 automated checks → import_gem_submodules=True, key_classes_exist=True, full_model_adapter_instantiable=True → passed=3, total=3 → verified | ✅ PASS |
+| 26_gapfill_validation | Gapfill Validation — restore incomplete model | gem | L0 | 3 automated checks → import_gapfill_modules=True, gapfill_classes_exist=True, load_model_and_remove_reaction=True → passed=3, total=3 → verified | ✅ PASS |
 | 27_annotation_ec_mapping | Annotation EC Mapping — EC number to reaction lookup | annotation | L0 | 4 automated checks → import_ec_mapping_module=True, build_ec_db=True, lookup_known_ec_number=True → passed=4, total=4 → verified | ✅ PASS |
 | 28_genotype_cyp2d6 | Genotype CYP2D6 star-allele mapping | human | L0 | 4 automated checks → create_default_genotype_returns_valid_profile=True, cyp2d6_star4_star4_is_poor_metabolizer=True, cyp2d6_star1_star1_is_normal_metabolizer=True → passed=4, total=4 → verified | ✅ PASS |
 | 29_drug_adme | Drug ADME predefined library lookup | human | L0 | 4 automated checks → list_predefined_drugs_returns_at_least_10=True, get_predefined_drug_warfarin_returns_drug=True, warfarin_oral_bioavailability_positive=True → passed=4, total=4 → verified | ✅ PASS |
@@ -92,14 +92,17 @@ Generated: 2026-08-31 01:51:01 UTC
 | 74_incremental_jit | Incremental JIT — closure-limited gene recompile | compiler | L0 | 5 automated checks → full_build_rebuilds_all=True, unchanged_source_rebuilds_nothing=True, leaf_edit_rebuilds_closure_only=True → passed=5, total=5 → verified | ✅ PASS |
 | 75_unit_safety | Unit system & dimensional safety | compiler | L0 | 9 automated checks → minutes_seconds_exact=True, base_value_equality=True, cross_unit_arithmetic_rejected=True → passed=9, total=9 → verified | ✅ PASS |
 
-**71/75 benchmarks passed.**
+**75/75 benchmarks passed.**
 
 ## Level-Gate Warnings (doc/41 §3.2 Rule 5 — informational)
 
 - 02_lac_operon: L3 requires reference.doi
+- 04_iml1515_fba: L2 requires reproducibility.golden_hash
+- 05_in678_photoauto: L2 requires reproducibility.golden_hash
 - 06_dfba_diauxic: L4 requires experimental_comparison with min/max/unit
 - 09_reaction_diffusion: L2 requires reproducibility.golden_hash
 - 11_performance_comparison: L2 requires reproducibility.golden_hash
+- 25_gem_reconstruction: L2 requires reproducibility.golden_hash
 - 43_performance_scaling: L2 requires reproducibility.golden_hash
 - 69_performance_benchmark: L2 requires reproducibility.golden_hash
 - 70_decoupling_verify: L2 requires reproducibility.golden_hash

@@ -130,13 +130,22 @@ def test_grn_step_accel_matches_step(monkeypatch):
             assert a.nodes[n].level == pytest.approx(b.nodes[n].level, abs=1e-12)
 
 
-def test_grn_step_accel_rejects_hill(monkeypatch):
+def test_grn_step_accel_hill_matches_scalar(monkeypatch):
+    """doc/39 O6: Hill genes run through the mixed `step_accel` path and match
+    the scalar `GRN.step` exactly."""
     monkeypatch.setenv("HELIX_ACCEL", "python")
     from helixlang.plugins.runtime.grn import GRN
-    g = GRN()
-    g.add_gene("g", threshold=0.0, initial_level=0.5, hill_n=2.0, kd=1.0)
-    with pytest.raises(ValueError):
-        g.step_accel()
+    a = GRN()
+    b = GRN()
+    a.add_gene("g", threshold=0.0, initial_level=0.5, hill_n=2.0, kd=1.0)
+    b.add_gene("g", threshold=0.0, initial_level=0.5, hill_n=2.0, kd=1.0)
+    a.add_gene("h", threshold=0.2, initial_level=0.1)
+    b.add_gene("h", threshold=0.2, initial_level=0.1)
+    for _ in range(40):
+        a.step_accel()
+        b.step()
+    for n in a.nodes:
+        assert a.nodes[n].level == b.nodes[n].level
 
 
 def test_grn_step_accel_rejects_noise():

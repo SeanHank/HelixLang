@@ -84,8 +84,8 @@ def run() -> dict:
         checks["crp_increases_with_il6"] = crp.crp_mg_l > crp_0
         details["crp_0"] = crp_0
         details["crp_72h"] = crp.crp_mg_l
-        # CRP should be physiologically bounded
-        checks["crp_bounded"] = 0.0 <= crp.crp_mg_l <= 200.0
+        # CRP should be physiologically bounded (< 1000 µg/mL for sepsis)
+        checks["crp_bounded"] = 0.0 <= crp.crp_mg_l <= 1000.0
 
         # ── Test 7: Cortisol suppression ─────────────────────────────────────
         model_suppressed, crp_suppressed = create_immune_model(

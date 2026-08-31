@@ -56,6 +56,54 @@ if _HAS_NUMBA:
                 triggered.append(i)
         return new_levels, triggered
 
+    @njit(cache=True)
+    def _step_mixed_nb(levels, src, dst, weights, decays, thresholds,
+                       default_decay, hill_ns, kds):
+        """Numba mixed sigmoid/Hill kernel (doc/39 O6).
+
+        ``hill_ns`` uses NaN to mark the sigmoid path and ``kds`` NaN to fall
+        back to the gene threshold, mirroring ``impl_python.step_mixed``.
+        """
+        n = levels.shape[0]
+        acc = np.zeros(n, dtype=np.float64)
+        for e in range(src.shape[0]):
+            acc[dst[e]] += weights[e] * levels[src[e]]
+        new_levels = np.zeros(n, dtype=np.float64)
+        triggered = []
+        for i in range(n):
+            hn = hill_ns[i]
+            if hn == hn:  # not NaN -> Hill path
+                kd = kds[i]
+                if kd != kd:  # NaN -> fall back to the gene threshold
+                    kd = thresholds[i]
+                if acc[i] <= 0.0:
+                    raw = 0.0
+                else:
+                    xn = acc[i] ** hn
+                    kdn = kd ** hn
+                    if kdn <= 0.0:
+                        raw = 1.0
+                    else:
+                        raw = xn / (kdn + xn)
+            else:
+                x = acc[i] - thresholds[i]
+                if x >= 0.0:
+                    raw = 1.0 / (1.0 + math.exp(-x))
+                else:
+                    z = math.exp(x)
+                    raw = z / (1.0 + z)
+            dec = decays[i]
+            if dec != dec:  # NaN (expanded None) -> default
+                dec = default_decay
+            blended = dec * levels[i] + (1.0 - dec) * raw
+            v = blended if blended > 0.0 else 0.0
+            if v > 1.0:
+                v = 1.0
+            new_levels[i] = v
+            if v > 0.5:
+                triggered.append(i)
+        return new_levels, triggered
+
 
 def step(levels, src, dst, weights, decays, thresholds, default_decay):
     """See ``backend`` docstring.  ``decays`` uses None for per-gene default."""
@@ -73,4 +121,28 @@ def step(levels, src, dst, weights, decays, thresholds, default_decay):
     thr = np.asarray(thresholds, dtype=np.float64)
     new_levels, triggered = _step_nb(arr, src_i, dst_i, w, dec, thr,
                                      float(default_decay))
+    return new_levels.tolist(), list(triggered)
+
+
+def step_mixed(levels, src, dst, weights, decays, thresholds, default_decay,
+               hill_ns, kds):
+    """Mixed sigmoid/Hill kernel (doc/39 O6), numba-jitted."""
+    if not _HAS_NUMBA:
+        raise NativeBackendError(
+            "numba is required for the numba GRN stack but is not installed.",
+            rebuild="pip install helixlang[native]",
+        )
+    arr = np.asarray(levels, dtype=np.float64)
+    src_i = np.asarray(src, dtype=np.int64)
+    dst_i = np.asarray(dst, dtype=np.int64)
+    w = np.asarray(weights, dtype=np.float64)
+    dec = np.asarray([d if d is not None else float("nan")
+                      for d in decays], dtype=np.float64)
+    thr = np.asarray(thresholds, dtype=np.float64)
+    hn = np.asarray([float("nan") if h is None else h for h in hill_ns],
+                    dtype=np.float64)
+    kd = np.asarray([float("nan") if k is None else k for k in kds],
+                    dtype=np.float64)
+    new_levels, triggered = _step_mixed_nb(
+        arr, src_i, dst_i, w, dec, thr, float(default_decay), hn, kd)
     return new_levels.tolist(), list(triggered)

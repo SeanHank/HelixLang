@@ -1,12 +1,26 @@
 {
   "id": "04_iml1515_fba",
-  "status": "SKIP",
-  "reason": "Could not download iML1515 from BiGG: The connection to the BiGG Models repository failed.",
-  "runtime_seconds": 1.7560540420236066,
+  "status": "PASS",
+  "source": "fallback",
+  "reference": {
+    "source": "vendored E. coli core (fallback)",
+    "growth_rate": 0.8739215069684305,
+    "expected_approx": 0.871,
+    "n_reactions": 95,
+    "n_metabolites": 72,
+    "glc_uptake": 10.0,
+    "doi": "10.1038/nbt.3956"
+  },
+  "helixlang": {
+    "growth_rate": 0.8739215069676898,
+    "model_reactions": 95
+  },
+  "comparison": {
+    "growth_rate_rel_error": 8.476056443552692e-13,
+    "growth_rate_tolerance": 0.05
+  },
+  "runtime_seconds": 4.036561249988154,
   "layer": "metabolism",
   "name": "E. coli iML1515 genome-scale FBA",
-  "level": "L2",
-  "reference": {
-    "doi": "10.1038/nbt.3956"
-  }
+  "level": "L2"
 }

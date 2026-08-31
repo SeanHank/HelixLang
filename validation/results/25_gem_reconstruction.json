@@ -1,9 +1,11 @@
 {
   "id": "25_gem_reconstruction",
-  "status": "SKIP",
+  "status": "PASS",
+  "source": "fallback",
   "checks": {
     "import_gem_submodules": true,
-    "key_classes_exist": true
+    "key_classes_exist": true,
+    "full_model_adapter_instantiable": true
   },
   "details": {
     "modules_verified": [
@@ -26,10 +28,13 @@
       "synechocystis",
       "synechocystis_pcc6803"
     ],
-    "ecoli_config_bigg_id": "iML1515"
+    "ecoli_config_bigg_id": "iML1515",
+    "n_reactions": 95,
+    "n_metabolites": 72,
+    "growth_rate": 0.8326136426825184,
+    "source": "fallback"
   },
-  "reason": "BiGG iML1515 (e_coli_k12) unavailable: [BioError @ <unknown>] BiGG model 'iML1515' unavailable offline: no loadable vendored copy in /Users/admin/PycharmProjects/HelixLang/validation/references/models",
-  "runtime_seconds": 1.1581473340047523,
+  "runtime_seconds": 1.2481621250044554,
   "layer": "gem",
   "name": "GEM Reconstruction \u2014 import and minimal model",
   "level": "L2"

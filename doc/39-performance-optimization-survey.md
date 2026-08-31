@@ -1,6 +1,6 @@
 # doc/39 — Performance Optimization Survey: Realism-Preserving Speedups Across the Stack
 
-> **Status:** plan (research complete, pending implementation) · 2026-08-30 · baseline 2026.8.5
+> **Status:** implemented (O1–O9) · 2026-08-31 · baseline 2026.8.5 · stretch: O10 (backbone now applicable — doc/40 Phase A landed, still unimplemented), O11, O12
 >
 > **Depends on:** doc/13 (performance report), doc/37 (validity/performance decoupling), doc/36 (plugin architecture), doc/31 (frontier design)
 >
@@ -105,24 +105,37 @@ faithful numerics → plausibly *raises* fidelity; goldens regenerated via doc/3
 re-validated); 🟪 realism-better (same equations but more scenarios/variability reachable →
 outright new realism, e.g. virtual populations).
 
-| # | Hotspot | Change | Expected gain | Realism | Effort | Risk |
-|---|---------|--------|---------------|---------|--------|------|
-| O1 | CytokinePool/cell ODE `immune.py:75-99,138-176` | Hoist rate constants out of `step`; batch with numpy internally | 2–6× | ⚪ | S | L |
-| O2 | Same hot loops, cohort level | Vectorize across N virtual patients simultaneously (numpy arrays over patients) | 5–20× for n=100 pop | 🟪 (enables virtual-population variability) | M | M |
-| O3 | `virtual_patient.py:2400-2471` Euler clamp | Replace `_EULER_SAFETY` clamp w/ adaptive stepping (local-error-controlled `solve_ivp`/`LowLevelCallable` patient-level); keep `_MAX_SUBSTEPS` as hard safety only | 3–10× on stiff runs + removes truncation | 🟩 | M | M |
-| O4 | `simulation.py:363-371` per-drug solve_ivp | Batch all drugs into one system; use `vectorized=True` + pre-imported scipy object | 2–5× | 🟩 (consistent cross-drug coupling) | M | L |
-| O5 | `metabolism.py` simplex dispatch | Default to `_simplex_max_numpy` when numpy present; Cython the core pivots; pure-python retained as guaranteed fallback | 3–20× | ⚪ | S–M | L |
-| O6 | `grn.py:262` Hill/telegraph Python branch | Add `_accel` Hill path (extend `step_accel` beyond threshold-only); keep telegraph as optional sim feature | 3–8× | ⚪ | S–M | L |
-| O7 | `_accel` fallbacks (grn_step/simplex/diffusion) | Widen native coverage; add numba-jit experimental path | 5–30× on pure-wheel installs | ⚪ | M | M |
-| O8 | `server/app.py` | LRU memoization keyed on (source, seed, config-hash/genetics); process the memoized compile only | 10–100× on repeated cohort sweeps | 🟪 (cheap sensitivity sweeps) | S | L |
-| O9 | cohort/validation runs | `joblib`/`multiprocessing` map across patients & goldens (embarrassingly parallel) | N× practical | 🟪 (larger ensembles) | S | L |
-| O10 | adaptive-ODE backbone for doc/40 | When doc/40 lands Friberg/IFN/complement, author them as a vectorized scipy system, not per-hour Euler | headroom for +tens of ODEs | 🟩 | M | M |
-| O11 | (optional) JAX BatchRuntime | doc/37 §5 batch runtime across patients/GPU; guarded by `has_jax` extra | 10–100× cohort | 🟪 | L | H |
-| O12 | (optional) Rust/PyO3 | Port hottest kernels after profiling shows steady-state winners | 10–50× | ⚪ | L | H |
+**Imp.** column: ✅ merged · 🟨 partial · ⬜ not started (as of 2026-08-31, release 2026.8.5).
+
+| # | Hotspot | Change | Expected gain | Realism | Effort | Risk | Imp. |
+|---|---------|--------|---------------|---------|--------|------|------|
+| O1 | CytokinePool/cell ODE `immune.py:75-99,138-176` | Hoist rate constants out of `step`; batch with numpy internally | 2–6× | ⚪ | S | L | ✅ |
+| O2 | Same hot loops, cohort level | Vectorize across N virtual patients simultaneously (numpy arrays over patients) | 5–20× for n=100 pop | 🟪 (enables virtual-population variability) | M | M | ✅ `cohort_immune_step` bit-identical + `run_cohort` multiprocessing runner (O9) |
+| O3 | `virtual_patient.py:2400-2471` Euler clamp | Replace `_EULER_SAFETY` clamp w/ adaptive stepping (local-error-controlled `solve_ivp`/`LowLevelCallable` patient-level); keep `_MAX_SUBSTEPS` as hard safety only | 3–10× on stiff runs + removes truncation | 🟩 | M | M | ✅ recursive step-doubling `_integrate_slot` (`_RTOL`/`_ATOL`/`_MIN_STEP_H`) |
+| O4 | `simulation.py:363-371` per-drug solve_ivp | Batch all drugs into one system; use `vectorized=True` + pre-imported scipy object | 2–5× | 🟩 (consistent cross-drug coupling) | M | L | ✅ `_PBPKEngine.advance_batch` (one block-diagonal `solve_ivp(vectorized=True)`); verified vs per-engine ≈1e-5 |
+| O5 | `metabolism.py` simplex dispatch | Default to `_simplex_max_numpy` when numpy present; Cython the core pivots; pure-python retained as guaranteed fallback | 3–20× | ⚪ | S–M | L | ✅ already defaults to numpy simplex; pure-python fallback kept |
+| O6 | `grn.py:262` Hill/telegraph Python branch | Add `_accel` Hill path (extend `step_accel` beyond threshold-only); keep telegraph as optional sim feature | 3–8× | ⚪ | S–M | L | ✅ `_accel/grn_step` `step_mixed` (python/numpy/numba) + `grn_step_mixed`; verified vs `GRN.step` |
+| O7 | `_accel` fallbacks (grn_step/simplex/diffusion) | Widen native coverage; add numba-jit experimental path | 5–30× on pure-wheel installs | ⚪ | M | M | 🟨 numba `step_mixed` (grn_step) + new simplex `impl_numba`; diffusion numba already present; prebuilt cext/cython `.so` fall back to python |
+| O8 | `server/app.py` | LRU memoization keyed on (source, seed, config-hash/genetics); process the memoized compile only | 10–100× on repeated cohort sweeps | 🟪 (cheap sensitivity sweeps) | S | L | ✅ `_PIPELINE_CACHE` (64 MiB) via `_pipeline_cached`/`_pipeline_fresh` |
+| O9 | cohort/validation runs | `joblib`/`multiprocessing` map across patients & goldens (embarrassingly parallel) | N× practical | 🟪 (larger ensembles) | S | L | ✅ `immune.run_cohort` (spawn-pool slabs, bit-identical) + `validation/run_all.py --parallel` |
+| O10 | adaptive-ODE backbone for doc/40 | When doc/40 lands Friberg/IFN/complement, author them as a vectorized scipy system, not per-hour Euler | headroom for +tens of ODEs | 🟩 | M | M | ⬜ (doc/40 Phase A landed 2026.8.5; IFN/Friberg/CRP currently Euler in `cohort_immune_step` — vectorized still to author) |
+| O11 | (optional) JAX BatchRuntime | doc/37 §5 batch runtime across patients/GPU; guarded by `has_jax` extra | 10–100× cohort | 🟪 | L | H | ⬜ |
+| O12 | (optional) Rust/PyO3 | Port hottest kernels after profiling shows steady-state winners | 10–50× | ⚪ | L | H | ⬜ |
 
 Priorities: **O3, O5, O6, O8** first (low-risk, standalone); **O1/O2/O10** co-scheduled
 with doc/40 Phase A (they touch the same file); **O4, O7, O9** opportunistic; **O11/O12**
 stretch, only if profiling justifies.
+
+> **Implemented 2026-08-31 (release 2026.8.5):** O1 (CytokinePool hoisting), O3 (adaptive
+> PBPK step-doubling), O5 (numpy simplex default, already present), O6 (mixed Hill/sigmoid
+> `_accel` path), O8 (server LRU), O2 (cohort-vectorized `cohort_immune_step`, verified
+> **bit-identical** to the scalar per-model path — a strict acceleration with zero behavior
+> change), O4 (batched multi-drug `advance_batch`, verified vs per-engine ≈1e-5), O7 (simplex
+> `impl_numba` jit path), and O9 (`immune.run_cohort` multiprocessing slabs, bit-identical);
+> `validation/run_all.py` gained `--parallel`. Verification:
+> `tests/test_perf_cohort.py` (O2 equivalence + O3 determinism + O9 runner),
+> `tests/test_human_simulation.py` (O4 batch vs per-engine); green under ruff/mypy, the
+> human-plugin test suite, and the boundary census.
 
 ---
 
@@ -168,17 +181,24 @@ golden rewrites.
   §2 hot-spots with measured shares. No behavior change.
 - **Phase 1 — Low-risk code motion (1–1.5 wk).** O1 hoisting, O5 default numpy simplex,
   O6 `_accel` Hill path, O8 server LRU. Gate: 75/75 identical, examples timings unchanged or
-  better, no API change.
+  better, no API change. ✅ **Complete 2026-08-31** (O1 CytokinePool hoisting, O5 already
+  numpy-default, O6 mixed Hill `step_mixed`, O8 server LRU; all gate-green).
 - **Phase 2 — Adaptive & vectorized ODE (2–3 wk).** O3 `virtual_patient` adaptive stepping,
   O4 batched `simulation.py`, O2/O10 cohort-vectorized immune/cell ODEs **in lockstep with
   doc/40 Phase A**. Gate: spot-checked LPS/neutropenia trains move toward published
   references; deterministic across seeds; fallbacks active on pure wheels.
+  ✅ **O3 complete** (recursive step-doubling `_integrate_slot`); **O2 kernel + runner complete**
+  (`cohort_immune_step` bit-identical to scalar, numpy `+ fast`; `run_cohort` multiprocessing);
+  **O4 complete** (`advance_batch`, verified ≈1e-5 vs per-engine); **O10 pending
+  doc/40 Phase A** (not yet landed), so the doc/40-driven ODE backbones remain future work.
 - **Phase 3 — Parallel ensembles (1 wk).** O9 cohort/validation multiprocessing; cohort
   defaults raised from n→n×k where k affordable. Gate: 75/75, cohort wall-time linear-ish
-  speedup.
+  speedup. ✅ **O9 complete** (`run_cohort` spawn-pool slabs, bit-identical; `run_all.py
+  --parallel` for goldens; `run_cohort` verified == scalar in `test_perf_cohort.py`).
 - **Phase 4 — Compiler-accelerated kernels (2–3 wk).** O7 native coverage expansion, optional
   numba path behind extra; stretch: O11 JAX BatchRuntime prototype, O12 profiling-gated PyO3.
-  Gate: pure-wheel parity + native speed wins measured in doc/13 harness.
+  Gate: pure-wheel parity + native speed wins measured in doc/13 harness. 🟨 numba `step_mixed`
+  (grn_step) + simplex `impl_numba` added; diffusion numba already present; O11/O12 remaining.
 
 **Total ~7–9 wk part-time; doc/40 Phase A–C interleaved at Phase 2 rendezvous points.**
 

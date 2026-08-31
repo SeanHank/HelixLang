@@ -154,3 +154,30 @@ def test_simulation_metformin_diabetes():
     glucose = result.biomarker_history["glucose"]
     assert glucose[0] > 5.0  # seeded above the 5 mM healthy reference
     assert result.time_h[-1] == 48.0
+
+
+def test_simulation_batch_multi_drug_advance_matches_per_engine():
+    """doc/39 O4: batched advance_batch == per-engine solve_ivp (tolerance)."""
+    from helixlang.plugins.human.physiology import create_default_physiology
+    from helixlang.plugins.human.simulation import _PBPKEngine
+
+    phys = create_default_physiology()
+    names = ("IBUPROFEN", "METFORMIN", "OMEPRAZOLE")
+    per = [_PBPKEngine(get_predefined_drug(n), phys, 10.0) for n in names]
+    bat = [_PBPKEngine(get_predefined_drug(n), phys, 10.0) for n in names]
+    worst = 0.0
+    for hour in range(12):
+        for engine in per:
+            engine.apply_due_doses(hour)
+            engine.advance(1.0)
+        for engine in bat:
+            engine.apply_due_doses(hour)
+        assert bat[0].advance_batch(1.0, bat[1:])
+        for a, b in zip(per, bat, strict=True):
+            for key in a.conc_um:
+                aa, bb = a.conc_um[key], b.conc_um[key]
+                worst = max(worst, abs(aa - bb) / max(1.0, abs(aa), abs(bb)))
+    assert worst < 1e-4
+    # all engines advanced in lockstep to the same time
+    assert all(b.time_h == bat[0].time_h for b in bat)
+    assert bat[0].time_h == 12.0

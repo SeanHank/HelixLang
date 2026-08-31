@@ -40,7 +40,7 @@
       "OPCODE_VERSION": 1
     }
   },
-  "runtime_seconds": 0.4105971669778228,
+  "runtime_seconds": 0.49363566702231765,
   "layer": "infrastructure",
   "name": "CLI / server / provenance \u2014 module imports + build_provenance",
   "level": "L0"

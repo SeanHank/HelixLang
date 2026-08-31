@@ -298,16 +298,17 @@ class GRN:
         """Advance one tick via the isolated hot-loop kernel (doc/36 §4.1 P1).
 
         Produces results identical to :meth:`step` for the noiseless sigmoid
-        threshold path (no ``hill_n``, no telegraph noise) — a pure speed
-        switch, never a fidelity switch (§3ξ.5).  The kernel is selected by the
-        ``_accel`` loader (native > numpy > python) with the optional ``prefer``
-        override.  Returns the triggered gene names, matching :meth:`step`.
+        *or* Hill path — a pure speed switch, never a fidelity switch.  The
+        kernel is selected by the ``_accel`` loader (native > numpy > python)
+        with the optional ``prefer`` override.  Returns the triggered gene
+        names, matching :meth:`step`.
 
         Raises:
-            ValueError: if the graph uses Hill kinetics or telegraph noise, which
-                the equivalent-fidelity kernel does not mirror.
+            ValueError: if the graph uses telegraph noise, which the
+                equivalent-fidelity kernel does not mirror (doc/39 O6 keeps
+                noise a simulation-only feature; use ``step()`` for it).
         """
-        from helixlang.api.accel import grn_step as accel_step
+        from helixlang.api.accel import grn_step, grn_step_mixed
 
         if self.noise_enabled:
             raise ValueError(
@@ -315,13 +316,6 @@ class GRN:
                 "part of the equivalent-fidelity kernel; use step())")
         names = list(self.nodes)
         index = {n: i for i, n in enumerate(names)}
-        for name in names:
-            node = self.nodes[name]
-            if node.hill_n is not None:
-                raise ValueError(
-                    f"step_accel does not mirror Hill kinetics on node {name!r}; "
-                    "use step()")
-
         levels = [self.nodes[n].level for n in names]
         src = [index[e.source] for e in self.edges]
         dst = [index[e.target] for e in self.edges]
@@ -329,10 +323,19 @@ class GRN:
         decays = [self.nodes[n].decay for n in names]
         thresholds = [self.nodes[n].threshold for n in names]
         default_decay = self._default_decay
+        has_hill = any(self.nodes[n].hill_n is not None for n in names)
 
-        new_levels, _trig = accel_step(
-            levels, src, dst, weights, decays, thresholds, default_decay,
-        )
+        if has_hill:
+            hill_ns = [self.nodes[n].hill_n for n in names]
+            kds = [self.nodes[n].kd for n in names]
+            new_levels, _trig = grn_step_mixed(
+                levels, src, dst, weights, decays, thresholds, default_decay,
+                hill_ns, kds,
+            )
+        else:
+            new_levels, _trig = grn_step(
+                levels, src, dst, weights, decays, thresholds, default_decay,
+            )
         for name, lvl in zip(names, new_levels, strict=True):
             self.nodes[name].level = lvl
         return [n for n, l in zip(names, new_levels, strict=True) if l > 0.5]

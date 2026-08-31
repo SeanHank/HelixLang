@@ -18,12 +18,12 @@
     "tnf_24h": 7.213475204189397,
     "il10_24h": 20.559276079472802,
     "neutrophils_0": 4.0,
-    "neutrophils_48h": 4.454489962053809,
-    "wbc_total": 7.621836330062958,
+    "neutrophils_48h": 4.413216063806422,
+    "wbc_total": 7.580562431815572,
     "crp_0": 0.5,
-    "crp_72h": 200.0,
-    "il6_suppressed_48h": 10.387404294406352,
-    "il6_normal_48h": 12.984255368007908,
+    "crp_72h": 990.3137371276001,
+    "il6_suppressed_48h": 6.560188600447798,
+    "il6_normal_48h": 8.200235750559717,
     "il6_no_infection_48h": 1.1850780923454945e-13
   },
   "reference": {
@@ -31,7 +31,7 @@
     "doi": "10.1056/NEJM199505183322007",
     "note": "Innate immune cytokine/cell dynamics validated against known qualitative behavior"
   },
-  "runtime_seconds": 0.48942079208791256,
+  "runtime_seconds": 0.6560395000269637,
   "layer": "runtime",
   "name": "Innate immune dynamics",
   "level": "L0"

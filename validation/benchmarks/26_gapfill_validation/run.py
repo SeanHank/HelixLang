@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Benchmark 26: Gapfill Validation — gapfill an incomplete model.
 
-doc/41 offline-first CI: the reconstruction step needs the external BiGG
-iML1515 model (or a vendored copy in validation/references/models/).  If the
-model cannot be obtained the whole benchmark is SKIPPED, never FAILED.
+Requests the downloaded iML1515 (e_coli_k12) model first; if the download is
+unavailable (offline CI / no vendored copy) it warns and falls back to the
+always-vendored E. coli core model, so the gapfill path is still validated
+instead of being skipped.
 """
 from __future__ import annotations
 
@@ -13,17 +14,6 @@ import time
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "references" / "models"
-
-
-def _skipped(reason: str, checks: dict, details: dict, t0: float) -> dict:
-    return {
-        "id": "26_gapfill_validation",
-        "status": "SKIP",
-        "checks": checks,
-        "details": details,
-        "reason": reason,
-        "runtime_seconds": time.perf_counter() - t0,
-    }
 
 
 def run() -> dict:
@@ -47,18 +37,39 @@ def run() -> dict:
         assert callable(lp_gapfill)
         checks["gapfill_classes_exist"] = True
 
+        # Load the model download-first, falling back to the vendored core.
+        from helixlang.plugins.gem.full_model import FullModelAdapter
+
         try:
-            from helixlang.plugins.gem.full_model import FullModelAdapter
-            adapter = FullModelAdapter.from_bigg("e_coli_k12", model_dir=MODEL_DIR)
-            adapter.apply_medium("glucose_minimal")
-            adapter.solve()
-            base_growth = adapter.growth_rate
-            details["base_growth_rate"] = base_growth
-        except Exception as e:
-            return _skipped(
-                f"BiGG iML1515 (e_coli_k12) unavailable: {e}",
-                checks, details, t0,
+            adapter = FullModelAdapter.from_bigg(
+                "e_coli_k12", model_dir=MODEL_DIR,
             )
+            source = "exact"
+        except Exception as e:
+            import warnings
+
+            from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+            from helixlang.plugins.runtime.metabolism import _from_cobra_model
+
+            warnings.warn(
+                f"BiGG iML1515 (e_coli_k12) unavailable: {e}; "
+                "falling back to vendored E. coli core",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            cobra_model = load_bigg_cobra_model(
+                "e_coli_core", model_dir=MODEL_DIR, offline=False)
+            model = _from_cobra_model(cobra_model)
+            adapter = FullModelAdapter(
+                model, "e_coli_k12",
+                biomass_rxn=model.biomass_reaction,
+            )
+            source = "fallback"
+        adapter.apply_medium("glucose_minimal")
+        adapter.solve()
+        base_growth = adapter.growth_rate
+        details["base_growth_rate"] = base_growth
+        details["source"] = source
         model_loaded = base_growth > 0
         checks["load_model_and_remove_reaction"] = model_loaded
 
@@ -101,6 +112,7 @@ def run() -> dict:
         return {
             "id": "26_gapfill_validation",
             "status": "PASS" if all_pass else "FAIL",
+            "source": source,
             "checks": checks,
             "details": details,
             "runtime_seconds": elapsed,

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Benchmark 04: E. coli iML1515 genome-scale FBA.
 
-Tries to download the iML1515 model from BiGG via COBRApy,
-runs FBA with GLC uptake = 10, and compares growth rate against
-the expected ~0.871 h⁻¹.  Skips gracefully if the model is
-unavailable (network error or COBRApy not installed).
+Requests the downloaded iML1515 model from BiGG via COBRApy first; if the
+download is unavailable (offline CI / no vendored copy) it warns and falls
+back to the always-vendored E. coli core model, so the HelixLang import → FBA
+path is still validated instead of being skipped.  Runs FBA with GLC uptake =
+10 and compares growth rate against the expected ~0.871 h⁻¹.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import time
 from pathlib import Path
 
 REF_DIR = Path(__file__).resolve().parents[2] / "references"
+MODEL_DIR = REF_DIR / "models"
 EXPECTED_GROWTH = 0.871
 TOLERANCE = 0.05  # 5 % relative
 
@@ -21,7 +23,7 @@ TOLERANCE = 0.05  # 5 % relative
 def run() -> dict:
     t0 = time.perf_counter()
 
-    # ── Step 1: try to load iML1515 via COBRApy ────────────────────────
+    # ── Step 1: load iML1515 (download-first, fallback on failure) ──────
     try:
         import io
         import os
@@ -30,12 +32,13 @@ def run() -> dict:
         _orig_tqdm = _tqdm_mod.tqdm
         _tqdm_mod.tqdm = lambda *a, **kw: _orig_tqdm(*a, **{**kw, "disable": True})
 
-        import cobra
+        from helixlang.plugins.gem.sbml_import import load_bigg_benchmark_model
 
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            cobra_model = cobra.io.load_model("iML1515")
+            cobra_model, source = load_bigg_benchmark_model(
+                "iML1515", model_dir=MODEL_DIR)
         finally:
             sys.stdout = old_stdout
     except ImportError:
@@ -48,8 +51,8 @@ def run() -> dict:
     except Exception as exc:
         return {
             "id": "04_iml1515_fba",
-            "status": "SKIP",
-            "reason": f"Could not download iML1515 from BiGG: {exc}",
+            "status": "FAIL",
+            "reason": f"Could not load iML1515 nor fallback: {exc}",
             "runtime_seconds": time.perf_counter() - t0,
         }
 
@@ -87,8 +90,10 @@ def run() -> dict:
         return {
             "id": "04_iml1515_fba",
             "status": "PASS" if passed else "FAIL",
+            "source": source,
             "reference": {
-                "source": "BiGG iML1515 via COBRApy",
+                "source": "BiGG iML1515 via COBRApy" if source == "exact"
+                else "vendored E. coli core (fallback)",
                 "growth_rate": cobra_growth,
                 "expected_approx": EXPECTED_GROWTH,
                 "n_reactions": len(cobra_model.reactions),

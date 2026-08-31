@@ -17,7 +17,7 @@
     "n_alt": 25,
     "has_to_dict": true
   },
-  "runtime_seconds": 0.5017593749798834,
+  "runtime_seconds": 0.6460317090386525,
   "layer": "human",
   "name": "Virtual patient instantiation and import",
   "level": "L0"

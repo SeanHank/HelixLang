@@ -18,7 +18,7 @@
     "transporter_count": 11,
     "non_cyp_enzyme_count": 5
   },
-  "runtime_seconds": 0.5346547500230372,
+  "runtime_seconds": 1.1475560000399128,
   "layer": "human",
   "name": "Genotype CYP2D6 star-allele mapping",
   "level": "L0"

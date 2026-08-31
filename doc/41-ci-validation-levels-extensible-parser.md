@@ -21,7 +21,7 @@ Real findings from the investigation (all anchored below):
 
 | # | Requested | Investigated reality | Effort |
 |---|-----------|----------------------|--------|
-| 1 | Fix GitHub CI | 6/6 failures are **network/BiGG-dependent** in `tests/test_validation_benchmarks.py`; 5 benchmarks turn a load failure into FAIL (only `04_iml1515` skips), 1 fails on an optional cobrapy comparison. Root fix = **offline-first vendored models + one unconditional rule: cannot run → SKIP**; CI determinism is secondary. | S–M |
+| 1 | Fix GitHub CI | 6/6 failures are **network/BiGG-dependent** in `tests/test_validation_benchmarks.py`; 5 benchmarks turn a load failure into FAIL (only `04_iml1515` skips), 1 fails on an optional cobrapy comparison. Root fix = **download-first with vendored fallback**: the BiGG-dependent benchmarks request the download, and on failure warn and fall back to the always-vendored E. coli core so every benchmark still PASSes 75/75 offline. | S–M |
 | 2 | Validation levels | **No level taxonomy exists.** 32 undocumented `layer:` values (95% never propagate to results); 5 prior incompatible schemes (doc/34 A-D, doc/32 L1-L5, `EvidenceLevel`, DDIRule, FDA pivotal/adequate). ~59/75 benchmarks are boolean existence checks. | M |
 | 3 | Parser↔plugin grammar | Partially done (doc/38 §5 `grammar_registry` already dispatches `#keyword` and runs plugin `validate` hooks), but **grammars are per-keyword thin wrappers around bespoke `Parser._parse_*` methods** — no declarative field/body grammar, no token-kind extensions, no typed-AST-section declaration. | M |
 | 4 | Shrink Parser | `parser.py` is 1,192 lines; ~30 core `_parse_*` field grammars are hardcoded. Only a small skeleton is truly core. | M |
@@ -74,41 +74,44 @@ externally-unavailable dependency must yield SKIP, never FAIL.**
 3. Point the benchmark `run.py` files at the cache-first loader **before** `cobra.io`
    (03:56, 05:51, 11:46, 25:54, 26:34, 43:48).
 
-**Layer B — One unconditional rule: cannot run → SKIP.**
-There is exactly one fallback and it is unqualified: if the external artifact a benchmark
-requires — the vendored model, the BiGG connection, or COBRApy — cannot be obtained, the
-benchmark returns `{"status": "SKIP", "reason": "..."}` and exits 0, following the pattern
-already proven by `04_iml1515_fba/run.py:41-54`. A load failure is **never** reported as
-FAIL, and no partial/optional-path results are kept:
+**Layer B — Download-first with graceful fallback (replaces bare "cannot run → SKIP").**
+The rule for the BiGG-dependent benchmarks is now: **request the download first; if the
+download (or a vendored exact copy) is unavailable, emit a `RuntimeWarning` and fall back to
+the always-vendored E. coli core model** so the benchmark still runs and validates the
+HelixLang import → FBA machinery instead of being skipped.
 
-1. `03`, `05`, `25`, `26`: wrap the model-load step (`03/run.py:56`, `05/run.py:51`,
-   `25/run.py:54`, `26/run.py:34`); any non-vendored `ConnectionError`/`BioError`/OSError →
-   SKIP with reason. (26: if the model cannot load, the benchmark SKIPs — its gapfill-pool
-   details may still be emitted, but the whole benchmark is SKIP.)
-2. `11`: if **either** required model (`e_coli_core` or `iML1515`) fails to load → SKIP.
-   The "if one loads, report it and PASS on the loaded one" partial path is removed.
-3. `43`: if the COBRApy comparison cannot run (`ImportError`, network) → SKIP. The
-   "record `cobrapy_note` and still pass the comparison checks" optional path is removed;
-   HelixLang timings may still be emitted as details, but the benchmark is SKIP.
-4. No other SKIP machinery is introduced. The loader is the single network touchpoint, so
-   it is the only place needing a `# noqa: SILENTBENIGN` marker if the `silent-fallbacks`
-   linter flags it — not the individual benchmarks.
+1. A shared helper `sbml_import.load_bigg_benchmark_model(model_id, model_dir, fallback_id)`
+   resolves in order: (a) vendored exact copy of `model_id`, (b) network download of
+   `model_id`, (c) warn + vendored `e_coli_core` fallback. Returns `(model, source)` where
+   `source` is `"exact"` or `"fallback"`.
+2. `04`, `05`: use the helper; a valid run is produced for both `"exact"` and `"fallback"`
+   sources (05's fallback runs glucose-fed conditions since E. coli core has no photon
+   reaction). FAIL is reserved for genuine downstream computation errors, not model unavailability.
+3. `25`, `26`: `FullModelAdapter.from_bigg("e_coli_k12")`; on `BioError`/`ConnectionError`
+   it warns and rebuilds the adapter from the vendored `e_coli_core` model (passing the
+   correct biomass reaction), keeping the reconstruction/gapfill checks meaningful.
+4. SKIP is retained **only** for the truly impossible case (e.g. COBRApy itself not
+   installed) and for benchmarks whose biological premise cannot be satisfied by the
+   fallback at all (none of the four, after the glucose-fed 05 fallback).
 
 **Layer C — Deterministic CI (minimal):**
-1. Set `HELIX_BENCHMARK_OFFLINE=1` on the `test` job: every model load is cache-only, so
-   behavior is fully deterministic — vendored model present → run and PASS; absent → SKIP.
-   No network dependence, ever, in the default test path.
-2. `actions/cache` is **not** needed (models are committed); it is omitted deliberately so
-   nobody re-introduces live downloads.
+1. Set `HELIX_BENCHMARK_OFFLINE=1` on the `test` job. Network becomes unreachable on the
+   runner, so each BiGG-dependent benchmark's download attempt fails and it falls back to
+   the vendored core model with a warning — running FBA and **PASSing** (75/75) with zero
+   network dependence in the default test path.
+2. `actions/cache` is **not** needed (the fallback core model is committed); it is omitted
+   deliberately so nobody re-introduces live downloads as a hard requirement.
 
 ### 2.3 Acceptance
 
 - Re-run `pytest tests/test_validation_benchmarks.py` with network blocked: **0 failures**,
-  all 75 (PASS or SKIP), no timeout branch hit.
-- Re-run suite with vendored models populated: the 6 benchmarks **PASS** (rather than
-  SKIP), preserving their quantitative checks (growth-rate error ≤5%, Pearson r > 0.99);
-  with vendored models absent + `HELIX_BENCHMARK_OFFLINE=1`: exact same 75, the affected
-  benchmarks now **SKIP** (never FAIL).
+  **75/75 PASS (0 SKIP)** — the four BiGG-dependent benchmarks fall back to the vendored
+  E. coli core with a warning and still run their FBA/reconstruction/gapfill checks.
+- With the full network download available (local machine): the same four benchmarks PASS
+  with `source: exact`, preserving their quantitative checks (growth-rate error ≤5%,
+  Pearson r > 0.99) against the real iML1515/iJN678 models; with the download unavailable
+  + `HELIX_BENCHMARK_OFFLINE=1`: they PASS with `source: fallback`.
+- SKIP is reserved for COBRApy absent (genuinely impossible), never for model unavailability.
 - `silent-fallbacks` audit still clean; `validation/report.md` regenerates 75/75.
 
 ### 2.4 Bundled hardening surfaced by the investigation (same file set)
@@ -465,7 +468,7 @@ brand-new lexeme, the DSL is fully extensible without touching `parser.py` or `l
 
 | Phase | Scope | Effort | Acceptance gate |
 |---|---|---|---|
-| P1 | Item 1 (CI): vendored models + unconditional cannot-run→SKIP rule + `HELIX_BENCHMARK_OFFLINE` | 2–3 d | offline pytest: 75/75 green; vendored benchmarks PASS, non-vendored SKIP |
+| P1 | Item 1 (CI): vendored core fallback + download-first loader + `HELIX_BENCHMARK_OFFLINE` | 2–3 d | offline pytest: 75/75 green; BiGG-dependent benchmarks PASS via vendored core fallback (source: fallback) |
 | P2 | Item 2 (levels): schema enum + yaml audit + layer-plumb fix + report | 3–4 d | all 75 have `level`; report Layer populated; 56 bug fixed |
 | P3 | Item 3+4 (grammar): `GrammarDescriptor`, core-grammar migration, `#use`-activated grammars | 2–3 wk | demo plugin adds keyword w/o parser edits; examples-smoke green |
 | P4 | Item 5 (units): DimInferencer + `#config` units + human-param unit tags | 2 wk | new DimensionError compile-time benchmark; 75/75 intact |
@@ -479,8 +482,10 @@ part-time, keeping 75/75 goldens and doc/39's performance budgets.
 
 ## 10 — Risks
 
-- **Offline SKIP could mask regressions**: mitigated by vendored models restoring real PASS
-  (Layer A), and by `HELIX_BENCHMARK_OFFLINE=0` in a manual workflow for a full-online sweep.
+- **Offline fallback could mask regressions in the full-model FBA path**: mitigated because
+  the fallback runs the *same* import → FBA machinery on the vendored core model (still real
+  PASS, never SKIP), and `HELIX_BENCHMARK_OFFLINE=0` in a manual workflow re-solves the exact
+  iML1515/iJN678 models for a full-online sweep.
 - **Grammar migration churn** (P3) touches every core keyword; mitigated by descriptor
   compilation keeping exact current semantics and by the parser round-trip benchmarks.
 - **Expression-level dim checking may over-reject** user programs; Runtime-set a

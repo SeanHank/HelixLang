@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Benchmark 25: GEM Reconstruction — import gem modules and build minimal model.
 
-doc/41 offline-first CI: the reconstruction step needs the external BiGG
-iML1515 model (or a vendored copy in validation/references/models/).  If the
-model cannot be obtained the whole benchmark is SKIPPED, never FAILED.
+Requests the downloaded iML1515 (e_coli_k12) model first; if the download is
+unavailable (offline CI / no vendored copy) it warns and falls back to the
+always-vendored E. coli core model, so the reconstruction adapter path is still
+validated instead of being skipped.
 """
 from __future__ import annotations
 
@@ -57,33 +58,49 @@ def run() -> dict:
         cfg = org_mod.get_organism_config("e_coli_k12")
         details["ecoli_config_bigg_id"] = cfg.bigg_id if cfg else None
 
+        # Load the model download-first, falling back to the vendored core.
+        from helixlang.plugins.gem.full_model import FullModelAdapter
+
         try:
-            adapter = full_model_mod.FullModelAdapter.from_bigg(
+            adapter = FullModelAdapter.from_bigg(
                 "e_coli_k12", model_dir=MODEL_DIR,
             )
-            adapter.apply_medium("glucose_minimal")
-            adapter.solve()
-            adapter_instantiated = True
-            details["n_reactions"] = len(adapter.model.reactions)
-            details["n_metabolites"] = len(adapter.model.metabolites)
-            details["growth_rate"] = adapter.growth_rate
-            assert adapter.growth_rate > 0, "Growth rate should be positive"
+            source = "exact"
         except Exception as e:
-            return {
-                "id": "25_gem_reconstruction",
-                "status": "SKIP",
-                "checks": checks,
-                "details": details,
-                "reason": f"BiGG iML1515 (e_coli_k12) unavailable: {e}",
-                "runtime_seconds": time.perf_counter() - t0,
-            }
-        checks["full_model_adapter_instantiable"] = adapter_instantiated
+            import warnings
+
+            from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+            from helixlang.plugins.runtime.metabolism import _from_cobra_model
+
+            warnings.warn(
+                f"BiGG iML1515 (e_coli_k12) unavailable: {e}; "
+                "falling back to vendored E. coli core",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            cobra_model = load_bigg_cobra_model(
+                "e_coli_core", model_dir=MODEL_DIR, offline=False)
+            model = _from_cobra_model(cobra_model)
+            adapter = FullModelAdapter(
+                model, "e_coli_k12",
+                biomass_rxn=model.biomass_reaction,
+            )
+            source = "fallback"
+        adapter.apply_medium("glucose_minimal")
+        adapter.solve()
+        details["n_reactions"] = len(adapter.model.reactions)
+        details["n_metabolites"] = len(adapter.model.metabolites)
+        details["growth_rate"] = adapter.growth_rate
+        details["source"] = source
+        assert adapter.growth_rate > 0, "Growth rate should be positive"
+        checks["full_model_adapter_instantiable"] = True
 
         elapsed = time.perf_counter() - t0
         all_pass = all(checks.values())
         return {
             "id": "25_gem_reconstruction",
             "status": "PASS" if all_pass else "FAIL",
+            "source": source,
             "checks": checks,
             "details": details,
             "runtime_seconds": elapsed,

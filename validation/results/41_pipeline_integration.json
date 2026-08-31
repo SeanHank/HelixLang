@@ -19,7 +19,7 @@
       "virtual_cell_bench"
     ]
   },
-  "runtime_seconds": 0.37607708398718387,
+  "runtime_seconds": 1.6143172499723732,
   "layer": "pipeline",
   "name": "Pipeline Integration \u2014 import all pipeline modules",
   "level": "L0"

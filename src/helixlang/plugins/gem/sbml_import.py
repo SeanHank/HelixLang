@@ -130,6 +130,74 @@ def load_bigg_cobra_model(
         ) from exc
 
 
+#: Fallback model used by validation benchmarks when the requested BiGG model
+#: cannot be downloaded (offline CI).  It is a small, always-vendored E. coli
+#: core model that still exercises the full import → FBA path, so a benchmark
+#: validates the HelixLang machinery instead of being skipped.
+_DEFAULT_FALLBACK_MODEL = "e_coli_core"
+
+
+def load_bigg_benchmark_model(
+    model_id: str,
+    model_dir: str | Path | None = None,
+    fallback_id: str = _DEFAULT_FALLBACK_MODEL,
+    allow_network: bool = True,
+) -> tuple[object, str]:
+    """Load a BiGG model for a validation benchmark, falling back on failure.
+
+    Resolution order (download-first, doc/40 release requirement):
+    1. A vendored exact copy of ``model_id`` under ``model_dir``.
+    2. A network download of ``model_id`` (unless ``allow_network=False``).
+    3. On any failure (no network / not vendored): issue a warning to stderr
+       and fall back to a locally-vendored core model, returning it with the
+       ``"fallback"`` reason.  This keeps the benchmark running (validating the
+       HelixLang import/FBA path) in offline CI instead of SKIPping.
+
+    Returns ``(cobra_model, source)`` where ``source`` is ``"exact"`` or
+    ``"fallback"``.  Raises only if even the fallback model is unavailable.
+    """
+    import warnings as _warnings
+
+    cobra = _require_cobra()
+    # 1 & 2: try to obtain the exact requested model (vendored then network).
+    exact_err: Exception | None = None
+    if model_dir is not None:
+        try:
+            with _stderr_for_cobra():
+                return load_bigg_cobra_model(
+                    model_id, model_dir=model_dir, offline=False), "exact"
+        except Exception as exc:  # noqa: BLE001 - fall through to network.
+            exact_err = exc
+    if allow_network:
+        try:
+            with _stderr_for_cobra():
+                return cobra.io.load_model(model_id), "exact"
+        except Exception as exc:  # noqa: BLE001 - fall through to fallback.
+            exact_err = exc
+    # 3: warn and fall back to the vendored core model.
+    if fallback_id != model_id and model_dir is not None:
+        try:
+            with _stderr_for_cobra():
+                fallback = load_bigg_cobra_model(
+                    fallback_id, model_dir=model_dir, offline=False)
+            _warnings.warn(
+                f"BiGG model {model_id!r} unavailable "
+                f"({exact_err}); falling back to vendored {fallback_id!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return fallback, "fallback"
+        except Exception as exc:  # noqa: BLE001
+            raise BioError(
+                f"could not load benchmark model {model_id!r} "
+                f"nor fallback {fallback_id!r}: {exc}"
+            ) from exc
+    raise BioError(
+        f"BiGG model {model_id!r} unavailable and no fallback configured: "
+        f"{exact_err}"
+    )
+
+
 def load_sbml_model(path: str | Path, preserve_gpr: bool = True) -> MetabolicModel:
     """Load a metabolic model from an SBML Level 2/3 XML file.
 

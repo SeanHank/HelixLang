@@ -18,7 +18,7 @@
     "rbs_sequence": "AGGAGG",
     "mean_codon_rate": 11.26
   },
-  "runtime_seconds": 0.04818708298262209,
+  "runtime_seconds": 0.05838070798199624,
   "layer": "molecular",
   "name": "mRNA translation",
   "level": "L0"

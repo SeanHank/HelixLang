@@ -17,7 +17,7 @@
     "recovered": "HELLO",
     "erlich_roundtrip_ok": true
   },
-  "runtime_seconds": 0.05918733403086662,
+  "runtime_seconds": 0.08890249999240041,
   "layer": "dna_storage",
   "name": "DNA Storage \u2014 encode/decode roundtrip",
   "level": "L0"

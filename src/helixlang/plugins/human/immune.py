@@ -4,18 +4,20 @@ Population-level ODE approximation of the innate immune system, driving
 CRP and WBC counts mechanistically instead of proxy formulas.  The model
 tracks three compartments (tissue, blood, lymphoid organ) with agents
 (macrophages, neutrophils, dendritic cells, T-cells) and soluble signals
-(TNF-α, IL-1β, IL-6, IL-10).
+(TNF-α, IL-1β, IL-6, IL-10, Type I IFN).
 
 Key output channels:
     - IL-6 → hepatic CRP production (replaces proxy in ClinicalLabModel)
     - Neutrophil count → WBC differential (replaces manual scaling)
     - TNF-α → systemic inflammation score (feeds vitals temperature)
+    - IFN-α/β → antiviral state (doc/40 G1)
 
 Module structure:
     CytokinePool          soluble mediator concentrations
+    IFNPool               Type I interferon dynamics (doc/40 G1)
     ImmuneCellPopulation  ODE-tracked cell counts per type
     InnateImmuneModel     coupled cytokine + cell dynamics
-    CRPDriver             IL-6 → CRP hepatic production
+    CRPDriver             IL-6 → CRP hepatic production (v2: saturating + lag, doc/40 G8/G9)
     create_immune_model   factory
 
 References:
@@ -23,18 +25,31 @@ References:
 - IIRABM: Marina et al. 2024 (rule-based innate response)
 - IL-6 → CRP: Volanakis NEJM 2001; Pepys & Hirschfield J Clin Invest 2003
 - Neutrophil kinetics: Lord et al. Blood 1989;PRICE et al. J Clin Invest 1976
+- Friberg granulopoiesis: Friberg et al. JCO 2002 (transit-chain neutropenia)
+- Type I IFN: Pawelek et al. PLoS Comput Biol 2012 (influenza immune model)
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import Any
+
+try:
+    import numpy as _np
+    _HAS_NUMPY = True
+except ImportError:  # pragma: no cover - numpy is a project dependency
+    _np = None  # type: ignore[assignment]
+    _HAS_NUMPY = False
 
 __all__ = [
     "CytokinePool",
+    "IFNPool",
     "ImmuneCellPopulation",
     "InnateImmuneModel",
     "CRPDriver",
     "create_immune_model",
+    "cohort_immune_step",
+    "run_cohort",
 ]
 
 
@@ -72,12 +87,36 @@ class CytokinePool:
     # PAMP/DAMP signal (0=none, 1=severe infection)
     pathogen_signal: float = 0.0
 
+    # --- Cached decay constants (doc/39 O1, math-equivalent) ---
+    # ``k = ln2/half_life`` is loop-invariant across steps; hoisted out of
+    # ``step`` and recomputed only when a half-life field is mutated.
+    _k_key: tuple[float, float, float, float] = field(init=False, repr=False)
+    _decay: tuple[float, float, float, float] = field(init=False, repr=False)
+
+    def _compute_decay(self) -> tuple[float, float, float, float]:
+        return (
+            math.log(2) / (self.tnf_half_life_h + 1e-12),
+            math.log(2) / (self.il1_half_life_h + 1e-12),
+            math.log(2) / (self.il6_half_life_h + 1e-12),
+            math.log(2) / (self.il10_half_life_h + 1e-12),
+        )
+
+    def __post_init__(self) -> None:
+        self._k_key = (self.tnf_half_life_h, self.il1_half_life_h,
+                       self.il6_half_life_h, self.il10_half_life_h)
+        self._decay = self._compute_decay()
+
+    def _ensure_decay_cached(self) -> None:
+        key = (self.tnf_half_life_h, self.il1_half_life_h,
+               self.il6_half_life_h, self.il10_half_life_h)
+        if key != self._k_key:
+            self._k_key = key
+            self._decay = self._compute_decay()
+
     def step(self, dt_h: float) -> None:
         """Advance cytokine dynamics one hour."""
-        k_tnf = math.log(2) / (self.tnf_half_life_h + 1e-12)
-        k_il1 = math.log(2) / (self.il1_half_life_h + 1e-12)
-        k_il6 = math.log(2) / (self.il6_half_life_h + 1e-12)
-        k_il10 = math.log(2) / (self.il10_half_life_h + 1e-12)
+        self._ensure_decay_cached()
+        k_tnf, k_il1, k_il6, k_il10 = self._decay
 
         # Production stimulated by pathogen + pro-inflammatory feedback
         stim = self.pathogen_signal
@@ -97,6 +136,58 @@ class CytokinePool:
         self.il1_beta = max(0.0, self.il1_beta)
         self.il6 = max(0.0, self.il6)
         self.il10 = max(0.0, self.il10)
+
+
+# ============================================================================
+# Type I Interferon Pool (doc/40 G1)
+# ============================================================================
+
+
+@dataclass
+class IFNPool:
+    """Type I interferon (IFN-α/β) antiviral loop (doc/40 G1).
+
+    Driven by pathogen signal; suppresses pathogen replication via a
+    saturating Hill-type antiviral feedback.  Default production near
+    zero at baseline so existing InnateImmuneModel.step is unaffected.
+    """
+
+    ifn_alpha_beta: float = 0.0     # pg/mL (baseline ~0, rises with infection)
+
+    # Production: Vmax * sig^h / (Kd^h + sig^h)  (Hill activation by pathogen)
+    ifn_vmax: float = 5.0           # pg/mL/h max production rate
+    ifn_kd: float = 0.3             # pg/mL half-maximal signal
+    ifn_hill_n: float = 2.0         # Hill coefficient
+
+    # Clearance: exponential decay
+    ifn_half_life_h: float = 1.5    # ~90 min (type I IFN in serum)
+
+    # Antiviral effect: pathogen_eff = pathogen * (1 - ε * IFN/(IFN + K_ifn))
+    antiviral_efficiency: float = 0.6   # 0–1, fraction of pathogen suppressed
+    antiviral_k_ifn: float = 5.0        # pg/mL IFN at half-maximal suppression
+
+    # Cached decay constant
+    _k_ifn: float = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._k_ifn = math.log(2) / (self.ifn_half_life_h + 1e-12)
+
+    def effective_pathogen(self, pathogen: float) -> float:
+        """Return pathogen signal after IFN-α/β antiviral suppression."""
+        if self.ifn_alpha_beta <= 0.0:
+            return pathogen
+        suppression = self.antiviral_efficiency * self.ifn_alpha_beta / (
+            self.antiviral_k_ifn + self.ifn_alpha_beta)
+        return pathogen * (1.0 - suppression)
+
+    def step(self, dt_h: float, pathogen_signal: float) -> None:
+        """Advance IFN dynamics one hour."""
+        self._k_ifn = math.log(2) / (self.ifn_half_life_h + 1e-12)
+        sig = pathogen_signal
+        production = self.ifn_vmax * sig**self.ifn_hill_n / (
+            self.ifn_kd**self.ifn_hill_n + sig**self.ifn_hill_n)
+        self.ifn_alpha_beta += dt_h * (production - self._k_ifn * self.ifn_alpha_beta)
+        self.ifn_alpha_beta = max(0.0, self.ifn_alpha_beta)
 
 
 # ============================================================================
@@ -135,6 +226,38 @@ class ImmuneCellPopulation:
     # Mobilisation: cytokine-driven release from bone marrow
     gcsf_sensitivity: float = 0.5  # neutrophil response to G-CSF/IL-6
 
+    # --- Friberg transit chain (doc/40 G4) ---
+    # 4-compartment maturation chain: precursor → T1 → T2 → T3 → circulating.
+    # Transit time per compartment (hours).  Total maturation ~4 days.
+    friberg_transit_time_h: float = 24.0
+    # Feedback: proliferation rate = prolif_max / (1 + (ANC/K)^n) normalized so
+    # at healthy ANC (= K) the proliferating input equals the baseline
+    # neutrophil production, then drops as ANC rises (negative feedback) and
+    # rises as ANC falls (nadir recovery).
+    friberg_k_prolif: float = 4.0       # ×10³/µL ANC at half-maximal proliferation
+    friberg_hill_n: float = 2.0         # Hill exponent for ANC feedback
+    # Drug kill fraction (0–1) on proliferating cells (chemotherapy, etc.)
+    friberg_drug_kill: float = 0.0
+
+    # Transit state (init to steady-state: all compartments equal)
+    _transit_t1: float = field(default=0.0, init=False, repr=False)
+    _transit_t2: float = field(default=0.0, init=False, repr=False)
+    _transit_t3: float = field(default=0.0, init=False, repr=False)
+    _transit_t4: float = field(default=0.0, init=False, repr=False)
+
+    def _friberg_baseline_prod(self) -> float:
+        """Baseline proliferating-pool input (steady-state neutrophil production)."""
+        return self.neutrophil_production
+
+    def _init_transit_steady_state(self) -> None:
+        """Set transit compartments to steady-state matching baseline production."""
+        tau = self.friberg_transit_time_h + 1e-12
+        ss = self.neutrophil_production * tau
+        self._transit_t1 = ss
+        self._transit_t2 = ss
+        self._transit_t3 = ss
+        self._transit_t4 = ss
+
     def step(self, dt_h: float, il6: float, tnf: float) -> None:
         """Advance cell dynamics one hour.
 
@@ -142,10 +265,37 @@ class ImmuneCellPopulation:
             il6: IL-6 level (pg/mL) — drives neutrophil mobilisation
             tnf: TNF-α level (pg/mL) — drives monocyte differentiation
         """
+        # --- Friberg transit chain (doc/40 G4) ---
+        # Proliferation rate: normalized so at healthy ANC (= K_prolif) the
+        # proliferating input equals baseline neutrophil production, with
+        # negative feedback: high ANC suppresses, low ANC boosts (recovery).
+        baseline_prod = self._friberg_baseline_prod()
+        ratio_n = (self.neutrophils / (self.friberg_k_prolif + 1e-12)) \
+            ** self.friberg_hill_n
+        prolif_rate = baseline_prod * 2.0 / (1.0 + ratio_n)
+        # Drug kills proliferating precursor cells
+        prolif_rate *= (1.0 - min(1.0, max(0.0, self.friberg_drug_kill)))
+
+        tau = self.friberg_transit_time_h + 1e-12
+
+        # Initialize transit to steady-state on first step
+        if self._transit_t1 <= 0.0 and self._transit_t2 <= 0.0:
+            self._init_transit_steady_state()
+
+        # Advance transit compartments (explicit Euler)
+        self._transit_t1 += dt_h * (prolif_rate - self._transit_t1 / tau)
+        self._transit_t2 += dt_h * (self._transit_t1 / tau - self._transit_t2 / tau)
+        self._transit_t3 += dt_h * (self._transit_t2 / tau - self._transit_t3 / tau)
+        out_t4 = self._transit_t3 / tau
+        self._transit_t4 += dt_h * (self._transit_t3 / tau - self._transit_t4 / tau)
+
+        # Transit chain output → neutrophil production (replaces linear)
+        effective_neut_prod = out_t4
+
         # Neutrophil dynamics: production + mobilisation - clearance
         mobilisation = self.gcsf_sensitivity * max(0.0, il6 - 1.0) / 10.0
         self.neutrophils += dt_h * (
-            self.neutrophil_production * (1.0 + mobilisation)
+            effective_neut_prod * (1.0 + mobilisation)
             - self.neutrophil_clearance * self.neutrophils)
 
         # Monocyte dynamics
@@ -188,18 +338,29 @@ class ImmuneCellPopulation:
 
 @dataclass
 class InnateImmuneModel:
-    """Coupled cytokine + cell population model.
+    """Coupled cytokine + cell population model (doc/40 Phase A).
 
     Represents the innate immune response to infection, injury, or
     sterile inflammation.  Drives CRP via IL-6 and WBC counts via
     cell dynamics.
+
+    Phase A additions:
+        - IFN-α/β antiviral loop (G1)
+        - Circadian cortisol modulation (G11)
+        - Friberg transit chain in ImmuneCellPopulation (G4)
     """
 
     cytokines: CytokinePool = field(default_factory=CytokinePool)
     cells: ImmuneCellPopulation = field(default_factory=ImmuneCellPopulation)
+    ifn: IFNPool = field(default_factory=IFNPool)
 
     # --- Cortisol suppression (from HPA axis) ---
     cortisol_suppression: float = 0.0  # 0=none, 1=complete suppression
+
+    # --- Circadian cortisol modulation (doc/40 G11) ---
+    circadian_amplitude: float = 0.0   # fractional amplitude (0=no variation)
+    circadian_phase_h: float = 8.0     # hour of peak cortisol (default ~08:00)
+    _sim_hour: float = field(default=0.0, init=False, repr=False)
 
     # --- Drug effects ---
     immunosuppression: float = 0.0  # e.g. chemotherapy, biologics
@@ -226,17 +387,32 @@ class InnateImmuneModel:
             self.infection_severity
             + self.autoimmune_activation * 0.5)
 
+        # --- Circadian cortisol modulation (doc/40 G11) ---
+        effective_cortisol = self.cortisol_suppression
+        if self.circadian_amplitude > 0.0:
+            import math as _m
+            cortisol_var = self.circadian_amplitude * _m.sin(
+                2.0 * _m.pi * (self._sim_hour - self.circadian_phase_h) / 24.0)
+            effective_cortisol = max(0.0, min(1.0,
+                self.cortisol_suppression * (1.0 + cortisol_var)))
+
+        # --- IFN-α/β antiviral loop (doc/40 G11 → G1) ---
+        self.ifn.step(dt_h, self.cytokines.pathogen_signal)
+        effective_pathogen = self.ifn.effective_pathogen(
+            self.cytokines.pathogen_signal)
+        self.cytokines.pathogen_signal = effective_pathogen
+
         # Restore base rates before applying modifiers (prevents compounding)
         self.cytokines.tnf_production_rate = self._base_tnf_rate
         self.cytokines.il6_production_rate = self._base_il6_rate
         self.cells.monocyte_production = self._base_monocyte_prod
 
-        # Cortisol suppresses cytokine production
-        if self.cortisol_suppression > 0:
+        # Cortisol suppresses cytokine production (uses circadian-modulated value)
+        if effective_cortisol > 0:
             self.cytokines.tnf_production_rate *= (
-                1.0 - self.cortisol_suppression * 0.7)
+                1.0 - effective_cortisol * 0.7)
             self.cytokines.il6_production_rate *= (
-                1.0 - self.cortisol_suppression * 0.6)
+                1.0 - effective_cortisol * 0.6)
 
         # Immunosuppression dampens cell production
         if self.immunosuppression > 0:
@@ -257,6 +433,9 @@ class InnateImmuneModel:
 
         # Step cells with cytokine signals
         self.cells.step(dt_h, self.cytokines.il6, self.cytokines.tnf_alpha)
+
+        # Advance simulation clock for circadian modulation
+        self._sim_hour = (self._sim_hour + dt_h) % 24.0
 
     def get_il6(self) -> float:
         return self.cytokines.il6
@@ -281,29 +460,59 @@ class InnateImmuneModel:
 
 @dataclass
 class CRPDriver:
-    """Mechanistic IL-6 → CRP pathway.
+    """Mechanistic IL-6 → CRP pathway (v2, doc/40 G8/G9).
 
     Hepatocyte CRP synthesis is driven by IL-6 via JAK/STAT3 signaling.
-    CRP half-life ~19 h; peak CRP ~6 h after IL-6 stimulus.
+    Uses saturating Hill kinetics (not linear) so CRP reaches sepsis
+    levels (up to 1000 µg/mL) while staying physiological at baseline.
 
-    Replaces the proxy formula in ClinicalLabModel.
+    CRP half-life ~19 h; peak CRP ~6 h after IL-6 stimulus.
+    Includes a lag compartment modelling the ~6 h transcriptional delay.
     """
 
     crp_mg_l: float = 0.5     # baseline CRP (mg/L)
-    il6_threshold: float = 0.3  # IL-6 above baseline needed to drive CRP production
-    crp_production_rate: float = 1.5  # mg/L per (pg/mL IL-6) per hour
     crp_clearance_rate: float = 0.036  # 1/h (~19 h half-life)
-    max_crp: float = 200.0     # physiological ceiling (mg/L)
+    max_crp: float = 1000.0    # clinical ceiling for severe sepsis (mg/L)
+
+    # Saturating Hill production: Vmax * IL6_lag^n / (Kd^n + IL6_lag^n)
+    crp_vmax: float = 40.0     # mg/L/h at saturating IL-6
+    il6_kd: float = 5.0        # pg/mL IL-6 at half-maximal CRP production
+    il6_hill_n: float = 2.0    # Hill exponent for IL-6→CRP
+
+    # Lag compartment: models ~6 h transcriptional/post-translational delay
+    il6_lag_tau_h: float = 6.0  # time constant of IL-6 lag (hours)
+    _il6_lagged: float = field(default=0.0, init=False, repr=False)
+
+    # --- APR panel (doc/40 G9) ---
+    saa_mg_l: float = 0.0           # serum amyloid A (mg/L)
+    ferritin_ng_ml: float = 50.0    # ferritin (ng/mL, normal 12-300)
+    pct_ng_ml: float = 0.0          # procalcitonin (ng/mL, <0.1 normal)
+    fibrinogen_g_l: float = 3.0     # fibrinogen (g/L, normal 2-4)
 
     def step(self, dt_h: float, il6_pg_ml: float) -> None:
         """Advance CRP dynamics one hour."""
-        # IL-6 drives CRP production (sigmoidal response)
-        effective_il6 = max(0.0, il6_pg_ml - self.il6_threshold)
-        production = self.crp_production_rate * effective_il6
+        # Lag compartment: first-order toward current IL-6
+        if self.il6_lag_tau_h > 0.0:
+            alpha = 1.0 - math.exp(-dt_h / self.il6_lag_tau_h)
+        else:
+            alpha = 1.0
+        self._il6_lagged += alpha * (il6_pg_ml - self._il6_lagged)
+
+        # Saturating Hill production (doc/40 G9)
+        il6_n = self._il6_lagged**self.il6_hill_n
+        kd_n = self.il6_kd**self.il6_hill_n
+        production = self.crp_vmax * il6_n / (kd_n + il6_n + 1e-12)
         clearance = self.crp_clearance_rate * self.crp_mg_l
 
         self.crp_mg_l += dt_h * (production - clearance)
         self.crp_mg_l = max(0.1, min(self.max_crp, self.crp_mg_l))
+
+        # APR panel: SAA tracks CRP with amplification, others driven by IL-6
+        self.saa_mg_l = self.crp_mg_l * 10.0  # SAA ~10× CRP in acute phase
+        il6_norm = min(1.0, self._il6_lagged / 50.0)
+        self.ferritin_ng_ml = 50.0 + 950.0 * il6_norm
+        self.pct_ng_ml = il6_norm * 10.0  # 0–10 ng/mL
+        self.fibrinogen_g_l = 3.0 + 2.0 * il6_norm  # 3–5 g/L
 
 
 # ============================================================================
@@ -336,3 +545,349 @@ def create_immune_model(
     crp_driver = CRPDriver()
 
     return immune, crp_driver
+
+
+# ============================================================================
+# Cohort-vectorized immune stepping (doc/39 O2)
+#
+# Advances N independent virtual patients' innate-immune ODEs *simultaneously*
+# with NumPy elementwise operations, mirroring the scalar
+# ``InnateImmuneModel.step`` / ``CytokinePool.step`` / ``ImmuneCellPopulation.
+# step`` equations exactly (same float arithmetic, vectorized over the cohort
+# axis).  This is the 🟪 realism-better path: it opens virtual-population runs
+# (per-patient parameter sampling) at far lower cost than N per-patient loops.
+# When numpy is absent it falls back to a scalar loop over the model objects,
+# so behavior is identical with or without the ``fast`` extra.
+# ============================================================================
+
+
+def _cohort_cytokine_step(
+    tnf: Any, il1: Any, il6: Any, il10: Any,
+    prod_tnf: Any, prod_il1: Any, prod_il6: Any, prod_il10: Any,
+    k_tnf: Any, k_il1: Any, k_il6: Any, k_il10: Any,
+    stim: Any, dt_h: float,
+) -> tuple[Any, Any, Any, Any]:
+    """One vectorized CytokinePool step (mirrors ``CytokinePool.step``)."""
+    tnf = np_max(0.0, tnf + dt_h * (prod_tnf * stim - k_tnf * tnf))
+    il1 = np_max(0.0, il1 + dt_h * (prod_il1 * stim - k_il1 * il1))
+    il6 = np_max(0.0, il6 + dt_h * (prod_il6 * stim - k_il6 * il6))
+    anti_stim = stim + 0.1 * (tnf + il1) / 10.0
+    il10 = np_max(0.0, il10 + dt_h * (prod_il10 * anti_stim - k_il10 * il10))
+    return tnf, il1, il6, il10
+
+
+def _cohort_cells_step(
+    neut: Any, macro: Any, mono: Any, dc: Any, tcells: Any,
+    prod_neut: Any, prod_mono: Any, prod_tcell: Any,
+    clr_neut: Any, clr_mono: Any, clr_macro: Any,
+    gcsf: Any, il6: Any, tnf: Any, dt_h: float,
+    t1: Any = 0.0, t2: Any = 0.0, t3: Any = 0.0, t4: Any = 0.0,
+    tau: Any = 1.0, prolif: Any = 0.0, mob_scale: Any = 1.0,
+) -> tuple[Any, Any, Any, Any, Any, Any, Any, Any, Any]:
+    """One vectorized ImmuneCellPopulation step (mirrors the scalar step).
+
+    Returns (neut, macro, mono, dc, tcells, t1, t2, t3, t4).
+    When tau is 0 or scalar 1.0 with no transit arrays, Friberg is skipped.
+    """
+    use_friberg = not (isinstance(tau, (int, float)) and tau <= 0.0)
+    if use_friberg:
+        # Friberg transit chain (doc/40 G4) — scalar path uses in-place
+        # Gauss-Seidel: t1 updated first, t2 uses new t1, t3 uses new t2.
+        inv_tau = 1.0 / (tau + 1e-12)
+        t1_new = t1 + dt_h * (prolif - t1 * inv_tau)
+        t2_new = t2 + dt_h * (t1_new * inv_tau - t2 * inv_tau)
+        t3_new = t3 + dt_h * (t2_new * inv_tau - t3 * inv_tau)
+        out_t4 = t3_new * inv_tau
+        t4_new = t4 + dt_h * (t3_new * inv_tau - t4 * inv_tau)
+        effective_neut_prod = out_t4
+        t1, t2, t3, t4 = t1_new, t2_new, t3_new, t4_new
+    else:
+        effective_neut_prod = prod_neut
+
+    mobil = gcsf * np_max(0.0, il6 - 1.0) / 10.0
+    neut = np_max(0.1, neut + dt_h * (effective_neut_prod * (1.0 + mobil)
+                                      - clr_neut * neut))
+    mono = np_max(0.01, mono + dt_h * (prod_mono * (1.0 + tnf / 20.0)
+                                       - clr_mono * mono))
+    diff = 0.1 * mono
+    macro = np_max(0.01, macro + dt_h * (diff - clr_macro * macro))
+    dc = np_max(0.01, dc + dt_h * (0.005 * (1.0 + tnf / 50.0) - 0.02 * dc))
+    tcells = np_max(0.1, tcells + dt_h * (prod_tcell * (1.0 + il6 / 20.0)
+                                          - 0.005 * tcells))
+    return neut, macro, mono, dc, tcells, t1, t2, t3, t4
+
+
+def np_max(a: float, b: Any) -> Any:
+    """Elementwise ``max(a, b)`` over a scalar-or-array ``b`` (doc/39 O2)."""
+    if _HAS_NUMPY and isinstance(b, _np.ndarray):
+        return _np.maximum(a, b)
+    return max(a, b)
+
+
+def cohort_immune_step(
+    models: list[InnateImmuneModel],
+    dt_h: float,
+    *,
+    use_numpy: bool | None = None,
+) -> None:
+    """Advance a cohort of ``InnateImmuneModel`` by ``dt_h`` (doc/39 O2).
+
+    Equivalence guarantee: with ``use_numpy=True`` the cohort advances through
+    an explicit NumPy system whose equations are term-for-term identical to
+    :meth:`InnateImmuneModel.step`; with ``use_numpy=False`` (or when numpy is
+    unavailable) it falls back to calling each model's scalar ``step``.  Either
+    way every model ends in the same state as the scalar path.
+    """
+    if use_numpy is None:
+        use_numpy = _HAS_NUMPY
+
+    if not use_numpy or not _HAS_NUMPY:
+        for model in models:
+            model.step(dt_h)
+        return
+
+    np = _np
+    n = len(models)
+    if n == 0:
+        return
+
+    import math
+
+    tnf = np.array([m.cytokines.tnf_alpha for m in models], dtype=float)
+    il1 = np.array([m.cytokines.il1_beta for m in models], dtype=float)
+    il6 = np.array([m.cytokines.il6 for m in models], dtype=float)
+    il10 = np.array([m.cytokines.il10 for m in models], dtype=float)
+    neut = np.array([m.cells.neutrophils for m in models], dtype=float)
+    macro = np.array([m.cells.macrophages for m in models], dtype=float)
+    mono = np.array([m.cells.monocytes for m in models], dtype=float)
+    dc = np.array([m.cells.dendritic_cells for m in models], dtype=float)
+    tcells = np.array([m.cells.t_cells for m in models], dtype=float)
+
+    # Decay constants (O1: ln2/half-life, treated as fixed per cohort model).
+    k_tnf = np.array([math.log(2) / (m.cytokines.tnf_half_life_h + 1e-12)
+                      for m in models], dtype=float)
+    k_il1 = np.array([math.log(2) / (m.cytokines.il1_half_life_h + 1e-12)
+                      for m in models], dtype=float)
+    k_il6 = np.array([math.log(2) / (m.cytokines.il6_half_life_h + 1e-12)
+                      for m in models], dtype=float)
+    k_il10 = np.array([math.log(2) / (m.cytokines.il10_half_life_h + 1e-12)
+                       for m in models], dtype=float)
+
+    prod_tnf = np.array([m.cytokines.tnf_production_rate for m in models],
+                        dtype=float)
+    prod_il1 = np.array([m.cytokines.il1_production_rate for m in models],
+                        dtype=float)
+    prod_il6 = np.array([m.cytokines.il6_production_rate for m in models],
+                        dtype=float)
+    prod_il10 = np.array([m.cytokines.il10_production_rate for m in models],
+                         dtype=float)
+    prod_neut = np.array([m.cells.neutrophil_production for m in models],
+                         dtype=float)
+    prod_mono = np.array([m.cells.monocyte_production for m in models],
+                         dtype=float)
+    prod_tcell = np.array([m.cells.t_cell_production for m in models],
+                          dtype=float)
+    clr_neut = np.array([m.cells.neutrophil_clearance for m in models],
+                        dtype=float)
+    clr_mono = np.array([m.cells.monocyte_clearance for m in models],
+                        dtype=float)
+    clr_macro = np.array([m.cells.macrophage_clearance for m in models],
+                         dtype=float)
+    gcsf = np.array([m.cells.gcsf_sensitivity for m in models], dtype=float)
+
+    inf_sev = np.array([m.infection_severity for m in models], dtype=float)
+    auto_sev = np.array([m.autoimmune_activation for m in models], dtype=float)
+    cort_raw = np.array([m.cortisol_suppression for m in models], dtype=float)
+    circ_amp = np.array([m.circadian_amplitude for m in models], dtype=float)
+    circ_phase = np.array([m.circadian_phase_h for m in models], dtype=float)
+    sim_hour = np.array([m._sim_hour for m in models], dtype=float)
+    immuno = np.array([m.immunosuppression for m in models], dtype=float)
+    anti = np.array([m.anti_inflammatory for m in models], dtype=float)
+
+    # IFN state (doc/40 G1)
+    ifn_val = np.array([m.ifn.ifn_alpha_beta for m in models], dtype=float)
+    ifn_vmax = np.array([m.ifn.ifn_vmax for m in models], dtype=float)
+    ifn_kd = np.array([m.ifn.ifn_kd for m in models], dtype=float)
+    ifn_hn = np.array([m.ifn.ifn_hill_n for m in models], dtype=float)
+    ifn_k_ifn = np.array([m.ifn.antiviral_k_ifn for m in models], dtype=float)
+    ifn_eps = np.array([m.ifn.antiviral_efficiency for m in models], dtype=float)
+    ifn_k_decay = np.array([math.log(2) / (m.ifn.ifn_half_life_h + 1e-12)
+                            for m in models], dtype=float)
+
+    stim = inf_sev + auto_sev * 0.5
+
+    # --- IFN step: production from stim, then antiviral suppression ---
+    ifn_kd_n = ifn_kd ** ifn_hn
+    ifn_sig_n = stim ** ifn_hn
+    ifn_prod = ifn_vmax * ifn_sig_n / (ifn_kd_n + ifn_sig_n + 1e-12)
+    ifn_val = np_max(0.0, ifn_val + dt_h * (ifn_prod - ifn_k_decay * ifn_val))
+    # Antiviral suppression: stim_eff = stim * (1 - eps * IFN/(IFN + K_ifn))
+    suppression = ifn_eps * ifn_val / (ifn_k_ifn + ifn_val + 1e-12)
+    stim_eff = stim * (1.0 - suppression)
+
+    # --- Circadian cortisol (doc/40 G11) ---
+    cort_eff = cort_raw.copy()
+    has_circ = circ_amp > 0.0
+    if np.any(has_circ):
+        cortisol_var = circ_amp * np.sin(
+            2.0 * math.pi * (sim_hour - circ_phase) / 24.0)
+        cort_eff[has_circ] = np.clip(
+            cort_raw[has_circ] * (1.0 + cortisol_var[has_circ]), 0.0, 1.0)
+
+    # Per-model base rates (mirror __post_init__ snapshot), restored each step
+    # so modifiers never compound.
+    base_tnf = np.array([m._base_tnf_rate for m in models], dtype=float)
+    base_il6 = np.array([m._base_il6_rate for m in models], dtype=float)
+    base_mono = np.array([m._base_monocyte_prod for m in models], dtype=float)
+
+    # Per-model modifiers, mirroring InnateImmuneModel.step exactly
+    anti_c = np.minimum(anti, 1.0)
+    prod_tnf = base_tnf * (1.0 - cort_eff * 0.7) * (1.0 - anti_c * 0.85)
+    prod_il6 = base_il6 * (1.0 - cort_eff * 0.6) * (1.0 - anti_c * 0.9)
+    prod_mono = base_mono * (1.0 - immuno * 0.7)
+    prod_neut = prod_neut * (1.0 - immuno * 0.8)
+
+    # --- Friberg transit chain (doc/40 G4) ---
+    t1 = np.array([m.cells._transit_t1 for m in models], dtype=float)
+    t2 = np.array([m.cells._transit_t2 for m in models], dtype=float)
+    t3 = np.array([m.cells._transit_t3 for m in models], dtype=float)
+    t4 = np.array([m.cells._transit_t4 for m in models], dtype=float)
+    fri_tau = np.array([m.cells.friberg_transit_time_h for m in models],
+                       dtype=float)
+    fri_k = np.array([m.cells.friberg_k_prolif for m in models], dtype=float)
+    fri_hn = np.array([m.cells.friberg_hill_n for m in models], dtype=float)
+    fri_kill = np.array([m.cells.friberg_drug_kill for m in models],
+                        dtype=float)
+
+    # Proliferation rate: normalized so at healthy ANC (= K) the input equals
+    # baseline production, with negative feedback from circulating ANC.
+    baseline_prod = prod_neut
+    ratio_n = (neut / (fri_k + 1e-12)) ** fri_hn
+    prolif_rate = baseline_prod * 2.0 / (1.0 + ratio_n)
+    prolif_rate = prolif_rate * (1.0 - np.clip(fri_kill, 0.0, 1.0))
+
+    # Initialize transit to steady-state on first step (check if all zeros)
+    all_zero = np.all(t1 == 0.0) and np.all(t2 == 0.0)
+    if all_zero:
+        ss = prod_neut * (fri_tau + 1e-12)
+        t1 = ss.copy()
+        t2 = ss.copy()
+        t3 = ss.copy()
+        t4 = ss.copy()
+
+    tnf, il1, il6, il10 = _cohort_cytokine_step(
+        tnf, il1, il6, il10, prod_tnf, prod_il1, prod_il6, prod_il10,
+        k_tnf, k_il1, k_il6, k_il10, stim_eff, dt_h)
+    neut, macro, mono, dc, tcells, t1, t2, t3, t4 = _cohort_cells_step(
+        neut, macro, mono, dc, tcells, prod_neut, prod_mono, prod_tcell,
+        clr_neut, clr_mono, clr_macro, gcsf, il6, tnf, dt_h,
+        t1, t2, t3, t4, fri_tau, prolif_rate)
+
+    for i, m in enumerate(models):
+        m.cytokines.tnf_alpha = float(tnf[i])
+        m.cytokines.il1_beta = float(il1[i])
+        m.cytokines.il6 = float(il6[i])
+        m.cytokines.il10 = float(il10[i])
+        m.cells.neutrophils = float(neut[i])
+        m.cells.macrophages = float(macro[i])
+        m.cells.monocytes = float(mono[i])
+        m.cells.dendritic_cells = float(dc[i])
+        m.cells.t_cells = float(tcells[i])
+        m.cells.neutrophil_production = float(prod_neut[i])
+        m.cells.monocyte_production = float(prod_mono[i])
+        # Friberg transit state
+        m.cells._transit_t1 = float(t1[i])
+        m.cells._transit_t2 = float(t2[i])
+        m.cells._transit_t3 = float(t3[i])
+        m.cells._transit_t4 = float(t4[i])
+        # IFN state
+        m.ifn.ifn_alpha_beta = float(ifn_val[i])
+        # Circadian clock
+        m._sim_hour = (m._sim_hour + dt_h) % 24.0
+
+
+# ============================================================================
+# Cohort runner (doc/39 O9-part-1 / doc/31 §2.4)
+#
+# Advances an entire cohort of virtual patients through T hours, feeding the
+# O2 vectorized kernel.  The per-agent ODEs are independent (production scales
+# are per-patient), so the cohort is embarrassingly parallel: contiguous model
+# slabs are dispatched to distinct worker processes, each advancing its slab
+# with ``cohort_immune_step``, then state is merged back.  Results are
+# bit-identical to a single-process run regardless of ``workers``.
+# ============================================================================
+
+
+def _advance_slab(models: list[InnateImmuneModel], n_steps: int,
+                  dt_h: float, use_numpy: bool | None
+                  ) -> list[InnateImmuneModel]:
+    """Advance a model slab for ``n_steps`` (worker entry point, O9).
+
+    The slab is a pickled copy inside the worker process; the returned list
+    carries the advanced state back to the parent for merging.
+    """
+    for _ in range(n_steps):
+        cohort_immune_step(models, dt_h, use_numpy=use_numpy)
+    return models
+
+
+def _copy_state(src: InnateImmuneModel,
+                dst: InnateImmuneModel) -> None:
+    """Copy the full observable state of ``src`` onto ``dst`` in place."""
+    dst.cytokines = src.cytokines
+    dst.cells = src.cells
+    dst.ifn = src.ifn
+    dst.cortisol_suppression = src.cortisol_suppression
+    dst.immunosuppression = src.immunosuppression
+    dst.anti_inflammatory = src.anti_inflammatory
+    dst.autoimmune_activation = src.autoimmune_activation
+    dst.infection_severity = src.infection_severity
+    dst._sim_hour = src._sim_hour
+
+
+def run_cohort(
+    models: list[InnateImmuneModel],
+    n_steps: int,
+    dt_h: float = 1.0,
+    *,
+    workers: int = 1,
+    use_numpy: bool | None = None,
+) -> None:
+    """Advance a cohort of ``InnateImmuneModel`` for ``n_steps`` hours (O9).
+
+    When ``workers > 1`` the cohort is split into contiguous slabs and each
+    slab is advanced in its own ``multiprocessing`` worker using the O2
+    vectorized kernel; per-agent ODEs are independent so the merge is
+    bit-identical to a single-process run.  Falls back to the single-process
+    loop when ``workers`` is 1 or process dispatch is unavailable.
+    """
+    if n_steps <= 0 or not models:
+        return
+    if workers <= 1:
+        _advance_slab(models, n_steps, dt_h, use_numpy)
+        return
+
+    import multiprocessing as _mp
+
+    worker_count = max(2, int(workers))
+    slabs: list[list[InnateImmuneModel]] = [models[i::worker_count]
+                                            for i in range(worker_count)]
+    slabs = [s for s in slabs if s]
+    if len(slabs) <= 1:
+        _advance_slab(models, n_steps, dt_h, use_numpy)
+        return
+    ctx = _mp.get_context("spawn")
+    with ctx.Pool(processes=len(slabs)) as pool:
+        merged = pool.starmap(
+            _advance_slab,
+            [(slab, n_steps, dt_h, use_numpy) for slab in slabs],
+        )
+    # Merge advanced state back onto the caller's objects, keeping the
+    # original list identity and element order.
+    for slab_idx, slab in enumerate(merged):
+        position = 0
+        for i in range(slab_idx, len(models), worker_count):
+            if position >= len(slab):
+                break
+            _copy_state(slab[position], models[i])
+            position += 1

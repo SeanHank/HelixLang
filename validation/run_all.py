@@ -9,19 +9,23 @@ Single entry point for the full validation pipeline:
 
 Usage:
     python validation/run_all.py              # run + report
+    python validation/run_all.py --parallel   # parallel benchmark dispatch (doc/39 O9)
+    python validation/run_all.py --parallel 4 # exactly 4 workers
     python validation/run_all.py --report-only  # report from existing results/
 """
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from schema import EvidenceChain, LEVEL_NAMES, VALID_LEVELS
+from schema import VALID_LEVELS, EvidenceChain
 
 BENCHMARKS_DIR = Path(__file__).parent / "benchmarks"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -48,6 +52,8 @@ def run_benchmark(benchmark_dir: Path) -> dict:
 
     t0 = time.perf_counter()
     try:
+        # Each benchmark runs as its own subprocess, so dispatch stays
+        # deterministic in output regardless of thread scheduling.
         result = subprocess.run(
             [sys.executable, "-B", str(run_py)],
             capture_output=True,
@@ -74,6 +80,25 @@ def run_benchmark(benchmark_dir: Path) -> dict:
         }
     except Exception as e:
         return {"id": benchmark_dir.name, "status": "ERROR", "error": str(e)}
+
+
+def run_benchmarks(benchmarks: list[Path], workers: int = 1) -> list[dict]:
+    """Run benchmarks, optionally in parallel (doc/39 O9-part-2).
+
+    Each benchmark already runs in its own subprocess, so parallelism uses a
+    thread pool that releases the GIL while the subprocess runs — safe to use
+    on any platform, with output ordered identically to the serial run.
+    """
+    if workers <= 1 or len(benchmarks) <= 1:
+        return [run_benchmark(b) for b in benchmarks]
+    results: list[dict] = [None] * len(benchmarks)  # type: ignore[list-item]
+    with ThreadPoolExecutor(max_workers=min(workers, len(benchmarks))) as pool:
+        futures = {pool.submit(run_benchmark, b): i
+                   for i, b in enumerate(benchmarks)}
+        for fut in as_completed(futures):
+            idx = futures[fut]
+            results[idx] = fut.result()
+    return results
 
 
 def merge_metadata(results: list[dict]) -> list[dict]:
@@ -131,7 +156,7 @@ def generate_report(results: list[dict]) -> str:
     skip_count = sum(1 for c in chains if c.status == "SKIP")
     total = len(chains)
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     rows: list[str] = []
     failures: list[str] = []
@@ -200,6 +225,13 @@ def generate_report(results: list[dict]) -> str:
 
 def main() -> None:
     report_only = "--report-only" in sys.argv
+    workers = 1
+    if "--parallel" in sys.argv:
+        i = sys.argv.index("--parallel")
+        if i + 1 < len(sys.argv) and sys.argv[i + 1].isdigit():
+            workers = int(sys.argv[i + 1])
+        else:
+            workers = os.cpu_count() or 1
 
     if report_only:
         # Load existing results
@@ -217,15 +249,12 @@ def main() -> None:
         RESULTS_DIR.mkdir(exist_ok=True)
         benchmarks = sorted(b for b in BENCHMARKS_DIR.iterdir() if b.is_dir())
 
-        results = []
-        for bench in benchmarks:
-            print(f"Running {bench.name}...", file=sys.stderr)
-            result = run_benchmark(bench)
-            results.append(result)
-
+        results = run_benchmarks(benchmarks, workers=workers)
+        for result in results:
+            bid = result.get("id", "?")
             status = result.get("status", "?")
             icon = "✓" if status == "PASS" else "✗"
-            print(f"  {icon} {bench.name}: {status}")
+            print(f"  {icon} {bid}: {status}", file=sys.stderr)
 
     # Merge declarative benchmark.yaml metadata (layer/level/name, doc/41 §3)
     results = merge_metadata(results)

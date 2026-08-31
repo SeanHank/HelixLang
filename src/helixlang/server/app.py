@@ -15,6 +15,7 @@ Provides REST API:
 from __future__ import annotations
 
 import binascii
+from collections import OrderedDict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -52,6 +53,85 @@ _EXAMPLES_DIR = Path(__file__).parent.parent.parent.parent / "examples"
 # Thread-safe: protected by _DEBUG_LOCK for concurrent request handling.
 _DEBUG_LOCK: Any = None  # STATE: global (lazily initialized)
 _DEBUG_SESSIONS: dict[str, Any] = {}  # STATE: global (thread-safe via _DEBUG_LOCK)
+
+# LRU memoization of the lex→parse→semantic→compile pipeline (doc/39 O8).
+#
+# Repeated cohort sweeps / sensitivity runs submit near-identical sources; the
+# single-process dev server re-runs the whole pipeline on every request.  We
+# cache (source, table) -> pipeline result, evicting least-recently-used entries
+# to keep memory bounded.  Compile for a given source+table is deterministic
+# (seeded RNG, SHA256-verified goldens), so the cache never changes results —
+# it only skips redundant work.  Consumers that mutate the returned ``Program``
+# (``/api/run``, ``/api/sim/run`` set ``config.ticks`` and drive the VM) receive
+# a :func:`copy.deepcopy`, so cached objects are never corrupted.
+#
+# A per-process lock protects the cache map from concurrent Flask workers.
+_UNIT = 1024 * 1024  # 1 MiB
+_CACHE_MEM_SOFT_LIMIT = 64    # MiB: bounded LRU; hit -> move to MRU; else evict
+_PIPELINE_CACHE: OrderedDict[tuple[str, str], tuple[Any, Any, Any]] = (
+    OrderedDict())
+_PIPELINE_LOCK: Any = None  # STATE: lazily initialized threading.Lock
+
+
+def _get_pipeline_lock() -> Any:
+    global _PIPELINE_LOCK  # noqa: PLW0603
+    if _PIPELINE_LOCK is None:
+        import threading
+        _PIPELINE_LOCK = threading.Lock()
+    return _PIPELINE_LOCK
+
+
+def _estimate_bytes(program: Any, chunk: Any) -> int:
+    """Rough memory bound for a cached compile result (for LRU eviction)."""
+    n = 0
+    try:
+        n += len(chunk.code)
+    except TypeError:
+        n += 0  # chunk may not support len (native-backed or stripped)
+    try:
+        n += len(chunk.constants)
+    except (TypeError, AttributeError):
+        n += 0  # chunk may expose constants differently depending on backend
+    try:
+        n += len(program.genes) * 3
+    except (TypeError, AttributeError):
+        n += 0  # program may not be a full Program object in all call paths
+    return max(16, n * 16)
+
+
+def _pipeline_cached(source: str, table_name: str) -> tuple[Any, Program, Chunk]:
+    """Compile pipeline with a process-wide bounded LRU memo (doc/39 O8)."""
+    key = (source, table_name)
+    lock = _get_pipeline_lock()
+    with lock:
+        hit = _PIPELINE_CACHE.pop(key, None)
+        if hit is not None:
+            _PIPELINE_CACHE[key] = hit          # move to most-recently-used
+            return hit
+    result = _pipeline(source, table_name)
+    with lock:
+        _PIPELINE_CACHE[key] = result
+        # bounded LRU: drop least-recently-used until under the memory budget
+        used = sum(_estimate_bytes(p, c) for _, (_, p, c) in
+                   _PIPELINE_CACHE.items())
+        while used > _CACHE_MEM_SOFT_LIMIT * _UNIT and len(_PIPELINE_CACHE) > 1:
+            _PIPELINE_CACHE.popitem(last=False)
+            used = sum(_estimate_bytes(p, c) for _, (_, p, c) in
+                       _PIPELINE_CACHE.items())
+    return result
+
+
+def _pipeline_fresh(source: str, table_name: str) -> tuple[Any, Program, Chunk]:
+    """Memoized compile pipeline yielding a *fresh* mutable ``Program``.
+
+    Compile results are immutable-derived (deterministic); callers that will
+    mutate ``program`` (ticks, VM execution) get a deep copy so the cache entry
+    stays pristine.  Read-only callers should use :func:`_pipeline_cached`.
+    """
+    import copy
+
+    config, program, chunk = _pipeline_cached(source, table_name)
+    return config, copy.deepcopy(program), chunk
 
 
 def _get_debug_lock() -> Any:
@@ -124,7 +204,7 @@ def create_app() -> Flask:
         table_name = body.get("table", "standard")
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
-        _config, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline_cached(source, table_name)
         disasm = disassemble(chunk, "preview")
         return jsonify({
             "ok": True,
@@ -142,7 +222,7 @@ def create_app() -> Flask:
         ticks = body.get("ticks")
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
-        _config, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline_fresh(source, table_name)
         if ticks is not None:
             program.config.ticks = int(ticks)
         vm = CellVM(chunk, program)
@@ -171,7 +251,7 @@ def create_app() -> Flask:
         if table_name not in ("standard", "mito_vertebrate", "ciliate"):
             return jsonify({"error": f"unknown table {table_name!r}"}), 400
         try:
-            _config, program, chunk = _pipeline(source, table_name)
+            _config, program, chunk = _pipeline_fresh(source, table_name)
         except HelixError as e:
             return jsonify({"ok": False, "error": str(e)}), 400
         ticks = body.get("ticks")
@@ -1008,7 +1088,7 @@ def create_app() -> Flask:
         import uuid
 
         from helixlang.debugger import HelixDebugger
-        _config, program, chunk = _pipeline(source, table_name)
+        _config, program, chunk = _pipeline_fresh(source, table_name)
         vm = CellVM(chunk, program)
         debugger = HelixDebugger(vm, program)
         debugger.start()

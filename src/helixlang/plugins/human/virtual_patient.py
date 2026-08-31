@@ -2230,6 +2230,11 @@ class _DrugPBPK:
     _INFUSION_DURATION_H = 1.0
     _DOSE_EPSILON_H = 0.01
 
+    # Adaptive local-error tolerances (doc/39 O3) — relative + absolute.
+    _RTOL = 1e-3
+    _ATOL = 1e-6
+    _MIN_STEP_H = 1e-5  # hard floor guaranteeing progress under refinement
+
     # Biologic MW thresholds for Kp scaling (doc/33 biologics)
     _BIOLOGIC_MW_THRESHOLD = 30_000.0  # Da — above this, MW-gated Kp applies
     _BIOLOGIC_LARGE_MW = 150_000.0     # Da — full-size mAb
@@ -2444,8 +2449,82 @@ class _DrugPBPK:
             # Apply rescue to central compartment (reduces effective elimination)
             c["central"] = max(0.0, c["central"] * (1.0 + rescue_rate * h_sub_h))
 
+    def _snapshot_state(self) -> tuple[dict[str, float], float]:
+        """Deep-copy of the current PBPK integration state (conc + depot)."""
+        return dict(self.conc_um), self.depot_mg
+
+    def _restore_state(self, conc: dict[str, float], depot: float) -> None:
+        """Restore a state captured by :meth:`_snapshot_state`."""
+        self.conc_um = dict(conc)
+        self.depot_mg = depot
+
+    def _local_error(self, coarse: tuple[dict[str, float], float],
+                     fine: tuple[dict[str, float], float]) -> float:
+        """Normalised local truncation error between a coarse and a finer step.
+
+        Uses the standard relative+absolute tolerance form on the central
+        concentration (the dominant, stiffest compartment) and the depot:
+        ``err = max(|a - b| / (ATOL + RTOL*max(|a|, |b|)))``.  A value <= 1 means
+        the coarse step is within tolerance.
+        """
+        rtol, atol = self._RTOL, self._ATOL
+        err = 0.0
+        a = coarse[0].get("central", 0.0)
+        b = fine[0].get("central", 0.0)
+        denom = atol + rtol * max(abs(a), abs(b))
+        if denom > 0.0:
+            err = max(err, abs(a - b) / denom)
+        a, b = coarse[1], fine[1]
+        denom = atol + rtol * max(abs(a), abs(b))
+        if denom > 0.0:
+            err = max(err, abs(a - b) / denom)
+        return err
+
+    def _integrate_slot(self, slot_h: float, t_start: float, ka_per_h: float,
+                        k_elim_per_h: float, depth: int = 0) -> None:
+        """Integrate [t_start, t_start+slot_h] with local-error refinement.
+
+        Step-doubling (doc/39 O3): computes the coarse (one ``slot_h``) and the
+        finer (two ``slot_h/2``) Euler solutions from the current state; if the
+        finer is within tolerance of the coarse it is kept and the slot is done,
+        otherwise the slot is split recursively (bounded by ``_MIN_STEP_H``) and
+        each half is integrated independently.  On return the state is advanced
+        to ``t_start + slot_h``.  Deterministic and always terminates: either a
+        tolerance-satisfied slot is found or the recursion hits the step floor.
+        """
+        state0, depot0 = self._snapshot_state()
+        # Coarse: one step of slot_h.
+        self._euler_step(slot_h, t_start, ka_per_h, k_elim_per_h)
+        coarse = self._snapshot_state()
+        self._restore_state(state0, depot0)
+        # Finer: two steps of slot_h/2.
+        h2 = slot_h / 2.0
+        self._euler_step(h2, t_start, ka_per_h, k_elim_per_h)
+        self._euler_step(h2, t_start + h2, ka_per_h, k_elim_per_h)
+        fine = self._snapshot_state()
+
+        if (self._local_error(coarse, fine) <= 1.0
+                or slot_h <= self._MIN_STEP_H):
+            # Accept the finer solution (already applied) — state now at t+slot_h.
+            return
+        if depth >= 12:
+            # Safety against pathological depth: settle for the finer result.
+            return
+        # Rejected: restart from state0 and split into two half-slots.
+        self._restore_state(state0, depot0)
+        self._integrate_slot(h2, t_start, ka_per_h, k_elim_per_h, depth + 1)
+        self._integrate_slot(h2, t_start + h2, ka_per_h, k_elim_per_h, depth + 1)
+
     def advance(self, dt_h: float, current_time_h: float) -> None:
-        """Advance PBPK by *dt_h*, handling the dosing schedule."""
+        """Advance PBPK by *dt_h*, handling the dosing schedule.
+
+        Adaptive sub-stepping (doc/39 O3): the explicit Euler equations are
+        unchanged, but the fixed ``_EULER_SAFETY`` clamp is replaced by
+        local-error-controlled step doubling (:meth:`_integrate_slot`).  Smooth
+        segments stay at the original nominal resolution while stiff segments
+        gain accuracy (removing ceiling-induced truncation error) — strictly
+        more faithful numerics with the same model.  Deterministic (no RNG).
+        """
         if dt_h <= 0.0:
             return
 
@@ -2467,16 +2546,14 @@ class _DrugPBPK:
             (self.k_renal_per_h + self.k_hepatic_per_h) * self.clearance_modifier
         )
 
+        # Nominal sub-step: same stability floor as the original fixed clamp.
         max_substep_h = self._EULER_SAFETY / self._max_rate_constant(ka_per_h, k_elim_per_h)
         n_substeps = min(self._MAX_SUBSTEPS, max(1, math.ceil(dt_h / max_substep_h)))
-        substep_h = dt_h / n_substeps
+        base_h = dt_h / n_substeps
+
         for i in range(n_substeps):
-            self._euler_step(
-                substep_h,
-                current_time_h + i * substep_h,
-                ka_per_h,
-                k_elim_per_h,
-            )
+            t_start = current_time_h + i * base_h
+            self._integrate_slot(base_h, t_start, ka_per_h, k_elim_per_h)
 
         self.sim_time_h += dt_h
 

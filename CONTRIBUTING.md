@@ -104,7 +104,7 @@ src/helixlang/     The package: three layers —
                      • plugins/     biological runtime + scientific apps (lazy)
                      • sim_runtime/ server/ debugger/ interop/ web/ _accel/
                     169 source modules across core, plugins, and support packages
-tests/             pytest suite (131 files, 3,315 tests) + shared conftest fixtures
+tests/             pytest suite (132 files, 3,315 tests) + shared conftest fixtures
 examples/          runnable .helix programs (must always compile & run)
 doc/               All technical documentation (37 files, kept in sync with code)
 validation/        75 reproducible benchmarks with SHA256-verified golden outputs
@@ -349,7 +349,7 @@ python validation/goldens/generate_goldens.py
 ```
 
 Current metrics (2026-08-27):
-- **71/75** benchmarks PASS
+- **75/75** benchmarks PASS
 - **40+** published references cited
 - **0** non-deterministic failures
 - **Median error**: ~3.0% (quantitative benchmarks vs published/analytical references)

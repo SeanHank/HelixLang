@@ -17,4 +17,15 @@ def grn_step(*args: Any, **kwargs: Any) -> Any:
     return step(*args, **kwargs)
 
 
-__all__ = ["grn_step"]
+def grn_step_mixed(*args: Any, **kwargs: Any) -> Any:
+    """Run one GRN step on mixed sigmoid/Hill activation (doc/39 O6).
+
+    Same selection/fidelity contract as :func:`grn_step`; compiled native
+    artifacts that predate the hook fall back to the byte-identical
+    ``impl_python`` kernel.
+    """
+    from helixlang._accel.grn_step.backend import step_mixed
+    return step_mixed(*args, **kwargs)
+
+
+__all__ = ["grn_step", "grn_step_mixed"]
