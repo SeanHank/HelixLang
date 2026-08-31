@@ -1,6 +1,7 @@
 id: 36_omics_integration
 name: Omics Integration — expression inference and spatial omics
 layer: omics
+level: L0
 reference: Walsh et al. 2024, MiMICS
 input: none (built-in expression model)
 parameters: {}

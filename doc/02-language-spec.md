@@ -85,6 +85,20 @@ block implicitly ends at the next `#` annotation or at end-of-file. `#gene` is t
 exception: it is the only block that consumes a trailing DNA body, and its `#end` is the
 conventional terminator.
 
+**Grammar registry (extensible DSL, doc/38 §5 + doc/41).** Every `#kind` is defined by a
+`core/grammar_registry.py` grammar, never by a hardcoded parser table. Core keywords are
+compiled from **grammar descriptors** (`GrammarDescriptor`/`FieldSpec`); a plugin adds a
+brand-new `#keyword` by declaring a descriptor in its plugin module (`PluginProvider.
+grammars`). A plugin-defined grammar is *inert* until the program declares `#use <plugin>`
+(§3.6); the compact form `#keyword field=value` is the v1 extension boundary (no
+plugin-defined token kinds). Data annotations round-trip `.helixc` through their grammar's
+`decompile` hook.
+
+`#quantity name=TOTAL expr=A+B` (a descriptor grammar, doc/41 Item 5) composes two
+`#type`-declared unit-carrying symbols or numbers at **compile time**: an incompatible
+dimension (e.g. `Float<µM> + Float<L>`) fails the semantic pass with a `DimensionError`
+naming both dimension trees, distinct from the runtime `UnitError`.
+
 Field value forms:
 
 | Form | Example | Meaning |

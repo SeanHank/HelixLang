@@ -1,6 +1,7 @@
 id: 02_lac_operon
 name: lac operon biphasic growth
 layer: runtime
+level: L3
 reference: Jakob & Monod 1961, Nature 191:141
 reference_doi: 10.1038/191141a0
 input: examples/02_lac_operon.helix

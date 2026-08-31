@@ -6,7 +6,8 @@
   "reference": {
     "source": "Standard genetic code (NCBI Translation Table 1)",
     "authors": "NCBI",
-    "note": "Universal genetic code, 64 codons mapping to 20 amino acids + stop"
+    "note": "Universal genetic code, 64 codons mapping to 20 amino acids + stop",
+    "doi": "https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi"
   },
   "expected": {
     "metric": "codon_count",
@@ -51,5 +52,6 @@
     "vm_protein_total": 50.0,
     "vm_ticks_run": 50
   },
-  "runtime_seconds": 0.06242912507150322
+  "runtime_seconds": 0.07086624996736646,
+  "level": "L3"
 }

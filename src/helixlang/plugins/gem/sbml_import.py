@@ -6,10 +6,17 @@ BiGG database via cobrapy, converting them to HelixLang's internal
 
 Usage::
 
-    from helixlang.plugins.gem.sbml_import import load_bigg_model, load_sbml_model
+    from helixlang.plugins.gem.sbml_import import (
+        load_bigg_model, load_bigg_cobra_model, load_sbml_model)
 
     # Load from BiGG (requires network)
     model = load_bigg_model("iML1515")
+
+    # Load from a local vendored copy first, network only as fallback
+    # (doc/41 — offline-first CI: vendored models live in
+    # validation/references/models/; set HELIX_BENCHMARK_OFFLINE=1 to forbid
+    # the network fallback entirely so the CI test job is deterministic).
+    model = load_bigg_model("iML1515", model_dir="validation/references/models")
 
     # Load from local SBML file
     model = load_sbml_model("/path/to/model.xml")
@@ -20,6 +27,7 @@ The ``cobra`` package must be installed (``pip install cobra`` or
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -51,6 +59,77 @@ def _require_cobra():  # type: ignore[no-untyped-def]
         ) from None
 
 
+def _offline_enabled() -> bool:
+    """True when the caller must never use the network (``HELIX_BENCHMARK_OFFLINE=1``)."""
+    return os.environ.get("HELIX_BENCHMARK_OFFLINE", "") == "1"
+
+
+def _vendored_candidates(model_id: str, model_dir: Path) -> list[Path]:
+    """Candidate vendored files for a BiGG model id (doc/41).
+
+    Normalises separators/case so ``e_coli_core`` finds ``ecoli_core.json`` and
+    ``iML1515`` finds ``iml1515.xml`` etc.  Tried in order (SBML before JSON);
+    the first loadable candidate wins.
+    """
+    names = {
+        model_id,
+        model_id.lower(),
+        model_id.replace("_", ""),
+        model_id.lower().replace("_", ""),
+    }
+    paths: list[Path] = []
+    for ext in (".xml", ".sbml", ".json"):
+        for n in sorted(names):
+            paths.append(model_dir / f"{n}{ext}")
+    return paths
+
+
+def load_bigg_cobra_model(
+    model_id: str,
+    model_dir: str | Path | None = None,
+    offline: bool = False,
+) -> object:
+    """Load a BiGG model into a COBRApy model, preferring a vendored copy.
+
+    Resolution order (doc/41 — offline-first CI):
+    1. ``model_dir``: a vendored ``<id>.xml``/``<id>.sbml`` (SBML) or
+       ``<id>.json`` (BiGG JSON export, e.g. ``validation/references/models/``).
+    2. Network ``cobra.io.load_model(model_id)`` — unless ``offline=True`` or
+       ``HELIX_BENCHMARK_OFFLINE=1``.
+    3. Otherwise raise :class:`BioError` naming the model as unavailable;
+       callers that cannot obtain it should SKIP their benchmark, never FAIL.
+
+    Returns a COBRApy ``cobra.core.Model``.
+    """
+    cobra = _require_cobra()
+    force_offline = offline or _offline_enabled()
+    if model_dir is not None:
+        for cand in _vendored_candidates(model_id, Path(model_dir)):
+            if not cand.exists():
+                continue
+            try:
+                with _stderr_for_cobra():
+                    if cand.suffix.lower() in (".json",):
+                        return cobra.io.load_json_model(str(cand))
+                    return cobra.io.read_sbml_model(str(cand))
+            except Exception:
+                # Try the next candidate format/path; fall through to network.
+                continue
+    if force_offline:
+        raise BioError(
+            f"BiGG model {model_id!r} unavailable offline: no loadable vendored "
+            f"copy in {model_dir or '<none>'}"
+        )
+    try:
+        with _stderr_for_cobra():
+            return cobra.io.load_model(model_id)
+    except Exception as exc:
+        raise BioError(
+            f"could not load BiGG model {model_id!r}: {exc}. "
+            "Check network connectivity and model ID."
+        ) from exc
+
+
 def load_sbml_model(path: str | Path, preserve_gpr: bool = True) -> MetabolicModel:
     """Load a metabolic model from an SBML Level 2/3 XML file.
 
@@ -77,10 +156,15 @@ def load_sbml_model(path: str | Path, preserve_gpr: bool = True) -> MetabolicMod
     return _from_cobra_model(sbml_model, preserve_gpr=preserve_gpr)
 
 
-def load_bigg_model(model_id: str, preserve_gpr: bool = True) -> MetabolicModel:
-    """Load a genome-scale model from the BiGG database.
+def load_bigg_model(
+    model_id: str,
+    preserve_gpr: bool = True,
+    model_dir: str | Path | None = None,
+    offline: bool = False,
+) -> MetabolicModel:
+    """Load a genome-scale model from the BiGG database (or a vendored copy).
 
-    Downloads the model via cobrapy's network interface.  Common models:
+    Common models:
     - ``"iML1515"`` — E. coli K-12 MG1655 (Monk 2017, 2712 reactions)
     - ``"iSyn810"`` — Synechocystis PCC 6803 (Knoop 2013, 1948 reactions)
     - ``"iJO1366"`` — E. coli K-12 (Orth 2011, 2583 reactions)
@@ -91,20 +175,16 @@ def load_bigg_model(model_id: str, preserve_gpr: bool = True) -> MetabolicModel:
     ----------
     model_id : BiGG model identifier (e.g. ``"iML1515"``)
     preserve_gpr : if True, preserve gene-protein-reaction rules
+    model_dir : optional directory with vendored models (doc/41 offline-first).
+        Files are looked up as ``<id>.xml`` / ``<id>.sbml`` / ``<id>.json``.
+    offline : if True (or ``HELIX_BENCHMARK_OFFLINE=1``), never touch the
+        network; a missing vendored copy raises :class:`BioError`.
 
     Returns
     -------
     MetabolicModel ready for FBA.
     """
-    cobra = _require_cobra()
-    try:
-        with _stderr_for_cobra():
-            sbml_model = cobra.io.load_model(model_id)
-    except Exception as exc:
-        raise BioError(
-            f"could not load BiGG model {model_id!r}: {exc}. "
-            "Check network connectivity and model ID."
-        ) from exc
+    sbml_model = load_bigg_cobra_model(model_id, model_dir=model_dir, offline=offline)
     from helixlang.plugins.runtime.metabolism import _from_cobra_model
     return _from_cobra_model(sbml_model, preserve_gpr=preserve_gpr)
 

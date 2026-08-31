@@ -1,6 +1,7 @@
 id: 52_community_fba
 name: Community FBA cross-feeding
 layer: metabolism
+level: L0
 reference: Harcombe 2010, J Theor Biol
 input: programmatic
 expected:

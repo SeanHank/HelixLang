@@ -7,7 +7,6 @@ and compares growth rate and fluxes against the COBRApy solution.
 """
 from __future__ import annotations
 
-import io
 import json
 import math
 import os
@@ -16,6 +15,7 @@ import time
 from pathlib import Path
 
 REF_DIR = Path(__file__).resolve().parents[2] / "references"
+MODEL_DIR = REF_DIR / "models"
 
 
 def _pearson_r(x: list[float], y: list[float]) -> float:
@@ -40,17 +40,24 @@ def run() -> dict:
         _orig_tqdm = _tqdm_mod.tqdm
         _tqdm_mod.tqdm = lambda *a, **kw: _orig_tqdm(*a, **{**kw, "disable": True})
 
-        import cobra
-
         from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
+        from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
 
-        # Download iJN678 from BiGG
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+        # Load iJN678 (vendored copy first; doc/41 — SKIP if unavailable)
         try:
-            cobra_model = cobra.io.load_model("iJN678")
-        finally:
-            sys.stdout = old_stdout
+            cobra_model = load_bigg_cobra_model(
+                "iJN678", model_dir=MODEL_DIR,
+            )
+        except Exception as exc:
+            return {
+                "id": "05_in678_photoauto",
+                "status": "SKIP",
+                "reference": {
+                    "source": "BiGG iJN678 via COBRApy (photoautotrophic)",
+                },
+                "reason": f"BiGG iJN678 unavailable: {exc}",
+                "runtime_seconds": time.perf_counter() - t0,
+            }
 
         n_rxn = len(cobra_model.reactions)
         n_met = len(cobra_model.metabolites)

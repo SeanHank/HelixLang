@@ -1,6 +1,7 @@
 id: 17b_transcribe
 name: DNA transcription
 layer: molecular
+level: L0
 reference: Central dogma — transcription
 reference_doi: null
 input: none (built-in DNA)

@@ -1,6 +1,7 @@
 id: 17c_translate
 name: mRNA translation
 layer: molecular
+level: L0
 reference: Central dogma — translation
 reference_doi: null
 input: none (built-in transcript)

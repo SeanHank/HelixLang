@@ -1,6 +1,7 @@
 id: 72_batch_runtime_parity
 name: Vector batch runtime parity (numpy/JAX) vs the portable IR VM
 layer: runtime
+level: L0
 reference: doc/37 Helix-IR-first-class §5.4/§7.4; doc/36 R5 no-silent-fallbacks
 input: programmatic
 expected:

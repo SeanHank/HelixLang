@@ -303,6 +303,34 @@ parse/compile/decompile/load work without touching `parser.py` or `hxbc.py`;
 keyword collision raises `PluginConflictError`; `helixc info` lists registered
 grammars.
 
+### 5.1 — End state after doc/41 (descriptor grammars, `#use` activation)
+
+doc/41 (Item 3 + 4) converged this goal with the plugin platform: the parser now
+knows *zero* `#keyword` beyond dispatch plumbing.  Data annotations are declared
+as **grammar descriptors** and compiled by the registry:
+
+- **`GrammarDescriptor`** (in `core/grammar_registry.py`) declares `keyword`,
+  `fields: tuple[FieldSpec, …]`, `allow_extra`, `body` (`"fields"` | `"raw"`),
+  `target` (`"section"` | `"sim_extensions"`), plus optional `parse`/`validate`/
+  `decompile` hooks and an `owner`.  `FieldSpec` carries `type`, `required`,
+  `default`, and `unit` (consumed by the doc/41 Item 5 static unit layer).
+- **`compile_descriptor`** turns a descriptor into an `AnnotationGrammar`: a
+  generic field-collector parse hook (coercion + required + default per
+  `FieldSpec`) or, for `body="raw"`, the plugin-supplied callable that drives the
+  parser through the protected **`Parser.token_hooks`** surface
+  (`advance`/`peek`/`expect`/`collect_fields`).
+- **`#use` activation** (`requires_use`): a plugin's grammar is *inert* until the
+  program declares `#use <plugin>`; without it the keyword is the hard
+  `UnknownKeywordError` — never a silent passthrough.  `Registry.register` installs
+  a provider's `grammars` slot and wires `provider_for_keyword` to the one shared
+  table, so backend-plugin ↔ language-plugin is one mechanism (doc/41 §4.2–4.3).
+- **`#quantity name=X expr=A+B`** is built the same way (a core descriptor whose
+  semantic hook is the doc/41 Item 5 `DimInferencer`).
+
+A brand-new `#keyword` now lands with zero edits to `parser.py`/`lexer.py`
+(demo: `helixlang.plugins.cardiology` → `#cardiac_cycle period=0.8 …`, with a
+semantic validator and a `.helixc` round-trip).
+
 ## 6 — True plugin architecture (goal 4)
 
 This section is the formal spec for pluginization and is normative.  It defines

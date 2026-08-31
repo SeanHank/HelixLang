@@ -10,7 +10,7 @@
   },
   "details": {
     "genes": 16,
-    "full_rebuild_seconds": 0.00013995904009789228,
+    "full_rebuild_seconds": 0.00015991705004125834,
     "per_edit_closure_sizes": [
       2,
       2,
@@ -29,10 +29,13 @@
       2,
       1
     ],
-    "incremental_total_seconds": 0.0043921268079429865,
-    "naive_recompile_total_seconds": 0.0020993856014683843,
-    "work_reduction_ratio": 0.4779883854154049
+    "incremental_total_seconds": 0.004782458068802953,
+    "naive_recompile_total_seconds": 0.002398755750618875,
+    "work_reduction_ratio": 0.5015738175032829
   },
   "reference": "doc/38 \u00a73 incremental JIT (core/incr.py)",
-  "runtime_seconds": 0.04440100002102554
+  "runtime_seconds": 0.04876370797865093,
+  "layer": "compiler",
+  "name": "Incremental JIT \u2014 closure-limited gene recompile",
+  "level": "L0"
 }

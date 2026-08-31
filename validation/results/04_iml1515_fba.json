@@ -1,21 +1,12 @@
 {
   "id": "04_iml1515_fba",
-  "status": "PASS",
+  "status": "SKIP",
+  "reason": "Could not download iML1515 from BiGG: The connection to the BiGG Models repository failed.",
+  "runtime_seconds": 1.7560540420236066,
+  "layer": "metabolism",
+  "name": "E. coli iML1515 genome-scale FBA",
+  "level": "L2",
   "reference": {
-    "source": "BiGG iML1515 via COBRApy",
-    "growth_rate": 0.8769972144269406,
-    "expected_approx": 0.871,
-    "n_reactions": 2712,
-    "n_metabolites": 1877,
-    "glc_uptake": 10.0
-  },
-  "helixlang": {
-    "growth_rate": 0.8769972144269635,
-    "model_reactions": 2712
-  },
-  "comparison": {
-    "growth_rate_rel_error": 2.6204891226202698e-14,
-    "growth_rate_tolerance": 0.05
-  },
-  "runtime_seconds": 5.678689916967414
+    "doi": "10.1038/nbt.3956"
+  }
 }

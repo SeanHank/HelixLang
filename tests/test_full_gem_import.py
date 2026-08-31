@@ -15,6 +15,7 @@ from helixlang.plugins.gem.sbml_import import (  # noqa: E402
     detect_compartments,
     detect_exchange_reactions,
     get_model_info,
+    load_bigg_cobra_model,
     load_sbml_model,
 )
 from helixlang.plugins.runtime.metabolism import _HAS_SCIPY, simplex, solve_lp  # noqa: E402
@@ -24,10 +25,21 @@ _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_cached_model(bigg_id: str) -> Path:
+    """Return a local SBML file for ``bigg_id`` (doc/41).
+
+    Offline-first: the doc/41 loader prefers a vendored copy in
+    validation/references/models/; the SBML is cached under ~/.helixlang.
+    If the model cannot be obtained (no vendored copy, no network) the test is
+    skipped rather than failed — consistent with the release SKIP policy.
+    """
     sbml_path = _CACHE_DIR / f"{bigg_id}.xml"
-    if not sbml_path.exists():
-        model = cobra.io.load_model(bigg_id)
+    if sbml_path.exists():
+        return sbml_path
+    try:
+        model = load_bigg_cobra_model(bigg_id)
         cobra.io.write_sbml_model(model, str(sbml_path))
+    except Exception as exc:  # noqa: BLE001 - model unavailability → skip
+        pytest.skip(f"BiGG model {bigg_id} unavailable: {exc}")
     return sbml_path
 
 

@@ -154,7 +154,7 @@ def run() -> dict:
         return {
             "id": "10_whole_cell",
             "status": "PASS" if all_pass else "FAIL",
-            "layer": "cell_biology",
+            "layer": "virtual_cell",
             "name": "Whole-cell division time",
             "reference": {
                 "source": "E. coli K-12 generation time",

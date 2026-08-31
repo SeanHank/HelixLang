@@ -16,6 +16,19 @@ import time
 from pathlib import Path
 
 REF_DIR = Path(__file__).resolve().parents[2] / "references"
+MODEL_DIR = REF_DIR / "models"
+
+
+def _skip(reason: str, t0: float) -> dict:
+    """Benchmark cannot run: external model artefact unavailable → SKIP (doc/41)."""
+    return {
+        "id": "03_ecoli_fba",
+        "status": "SKIP",
+        "layer": "metabolism",
+        "name": "E. coli core FBA growth rate",
+        "reason": reason,
+        "runtime_seconds": time.perf_counter() - t0,
+    }
 
 
 def _pearson_r(x: list[float], y: list[float]) -> float:
@@ -37,7 +50,6 @@ def run() -> dict:
     t0 = time.perf_counter()
     errors: list[str] = []
     try:
-        import io
         import os
         os.environ["TQDM_DISABLE"] = "1"
         # Also monkeypatch tqdm class to suppress any remaining bars
@@ -45,17 +57,17 @@ def run() -> dict:
         _orig_tqdm = _tqdm_mod.tqdm
         _tqdm_mod.tqdm = lambda *a, **kw: _orig_tqdm(*a, **{**kw, "disable": True})
 
-        import cobra
-
         from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
-        # ── Step 1: load BiGG model via COBRApy ────────────────────────
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+        # ── Step 1: load e_coli_core (vendored copy first; doc/41) ─────
+        from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+
         try:
-            cobra_model = cobra.io.load_model("e_coli_core")
-        finally:
-            sys.stdout = old_stdout
+            cobra_model = load_bigg_cobra_model(
+                "e_coli_core", model_dir=MODEL_DIR,
+            )
+        except Exception as exc:
+            return _skip(f"BiGG e_coli_core unavailable: {exc}", t0)
         cobra_model.solver = "glpk"
         cobra_sol = cobra_model.optimize()
         cobra_growth = float(cobra_sol.objective_value)
@@ -184,4 +196,4 @@ def run() -> dict:
 if __name__ == "__main__":
     r = run()
     print(json.dumps(r, indent=2))
-    sys.exit(0 if r["status"] == "PASS" else 1)
+    sys.exit(0 if r["status"] in ("PASS", "SKIP") else 1)

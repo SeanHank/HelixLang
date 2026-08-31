@@ -28,5 +28,8 @@
     "volume": "154",
     "pages": "731-739"
   },
-  "runtime_seconds": 0.48547104105819017
+  "runtime_seconds": 0.4786020420724526,
+  "layer": "pharmacology",
+  "name": "Molecular toxicity",
+  "level": "L0"
 }

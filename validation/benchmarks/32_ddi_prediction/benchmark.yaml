@@ -1,6 +1,7 @@
 id: 32_ddi_prediction
 name: Drug-drug interaction prediction
 layer: human
+level: L0
 reference: Lynch & Price 2007, CPIC guidelines
 input: none (built-in DDI rules)
 parameters:

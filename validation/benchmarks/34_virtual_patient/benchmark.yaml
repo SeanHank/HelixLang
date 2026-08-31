@@ -1,6 +1,7 @@
 id: 34_virtual_patient
 name: Virtual patient instantiation and import
 layer: human
+level: L0
 reference: doc/28 virtual-patient pipeline
 input: none (config created inline)
 parameters:

@@ -377,5 +377,11 @@
       0.5
     ]
   },
-  "runtime_seconds": 0.07554620795417577
+  "runtime_seconds": 0.06981029093731195,
+  "layer": "grn",
+  "name": "Repressilator oscillation",
+  "level": "L4",
+  "reference": {
+    "doi": "10.1038/35000122"
+  }
 }

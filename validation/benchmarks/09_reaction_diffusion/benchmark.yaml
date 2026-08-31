@@ -1,6 +1,7 @@
 id: 09_reaction_diffusion
 name: Reaction-diffusion (Gray-Scott)
 layer: pattern_formation
+level: L2
 reference: Turing 1952, Phil Trans R Soc B 237:37-72; Pearson 1993
 reference_doi: 10.1098/rstb.1993.0002
 input: none (programmatic GrayScott)

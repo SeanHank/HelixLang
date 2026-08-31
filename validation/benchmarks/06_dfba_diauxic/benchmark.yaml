@@ -1,6 +1,7 @@
 id: 06_dfba_diauxic
 name: dFBA diauxic shift
 layer: metabolism
+level: L4
 reference: Goncalves et al. 2006, Bioinformatics 22:e454-e457
 reference_doi: 10.1093/bioinformatics/btl470
 input: built-in ECOLI_CORE_MODEL

@@ -1,6 +1,7 @@
 id: 31_pd_dose_response
 name: Hill equation dose-response curve
 layer: human
+level: L0
 reference: Hill AV 1910, Rang & Dale 2019
 input: none (pure math)
 parameters:

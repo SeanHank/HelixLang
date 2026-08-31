@@ -27,9 +27,22 @@ class SemanticAnalyzer:
         self._check_regulation_cycles()
         self._check_config()
         self._check_units()
+        self._check_dim_inference()
         self._check_effects()
         self._check_use_directives()
         self._check_grammar_validators()
+
+    def _check_dim_inference(self) -> None:
+        """Physical-unit inference over ``#quantity`` statements (doc/41 §6).
+
+        ``#quantity name=X expr=A+B`` is a compile-time dimension check:
+        symbols resolve via ``#type`` unit annotations and a mismatched
+        composition raises :class:`DimensionError` naming both dimension
+        trees (distinct from the runtime :class:`UnitError`).
+        """
+        from helixlang.core.dim_inferencer import DimInferencer
+
+        DimInferencer(self.prog).infer()
 
     def _check_grammar_validators(self) -> None:
         """Run every registered grammar validator (doc/38 §5).

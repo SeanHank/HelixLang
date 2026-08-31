@@ -1,6 +1,7 @@
 id: 68_bio_validity
 name: Biological validity — Helix Model vs measured data
 layer: validity
+level: L0
 reference: Orth 2010, Elowitz 2000, Bar-Even 2011, Wanner 1996
 input: programmatic
 expected:

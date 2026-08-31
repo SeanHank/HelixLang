@@ -1,6 +1,7 @@
 id: 01_codon_translation
 name: Codon translation fidelity
 layer: language
+level: L3
 reference: NCBI Genetic Code Table 1
 reference_doi: https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi
 input: none (built-in table)

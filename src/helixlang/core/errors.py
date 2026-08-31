@@ -56,6 +56,15 @@ class SemanticError(HelixError):
     """Semantic error (e.g., duplicate symbols, references to undefined genes)."""
 
 
+class DimensionError(SemanticError):
+    """Compile-time dimensional mismatch (doc/41 Item 5, Ring 1).
+
+    Raised when a program composes quantities of incompatible physical
+    dimensions (e.g. ``Float<µM> + Float<µm3>``); distinct from the runtime
+    :class:`~helixlang.core.dimensions.UnitError`.
+    """
+
+
 class CompileError(HelixError):
     """Compile-time error (e.g., unknown codon, constant pool out of bounds)."""
 

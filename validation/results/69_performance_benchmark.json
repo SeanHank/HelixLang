@@ -10,8 +10,8 @@
   },
   "details": {
     "ticks_executed": 500,
-    "vm_run_time_ms": 7.591,
-    "compile_time_ms": 0.085,
+    "vm_run_time_ms": 7.281,
+    "compile_time_ms": 0.078,
     "downsample_interval_20k": 40,
     "long_trace_entries": 501,
     "long_ticks": 1500,
@@ -21,5 +21,8 @@
     "dispatch_result": 15.0
   },
   "reference": "doc/13 performance report; doc/37 \u00a73 performance optimization",
-  "runtime_seconds": 0.10974904196336865
+  "runtime_seconds": 0.1023277499480173,
+  "layer": "performance",
+  "name": "Performance optimization \u2014 dispatch acceleration + snapshot downsampling",
+  "level": "L2"
 }

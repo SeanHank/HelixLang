@@ -1,6 +1,7 @@
 id: 10_whole_cell
 name: Whole-cell integrated simulation
 layer: virtual_cell
+level: L4
 reference: Karr et al. 2012, Cell 150:389-401
 reference_doi: 10.1016/j.cell.2012.05.044
 input: none (programmatic VirtualCell)

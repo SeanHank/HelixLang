@@ -48,5 +48,8 @@
       }
     ]
   },
-  "runtime_seconds": 0.12286391598172486
+  "runtime_seconds": 0.1138860828941688,
+  "layer": "population",
+  "name": "Wright-Fisher evolution",
+  "level": "L0"
 }

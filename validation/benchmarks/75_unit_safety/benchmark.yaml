@@ -1,6 +1,7 @@
 id: 75_unit_safety
 name: Unit system & dimensional safety
 layer: compiler
+level: L0
 reference: doc/38 §8 unit system & dimensional safety (goal 10), Phase D gate
 input: programmatic
 expected:

@@ -115,15 +115,88 @@ def run(program: Program, backend: str | None = None) -> SimResult | None:
         seed=getattr(program.config, "seed", None),
         source=getattr(program, "_source_text", None),
     ))
-    if result is not None and not result.provenance:
-        from helixlang.core.provenance import build_provenance
-        seed = getattr(program.config, "seed", None)
-        result.provenance = build_provenance(
-            seed=seed,
-            backend=resolved.id,
+    if result is not None:
+        from helixlang.core.provenance import _native_available, complete_provenance
+        result.provenance = complete_provenance(
+            result.provenance or {},
+            seed=_config_seed(program),
+            seeds=_collect_seeds(program),
+            backend_name=resolved.id,
+            backend_impl={
+                "name": resolved.id,
+                "native": _native_available(),
+            },
+            parameters=_effective_config_dict(program),
+            solver=_solver_probe(result),
             source=getattr(program, "_source_text", None),
         )
     return result
+
+
+def _collect_seeds(program: Program) -> dict[str, int]:
+    """Gather every declared RNG seed on the program (doc/41 §7.1 ``seeds``).
+
+    Scans ``#config`` attributes, the ``#config`` long-tail ``sim`` dict
+    (``#config seed=...`` / ``*_seed=...`` keys live there verbatim), plus any
+    ``*_seed`` keys off the sim extension namespace.
+    """
+    seeds: dict[str, int] = {}
+    for attr in ("seed", "fit_seed", "cripple_seed", "noise_seed",
+                 "genome_seed", "sde_seed", "pool_seed", "seed_a", "seed_b"):
+        value = getattr(program.config, attr, None)
+        if isinstance(value, int):
+            seeds[attr] = value
+    for key, value in program.config.sim.items():
+        if isinstance(key, str) and (key.endswith("_seed") or key == "seed"):
+            try:
+                seeds[key] = int(value)
+            except (TypeError, ValueError):
+                continue
+    for key, value in program.extensions.items():
+        if isinstance(key, str) and key.endswith("_seed") and isinstance(value, int):
+            seeds[f"sim.{key}"] = value
+    return seeds
+
+
+def _config_seed(program: Program) -> int | None:
+    """Effective RNG seed from ``#config seed`` / ``#config ``*_seed`` keys."""
+    seed = getattr(program.config, "seed", None)
+    raw = program.config.sim.get("seed")
+    if raw is not None:
+        try:
+            seed = int(raw)
+        except (TypeError, ValueError):
+            # non-integer seed string => no effective seed (not an error)
+            seed = None
+    return seed if isinstance(seed, int) else None
+
+
+def _solver_probe(result: Any) -> dict[str, Any]:
+    """Solver metadata from the result, import-free (doc/41 §7.2.3).
+
+    A backend executor that want to tag its solver simply puts a ``solver``
+    dict (or ``solver_method`` / ``solver_status``) in ``result.meta``; the
+    probe falls back to ``"unknown:see backend"`` when the executor opts out.
+    """
+    meta = getattr(result, "meta", None)
+    if isinstance(meta, dict):
+        solver = meta.get("solver")
+        if isinstance(solver, dict):
+            return solver
+        method = meta.get("solver_method")
+        status = meta.get("solver_status")
+        if method is not None or status is not None:
+            return {
+                "id": str(method or ""),
+                "status": str(status),
+            }
+    return {"id": "unknown:see backend"}
+
+
+def _effective_config_dict(program: Program) -> dict[str, Any]:
+    """Serialisable parameter dict from the effective backend config."""
+    from dataclasses import asdict
+    return asdict(_effective_config(program))
 def _effective_config(program: Program) -> EffectiveConfig:
     """Typed view of ``#config`` for a :class:`~helixlang.api.backend.RunRequest`.
 

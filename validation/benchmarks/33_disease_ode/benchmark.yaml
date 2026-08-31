@@ -1,6 +1,7 @@
 id: 33_disease_ode
 name: Disease ODE model simulation
 layer: human
+level: L0
 reference: Bergman RN 1981, Guyton & Hall 2016
 input: none (model created inline)
 parameters:

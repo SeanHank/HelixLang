@@ -80,7 +80,7 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
-            "layer": "pharmacology",
+            "layer": "human",
             "name": "PBPK IV bolus simulation",
             "reference": {
                 "source": "IV bolus pharmacokinetics (one-compartment model)",

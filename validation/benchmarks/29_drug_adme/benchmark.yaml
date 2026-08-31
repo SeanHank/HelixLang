@@ -1,6 +1,7 @@
 id: 29_drug_adme
 name: Drug ADME predefined library lookup
 layer: human
+level: L0
 reference: Rowland & Tozer 2020, CPIC guidelines
 input: none (built-in drug library)
 parameters:

@@ -1,6 +1,7 @@
 id: 03_ecoli_fba
 name: E. coli core FBA growth rate
 layer: metabolism
+level: L4
 reference: Orth et al. 2010, PLoS Comput Biol 6:e1000822
 reference_doi: 10.1371/journal.pcbi.1000822
 input: built-in ECOLI_CORE_MODEL

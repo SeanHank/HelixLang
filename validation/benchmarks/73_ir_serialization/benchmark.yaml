@@ -1,6 +1,7 @@
 id: 73_ir_serialization
 name: HLIR serialization robustness
 layer: compiler
+level: L0
 reference: doc/37 Helix-IR-first-class §5.3/§6
 input: programmatic
 expected:

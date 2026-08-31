@@ -23,5 +23,8 @@
     "euler_maruyama": "Maruyama K 1955, Proc Imp Acad 30:10",
     "dose_optimization": "Jusko WJ, Ko HC 1994, J Pharmacokinet Biopharm 22:389"
   },
-  "runtime_seconds": 0.5049032089300454
+  "runtime_seconds": 0.48083083308301866,
+  "layer": "pharmacology",
+  "name": "Stochastic ODE + dose optimizer",
+  "level": "L0"
 }

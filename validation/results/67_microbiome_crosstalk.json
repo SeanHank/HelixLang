@@ -26,5 +26,8 @@
     "microbiome": "Spanogiannopoulos P et al. 2016, Nat Rev Pharmacol 16:135",
     "organ_crosstalk": "Qi Z et al. 2017, PLoS Comput Biol 13:e1005416"
   },
-  "runtime_seconds": 0.5117150829173625
+  "runtime_seconds": 0.43744045798666775,
+  "layer": "physiology",
+  "name": "Microbiome + organ crosstalk",
+  "level": "L0"
 }

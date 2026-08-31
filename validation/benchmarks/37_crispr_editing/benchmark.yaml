@@ -1,6 +1,7 @@
 id: 37_crispr_editing
 name: CRISPR Editing — PAM finding, guide design, off-target scoring
 layer: crispr
+level: L0
 reference: Jinek 2012, Doench 2016, Hsu 2013
 input: none (test sequences)
 parameters: {}

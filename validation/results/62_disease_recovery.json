@@ -48,5 +48,8 @@
     "volume": "13",
     "pages": "322"
   },
-  "runtime_seconds": 0.497015375061892
+  "runtime_seconds": 0.4781371660064906,
+  "layer": "physiology",
+  "name": "Disease progression + recovery",
+  "level": "L0"
 }

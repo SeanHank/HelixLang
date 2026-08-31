@@ -1,7 +1,7 @@
 {
   "id": "30_pk_simulation",
   "status": "PASS",
-  "layer": "pharmacology",
+  "layer": "human",
   "name": "PBPK IV bolus simulation",
   "reference": {
     "source": "IV bolus pharmacokinetics (one-compartment model)",
@@ -45,5 +45,6 @@
     "n_time_points": 289,
     "final_concentration": 0.110688
   },
-  "runtime_seconds": 0.6093049580231309
+  "runtime_seconds": 0.5912682919297367,
+  "level": "L1"
 }

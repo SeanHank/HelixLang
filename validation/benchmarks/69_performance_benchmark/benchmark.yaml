@@ -1,6 +1,7 @@
 id: 69_performance_benchmark
 name: Performance optimization — dispatch acceleration + snapshot downsampling
 layer: performance
+level: L2
 reference: doc/13 performance report, doc/37 §3
 input: programmatic
 expected:

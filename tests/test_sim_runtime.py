@@ -162,6 +162,22 @@ def test_whole_cell_replicon_bad_spec_raises():
 # ============================================================================
 # W-2: fba backend (FluxBalanceAnalysis / DynamicFluxBalance)
 # ============================================================================
+def test_fba_engine_attach_completes_provenance_contract():
+    """doc/41 §7: engine auto-attach fills every contract key on SimResult."""
+    from helixlang.core.provenance import PROVENANCE_CONTRACT_KEYS
+
+    src = "#media nutrient=GLC concentration=10.0\n#config backend=fba\n"
+    result = run(parse(src))
+    assert result is not None
+    prov = result.provenance
+    for key in PROVENANCE_CONTRACT_KEYS:
+        assert key in prov, f"engine provenance missing {key!r}"
+    assert prov["backend_implementation"]["name"] == "fba"
+    assert isinstance(prov["backend_implementation"]["native"], bool)
+    assert prov["solver"]  # probe filled a non-empty solver record
+    assert prov["fidelity_mode"] in ("full", "reduced")
+
+
 def test_fba_backend_static_fluxes():
     src = """
 #gene name=glk

@@ -2,13 +2,16 @@
 """Benchmark 11: Performance comparison — HelixLang vs COBRApy FBA solve times."""
 from __future__ import annotations
 
-import io
 import json
 import os
 import sys
 import time
+from pathlib import Path
 
 os.environ["TQDM_DISABLE"] = "1"
+
+REF_DIR = Path(__file__).resolve().parents[2] / "references"
+MODEL_DIR = REF_DIR / "models"
 
 
 def _suppress_tqdm() -> None:
@@ -21,14 +24,10 @@ def _suppress_tqdm() -> None:
 
 
 def _load_cobra_model(model_id: str):
-    """Load a COBRApy model with stdout suppressed."""
-    import cobra
-    old_stdout = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
-        model = cobra.io.load_model(model_id)
-    finally:
-        sys.stdout = old_stdout
+    """Load a COBRApy model via the doc/41 loader (vendored first, then network)."""
+    from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+
+    model = load_bigg_cobra_model(model_id, model_dir=MODEL_DIR)
     model.solver = "glpk"
     ex_rxn = model.reactions.get_by_id("EX_glc__D_e")
     ex_rxn.lower_bound = -10.0
@@ -96,13 +95,16 @@ def run() -> dict:
             "iml1515": None,
         }
 
-        # Benchmark e_coli_core
+        # Benchmark e_coli_core (required — doc/41: unavailable → SKIP)
         core = _benchmark_model("e_coli_core")
         if core is None:
-            result["status"] = "FAIL"
-            result["error"] = "Failed to load e_coli_core"
-        else:
-            result["ecoli_core"] = core
+            return {
+                "id": "11_performance_comparison",
+                "status": "SKIP",
+                "reason": "BiGG e_coli_core unavailable (no vendored copy, no network)",
+                "runtime_seconds": time.perf_counter() - t0,
+            }
+        result["ecoli_core"] = core
 
         # Benchmark iML1515 (optional)
         iml = _benchmark_model("iML1515")

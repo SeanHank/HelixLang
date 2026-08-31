@@ -6,6 +6,8 @@ the hardcoded core-model assumptions in ``sim_runtime.py``.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from helixlang.core.errors import BioError
 from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, MetabolicModel
 
@@ -49,8 +51,20 @@ class FullModelAdapter:
         self.fba: FluxBalanceAnalysis | None = None
 
     @classmethod
-    def from_bigg(cls, organism_id: str) -> FullModelAdapter:
-        """Create adapter by loading a model from BiGG."""
+    def from_bigg(
+        cls,
+        organism_id: str,
+        model_dir: str | Path | None = None,
+    ) -> FullModelAdapter:
+        """Create adapter by loading a model from BiGG (or a vendored copy).
+
+        Parameters
+        ----------
+        organism_id : registered organism key (e.g. ``"e_coli_k12"``)
+        model_dir : optional directory of vendored models (doc/41 offline-first
+            CI).  Passed to :func:`sbml_import.load_bigg_model`; set
+            ``HELIX_BENCHMARK_OFFLINE=1`` to forbid the network fallback.
+        """
         from helixlang.plugins.gem.organism_registry import get_organism_config
         from helixlang.plugins.gem.sbml_import import load_bigg_model
 
@@ -60,7 +74,7 @@ class FullModelAdapter:
                 f"organism {organism_id!r} not in registry; "
                 f"available: {list_supported_organisms_str()}"
             )
-        model = load_bigg_model(config.bigg_id)
+        model = load_bigg_model(config.bigg_id, model_dir=model_dir)
         return cls(model, organism_id, biomass_rxn=config.biomass_rxn)
 
     @classmethod

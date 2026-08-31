@@ -27,6 +27,7 @@ central_dogma) may import it without circularity.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 # ============================================================================
 # Base axes (SI-derived)
@@ -175,6 +176,28 @@ def decay_to_half_life_ticks(decay: float) -> float:
     return math.log(0.5) / math.log(decay)
 
 
+def declare_unit(name: str, dim: Any, si_factor: float) -> None:
+    """Register a named unit with the quantity layer (doc/41 §6, Ring 2).
+
+    ``dim`` is a :class:`~helixlang.core.dimensions.Dimension`; the registry is
+    the same table ``Quantity`` / ``convert`` read, so a newly declared unit is
+    usable for conversion immediately.  Re-declaring an identical unit is a
+    no-op; a conflicting declaration raises ``UnitError``.
+    """
+    from helixlang.core.dimensions import declare_unit as _base_declare
+    _base_declare(name, dim, si_factor)
+
+
+def Q(name: str, value: float) -> Any:
+    """Build a ``Quantity`` expressed in the named unit (``Q("min", 5)``).
+
+    E.g. ``Q("min", 5).convert_to("s")`` is ``Quantity(300, "s")`` and
+    ``Q("min", 5).base_value`` is ``300.0``.
+    """
+    from helixlang.core.dimensions import Quantity
+    return Quantity(value, name)
+
+
 __all__ = [
     # base axes
     "TIME_TICK_MIN", "TIME_TICK_S", "LATTICE_SPACING_UM",
@@ -194,4 +217,6 @@ __all__ = [
     # conversions
     "ticks_to_min", "diffusion_to_lattice", "diffusion_lattice_to_dx",
     "decay_from_half_life_ticks", "decay_to_half_life_ticks",
+    # quantity layer (doc/41 §6 Ring 2)
+    "declare_unit", "Q",
 ]

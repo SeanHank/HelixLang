@@ -14,5 +14,8 @@
     "warfarin_alert_severity": "severe",
     "warfarin_alert_effect": "CYP2C9 inhibition of S-warfarin clearance sharply raises INR; bleeding risk."
   },
-  "runtime_seconds": 0.6204099580645561
+  "runtime_seconds": 0.5381633749930188,
+  "layer": "human",
+  "name": "Drug-drug interaction prediction",
+  "level": "L0"
 }

@@ -22,13 +22,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from helixlang.core.errors import (
     PluginConflictError,
     PluginDependencyError,
     PluginMissingError,
 )
+
+if TYPE_CHECKING:
+    from helixlang.core.grammar_registry import GrammarDescriptor
 
 # Bundled first-party plugins (doc/36 §8). ``discover`` imports each lightweight
 # ``helixlang.plugins.<name>`` module lazily; heavy scientific deps are only
@@ -42,6 +45,7 @@ _BUNDLED_PLUGINS: tuple[str, ...] = (
     "gem",
     "kinetics",
     "omics",
+    "cardiology",
 )
 
 
@@ -69,6 +73,11 @@ class PluginProvider:
     capability_flags: tuple[str, ...] = ()
     checks: dict[str, Callable[[], bool]] = field(default_factory=dict)
     load: Callable[[], Any] | None = None
+    #: Declarative ``#keyword`` grammars this plugin owns (doc/41 §4.2): the
+    #: registry compiles them on registration, so a provider's grammar set is
+    #: served by *one* keyword table — ``grammar_registry.get(kw).owner`` and
+    #: :meth:`Registry.provider_for_keyword` are views of the same data.
+    grammars: tuple[GrammarDescriptor, ...] = ()
 
     def check_dependencies(self) -> list[str]:
         """Return the list of unsatisfied declared optional deps."""
@@ -137,6 +146,26 @@ class Registry:
                 raise PluginConflictError(
                     f"native:{mod}", self._by_native_module[mod], provider.name)
             self._by_native_module[mod] = provider.name
+        self._install_grammars(provider)
+
+    def _install_grammars(self, provider: PluginProvider) -> None:
+        """Compile the provider's declared grammars into the shared registry.
+
+        Each descriptor becomes an :class:`AnnotationGrammar` owned by
+        ``provider.name`` and inert (``requires_use``) until the program says
+        ``#use <provider.name>`` — that is the exclusive activation signal for
+        a plugin's grammar set (doc/41 §4.2, §4.3).
+        """
+        if not provider.grammars:
+            return
+        from helixlang.core.grammar_registry import grammar_registry as _grammars
+
+        for descriptor in provider.grammars:
+            owned = replace(descriptor, owner=provider.name)
+            grammar = _grammars.register_descriptor(owned)
+            if grammar.requires_use is None:
+                _grammars.register(replace(
+                    grammar, requires_use=provider.name))
 
     # ── lookup ──────────────────────────────────────────────────────────────
     def provider(self, name: str) -> PluginProvider:

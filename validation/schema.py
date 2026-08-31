@@ -10,6 +10,41 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+# Canonical scientific-validation-level taxonomy (doc/41 §3, Item 2).
+# Levels classify the REFERENCE, not the outcome; each benchmark is exactly one.
+LEVEL_NAMES: dict[str, str] = {
+    "L0": "Functional test",
+    "L1": "Analytical validation",
+    "L2": "Reference-implementation validation",
+    "L3": "Literature validation",
+    "L4": "Experimental validation",
+    "L5": "Clinical validation",
+}
+VALID_LEVELS: tuple[str, ...] = ("L0", "L1", "L2", "L3", "L4", "L5")
+
+
+def normalize_level(value: Any) -> str:
+    """Return a canonical L0–L5 level, normalising legacy spellings.
+
+    Accepts ``"L2"`` / ``"l2"`` / ``"level 2"`` / ``"reference-implementation"``.
+    Unknown values return ``""`` (never raise) so legacy benchmark.yaml files
+    still normalize.
+    """
+    if not value:
+        return ""
+    v = str(value).strip().lower()
+    if v in ("l0", "l1", "l2", "l3", "l4", "l5"):
+        return v.upper()
+    if v in ("level0", "level1", "level2", "level3", "level4", "level5"):
+        return v[-1].upper()
+    m = {"functional": "L0", "functional test": "L0",
+         "analytical": "L1", "analytical validation": "L1",
+         "reference-implementation": "L2", "reference-implementation validation": "L2",
+         "literature": "L3", "literature validation": "L3",
+         "experimental": "L4", "experimental validation": "L4",
+         "clinical": "L5", "clinical validation": "L5"}
+    return m.get(v, "")
+
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class Reference:
@@ -257,6 +292,7 @@ class EvidenceChain:
     reproducibility: Reproducibility
     status: str = "PASS"
     layer: str = "unknown"
+    level: str = ""
     name: str = ""
     experimental_comparison: dict[str, Any] | None = None
     # Non-standard fields that don't fit the evidence chain (validation dicts, etc.)
@@ -274,11 +310,17 @@ class EvidenceChain:
                 "reproducibility": self.reproducibility.to_dict(),
             },
             "layer": self.layer,
+            "level": self.level,
             "name": self.name,
         }
         if self.experimental_comparison:
             d["experimental_comparison"] = self.experimental_comparison
         return d
+
+    @property
+    def level_name(self) -> str:
+        """Human-readable name of the validation level (doc/41 §3)."""
+        return LEVEL_NAMES.get(self.level, "—")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> EvidenceChain:
@@ -432,10 +474,70 @@ class EvidenceChain:
             reproducibility=repro,
             status=status,
             layer=layer,
+            level=normalize_level(data.get("level")),
             name=name,
             experimental_comparison=experimental,
             _extra=extra if extra else None,
         )
+
+    def level_gate_violations(self) -> list[str]:
+        """doc/41 §3.2 Rule 5 gates — warnings, never failures.
+
+        (a) L2 requires a reference implementation + ``golden_hash``;
+        (b) L3 requires ``reference.doi``;
+        (c) L4 requires an ``experimental_comparison`` block with min/max/unit;
+        (d) L5 requires an external dataset path (surfaced in the report).
+        """
+        issues: list[str] = []
+        if self.level == "L2":
+            if not self.reproducibility.golden_hash:
+                issues.append(
+                    f"{self.benchmark_id}: L2 requires reproducibility.golden_hash"
+                )
+        elif self.level == "L3":
+            if not (self.reference and self.reference.doi):
+                issues.append(
+                    f"{self.benchmark_id}: L3 requires reference.doi"
+                )
+        elif self.level == "L4":
+            if not self._l4_evidence_ok():
+                issues.append(
+                    f"{self.benchmark_id}: L4 requires experimental_comparison "
+                    "with min/max/unit"
+                )
+        elif self.level == "L5":
+            extra = self._extra or {}
+            if not extra.get("clinical_dataset"):
+                issues.append(
+                    f"{self.benchmark_id}: L5 requires an external clinical "
+                    "dataset path (clinical_dataset)"
+                )
+        # SKIPped benchmarks (external artefact unavailable, doc/41 §2) carry
+        # no golden hash / experimental block by definition — never warn.
+        return [i for i in issues if self.status != "SKIP"]
+
+    def _l4_evidence_ok(self) -> bool:
+        """Accept any experimental_comparison shape that quantifies a range.
+
+        Standard blocks use top-level min/max/unit; several legacy benchmarks
+        nest e.g. ``reference_doubling_time_min`` / ``tolerance_factor``.  A
+        key tagged min/max/range/tolerance anywhere in the block suffices.
+        """
+        ec = self.experimental_comparison or {}
+        if not isinstance(ec, dict) or not ec:
+            return False
+
+        def scan(node: Any) -> bool:
+            for k, v in node.items():
+                if isinstance(k, str) and any(
+                    tag in k.lower() for tag in ("min", "max", "range", "tolerance")
+                ):
+                    return True
+                if isinstance(v, dict) and scan(v):
+                    return True
+            return False
+
+        return scan(ec)
 
     def fmt_evidence(self) -> str:
         """Format the full evidence chain as a single string for report tables."""
@@ -484,6 +586,7 @@ def make_evidence_chain(
     tolerance: float | None = None,
     unit: str | None = None,
     layer: str = "unknown",
+    level: str = "",
     name: str = "",
     doi: str | None = None,
     authors: str | None = None,
@@ -546,6 +649,7 @@ def make_evidence_chain(
         ),
         status="PASS" if passed else "FAIL",
         layer=layer,
+        level=normalize_level(level),
         name=name,
         experimental_comparison=experimental_comparison,
     )

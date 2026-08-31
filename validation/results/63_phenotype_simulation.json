@@ -41,5 +41,8 @@
     "volume": "11",
     "pages": "556"
   },
-  "runtime_seconds": 0.4794663329375908
+  "runtime_seconds": 0.5229533750098199,
+  "layer": "physiology",
+  "name": "Phenotype + simulation",
+  "level": "L0"
 }

@@ -1,15 +1,14 @@
 {
   "id": "26_gapfill_validation",
-  "status": "PASS",
+  "status": "SKIP",
   "checks": {
     "import_gapfill_modules": true,
-    "gapfill_classes_exist": true,
-    "load_model_and_remove_reaction": true
+    "gapfill_classes_exist": true
   },
-  "details": {
-    "base_growth_rate": 0.8217979336265827,
-    "pool_size": 6,
-    "gapfill_pool_created": true
-  },
-  "runtime_seconds": 5.595155416987836
+  "details": {},
+  "reason": "BiGG iML1515 (e_coli_k12) unavailable: [BioError @ <unknown>] BiGG model 'iML1515' unavailable offline: no loadable vendored copy in /Users/admin/PycharmProjects/HelixLang/validation/references/models",
+  "runtime_seconds": 1.0976865839911625,
+  "layer": "gem",
+  "name": "Gapfill Validation \u2014 restore incomplete model",
+  "level": "L0"
 }

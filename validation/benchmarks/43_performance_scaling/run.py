@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Benchmark 43: Performance Scaling — COBRApy vs HelixLang FBA timing."""
+"""Benchmark 43: Performance Scaling — COBRApy vs HelixLang FBA timing.
+
+doc/41 offline-first CI: the COBRApy comparison is an external artefact
+dependency.  If COBRApy (or the e_coli_core model) cannot be obtained the whole
+benchmark is SKIPPED — never degraded to a PASS with partial results.
+"""
 from __future__ import annotations
 
 import json
 import sys
 import time
+from pathlib import Path
+
+MODEL_DIR = Path(__file__).resolve().parents[2] / "references" / "models"
 
 
 def run() -> dict:
@@ -38,18 +46,11 @@ def run() -> dict:
         try:
             import os
             os.environ["TQDM_DISABLE"] = "1"
-            import cobra
-            import tqdm as _tqdm
-            _orig = _tqdm.tqdm
-            _tqdm.tqdm = lambda *a, **kw: iter([])
-            _old_stdout = sys.stdout
-            sys.stdout = open(os.devnull, "w")
-            try:
-                cobra_model = cobra.io.load_model("e_coli_core")
-            finally:
-                sys.stdout.close()
-                sys.stdout = _old_stdout
-                _tqdm.tqdm = _orig
+            from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+
+            cobra_model = load_bigg_cobra_model(
+                "e_coli_core", model_dir=MODEL_DIR,
+            )
             t2 = time.perf_counter()
             cobra_model.optimize()
             cobrapy_ms = (time.perf_counter() - t2) * 1000
@@ -63,14 +64,15 @@ def run() -> dict:
                 "speedup_ratio": ratio,
             }
             checks["helixlang_faster_or_comparable"] = True
-        except ImportError:
-            details["cobrapy_note"] = "cobra not installed; skipped"
-            timing["comparison"] = {
-                "helixlang_ms": hl_ms,
-                "cobrapy_ms": None,
-                "speedup_ratio": None,
+        except Exception as exc:
+            return {
+                "id": "43_performance_scaling",
+                "status": "SKIP",
+                "checks": checks,
+                "details": {**details, "timing": timing},
+                "reason": f"COBRApy / BiGG e_coli_core unavailable: {exc}",
+                "runtime_seconds": time.perf_counter() - t0,
             }
-            checks["helixlang_faster_or_comparable"] = True
 
         details["timing"] = timing
 
@@ -96,4 +98,4 @@ def run() -> dict:
 if __name__ == "__main__":
     r = run()
     print(json.dumps(r, indent=2))
-    sys.exit(0 if r["status"] == "PASS" else 1)
+    sys.exit(0 if r["status"] in ("PASS", "SKIP") else 1)

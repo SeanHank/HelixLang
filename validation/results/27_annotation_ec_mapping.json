@@ -31,5 +31,8 @@
       ]
     }
   },
-  "runtime_seconds": 0.04359000001568347
+  "runtime_seconds": 0.05491308297496289,
+  "layer": "annotation",
+  "name": "Annotation EC Mapping \u2014 EC number to reaction lookup",
+  "level": "L0"
 }

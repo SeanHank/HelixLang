@@ -31,5 +31,8 @@
     "kinetics": "Bar-Even A et al. 2011, Biochemistry 50:4402",
     "generation_time": "Wanner BL 1996"
   },
-  "runtime_seconds": 0.30715425009839237
+  "runtime_seconds": 0.2900007499847561,
+  "layer": "validity",
+  "name": "Biological validity \u2014 Helix Model vs measured data",
+  "level": "L0"
 }

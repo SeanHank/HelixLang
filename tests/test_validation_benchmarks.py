@@ -5,6 +5,7 @@ Runs the validation benchmarks and verifies they produce valid results.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,6 +14,9 @@ import pytest
 
 VALIDATION_DIR = Path(__file__).parent.parent / "validation"
 BENCHMARKS_DIR = VALIDATION_DIR / "benchmarks"
+
+# Allow importing run_all.py / schema.py from the validation package.
+sys.path.insert(0, str(VALIDATION_DIR))
 
 
 def _collect_benchmarks() -> list[Path]:
@@ -85,6 +89,17 @@ class TestBenchmarkYAML:
             assert "name:" in content, f"{d.name}: missing name"
             assert "layer:" in content, f"{d.name}: missing layer"
             assert "reference:" in content, f"{d.name}: missing reference"
+            assert "level:" in content, f"{d.name}: missing level (doc/41 §3)"
+
+    def test_yaml_level_values_valid(self) -> None:
+        """Every benchmark declares one canonical L0–L5 level (doc/41 §3)."""
+        for d in BENCHMARK_PATHS:
+            content = (d / "benchmark.yaml").read_text()
+            m = re.search(r"^level:\s*(\S+)", content, flags=re.MULTILINE)
+            assert m, f"{d.name}: missing level value"
+            assert m.group(1) in ("L0", "L1", "L2", "L3", "L4", "L5"), (
+                f"{d.name}: invalid level {m.group(1)!r}"
+            )
 
 
 class TestValidationFramework:
@@ -100,3 +115,21 @@ class TestValidationFramework:
         results_dir = VALIDATION_DIR / "results"
         results_dir.mkdir(exist_ok=True)
         assert results_dir.is_dir()
+
+    def test_merge_metadata_fills_layer_level(self) -> None:
+        """benchmark.yaml is the single source of layer/level (doc/41 §3)."""
+        import run_all
+        merged = run_all.merge_metadata([{"id": "03_ecoli_fba"}])
+        assert merged[0]["layer"] == "metabolism"
+        assert merged[0]["level"] == "L4"
+
+    def test_report_has_level_column_and_skip_counts(self) -> None:
+        """Report shows per-level counts; SKIP is a success, not a failure."""
+        import run_all
+        rep = run_all.generate_report([
+            {"id": "a", "status": "SKIP", "reason": "offline"},
+            {"id": "b", "status": "PASS", "layer": "metabolism", "level": "L2"},
+        ])
+        assert "| Level |" in rep
+        assert "L2×1" in rep
+        assert "| Skipped | 1 |" in rep

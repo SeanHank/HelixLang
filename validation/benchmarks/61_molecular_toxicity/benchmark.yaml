@@ -1,6 +1,7 @@
 id: 61_molecular_toxicity
 name: Molecular toxicity
 layer: pharmacology
+level: L0
 reference: Hughes et al. 2008, Br J Pharmacol
 input: programmatic
 expected:

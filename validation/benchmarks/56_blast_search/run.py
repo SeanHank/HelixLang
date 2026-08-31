@@ -109,13 +109,36 @@ def run() -> dict:
                 details["diamond_error"] = str(e)
 
         elapsed = time.perf_counter() - t0
-        # Core checks = HelixLang's own functionality; the external diamond binary is
-        # informational only and excluded from the pass/fail determination.
+        # doc/41 §2.4: top-level status must be the min over ALL checks — a
+        # PASS-with-failed-checks report is a bug.  The external `diamond`
+        # binary is an external artefact: when it is unavailable the benchmark
+        # is SKIPPED (release rule: cannot run → skip), never FAILED.  Core
+        # HelixLang API failures are real bugs → FAIL.
         core_checks = {k: v for k, v in checks.items() if k != "diamond_live"}
-        all_pass = all(core_checks.values())
+        core_pass = all(core_checks.values())
+        if not core_pass:
+            status = "FAIL"
+        elif not checks.get("diamond_live", False):
+            return {
+                "id": "56_blast_search",
+                "status": "SKIP",
+                "checks": checks,
+                "details": details,
+                "reason": (
+                    details.get("diamond_error")
+                    or details.get("diamond_skip_reason")
+                    or "diamond aligner unavailable (external artefact)"
+                ),
+                "reference": {
+                    "diamond": "Buchfink B et al. 2021, Nat Methods 18:705-708",
+                },
+                "runtime_seconds": elapsed,
+            }
+        else:
+            status = "PASS"
         return {
             "id": "56_blast_search",
-            "status": "PASS" if all_pass else "FAIL",
+            "status": status,
             "checks": checks,
             "details": details,
             "reference": {

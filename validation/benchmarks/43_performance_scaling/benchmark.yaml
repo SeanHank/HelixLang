@@ -1,6 +1,7 @@
 id: 43_performance_scaling
 name: Performance Scaling — COBRApy vs HelixLang FBA timing
 layer: performance
+level: L2
 reference: Orth 2010
 input: none (built-in models)
 parameters: {}

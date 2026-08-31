@@ -1,6 +1,7 @@
 id: 38_ecosystem_lotka_volterra
 name: Ecosystem — Lotka-Volterra predator-prey dynamics
 layer: ecosystem
+level: L0
 reference: Lotka 1925, Volterra 1926
 input: none (analytic integration)
 parameters: {}

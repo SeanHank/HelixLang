@@ -38,6 +38,9 @@ from helixlang.core.errors import ParseError, UnknownKeywordError
 from helixlang.core.grammar_registry import (
     BEFORE_SIM,
     AnnotationGrammar,
+    GrammarDescriptor,
+    _parse_quantity_stmt,
+    _quantity_decompile,
     dict_entry_decompile,
     gem_inline_decompile,
     grammar_registry,
@@ -72,6 +75,28 @@ def _parse_int(value: str, what: str, line: int) -> int:
     except ValueError:
         raise ParseError(
             f"invalid {what} {value!r}", line=line) from None
+
+
+class _ParserTokenHooks:
+    """The documented token surface a raw plugin grammar may drive."""
+
+    __slots__ = ("_parser",)
+
+    def __init__(self, parser: Parser) -> None:
+        self._parser = parser
+
+    def advance(self) -> Token:
+        return self._parser._advance()
+
+    def peek(self) -> Token | None:
+        return self._parser._peek()
+
+    def expect(self, kind: str, what: str) -> Token:
+        return self._parser._expect(kind, what)
+
+    def collect_fields(self, allow_no_end: bool = False) -> dict[str, str]:
+        return self._parser._collect_fields_until_block_end(
+            allow_no_end=allow_no_end)
 
 
 class Parser:
@@ -112,7 +137,20 @@ class Parser:
                     # it is a hard SemanticError naming the keyword.
                     raise UnknownKeywordError(
                         f"unknown keyword #{t.value}", line=t.line, col=t.col)
+                if grammar.requires_use and grammar.requires_use not in {
+                        d.plugin for d in prog.use_directives}:
+                    # doc/41 §4.2: a plugin grammar is inert until its `#use`.
+                    raise UnknownKeywordError(
+                        f"unknown keyword #{t.value}; enable it with "
+                        f"`#use {grammar.requires_use}`",
+                        line=t.line, col=t.col)
+                _before_grammar = self.i
                 grammar.parse(self, prog)
+                if self.i == _before_grammar:
+                    raise ParseError(
+                        f"grammar hook for #{t.value} made no progress "
+                        f"(missing advance past the annotation marker)",
+                        line=t.line, col=t.col)
                 continue
             elif t.kind == "USERDIRECTIVE":
                 prog.use_directives.append(self._parse_use(t))
@@ -1000,6 +1038,18 @@ mw=129.16 dose=500 route=oral interval=8 duration=90
                 return fields
         return fields
 
+    # -------- Token hooks (documented Parser extension surface, doc/41 §4.2) --------
+    @property
+    def token_hooks(self) -> _ParserTokenHooks:
+        """Protected token methods for ``body="raw"`` plugin grammars.
+
+        A plugin's raw parse callable receives ``parser`` and may use these to
+        drive the shared token machinery without reaching into ``Parser``
+        privates — the parser still owns the token plumbing, the plugin owns
+        the shape of its body (doc/41 §4.2).
+        """
+        return _ParserTokenHooks(self)
+
     # -------- ORF identification --------
     def _extract_orf(self, codons: list[Codon], gene_name: str,
                      start_line: int) -> list[Codon]:
@@ -1102,6 +1152,15 @@ def register_core_grammars() -> None:
     global _GRAMMARS_REGISTERED
     if _GRAMMARS_REGISTERED:
         return
+    # #quantity is a descriptor grammar (doc/41 §6): the registry compiles the
+    # declarative shape, the parser supplies two tiny hooks, and dimension
+    # checking lives in the semantic layer — no bespoke parser dispatch.
+    grammar_registry.register_descriptor(GrammarDescriptor(
+        keyword="quantity",
+        body="raw",
+        parse=_parse_quantity_stmt,
+        decompile=_quantity_decompile,
+    ))
     grammars = [
         # ---- structural annotations backed by typed AST sections ----
         AnnotationGrammar("promoter", parse=Parser._parse_promoter),

@@ -91,6 +91,11 @@ jobs:
           pip install -e ".[dev,fast,web,bio,ml,viz,human]"
 
       - name: Run tests with coverage
+        env:
+          # doc/41 offline-first CI: validation benchmarks must never hit the
+          # network (BiGG).  Vendored models in validation/references/models/
+          # give real PASSes; anything else is SKIPped, never FAILed.
+          HELIX_BENCHMARK_OFFLINE: "1"
         run: |
           pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80
 

@@ -1,6 +1,7 @@
 id: 17d_coupled
 name: Coupled transcription-translation
 layer: molecular
+level: L0
 reference: E. coli coupled model (Miller 1972)
 reference_doi: null
 input: none (built-in DNA)

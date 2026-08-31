@@ -1,6 +1,7 @@
 id: 08_population_dynamics
 name: Population dynamics
 layer: population
+level: L4
 reference: Standard population dynamics / Lotka-Volterra
 reference_doi: null
 input: none (programmatic population)

@@ -1,6 +1,7 @@
 id: 28_genotype_cyp2d6
 name: Genotype CYP2D6 star-allele mapping
 layer: human
+level: L0
 reference: CPIC/PharmVar consensus activity scores
 input: none (built-in allele tables)
 parameters:

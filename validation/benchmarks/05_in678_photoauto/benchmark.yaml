@@ -1,6 +1,7 @@
 id: 05_in678_photoauto
 name: Synechocystis PCC 6803 photoautotrophic FBA
 layer: metabolism
+level: L2
 reference: Knoop et al. 2010, J Biol Chem 285:27185
 reference_doi: 10.1074/jbc.M110.146274
 input: iJN678 model (imported via SBML)

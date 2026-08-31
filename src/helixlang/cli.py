@@ -35,6 +35,7 @@ from helixlang.core.ir_serialize import dumps as ir_dumps
 from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
+from helixlang.core.plugin_registry import get_registry
 from helixlang.core.semantic import SemanticAnalyzer
 from helixlang.core.vm import CellVM
 from helixlang.plugins.runtime.seq_utils import (
@@ -271,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         # parse + semantic check (shared by every backend)
         config = LanguageConfig.for_table(args.table)
+        get_registry()  # plugin grammars resolve out of the box (doc/41 §4.2)
         tokens = list(Lexer(src).tokens())
         program = Parser(tokens, config=config).parse()
         SemanticAnalyzer(program).check()
@@ -400,6 +402,7 @@ def _run_watch(args: argparse.Namespace, config: LanguageConfig) -> int:
     def _watch_compile(src: str) -> tuple[Program, CompileResult]:
         nonlocal previous_ir, previous_cache, iteration
         iteration += 1
+        get_registry()  # plugin grammars resolve out of the box (doc/41 §4.2)
         tokens = list(Lexer(src).tokens())
         program = Parser(tokens, config=config).parse()
         SemanticAnalyzer(program).check()

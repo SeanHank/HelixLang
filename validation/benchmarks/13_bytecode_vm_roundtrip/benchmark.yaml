@@ -1,6 +1,7 @@
 id: 13_bytecode_vm_roundtrip
 name: Bytecode/VM roundtrip — compile → serialize → deserialize → execute
 layer: runtime
+level: L0
 reference: HelixLang bytecode ABI v1
 input: inline Helix source
 parameters:

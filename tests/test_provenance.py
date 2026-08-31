@@ -5,8 +5,10 @@ Verifies that provenance dicts are correctly built and attached to results.
 from __future__ import annotations
 
 from helixlang.core.provenance import (
+    PROVENANCE_CONTRACT_KEYS,
     attach_provenance,
     build_provenance,
+    complete_provenance,
     provenance_from_registry,
 )
 
@@ -128,4 +130,108 @@ class TestFidelityAndRegistryProvenance:
         assert prov["fidelity"] == "reduced"
         # No active backends -> empty backend descriptor, but fidelity recorded.
         assert prov["backend"] == ""
+
+
+class TestProvenanceContract:
+    """doc/41 §7 (Item 6): the unified 8-field Model Provenance contract.
+
+    Every provenance dict carries all eight canonical keys with defaults, so
+    results are never "missing" a provenance field.
+    """
+
+    def test_eight_contract_keys_present_by_default(self) -> None:
+        prov = build_provenance(seed=42, backend="fba")
+        for key in PROVENANCE_CONTRACT_KEYS:
+            assert key in prov, f"missing contract key {key!r}"
+
+    def test_source_hash_conditional_only(self) -> None:
+        prov = build_provenance(seed=1)
+        assert prov["source_hash"] == ""
+        prov = build_provenance(seed=1, source="ATG TAA")
+        assert prov["source_hash"].startswith("sha256:")
+
+    def test_model_version_key(self) -> None:
+        prov = build_provenance(model_version="iML1515@1.0")
+        assert prov["model_version"] == "iML1515@1.0"
+
+    def test_parameter_set_has_fingerprint(self) -> None:
+        prov = build_provenance(parameters={"ticks": 100, "react_steps": 1})
+        ps = prov["parameter_set"]
+        assert ps["fields"] == {"ticks": 100, "react_steps": 1}
+        assert ps["fingerprint"].startswith("sha256:")
+        assert len(ps["fingerprint"]) == 71
+
+    def test_parameter_set_fingerprint_is_stable(self) -> None:
+        a = build_provenance(parameters={"x": 1, "y": 2})["parameter_set"]["fingerprint"]
+        b = build_provenance(parameters={"y": 2, "x": 1})["parameter_set"]["fingerprint"]
+        assert a == b
+
+    def test_literature_references_list(self) -> None:
+        prov = build_provenance(references=["doi:10.1", "url:https://x"])
+        assert prov["literature_references"] == ["doi:10.1", "url:https://x"]
+
+    def test_backend_implementation_descriptor(self) -> None:
+        prov = build_provenance(backend="human", backend_impl={"name": "human"})
+        bi = prov["backend_implementation"]
+        assert bi["name"] == "human"
+        # native is a bool switch, never omitted (doc/41 §7.3)
+        assert isinstance(bi["native"], bool)
+        assert set(bi) <= {"name", "native", "module", "version"}
+
+    def test_backend_implementation_native_defaults_to_bool(self) -> None:
+        # native reflects wheel presence at build/run time; never omitted.
+        assert isinstance(
+            build_provenance(backend_impl={"name": "fba"})["backend_implementation"]["native"],
+            bool,
+        )
+
+    def test_solver_key_default(self) -> None:
+        prov = build_provenance()
+        assert "solver" in prov
+        prov = build_provenance(solver={"id": "qpsolver", "status": "optimal"})
+        assert prov["solver"]["id"] == "qpsolver"
+        assert prov["solver"]["status"] == "optimal"
+
+    def test_random_seed_maps_roles(self) -> None:
+        prov = build_provenance(seed=7, seeds={"fit_seed": 1, "noise_seed": 2})
+        assert prov["random_seed"]["seed"] == 7
+        assert prov["random_seed"]["fit_seed"] == 1
+        assert prov["random_seed"]["noise_seed"] == 2
+
+    def test_fidelity_mode_defaults_to_full(self) -> None:
+        prov = build_provenance(seed=1)
+        assert prov["fidelity_mode"] == "full"
+        # legacy narrow key stays optional-only (golden stability)
+        assert "fidelity" not in prov
+
+    def test_fidelity_mode_overridable(self) -> None:
+        prov = build_provenance(fidelity_mode="reduced")
+        assert prov["fidelity_mode"] == "reduced"
+
+
+class TestCompleteProvenance:
+    """complete_provenance fills the contract onto existing results."""
+
+    def test_fills_contract_on_empty_provenance(self) -> None:
+        prov = complete_provenance({}, seed=42, backend_name="human")
+        for key in PROVENANCE_CONTRACT_KEYS:
+            assert key in prov
+        assert prov["seed"] == 42
+        assert prov["backend"] == "human"
+
+    def test_preserves_existing_values(self) -> None:
+        existing = {"backend": "hpc", "fidelity": "reduced"}
+        prov = complete_provenance(existing, seed=1, backend_name="hpc")
+        assert prov["backend"] == "hpc"
+        assert prov["fidelity"] == "reduced"
+        assert prov["backend_implementation"]["name"] == "hpc"
+
+    def test_uses_backend_name_for_descriptor(self) -> None:
+        prov = complete_provenance({}, backend_name="fba")
+        assert prov["backend_implementation"]["name"] == "fba"
+
+    def test_returns_merged_dict(self) -> None:
+        prov = complete_provenance({"note": "kept"}, backend_name="fba")
+        assert prov["note"] == "kept"
+        assert "helix_version" in prov
 

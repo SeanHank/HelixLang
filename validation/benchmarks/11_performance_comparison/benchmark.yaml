@@ -1,6 +1,7 @@
 id: 11_performance_comparison
 name: FBA solve-time performance vs COBRApy
 layer: metabolism
+level: L2
 reference: Orth et al. 2010, Nat Biotechnol 28:245
 input: BiGG models via COBRApy
 parameters:

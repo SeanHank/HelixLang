@@ -1,6 +1,7 @@
 id: 04_iml1515_fba
 name: E. coli iML1515 genome-scale FBA
 layer: metabolism
+level: L2
 reference: Monk et al. 2017, Nat Biotechnol 35:1036
 reference_doi: 10.1038/nbt.3956
 input: iML1515 model (imported via SBML or GEM reconstruction)

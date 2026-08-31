@@ -6,6 +6,8 @@
     "base_value_equality": true,
     "cross_unit_arithmetic_rejected": true,
     "dimension_tree_in_message": true,
+    "same_dim_program_compiles": true,
+    "minutes_to_seconds_static": true,
     "unknown_unit_rejected": true,
     "dims_do_not_change_chunk": true,
     "dims_do_not_change_trace": true
@@ -17,5 +19,8 @@
     "trace_len": 40
   },
   "reference": "doc/38 \u00a78 unit system & dimensional safety (core/dimensions.py)",
-  "runtime_seconds": 0.06970600003842264
+  "runtime_seconds": 0.06828770798165351,
+  "layer": "compiler",
+  "name": "Unit system & dimensional safety",
+  "level": "L0"
 }

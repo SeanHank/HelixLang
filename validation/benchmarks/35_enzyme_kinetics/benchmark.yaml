@@ -1,6 +1,7 @@
 id: 35_enzyme_kinetics
 name: Enzyme Kinetics — kcat and Km prediction
 layer: kinetics
+level: L4
 reference: Bar-Even et al. 2011, Biochemistry
 input: none (built-in EC median tables)
 parameters: {}

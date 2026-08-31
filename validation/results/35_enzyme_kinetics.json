@@ -101,5 +101,8 @@
       }
     }
   },
-  "runtime_seconds": 0.04985387495253235
+  "runtime_seconds": 0.04066562501247972,
+  "layer": "kinetics",
+  "name": "Enzyme Kinetics \u2014 kcat and Km prediction",
+  "level": "L4"
 }

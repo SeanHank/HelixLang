@@ -5,12 +5,20 @@
     "provenance": {
       "fields": [
         "backend",
+        "backend_implementation",
         "custom_key",
         "dependencies",
+        "extra",
+        "fidelity_mode",
         "helix_version",
+        "literature_references",
+        "model_version",
+        "parameter_set",
         "parameters",
+        "random_seed",
         "runtime_seconds",
         "seed",
+        "solver",
         "source_hash",
         "source_path",
         "timestamp"
@@ -32,5 +40,8 @@
       "OPCODE_VERSION": 1
     }
   },
-  "runtime_seconds": 0.5339721669442952
+  "runtime_seconds": 0.4105971669778228,
+  "layer": "infrastructure",
+  "name": "CLI / server / provenance \u2014 module imports + build_provenance",
+  "level": "L0"
 }

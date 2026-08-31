@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark 75: unit system & dimensional safety (doc/38 §8).
+"""Benchmark 75: unit system & dimensional safety (doc/38 §8, doc/41 Item 5).
 
 Verifies the §8 acceptance on a live program + the Quantity algebra:
   - quantity math fails at *compile time* (semantic/parse check) with the
@@ -58,27 +58,51 @@ def run() -> dict:
         checks["cross_unit_arithmetic_rejected"] = \
             "incompatible dimensions" in str(exc) and "length" in str(exc)
 
-    # ── a concentration + volume program is rejected in the semantic check ─
-    bad = ("#config ticks=100 ops_per_tick=100\n"
-           "#type g=Float<µM>\n"
-           "#type v=Float<µm3>\n"
-           "#gene name=g\nATG TAA\n#end\n")
-    program = parse(bad)
+    # ── a concentration + volume program is rejected in the semantic check
+    #    (doc/41 Item 5 Ring 1: the program *itself* now fails to compile —
+    #    `#quantity c_total=g+v` composes a Float<µM> symbol with a Float<L>
+    #    symbol and is raised as a static DimensionError, not left to the
+    #    runtime Quantity algebra). ──────────────────────────────────────────
+    from helixlang.core.dim_inferencer import DimInferencer
+    from helixlang.core.errors import DimensionError
     from helixlang.core.semantic import SemanticAnalyzer
 
-    def _dim_check() -> None:
-        from helixlang.core.dimensions import Quantity as _Q
-        from helixlang.core.type_system import parse_type_annotation as _p
-        _p("Float<µM>"), _p("Float<µm3>")  # annotations resolve
-        _Q(1, "µM") + _Q(1, "µm3")  # must raise
+    def _compile(src: str) -> None:
+        SemanticAnalyzer(parse(src)).check()
 
+    bad = ("#config ticks=100 ops_per_tick=100\n"
+           "#type g=Float<µM>\n"
+           "#type v=Float<L>\n"
+           "#gene name=g\nATG TAA\n#end\n"
+           "#quantity c_total=g+v\n")
     try:
-        _dim_check()
+        _compile(bad)
         checks["dimension_tree_in_message"] = False
-    except UnitError as exc:
+    except DimensionError as exc:
         checks["dimension_tree_in_message"] = \
-            "µM" in str(exc) and "incompatible dimensions" in str(exc)
-    SemanticAnalyzer(program).check()  # the annotated program itself is fine
+            "incompatible dimensions" in str(exc)
+    good = ("#config ticks=100 ops_per_tick=100\n"
+            "#type g=Float<µM>\n#type h=Float<µM>\n"
+            "#gene name=g\nATG TAA\n#end\n"
+            "#gene name=h\nATG TAA\n#end\n"
+            "#quantity total=g+h\n")
+    try:
+        _compile(good)
+        checks["same_dim_program_compiles"] = True
+    except Exception:
+        checks["same_dim_program_compiles"] = False
+    # the annotated-but-uncomposed program itself is still fine (Ring 0
+    # guarantee): the inferencer never over-rejects a passing program.
+    program = parse("#config ticks=100 ops_per_tick=100\n"
+                    "#type g=Float<µM>\n"
+                    "#type v=Float<µm3>\n"
+                    "#gene name=g\nATG TAA\n#end\n")
+    SemanticAnalyzer(program).check()
+    DimInferencer(program).infer()
+
+    # ── Ring 2: named-unit static check — 5 min == 300 s, exactly ──────────
+    checks["minutes_to_seconds_static"] = \
+        Quantity(5, "min").convert_to("s") == Quantity(300, "s")
 
     # ── an unknown unit in a #type annotation fails to compile ────────────
     try:

@@ -1,6 +1,7 @@
 id: 20_sparse_grn
 name: Sparse GRN
 layer: regulatory
+level: L0
 reference: Sparse genome-scale GRN (RegulonDB)
 reference_doi: null
 input: none (programmatic topology)

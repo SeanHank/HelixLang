@@ -97,6 +97,8 @@ _NAMED_UNITS: dict[str, tuple[Dimension, float]] = {
     "mM": (DIM_CONCENTRATION, 1.0),
     "µM": (DIM_CONCENTRATION, 1e-3),   # µmol / L
     "uM": (DIM_CONCENTRATION, 1e-3),
+    "L": (DIM_VOLUME, 1e-3),           # 1 litre = 1e-3 m^3
+    "l": (DIM_VOLUME, 1e-3),
     "gDW": (DIM_MASS, 1e-3),
     "g": (DIM_MASS, 1e-3),
     "": (DIMENSIONLESS, 1.0),
@@ -119,6 +121,20 @@ def factor_to_si(unit: str) -> float:
     if entry is None:
         raise UnitError(f"unknown unit {unit!r}")
     return entry[1]
+
+
+def declare_unit(name: str, dim: Dimension, si_factor: float) -> None:
+    """Register (or confirm) a named unit in the conversion table.
+
+    Identical re-declaration is a no-op (idempotent, like the anchors in
+    :mod:`helixlang.core.units`); a conflicting declaration is a hard
+    :class:`UnitError` so plugins cannot silently skew a dimension.
+    """
+    if name in _NAMED_UNITS and _NAMED_UNITS[name] != (dim, si_factor):
+        raise UnitError(
+            f"conflicting declaration for unit {name!r}: "
+            f"{_NAMED_UNITS[name]} vs {(dim, si_factor)}")
+    _NAMED_UNITS[name] = (dim, si_factor)
 
 
 def compatible(u1: str | Dimension, u2: str | Dimension) -> bool:
@@ -242,5 +258,6 @@ __all__ = [
     "AVOGADRO", "Dimension", "Quantity", "UnitError",
     "DIMENSIONLESS", "DIM_LENGTH", "DIM_MASS", "DIM_TIME", "DIM_AMOUNT",
     "DIM_VOLUME", "DIM_CONCENTRATION",
-    "compatible", "convert", "dim_of_unit", "factor_to_si", "parse_quantity",
+    "compatible", "convert", "declare_unit", "dim_of_unit", "factor_to_si",
+    "parse_quantity",
 ]

@@ -1,6 +1,7 @@
 id: 42_remaining_modules
 name: Remaining Modules — bio_data, morphology_3d, lsystem, protein_structure, protein_fitness, units, seq_utils
 layer: core
+level: L0
 reference: various
 input: none (built-in tests)
 parameters: {}

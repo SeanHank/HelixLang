@@ -1,6 +1,7 @@
 id: 07_grn_repressilator
 name: Repressilator oscillation
 layer: grn
+level: L4
 reference: Elowitz & Leibler 2000, Nature 403:335-338
 reference_doi: 10.1038/35000122
 input: none (programmatic GRN)

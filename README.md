@@ -164,9 +164,9 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 204 |
-| Test cases | 3614 (81% coverage) |
-| Validation benchmarks | 75 (75 pass) |
+| Source modules | 206 |
+| Test cases | 3670 (81% coverage) |
+| Validation benchmarks | 75 (71 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
@@ -304,7 +304,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **75/75** |
+| Benchmarks passing | **71/75** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
@@ -325,7 +325,7 @@ python validation/goldens/verify_goldens.py
 
 ## Documentation
 
-Full technical documentation in [`doc/`](doc/) (39 files, 25,000+ lines):
+Full technical documentation in [`doc/`](doc/) (42 files, 25,000+ lines):
 
 | Document | What it covers |
 |----------|---------------|
@@ -335,6 +335,9 @@ Full technical documentation in [`doc/`](doc/) (39 files, 25,000+ lines):
 | [`08-api-reference.md`](doc/08-api-reference.md) | Python API reference |
 | [`27-human-pathology-drug-simulation.md`](doc/27-human-pathology-drug-simulation.md) | Human physiology + drug simulation |
 | [`34-architectural-improvement-plan.md`](doc/34-architectural-improvement-plan.md) | Architecture plan + validation suite |
+| [`39-performance-optimization-survey.md`](doc/39-performance-optimization-survey.md) | Realism-preserving cross-stack performance optimization plan |
+| [`40-human-immune-realism.md`](doc/40-human-immune-realism.md) | Literature-grounded human immune simulation realism upgrade plan |
+| [`41-ci-validation-levels-extensible-parser.md`](doc/41-ci-validation-levels-extensible-parser.md) | CI repair, validation-level taxonomy, extensible parser, physical types, model provenance |
 
 ---
 
@@ -368,8 +371,8 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3614 test cases**(all passing, 81% coverage)
-- [75/75 validation benchmarks](validation/report.md) with SHA256 goldens
+- **3670 test cases**(all passing, 81% coverage)
+- [71/75 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

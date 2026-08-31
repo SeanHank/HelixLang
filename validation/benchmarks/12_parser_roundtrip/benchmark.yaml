@@ -1,6 +1,7 @@
 id: 12_parser_roundtrip
 name: Parser roundtrip — source → AST → bytecode
 layer: language
+level: L0
 reference: HelixLang language specification
 input: inline Helix source
 parameters:

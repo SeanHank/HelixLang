@@ -1,6 +1,7 @@
 id: 70_decoupling_verify
 name: Decoupling verification — core vs simulation vs language
 layer: architecture
+level: L2
 reference: doc/36 plugin architecture, doc/37 §4
 input: programmatic
 expected:

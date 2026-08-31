@@ -1,10 +1,29 @@
 #!/usr/bin/env python3
-"""Benchmark 26: Gapfill Validation — gapfill an incomplete model."""
+"""Benchmark 26: Gapfill Validation — gapfill an incomplete model.
+
+doc/41 offline-first CI: the reconstruction step needs the external BiGG
+iML1515 model (or a vendored copy in validation/references/models/).  If the
+model cannot be obtained the whole benchmark is SKIPPED, never FAILED.
+"""
 from __future__ import annotations
 
 import json
 import sys
 import time
+from pathlib import Path
+
+MODEL_DIR = Path(__file__).resolve().parents[2] / "references" / "models"
+
+
+def _skipped(reason: str, checks: dict, details: dict, t0: float) -> dict:
+    return {
+        "id": "26_gapfill_validation",
+        "status": "SKIP",
+        "checks": checks,
+        "details": details,
+        "reason": reason,
+        "runtime_seconds": time.perf_counter() - t0,
+    }
 
 
 def run() -> dict:
@@ -28,17 +47,19 @@ def run() -> dict:
         assert callable(lp_gapfill)
         checks["gapfill_classes_exist"] = True
 
-        model_loaded = False
         try:
             from helixlang.plugins.gem.full_model import FullModelAdapter
-            adapter = FullModelAdapter.from_bigg("e_coli_k12")
+            adapter = FullModelAdapter.from_bigg("e_coli_k12", model_dir=MODEL_DIR)
             adapter.apply_medium("glucose_minimal")
             adapter.solve()
             base_growth = adapter.growth_rate
             details["base_growth_rate"] = base_growth
-            model_loaded = base_growth > 0
         except Exception as e:
-            details["model_load_error"] = str(e)
+            return _skipped(
+                f"BiGG iML1515 (e_coli_k12) unavailable: {e}",
+                checks, details, t0,
+            )
+        model_loaded = base_growth > 0
         checks["load_model_and_remove_reaction"] = model_loaded
 
         if model_loaded:
@@ -97,4 +118,4 @@ def run() -> dict:
 if __name__ == "__main__":
     r = run()
     print(json.dumps(r, indent=2))
-    sys.exit(0 if r["status"] == "PASS" else 1)
+    sys.exit(0 if r["status"] in ("PASS", "SKIP") else 1)

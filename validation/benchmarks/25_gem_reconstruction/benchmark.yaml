@@ -1,6 +1,7 @@
 id: 25_gem_reconstruction
 name: GEM Reconstruction — import and minimal model
 layer: gem
+level: L2
 reference: Orth et al. 2010, BiGG database
 input: none (built-in e_coli_core)
 parameters:

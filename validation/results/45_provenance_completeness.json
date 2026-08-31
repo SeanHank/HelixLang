@@ -2,17 +2,101 @@
   "id": "45_provenance_completeness",
   "status": "PASS",
   "checks": {
-    "import_simulation_modules": true,
+    "engine_run_produces_fba_result": true,
     "fba_result_has_provenance": true,
-    "stochastic_result_has_provenance": true,
-    "population_result_has_provenance": true,
-    "provenance_has_required_keys": true
+    "provenance_has_8_field_contract": true,
+    "provenance_has_benchmark16_superset": true,
+    "model_version_field_present": true,
+    "parameter_set_has_fingerprint": true,
+    "backend_impl_descriptor": true,
+    "solver_field_present": true,
+    "random_seed_tracks_seed": true,
+    "fidelity_mode_defaults_full": true,
+    "identical_runs_byte_identical_provenance": true,
+    "complete_preserves_existing_values": true,
+    "complete_fills_contract": true,
+    "parameter_set_fingerprint_stable": true
   },
   "details": {
-    "fba_provenance": null,
-    "stochastic_provenance": null,
-    "population_provenance": null,
-    "fba_provenance_keys": []
+    "fba_provenance": {
+      "helix_version": "2026.8.5",
+      "seed": 42,
+      "backend": "fba",
+      "parameters": {
+        "kind": "classic",
+        "backend": "fba",
+        "table": "standard",
+        "ticks": 100,
+        "ops_per_tick": 64,
+        "react_steps": 1,
+        "use_central_dogma": false,
+        "species": "ecoli",
+        "output": "BIOMASS"
+      },
+      "dependencies": {
+        "python": "3.11.15",
+        "numpy": "2.4.6",
+        "rdkit": "2026.3.5",
+        "biopython": "1.88",
+        "flask": "3.1.3",
+        "torch": "2.13.0",
+        "esm": "3.2.1.post1"
+      },
+      "timestamp": "2026-08-31T01:29:13Z",
+      "source_hash": "",
+      "model_version": "",
+      "parameter_set": {
+        "fields": {
+          "kind": "classic",
+          "backend": "fba",
+          "table": "standard",
+          "ticks": 100,
+          "ops_per_tick": 64,
+          "react_steps": 1,
+          "use_central_dogma": false,
+          "species": "ecoli",
+          "output": "BIOMASS"
+        },
+        "fingerprint": "sha256:0c86957658e86b371cc7ce8be6a8af0da694ae8e5a99d872a74cce0be6d4c3f0"
+      },
+      "literature_references": [],
+      "backend_implementation": {
+        "name": "fba",
+        "native": true,
+        "module": "",
+        "version": ""
+      },
+      "solver": {
+        "id": "unknown:see backend"
+      },
+      "random_seed": {
+        "seed": 42
+      },
+      "fidelity_mode": "full",
+      "source_path": null,
+      "runtime_seconds": null,
+      "extra": {}
+    },
+    "missing_contract_keys": [],
+    "missing_legacy_keys": [],
+    "model_version": "",
+    "parameter_set_fingerprint_prefix": "sha256:0c86",
+    "backend_implementation": {
+      "name": "fba",
+      "native": true,
+      "module": "",
+      "version": ""
+    },
+    "solver": {
+      "id": "unknown:see backend"
+    },
+    "random_seed": {
+      "seed": 42
+    },
+    "fidelity_mode": "full"
   },
-  "runtime_seconds": 0.45620091701857746
+  "runtime_seconds": 0.37242083298042417,
+  "layer": "provenance",
+  "name": "Provenance \u2014 all simulation results carry provenance metadata",
+  "level": "L0"
 }
