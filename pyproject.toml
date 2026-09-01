@@ -53,6 +53,12 @@ bio = ["biopython>=1.83,<2", "reedsolo>=1.7,<2", "cobra>=0.26,<1"]   # Physical 
 ml = ["numpy>=1.26,<3", "esm>=2.0", "torch>=2.0"]   # Protein structure prediction + sequence-based kinetics (doc/26 Phase B-C)
 # ---- everything ----
 all = ["helixlang[grn,fba,pk,disease,annotation,gem,human,bayes,apps,web,ml]"]
+# ---- CI test surface (GitHub Actions installs this in ONE expression) ----
+# dev tooling + every optional backend the test-suite and typecheck gates
+# exercise, including the Bayesian samplers (pymc/emcee) and the opt-in
+# ``has_jax`` backend.  JAX is deliberately NOT part of ``all`` (a plain
+# ``pip install .[all]`` stays JAX-free), so the extra pins it explicitly.
+ci = ["helixlang[all]", "helixlang[dev]", "jax>=0.4,<1"]
 # Native builds (Cython/C). `native` is built-at-install when the toolchain
 # exists; otherwise the pure-Python/numpy path is used automatically.
 native = ["cython>=3.0", "setuptools>=68", "wheel", "build"]
