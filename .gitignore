@@ -4,6 +4,11 @@ __pycache__/
 *$py.class
 *.so
 
+# Rust/PyO3 cargo build tree (doc/39 O12, python -m helixlang._accel.build)
+# Compiles in-place under each _accel/<pkg>/rust/target/; the .so copy is
+# handled above and the rest of the cargo intermediate tree must stay untracked.
+src/helixlang/_accel/*/rust/target/
+
 # Distribution / packaging
 build/
 dist/
