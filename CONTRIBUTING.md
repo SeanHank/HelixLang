@@ -104,7 +104,7 @@ src/helixlang/     The package: three layers —
                      • plugins/     biological runtime + scientific apps (lazy)
                      • sim_runtime/ server/ debugger/ interop/ web/ _accel/
                     169 source modules across core, plugins, and support packages
-tests/             pytest suite (137 files, 3,315 tests) + shared conftest fixtures
+tests/             pytest suite + shared conftest fixtures
 examples/          runnable .helix programs (must always compile & run)
 doc/               All technical documentation (37 files, kept in sync with code)
 validation/        85 reproducible benchmarks with SHA256-verified golden outputs
