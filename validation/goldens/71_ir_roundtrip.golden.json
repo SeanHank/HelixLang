@@ -1,0 +1,35 @@
+{
+  "checks": {
+    "builder_gene_mapping": true,
+    "builder_opcode_faithful": true,
+    "call_target_resolved": true,
+    "compile_vs_compile_ir": true,
+    "config_snapshot_preserved": true,
+    "effect_boundary_preserved": true,
+    "ir_vs_lower_code": true,
+    "lowering_byte_golden": true,
+    "optimizer_idempotent": true,
+    "optimizer_semantic_parity": true,
+    "serialize_roundtrip": true,
+    "serialize_stable": true
+  },
+  "details": {
+    "folded_instrs": 3,
+    "golden_code": [
+      16,
+      48,
+      3,
+      17
+    ],
+    "plain_instrs": 10,
+    "stock_ops": [
+      "OP_START",
+      "OP_BUILD_PROTEIN",
+      "OP_HALT"
+    ]
+  },
+  "id": "71_ir_roundtrip",
+  "reference": "doc/37 \u00a75-6 Helix IR pipeline (ir_builder/ir_lower/ir_opt/ir_serialize)",
+  "runtime_seconds": 0.0019435830181464553,
+  "status": "PASS"
+}

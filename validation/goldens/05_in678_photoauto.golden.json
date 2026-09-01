@@ -1,25 +1,26 @@
 {
   "comparison": {
-    "growth_rate_rel_error": 6.5242446357994195e-15,
+    "growth_rate_rel_error": 7.364463309843369e-13,
     "growth_rate_tolerance": 0.05,
-    "n_active_fluxes": 87,
+    "n_active_fluxes": 46,
     "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)",
-    "pearson_r_active_fluxes": 0.9516964262024411
+    "pearson_r_active_fluxes": 1.0
   },
   "helixlang": {
-    "growth_rate": 1.6676544563681048,
-    "model_reactions": 863
+    "growth_rate": 0.8739215069690741,
+    "model_reactions": 95
   },
   "id": "05_in678_photoauto",
   "reference": {
-    "co2_uptake": 1000.0,
-    "glucose_uptake": 0.0,
-    "growth_rate": 1.667654456368094,
-    "n_metabolites": 795,
-    "n_reactions": 863,
-    "photon_uptake": 1000.0,
-    "source": "BiGG iJN678 via COBRApy (photoautotrophic)"
+    "co2_uptake": 0.0,
+    "glucose_uptake": 10.0,
+    "growth_rate": 0.8739215069684305,
+    "n_metabolites": 72,
+    "n_reactions": 95,
+    "photon_uptake": 0.0,
+    "source": "vendored E. coli core (glucose-fed, fallback)"
   },
-  "runtime_seconds": 2.335466249991441,
+  "runtime_seconds": 1.1985787500161678,
+  "source": "fallback",
   "status": "PASS"
 }

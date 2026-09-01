@@ -5,11 +5,13 @@
     "load_model_and_remove_reaction": true
   },
   "details": {
-    "base_growth_rate": 0.8217979336265827,
+    "base_growth_rate": 0.8326136426825184,
     "gapfill_pool_created": true,
-    "pool_size": 6
+    "pool_size": 6,
+    "source": "fallback"
   },
   "id": "26_gapfill_validation",
-  "runtime_seconds": 3.604983709024964,
+  "runtime_seconds": 0.4823153750039637,
+  "source": "fallback",
   "status": "PASS"
 }

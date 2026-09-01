@@ -12,22 +12,22 @@
     "model_metabolites": 37,
     "helixlang_growth_rate": 0.0,
     "cobrapy_growth_rate": 0.8739215069684307,
-    "speedup_ratio": 1.278824306759742,
+    "speedup_ratio": 0.4920391315131021,
     "timing": {
       "helixlang_ecoli_core": {
-        "ms": 3.018624964170158
+        "ms": 2.493874984793365
       },
       "cobrapy_ecoli_core": {
-        "ms": 3.8602909771725535
+        "ms": 1.227084081619978
       },
       "comparison": {
-        "helixlang_ms": 3.018624964170158,
-        "cobrapy_ms": 3.8602909771725535,
-        "speedup_ratio": 1.278824306759742
+        "helixlang_ms": 2.493874984793365,
+        "cobrapy_ms": 1.227084081619978,
+        "speedup_ratio": 0.4920391315131021
       }
     }
   },
-  "runtime_seconds": 2.3063175000716,
+  "runtime_seconds": 0.9662687920499593,
   "layer": "performance",
   "name": "Performance Scaling \u2014 COBRApy vs HelixLang FBA timing",
   "level": "L2"

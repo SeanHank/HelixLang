@@ -7,7 +7,7 @@
   "module_import_export": true,
   "valid_program_type_check": true,
   "flow_field_construction": true,
-  "runtime_seconds": 0.09372641704976559,
+  "runtime_seconds": 0.08602987509220839,
   "layer": "language",
   "name": "Type system & flow \u2014 type checking + module imports",
   "level": "L0"

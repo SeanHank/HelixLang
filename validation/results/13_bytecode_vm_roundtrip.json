@@ -5,7 +5,7 @@
   "trace_ticks": 1,
   "deterministic": true,
   "final_energy": 1200000000.0,
-  "runtime_seconds": 0.09390879201237112,
+  "runtime_seconds": 0.10314641706645489,
   "layer": "runtime",
   "name": "Bytecode/VM roundtrip \u2014 compile \u2192 serialize \u2192 deserialize \u2192 execute",
   "level": "L0"

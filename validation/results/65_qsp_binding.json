@@ -31,7 +31,7 @@
     "qss_tmdd": "Gibiansky L, Gibiansky E 2014, J Pharmacokinet Pharmacodyn 41:275",
     "schild": "Schild HO 1949, Br J Pharmacol 4:277"
   },
-  "runtime_seconds": 0.6861922079697251,
+  "runtime_seconds": 0.45474266703240573,
   "layer": "pharmacology",
   "name": "QSP binding models",
   "level": "L0"

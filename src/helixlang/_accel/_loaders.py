@@ -22,8 +22,8 @@ from typing import Any
 from helixlang.core.errors import NativeBackendError
 
 # Technology tags in default priority order.  `native` expands to whichever
-# compiled impl (cext/cython) is present on disk.
-_NATIVE_IMPLS = ("impl_cext", "impl_cython")
+# compiled impl (cext/cython/rust) is present on disk.
+_NATIVE_IMPLS = ("impl_cext", "impl_cython", "impl_rust")
 _SUFFIX_IMPLS = ("impl_numpy", "impl_numba", "impl_python")
 
 

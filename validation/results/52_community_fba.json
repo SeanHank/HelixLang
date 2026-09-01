@@ -24,7 +24,7 @@
     "year": 2012,
     "note": "OptCom framework for community-level FBA with cross-feeding"
   },
-  "runtime_seconds": 0.6108382500242442,
+  "runtime_seconds": 0.5331307080341503,
   "layer": "metabolism",
   "name": "Community FBA cross-feeding",
   "level": "L0"

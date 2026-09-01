@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "community_fba_constructor": true,
+    "community_fba_importable": true,
+    "community_result_importable": true,
+    "exchange_network_fields": true,
+    "exchange_network_importable": true,
+    "organism_model_fields": true,
+    "organism_model_importable": true,
+    "solve_handles_no_model": true,
+    "solve_returns_result": true
+  },
+  "details": {
+    "exchange_balance_ac": 2.0,
+    "org_consumption_glc": 10.0,
+    "org_production_ac": 5.0
+  },
+  "id": "52_community_fba",
+  "reference": {
+    "authors": "Zomorrodi AR, Maranas CD",
+    "doi": "10.1371/journal.pcbi.1002363",
+    "note": "OptCom framework for community-level FBA with cross-feeding",
+    "source": "Zomorrodi AR, Maranas CD 2012, PLoS Comput Biol 8:e1002363",
+    "year": 2012
+  },
+  "runtime_seconds": 0.00031512498389929533,
+  "status": "PASS"
+}

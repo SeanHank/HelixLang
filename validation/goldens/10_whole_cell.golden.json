@@ -1,4 +1,7 @@
 {
+  "actual": {
+    "value": 37
+  },
   "energy_budget": {
     "avg_biomass_flux": 1.2803,
     "division_times": [
@@ -15,6 +18,17 @@
     "subsequent_interval_actual_min": 75.0,
     "subsequent_interval_analytical_min": 74.6
   },
+  "error": {
+    "abs_error": 0.29999999999999716,
+    "passed": true,
+    "rel_error": 0.008042895442359173
+  },
+  "expected": {
+    "metric": "division_time",
+    "tolerance": 0.3,
+    "unit": "min",
+    "value": 37.3
+  },
   "experimental_comparison": {
     "note": "Model uses Cooper-Helmstetter replication with adder size control; division time depends on biomass flux and division_energy threshold",
     "reference": [
@@ -30,11 +44,23 @@
     "simulated_first_division_min": 37
   },
   "id": "10_whole_cell",
+  "layer": "virtual_cell",
+  "name": "Whole-cell division time",
   "proteins": {
     "lacI": 20000.0,
     "tetR": 20000.0
   },
-  "runtime_seconds": 0.3889289580110926,
+  "reference": {
+    "authors": "Wanner",
+    "note": "37.3 min at 37\u00b0C in minimal glucose medium",
+    "source": "E. coli K-12 generation time",
+    "year": 1996
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15"
+  },
+  "runtime_seconds": 0.3293797499500215,
   "status": "PASS",
   "trajectory_keyframes": [
     {

@@ -5,7 +5,7 @@
     "MIN_DIVISION_ENERGY": 20000000.0
   },
   "id": "17a_cell",
-  "runtime_seconds": 1.5875004464760423e-05,
+  "runtime_seconds": 1.2665987014770508e-05,
   "status": "PASS",
   "validation": {
     "division": true,

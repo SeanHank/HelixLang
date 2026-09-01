@@ -1,0 +1,23 @@
+{
+  "id": "81_immune_virtual_population",
+  "status": "PASS",
+  "checks": {
+    "cohort_has_baseline_variance": true,
+    "cohort_baselines_are_physiologic": true,
+    "cohort_deterministic_across_runs": true,
+    "cohort_matches_scalar_advance": true
+  },
+  "details": {
+    "il6_span_fraction": 0.5715998646258261,
+    "il6_after_cohort": 9.429052287196038
+  },
+  "reference": {
+    "source": "doc/40 L6 (npj Syst Biol Appl 11, 2023); doc/39 O2/O9",
+    "doi": "10.1038/s41540-023-00269-6",
+    "note": "seeded log-normal virtual population; cohort-vectorized run is bit-identical to scalar"
+  },
+  "runtime_seconds": 0.9800402499968186,
+  "layer": "human",
+  "name": "Virtual immune population \u2014 seeded baseline variance + cohort determinism (G13/O9)",
+  "level": "L3"
+}

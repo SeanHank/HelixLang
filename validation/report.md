@@ -1,15 +1,15 @@
 # HelixLang Validation Report
 
-Generated: 2026-08-31 12:04:19 UTC
+Generated: 2026-09-01 02:53:33 UTC
 
 ## Summary
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks | **75/75** pass |
-| Failures | 0 |
+| Benchmarks | **81/82** pass |
+| Failures | 1 |
 | Skipped | 0 |
-| Validation levels | L0×57 · L1×2 · L2×8 · L3×2 · L4×6 · L5×0 |
+| Validation levels | L0×59 · L1×2 · L2×8 · L3×7 · L4×6 · L5×0 |
 | Level-gate warnings | 10 |
 
 ## Evidence Chains
@@ -26,7 +26,7 @@ Generated: 2026-08-31 12:04:19 UTC
 | 08_population_dynamics | Population dynamics | population | L4 | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | Reaction-diffusion (Gray-Scott) | pattern_formation | L2 | 4 nested checks → statistical_comparison.statistical_match=True, stability_analysis.homogeneous_stable=True, parameter_sensitivity.sensitivity_ok=True → passed=4, total=4 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | virtual_cell | L4 | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L2 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0855, ecoli_core.helixlang_100_solves_s=2.2891 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0855, ecoli_core.helixlang_100_solves_s=2.2891 → verified | ✅ PASS |
+| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L2 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0378, ecoli_core.helixlang_100_solves_s=2.4453 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0378, ecoli_core.helixlang_100_solves_s=2.4453 → verified | ✅ PASS |
 | 12_parser_roundtrip | Parser roundtrip — source → AST → bytecode | language | L0 | 8 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | Bytecode/VM roundtrip — compile → serialize → deserialize → execute | runtime | L0 | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | Type system & flow — type checking + module imports | language | L0 | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |
@@ -71,7 +71,7 @@ Generated: 2026-08-31 12:04:19 UTC
 | 53_gem_reconstruction | GEM reconstruction pipeline | metabolism | L0 | 7 automated checks → import_modules=True, create_reaction_dicts=True, consensus_merge=True → passed=7, total=7 → verified | ✅ PASS |
 | 54_sbml_grn_inference | SBML import + GRN inference | metabolism | L0 | 6 automated checks → import_modules=True, sbml_import=True, grn_result_instantiation=True → passed=6, total=6 → verified | ✅ PASS |
 | 55_annotation_tools | Annotation tools | annotation | L0 | 9 automated checks → import_all_4_modules=True, ko_db_size=True, ko_db_has_k00844=True → passed=9, total=9 → verified | ✅ PASS |
-| 56_blast_search | BLAST search wrapper | annotation | L0 | 4 automated checks → import_blast_module=True, hit_dataclass=True, search_result_hits_for=True → passed=4, total=4 → verified | ✅ PASS |
+| 56_blast_search | BLAST search wrapper | annotation | L0 | 1 metrics → level=L0 → level=L0 → verified | ❌ FAIL |
 | 57_pbpk_pharmacokinetics | PBPK pharmacokinetics | pharmacology | L0 | 7 automated checks → import_pbpk_classes=True, pbpk_config_default=True, pbpk_model_has_step=True → passed=7, total=7 → verified | ✅ PASS |
 | 58_endocrine_renal | Endocrine + renal ODEs | pharmacology | L0 | 7 automated checks → import_all_classes=True, create_endocrine_returns_EndocrineSystem=True, insulin_glucose_positive=True → passed=7, total=7 → verified | ✅ PASS |
 | 59_hematology | Hematology myelosuppression | pharmacology | L0 | 7 automated checks → import_all_classes=True, create_returns_HematologySystem=True, hematology_has_step=True → passed=7, total=7 → verified | ✅ PASS |
@@ -91,8 +91,15 @@ Generated: 2026-08-31 12:04:19 UTC
 | 73_ir_serialization | HLIR serialization robustness | compiler | L0 | 7 automated checks → rich_roundtrip=True, metadata_preserved=True, typed_operands=True → passed=7, total=7 → verified | ✅ PASS |
 | 74_incremental_jit | Incremental JIT — closure-limited gene recompile | compiler | L0 | 5 automated checks → full_build_rebuilds_all=True, unchanged_source_rebuilds_nothing=True, leaf_edit_rebuilds_closure_only=True → passed=5, total=5 → verified | ✅ PASS |
 | 75_unit_safety | Unit system & dimensional safety | compiler | L0 | 9 automated checks → minutes_seconds_exact=True, base_value_equality=True, cross_unit_arithmetic_rejected=True → passed=9, total=9 → verified | ✅ PASS |
+| 76_unit_safety_compile | Compile-time dimensional rejection (doc/41 Item 5 Ring 3) | compiler | L0 | 6 automated checks → cross_unit_symbol_add_rejected=True, dimension_tree_in_message=True, millimolar_plus_litre_named=True → passed=6, total=6 → verified | ✅ PASS |
+| 77_immune_ifn_crp_friberg | Innate immune fidelity — type-I IFN, CRP v2 (IL-6→CRP lag/range), Friberg granulopoiesis | human | L3 | doc/40 L5 (Pawelek 2012), L9 (Sproston & Ashworth 2018), L4  → verified | ✅ PASS |
+| 78_immune_adaptive_vaccine | Adaptive immunity + vaccination — two-dose antibody kinetics, APC priming, memory | human | L3 | doc/40 L5 (Pawelek et al. 2012), L8 (Front. Immunol. 16:1596 → verified | ✅ PASS |
+| 79_immune_complement | Complement cascade + NK/mast/Eo/Baso + anaphylaxis (G5/G6) | human | L3 | doc/40 L7 (Zewde & Morikis 2018), L1 (BIS entity set) → verified | ✅ PASS |
+| 80_immune_tissue_blood | Tissue-vs-blood immune pseudo-compartments (G10) | human | L3 | doc/40 G10; L1 (BIS compartment taxonomy), L2 (IIRABM) → verified | ✅ PASS |
+| 81_immune_virtual_population | Virtual immune population — seeded baseline variance + cohort determinism (G13/O9) | human | L3 | doc/40 L6 (npj Syst Biol Appl 11, 2023); doc/39 O2/O9 → verified | ✅ PASS |
+| 82_immune_spatial_abm | Spatial immune ABM — chemokine migration, contact signaling, deterministic replay (G15) | human | L0 | doc/40 G15; doc/31 §2.4 (BIS agent taxonomy, spatial ABM des → verified | ✅ PASS |
 
-**75/75 benchmarks passed.**
+**81/82 benchmarks passed.**
 
 ## Level-Gate Warnings (doc/41 §3.2 Rule 5 — informational)
 
@@ -106,3 +113,11 @@ Generated: 2026-08-31 12:04:19 UTC
 - 43_performance_scaling: L2 requires reproducibility.golden_hash
 - 69_performance_benchmark: L2 requires reproducibility.golden_hash
 - 70_decoupling_verify: L2 requires reproducibility.golden_hash
+
+## Failures
+
+### 56_blast_search
+
+- Status: FAIL
+- Error: Error(abs_error=None, rel_error=None, passed=True, message=None)
+

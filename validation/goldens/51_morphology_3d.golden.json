@@ -1,0 +1,37 @@
+{
+  "checks": {
+    "bounds_has_keys": true,
+    "bounds_size_positive": true,
+    "branch_3_lines": true,
+    "bush_produces_lines": true,
+    "iteration_scaling": true,
+    "rotation_90z": true,
+    "rotation_preserves_norm": true,
+    "rotation_zero_identity": true,
+    "single_f_endpoint": true,
+    "single_f_one_line": true,
+    "tree3d_has_z_extent": true
+  },
+  "details": {
+    "branch_line_count": 3,
+    "bush_line_count_2iter": 64,
+    "iteration_line_counts": [
+      6,
+      36,
+      216
+    ],
+    "rotation_90z_result": "(0.0000, 1.0000, 0.0000)",
+    "tree3d_line_count": 36,
+    "tree3d_z_extent": 2.377325409719355
+  },
+  "id": "51_morphology_3d",
+  "reference": {
+    "authors": "Lindenmayer A",
+    "doi": "10.1016/0022-5193(68)90079-7",
+    "note": "L-system 3D turtle interpretation with Rodrigues rotation",
+    "source": "Lindenmayer A 1968, J Theor Biol 18:280",
+    "year": 1968
+  },
+  "runtime_seconds": 0.0009584169602021575,
+  "status": "PASS"
+}

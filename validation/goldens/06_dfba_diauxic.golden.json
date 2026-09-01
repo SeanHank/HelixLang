@@ -178,7 +178,7 @@
       }
     ]
   },
-  "runtime_seconds": 1.6128632500185631,
+  "runtime_seconds": 1.2680304161040112,
   "status": "PASS",
   "validation": {
     "acetate_peak_30pct": true,

@@ -1,0 +1,14 @@
+id: 80_immune_tissue_blood
+name: Tissue-vs-blood immune pseudo-compartments (G10)
+layer: human
+level: L3
+reference: doc/40 G10 — L1 (BIS compartment taxonomy), L2 (IIRABM tissue/margination)
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - baseline_divergence_zero
+    - infection_creates_tissue_blood_divergence
+    - margination_raises_tissue_neutrophils

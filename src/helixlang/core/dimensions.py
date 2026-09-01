@@ -85,22 +85,37 @@ DIM_CONCENTRATION = DIM_AMOUNT - DIM_VOLUME
 _NAMED_UNITS: dict[str, tuple[Dimension, float]] = {
     "min": (DIM_TIME, 60.0),           # 1 tick = 1 minute (Neidhardt 1996)
     "s": (DIM_TIME, 1.0),
+    "h": (DIM_TIME, 3600.0),           # 1 hour
+    "d": (DIM_TIME, 86400.0),          # 1 day
+    "wk": (DIM_TIME, 7 * 86400.0),     # 1 week
     "tick": (DIM_TIME, TIME_TICK_S),
     "µm": (DIM_LENGTH, 1e-6),
     "um": (DIM_LENGTH, 1e-6),
     "µm³": (DIM_VOLUME, 1e-18),
     "µm3": (DIM_VOLUME, 1e-18),
     "mol": (DIM_AMOUNT, 1.0),
+    "mmol": (DIM_AMOUNT, 1e-3),
+    "pmol": (DIM_AMOUNT, 1e-12),
     "molecule": (DIM_AMOUNT, 1.0 / AVOGADRO),
     "atom": (DIM_AMOUNT, 1.0 / AVOGADRO),
     "M": (DIM_CONCENTRATION, 1e3),     # mol / L = mol / 1e-3 m^3
     "mM": (DIM_CONCENTRATION, 1.0),
     "µM": (DIM_CONCENTRATION, 1e-3),   # µmol / L
     "uM": (DIM_CONCENTRATION, 1e-3),
+    "nM": (DIM_CONCENTRATION, 1e-6),
+    "pM": (DIM_CONCENTRATION, 1e-9),
     "L": (DIM_VOLUME, 1e-3),           # 1 litre = 1e-3 m^3
     "l": (DIM_VOLUME, 1e-3),
+    "ml": (DIM_VOLUME, 1e-6),
+    "uL": (DIM_VOLUME, 1e-9),
+    "µL": (DIM_VOLUME, 1e-9),
     "gDW": (DIM_MASS, 1e-3),
     "g": (DIM_MASS, 1e-3),
+    "mg": (DIM_MASS, 1e-6),
+    "µg": (DIM_MASS, 1e-9),
+    "ug": (DIM_MASS, 1e-9),
+    "ng": (DIM_MASS, 1e-12),
+    "pg": (DIM_MASS, 1e-15),
     "": (DIMENSIONLESS, 1.0),
 }
 

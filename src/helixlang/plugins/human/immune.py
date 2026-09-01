@@ -41,6 +41,20 @@ except ImportError:  # pragma: no cover - numpy is a project dependency
     _np = None  # type: ignore[assignment]
     _HAS_NUMPY = False
 
+# doc/40 Phase B: adaptive immunity + vaccination (G2/G3/G7/G12). Imported
+# lazily-safe; adaptive.py itself imports nothing from immune, so no cycle.
+from helixlang.plugins.human.adaptive import (  # noqa: E402
+    AdaptiveImmuneModel as _AdaptiveImmuneModel,
+)
+# doc/40 Phase C: reduced complement cascade (G5) and NK/mast pools (G6).
+from helixlang.plugins.human.complement import (  # noqa: E402
+    ComplementCascade as _ComplementCascade,
+)
+# doc/40 Phase C: tissue vs blood pseudo-compartments (G10).
+from helixlang.plugins.human.tissue_blood import (  # noqa: E402
+    TissueBloodModel as _TissueBloodModel,
+)
+
 __all__ = [
     "CytokinePool",
     "IFNPool",
@@ -50,6 +64,7 @@ __all__ = [
     "create_immune_model",
     "cohort_immune_step",
     "run_cohort",
+    "sample_virtual_population",
 ]
 
 
@@ -213,6 +228,12 @@ class ImmuneCellPopulation:
     dendritic_cells: float = 0.1  # ×10³/µL
     t_cells: float = 1.5          # ×10³/µL (normal 1-2)
 
+    # --- G6 pools (doc/40 Phase C): NK, mast, eosinophil, basophil ---
+    nk_cells: float = 0.3         # ×10³/µL (normal 0.15-0.6)
+    mast_cells: float = 0.1       # ×10³/µL tissue-equivalent
+    eosinophils: float = 0.1      # ×10³/µL (normal 0.02-0.5)
+    basophils: float = 0.05       # ×10³/µL (normal 0.01-0.08)
+
     # Production rates (×10³/µL/h)
     neutrophil_production: float = 0.1   # bone marrow output
     monocyte_production: float = 0.02
@@ -222,6 +243,20 @@ class ImmuneCellPopulation:
     neutrophil_clearance: float = 0.05   # ~14 h half-life in blood
     monocyte_clearance: float = 0.03
     macrophage_clearance: float = 0.01   # long-lived tissue cells
+
+    # --- G6 kinetics ---
+    nk_production: float = 0.005
+    nk_clearance: float = 0.02
+    mast_production: float = 0.002
+    mast_clearance: float = 0.01
+    eos_production: float = 0.002
+    eos_clearance: float = 0.03
+    baso_production: float = 0.001
+    baso_clearance: float = 0.04
+    # Mast-cell anaphylaxis (IgE cross-linking → histamine release, G6):
+    # drives a transient systemic mediator spike used for the anaphylaxis flag.
+    histamine_ng_ml: float = field(default=0.0, init=False, repr=False)
+    igE_signal: float = 0.0       # 0-1 external anaphylaxis/IgE drive
 
     # Mobilisation: cytokine-driven release from bone marrow
     gcsf_sensitivity: float = 0.5  # neutrophil response to G-CSF/IL-6
@@ -318,12 +353,36 @@ class ImmuneCellPopulation:
             self.t_cell_production * (1.0 + il6 / 20.0)
             - 0.005 * self.t_cells)
 
+        # --- G6 pools (doc/40 Phase C) ---
+        # NK: IFN-γ-mediated antiviral surveillance (rises with innate signal).
+        self.nk_cells += dt_h * (
+            self.nk_production * (1.0 + tnf / 50.0)
+            - self.nk_clearance * self.nk_cells)
+        # Mast cells: tissue resident; IgE cross-linking releases histamine.
+        self.mast_cells += dt_h * (
+            self.mast_production - self.mast_clearance * self.mast_cells)
+        # Eosinophils / basophils: parasitic/allergic arms.
+        self.eosinophils += dt_h * (
+            self.eos_production * (1.0 + self.igE_signal)
+            - self.eos_clearance * self.eosinophils)
+        self.basophils += dt_h * (
+            self.baso_production * (1.0 + self.igE_signal)
+            - self.baso_clearance * self.basophils)
+        # Histamine (ng/mL): rapid release on IgE signal, ~10 min half-life
+        # (acute anaphylaxis mediator that clears minutes after the trigger).
+        self.histamine_ng_ml = self.histamine_ng_ml * math.exp(-6.0 * dt_h) \
+            + self.igE_signal * 40.0 * min(1.0, dt_h)
+
         # Floors
         self.neutrophils = max(0.1, self.neutrophils)
         self.macrophages = max(0.01, self.macrophages)
         self.monocytes = max(0.01, self.monocytes)
         self.dendritic_cells = max(0.01, self.dendritic_cells)
         self.t_cells = max(0.1, self.t_cells)
+        self.nk_cells = max(0.01, self.nk_cells)
+        self.mast_cells = max(0.01, self.mast_cells)
+        self.eosinophils = max(0.01, self.eosinophils)
+        self.basophils = max(0.01, self.basophils)
 
     def get_wbc_total(self) -> float:
         """Total WBC (×10³/µL) — approximate from populations."""
@@ -354,6 +413,27 @@ class InnateImmuneModel:
     cells: ImmuneCellPopulation = field(default_factory=ImmuneCellPopulation)
     ifn: IFNPool = field(default_factory=IFNPool)
 
+    # --- Adaptive immunity (doc/40 Phase B: G2/G3/G7/G12) ---
+    # Additive and inert at baseline: no infection + no vaccine leaves every
+    # adaptive pool at its naive baseline and antibody at the baseline titer.
+    adaptive: "_AdaptiveImmuneModel" = field(
+        default_factory=_AdaptiveImmuneModel)
+
+    # --- Complement cascade (doc/40 Phase C: G5) ---
+    # Additive and inert at baseline: no signal -> C3/C5 at 1.0, anaphylatoxins
+    # and MAC ~0.  ``anti_c5_dose`` (0-1) simulates an anti-C5 agent that
+    # suppresses the MAC arm while sparing C3b opsonization.
+    complement: "_ComplementCascade" = field(
+        default_factory=_ComplementCascade)
+
+    # --- Tissue vs blood pseudo-compartments (doc/40 Phase C: G10) ---
+    # Additive and inert at baseline: blood fields mirror the circulating
+    # channels (so existing consumers are unchanged), tissue fields sit at
+    # baseline, and the tissue-vs-blood divergence is ~0 with no signal.
+    tissue_blood: "_TissueBloodModel" = field(
+        default_factory=_TissueBloodModel)
+
+
     # --- Cortisol suppression (from HPA axis) ---
     cortisol_suppression: float = 0.0  # 0=none, 1=complete suppression
 
@@ -365,6 +445,14 @@ class InnateImmuneModel:
     # --- Drug effects ---
     immunosuppression: float = 0.0  # e.g. chemotherapy, biologics
     anti_inflammatory: float = 0.0  # 0-1: PD-driven suppression of IL-6/TNF (JAK inhibitors etc.)
+
+    # --- Biologic anti-IL-6 occupancy (doc/40 Phase D, L10) ---
+    # Target-mediated drug disposition-style occupancy (0-1) of a
+    # tocilizumab/siltuximab-class anti-IL-6: directly suppresses IL-6
+    # production more strongly than the generic anti_inflammatory pathway,
+    # with partial tissue/lymph-node penetration per L10 (~10% less at the
+    # tissue).  Inert at 0.
+    il6_biologic_occupancy: float = 0.0
 
     # --- Disease modifiers ---
     autoimmune_activation: float = 0.0  # chronic inflammatory drive
@@ -428,11 +516,44 @@ class InnateImmuneModel:
             self.cytokines.il6_production_rate *= (1.0 - suppression * 0.9)
             self.cytokines.tnf_production_rate *= (1.0 - suppression * 0.85)
 
+        # Biologic anti-IL-6 occupancy (doc/40 Phase D, L10): direct,
+        # TMDD-style IL-6 neutralisation.  Inert at occupancy 0.
+        occ = min(1.0, max(0.0, self.il6_biologic_occupancy))
+        if occ > 0.0:
+            # Near-complete neutralisation of circulating IL-6 at high
+            # occupancy (tocilizumab/siltuximab class); tissue penetration is
+            # partial (~10% lower per L10) but the dominant blood effect is
+            # captured here and propagates to the tissue readout next tick.
+            self.cytokines.il6_production_rate *= (1.0 - 0.97 * occ)
+
         # Step cytokines
         self.cytokines.step(dt_h)
 
         # Step cells with cytokine signals
         self.cells.step(dt_h, self.cytokines.il6, self.cytokines.tnf_alpha)
+
+        # --- Adaptive immunity (doc/40 Phase B) ---
+        # The adaptive layer sees the same antigen drive as the innate layer
+        # (effective post-IFN pathogen signal), so a viral load that the
+        # innate arm is not clearing grows a CD8/antibody response; a cleared
+        # infection leaves memory. Inert when infection_severity == 0 and no
+        # vaccine has been administered.
+        self.adaptive.step(dt_h, max(0.0, effective_pathogen))
+
+        # --- Complement cascade (doc/40 Phase C: G5) ---
+        # Driven by the same post-IFN tissue/immune signal.  Inert at
+        # baseline; an anti-C5 dose modulates the MAC arm additively.
+        self.complement.step(dt_h, max(0.0, effective_pathogen))
+
+        # --- Tissue vs blood split (doc/40 Phase C: G10) ---
+        # Mirror the circulating channels into the blood compartment, then
+        # apply migration/differencing under the same tissue signal.  Inert
+        # at baseline (no signal -> divergence ~0).
+        tb = self.tissue_blood
+        tb.blood_il6 = self.cytokines.il6
+        tb.blood_neutrophils = self.cells.neutrophils
+        tb.blood_monocytes = self.cells.monocytes
+        tb.step(dt_h, max(0.0, effective_pathogen))
 
         # Advance simulation clock for circadian modulation
         self._sim_hour = (self._sim_hour + dt_h) % 24.0
@@ -451,6 +572,84 @@ class InnateImmuneModel:
 
     def get_wbc_total(self) -> float:
         return self.cells.get_wbc_total()
+
+    # --- Adaptive immunity accessors (doc/40 Phase B) ---
+    def get_igg(self) -> float:
+        return self.adaptive.get_igg()
+
+    def get_igm(self) -> float:
+        return self.adaptive.get_igm()
+
+    def get_total_antibody(self) -> float:
+        return self.adaptive.get_total_antibody()
+
+    def vaccinate(self, dose: float) -> None:
+        """Administer a vaccine dose through the adaptive layer (G12)."""
+        self.adaptive.vaccinate(dose)
+
+    # --- PD-1 checkpoint accessors (doc/40 Phase D, G14) ---
+    def get_effector_t(self) -> float:
+        return self.adaptive.get_effector_t()
+
+    def get_memory_t(self) -> float:
+        return self.adaptive.get_memory_t()
+
+    def set_checkpoint_blockade(self, blockade: float) -> None:
+        """Set PD-1/PD-L1 checkpoint blockade (0-1) on the adaptive layer."""
+        self.adaptive.checkpoint_blockade = min(
+            1.0, max(0.0, float(blockade)))
+
+    def get_checkpoint_blockade(self) -> float:
+        return self.adaptive.checkpoint_blockade
+
+    def set_il6_biologic_occupancy(self, occ: float) -> None:
+        """Set biologic anti-IL-6 occupancy (0-1), L10."""
+        self.il6_biologic_occupancy = min(1.0, max(0.0, float(occ)))
+
+    # --- Complement accessors (doc/40 Phase C: G5) ---
+    def get_c3a(self) -> float:
+        return self.complement.get_c3a()
+
+    def get_c5a(self) -> float:
+        return self.complement.get_c5a()
+
+    def get_mac(self) -> float:
+        return self.complement.get_mac()
+
+    def get_opsonization(self) -> float:
+        return self.complement.get_opsonization()
+
+    # --- G6 accessors ---
+    def get_nk_cells(self) -> float:
+        return self.cells.nk_cells
+
+    def get_mast_cells(self) -> float:
+        return self.cells.mast_cells
+
+    def get_histamine(self) -> float:
+        return self.cells.histamine_ng_ml
+
+    def get_eosinophils(self) -> float:
+        return self.cells.eosinophils
+
+    def get_basophils(self) -> float:
+        return self.cells.basophils
+
+    # --- Tissue/blood accessors (doc/40 Phase C: G10) ---
+    def get_blood_neutrophils(self) -> float:
+        return self.tissue_blood.get_blood_neutrophils()
+
+    def get_tissue_neutrophils(self) -> float:
+        return self.tissue_blood.get_tissue_neutrophils()
+
+    def get_tissue_il6(self) -> float:
+        return self.tissue_blood.get_tissue_il6()
+
+    def get_tissue_macrophages(self) -> float:
+        return self.tissue_blood.get_tissue_macrophages()
+
+    def get_tissue_blood_divergence(self) -> float:
+        return self.tissue_blood.get_tissue_blood_divergence()
 
 
 # ============================================================================
@@ -843,6 +1042,94 @@ def _copy_state(src: InnateImmuneModel,
     dst.autoimmune_activation = src.autoimmune_activation
     dst.infection_severity = src.infection_severity
     dst._sim_hour = src._sim_hour
+
+
+# ============================================================================
+# Virtual population sampling (doc/40 Phase D, gap G13)
+#
+# Inter-individual variability per L6 (npj Sys Biol Appl 2023): baseline
+# immune parameters are drawn per patient from log-normal distributions within
+# physiologic variance bands, so a cohort produces a *distribution* of
+# response rather than one representative run.  Drawn values are baked into
+# each InnateImmuneModel's CytokinePool / ImmuneCellPopulation / IFNPool at
+# construction; the resulting pool of models plugs straight into ``run_cohort``
+# (doc/39 O2 vectorization).
+#
+# Determinism per doc/39 §5.3: the per-patient RNG stream is seeded as
+# ``seed*1000003 + i`` — a pure function of (seed, patient index) — so cohort
+# vectorization and multiprocessing slabting never change the per-patient
+# trajectories.
+# ============================================================================
+
+
+def sample_virtual_population(
+    n: int,
+    seed: int = 0,
+    *,
+    sd_log: float = 0.15,
+    rng: Any | None = None,
+) -> list[InnateImmuneModel]:
+    """Build ``n`` virtual patients with log-normal baseline variance (G13).
+
+    Args:
+        n: number of virtual patients (>= 1).
+        seed: master seed; combined with patient index for deterministic,
+            seed-independent-of-patient-order sampling.
+        sd_log: log-normal standard deviation (symmetric ~±15% by default),
+            giving a cohort spanning roughly the physiologic range.
+        rng: optional caller-supplied ``random.Random``; if given, ``seed`` is
+            ignored (used for the reduction sampling use-case).
+
+    Returns:
+        A list of ``n`` :class:`InnateImmuneModel` with sampled baselines.
+    """
+    n = max(1, int(n))
+    import random as _rnd
+
+    models: list[InnateImmuneModel] = []
+    for i in range(n):
+        local = rng if rng is not None else _rnd.Random(seed * 1000003 + i)
+        g = lambda mean: math.exp(local.gauss(0.0, sd_log)) * mean
+        m = InnateImmuneModel()
+
+        # Cytokine baselines (pg/mL) around healthy reference values.
+        m.cytokines.tnf_alpha = g(5.0)
+        m.cytokines.il1_beta = g(2.0)
+        m.cytokines.il6 = g(1.0)
+        m.cytokines.il10 = g(5.0)
+
+        # WBC / cell-pool baselines (±~30% around healthy).
+        m.cells.neutrophils = g(4.0)
+        m.cells.monocytes = g(0.4)
+        m.cells.macrophages = g(0.5)
+        m.cells.dendritic_cells = g(0.1)
+        m.cells.t_cells = g(1.5)
+        m.cells.nk_cells = g(0.3)
+        m.cells.eosinophils = g(0.1)
+        m.cells.basophils = g(0.05)
+
+        # Production rates scale with the individual's set-point.
+        m.cytokines.tnf_production_rate = g(10.0)
+        m.cytokines.il6_production_rate = g(12.0)
+        m.cytokines.il10_production_rate = g(6.0)
+        m.cells.neutrophil_production = g(0.1)
+        m.cells.monocyte_production = g(0.02)
+
+        # IFN responsiveness.
+        m.ifn.ifn_vmax = g(5.0)
+        # Keep the Friberg transit chain steady-state WITHIN one patient
+        # (transit compartments = production * tau) so a new individual is at
+        # its own healthy ANC, not the population mean.
+        m.cells._init_transit_steady_state()
+
+        # Fix baselines captured at construction (so __post_init__ caches decay
+        # constants against the sampled half-lives are consistent; re-seed the
+        # per-field cached decay keys).
+        m.cytokines.__post_init__()
+        m.cells._init_transit_steady_state()
+
+        models.append(m)
+    return models
 
 
 def run_cohort(

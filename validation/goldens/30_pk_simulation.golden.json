@@ -1,4 +1,7 @@
 {
+  "actual": {
+    "value": 33.33333333333334
+  },
   "checks": {
     "auc_positive": true,
     "cmax_at_t0_for_iv_bolus": true,
@@ -16,7 +19,31 @@
     "n_time_points": 289,
     "t_max": 0.0
   },
+  "error": {
+    "abs_error": 7.105427357601002e-15,
+    "passed": true,
+    "rel_error": 2.1316282072803005e-16
+  },
+  "expected": {
+    "metric": "c0_concentration",
+    "tolerance": 0.05,
+    "unit": "mg/L",
+    "value": 33.333333333333336
+  },
   "id": "30_pk_simulation",
-  "runtime_seconds": 0.003632542007835582,
+  "layer": "human",
+  "name": "PBPK IV bolus simulation",
+  "reference": {
+    "authors": "Rowland & Tozer",
+    "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+    "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus",
+    "source": "IV bolus pharmacokinetics (one-compartment model)",
+    "year": 2011
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15"
+  },
+  "runtime_seconds": 0.003487125039100647,
   "status": "PASS"
 }

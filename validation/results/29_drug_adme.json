@@ -51,7 +51,7 @@
     ],
     "warfarin_validation_problems": []
   },
-  "runtime_seconds": 1.3647550829919055,
+  "runtime_seconds": 0.5289434170117602,
   "layer": "human",
   "name": "Drug ADME predefined library lookup",
   "level": "L0"

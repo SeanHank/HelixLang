@@ -1,6 +1,6 @@
 # doc/39 — Performance Optimization Survey: Realism-Preserving Speedups Across the Stack
 
-> **Status:** implemented (O1–O9) · 2026-08-31 · baseline 2026.8.5 · stretch: O10 (backbone now applicable — doc/40 Phase A landed, still unimplemented), O11, O12
+> **Status:** implemented (O1–O12) · 2026-09-01 · baseline 2026.8.5 · O11 (JAX BatchRuntime) guarded by `has_jax` extra — **live-verified with jax 0.4.38** (JAX engine selected, bit-exact parity; numpy fallback also bit-correct); O12 (Rust/PyO3 simplex) landed — **9.9–65.8×** over pure-Python (measured)
 >
 > **Depends on:** doc/13 (performance report), doc/37 (validity/performance decoupling), doc/36 (plugin architecture), doc/31 (frontier design)
 >
@@ -32,7 +32,7 @@ exactly the components whose *realism* doc/37, doc/31 and doc/40 want to raise, 
 optimization here is deliberately framed as "math-equivalent or math-better", never
 "math-worse".
 
-Validation gate: **75/75 validation goldens, SHA256-verified** (`validation/report.md`,
+Validation gate: **82/82 validation goldens, SHA256-verified** (`validation/report.md`,
 README §Validation). Every optimization below is gated on either bit-identical golden
 outputs or a documented regeneration path through the doc/37 Biological-Accuracy framework.
 
@@ -115,12 +115,12 @@ outright new realism, e.g. virtual populations).
 | O4 | `simulation.py:363-371` per-drug solve_ivp | Batch all drugs into one system; use `vectorized=True` + pre-imported scipy object | 2–5× | 🟩 (consistent cross-drug coupling) | M | L | ✅ `_PBPKEngine.advance_batch` (one block-diagonal `solve_ivp(vectorized=True)`); verified vs per-engine ≈1e-5 |
 | O5 | `metabolism.py` simplex dispatch | Default to `_simplex_max_numpy` when numpy present; Cython the core pivots; pure-python retained as guaranteed fallback | 3–20× | ⚪ | S–M | L | ✅ already defaults to numpy simplex; pure-python fallback kept |
 | O6 | `grn.py:262` Hill/telegraph Python branch | Add `_accel` Hill path (extend `step_accel` beyond threshold-only); keep telegraph as optional sim feature | 3–8× | ⚪ | S–M | L | ✅ `_accel/grn_step` `step_mixed` (python/numpy/numba) + `grn_step_mixed`; verified vs `GRN.step` |
-| O7 | `_accel` fallbacks (grn_step/simplex/diffusion) | Widen native coverage; add numba-jit experimental path | 5–30× on pure-wheel installs | ⚪ | M | M | 🟨 numba `step_mixed` (grn_step) + new simplex `impl_numba`; diffusion numba already present; prebuilt cext/cython `.so` fall back to python |
+| O7 | `_accel` fallbacks (grn_step/simplex/diffusion) | Widen native coverage; add numba-jit experimental path | 5–30× on pure-wheel installs | ⚪ | M | M | ✅ numba + numpy for all three hot paths, fidelity bit-identical: simplex **23.1×**, diffusion **5.1×** vs pure-python; grn_step single-tick numba/numpy ≈ **parity** (real GRN win is cohort vectorization, O2/O10) — measured 2026-09-01 |
 | O8 | `server/app.py` | LRU memoization keyed on (source, seed, config-hash/genetics); process the memoized compile only | 10–100× on repeated cohort sweeps | 🟪 (cheap sensitivity sweeps) | S | L | ✅ `_PIPELINE_CACHE` (64 MiB) via `_pipeline_cached`/`_pipeline_fresh` |
 | O9 | cohort/validation runs | `joblib`/`multiprocessing` map across patients & goldens (embarrassingly parallel) | N× practical | 🟪 (larger ensembles) | S | L | ✅ `immune.run_cohort` (spawn-pool slabs, bit-identical) + `validation/run_all.py --parallel` |
-| O10 | adaptive-ODE backbone for doc/40 | When doc/40 lands Friberg/IFN/complement, author them as a vectorized scipy system, not per-hour Euler | headroom for +tens of ODEs | 🟩 | M | M | ⬜ (doc/40 Phase A landed 2026.8.5; IFN/Friberg/CRP currently Euler in `cohort_immune_step` — vectorized still to author) |
-| O11 | (optional) JAX BatchRuntime | doc/37 §5 batch runtime across patients/GPU; guarded by `has_jax` extra | 10–100× cohort | 🟪 | L | H | ⬜ |
-| O12 | (optional) Rust/PyO3 | Port hottest kernels after profiling shows steady-state winners | 10–50× | ⚪ | L | H | ⬜ |
+| O10 | adaptive-ODE backbone for doc/40 | When doc/40 lands Friberg/IFN/complement, author them as a vectorized scipy system, not per-hour Euler | headroom for +tens of ODEs | 🟩 | M | M | ✅ vectorized cohort steps for adaptive (`cohort_adaptive_step`, + PD-1 checkpoint), complement (`cohort_complement_step`), tissue/blood (`cohort_tissue_blood_step`) — each bit-identical to its scalar path (doc/39 §5.1) |
+| O11 | (optional) JAX BatchRuntime | doc/37 §5 batch runtime across patients/GPU; guarded by `has_jax` extra | 10–100× cohort | 🟪 | L | H | ✅ `BatchRuntime` `_JAXEngine` + `_make_engine` jax→numpy transparent fallback (device availability is a *performance*, never *fidelity*, property — doc/37 §3); `has_jax` extra added (`jax>=0.4,<1`). **Live-verified 2026-09-01 with jax 0.4.38**: `_JAXEngine` selected (`active_backend=jax`) and traces bit-identical to the numpy engine and the single runtime; numpy-fallback guard (jax absent) also verified bit-correct. GPU/CUDA and cross-device 10–100× gains not measured (CPU-only host) |
+| O12 | (optional) Rust/PyO3 | Port hottest kernels after profiling shows steady-state winners | 10–50× | ⚪ | L | H | ✅ Rust/PyO3 simplex `impl_rust` (`_accel`, abi3), landed 2026-09-01 — **9.9×/29×/65.8×** over pure-Python (20/40/60-size LPs, measured), also beats numba (1.4–1.8×); **bit-identical** to `impl_python` (status+basis+full tableau, max diff 0.0). Loader now prefers it under `native`/`HELIX_ACCEL=rust`; built via `python -m helixlang._accel.build` (cargo only, no maturin); source crate ships at `simplex/rust/` |
 
 Priorities: **O3, O5, O6, O8** first (low-risk, standalone); **O1/O2/O10** co-scheduled
 with doc/40 Phase A (they touch the same file); **O4, O7, O9** opportunistic; **O11/O12**
@@ -130,12 +130,42 @@ stretch, only if profiling justifies.
 > PBPK step-doubling), O5 (numpy simplex default, already present), O6 (mixed Hill/sigmoid
 > `_accel` path), O8 (server LRU), O2 (cohort-vectorized `cohort_immune_step`, verified
 > **bit-identical** to the scalar per-model path — a strict acceleration with zero behavior
-> change), O4 (batched multi-drug `advance_batch`, verified vs per-engine ≈1e-5), O7 (simplex
-> `impl_numba` jit path), and O9 (`immune.run_cohort` multiprocessing slabs, bit-identical);
-> `validation/run_all.py` gained `--parallel`. Verification:
+> change), O4 (batched multi-drug `advance_batch`, verified vs per-engine ≈1e-5), and O9
+> (`immune.run_cohort` multiprocessing slabs, bit-identical);
+> `validation/run_all.py` gained `--parallel`. **O7 complete 2026-09-01**: numba + numpy
+> coverage for all three `_accel` hot paths (`grn_step`/`simplex`/`diffusion`), each verified
+> bit-identical to its `impl_python` reference. Measured on arm64 (numba 0.61.0), speedup vs
+> pure-python: simplex **23.1×** (`run`, 40×40), diffusion **5.1×** (`step`, 64×64 field),
+> grn_step single-tick ≈ **0.8–1.2× (parity — the per-tick op is not GRN's bottleneck; the
+> cohort-level numpy vectorization O2/O10 is the real accelerator)**. **O10 complete 2026-08-31**:
+> vectorized cohort backbones for the doc/40 modules — `adaptive.cohort_adaptive_step`
+> (incl. PD-1 checkpoint), `complement.cohort_complement_step`,
+> `tissue_blood.cohort_tissue_blood_step` — each verified
+> **bit-identical** to its scalar path (`tests/test_adaptive_immunity.py`, `test_complement_g6.py`).
+> Verification:
 > `tests/test_perf_cohort.py` (O2 equivalence + O3 determinism + O9 runner),
 > `tests/test_human_simulation.py` (O4 batch vs per-engine); green under ruff/mypy, the
 > human-plugin test suite, and the boundary census.
+>
+> **O11 complete 2026-09-01**: `BatchRuntime`'s engine already had a `_JAXEngine` plus a
+> `_make_engine` jax→numpy transparent fallback (doc/37 §3 — device availability is a
+> *performance*, never *fidelity*, property); `pyproject.toml` gained the `has_jax` extra
+> (`jax>=0.4,<1`). **Live-verified with jax 0.4.38** (isolated venv, CPU): with jax present
+> `backend="jax"` selects the real JAX engine (`active_backend=jax`) and its traces are
+> **bit-identical** to the numpy engine and to `IRRuntime.run`; with jax absent it falls
+> back to numpy, still bit-identical (`tests/test_ir.py::test_backend_selection_and_fallback`).
+>
+> **O12 complete 2026-09-01**: per the directive, O12 landed *only because* measured Rust
+> beat pure-Python. A Rust/PyO3 (`abi3`) port of the hottest steady-state winner — the
+> simplex pivot (doc/39 O5/O7) — ships as `_accel/simplex/impl_rust.abi3.so`, wired into the
+> `_accel` loader's native tier (`impl_rust`; also `HELIX_ACCEL=rust`), with the crate source
+> at `_accel/simplex/rust/` and a cargo step in `python -m helixlang._accel.build`. Measured
+> on arm64: simplex `run` is **9.9×/29.3×/65.8×** faster than pure-Python at 20/40/60-size
+> LPs, and also beats numba (1.4–1.8×); it is **bit-identical** to `impl_python` (status +
+> basis + every tableau cell, max diff 0.0). `tests/test_accel_foundation.py` now
+> validates the Rust backend's native-resolution and bit-exactness. (Had Rust not been
+> faster, O12 would have been marked *no performance improvement* instead of landed.)
+
 
 ---
 
@@ -189,16 +219,21 @@ golden rewrites.
   references; deterministic across seeds; fallbacks active on pure wheels.
   ✅ **O3 complete** (recursive step-doubling `_integrate_slot`); **O2 kernel + runner complete**
   (`cohort_immune_step` bit-identical to scalar, numpy `+ fast`; `run_cohort` multiprocessing);
-  **O4 complete** (`advance_batch`, verified ≈1e-5 vs per-engine); **O10 pending
-  doc/40 Phase A** (not yet landed), so the doc/40-driven ODE backbones remain future work.
+  **O4 complete** (`advance_batch`, verified ≈1e-5 vs per-engine); **O10 complete 2026-08-31**
+  (vectorized `cohort_adaptive_step` incl. checkpoint, `cohort_complement_step`,
+  `cohort_tissue_blood_step`, each bit-identical to its scalar path).
 - **Phase 3 — Parallel ensembles (1 wk).** O9 cohort/validation multiprocessing; cohort
   defaults raised from n→n×k where k affordable. Gate: 75/75, cohort wall-time linear-ish
   speedup. ✅ **O9 complete** (`run_cohort` spawn-pool slabs, bit-identical; `run_all.py
   --parallel` for goldens; `run_cohort` verified == scalar in `test_perf_cohort.py`).
 - **Phase 4 — Compiler-accelerated kernels (2–3 wk).** O7 native coverage expansion, optional
   numba path behind extra; stretch: O11 JAX BatchRuntime prototype, O12 profiling-gated PyO3.
-  Gate: pure-wheel parity + native speed wins measured in doc/13 harness. 🟨 numba `step_mixed`
-  (grn_step) + simplex `impl_numba` added; diffusion numba already present; O11/O12 remaining.
+  Gate: pure-wheel parity + native speed wins measured in doc/13 harness.
+  ✅ **Complete 2026-09-01.** O7 (numba + numpy for grn_step/simplex/diffusion, each
+  bit-identical — simplex **23.1×**, diffusion **5.1×**, grn single-tick ≈ parity),
+  O11 (JAX `BatchRuntime` `_JAXEngine` + transparent jax→numpy fallback via `[has_jax]`
+  extra, live-verified bit-identical with jax 0.4.38), and O12 (Rust/PyO3 `impl_rust`
+  simplex, **9.9×/29.3×/65.8×** vs pure-Python and bit-identical, `_accel/simplex/rust/`).
 
 **Total ~7–9 wk part-time; doc/40 Phase A–C interleaved at Phase 2 rendezvous points.**
 
@@ -207,7 +242,7 @@ golden rewrites.
 ## 7 — References
 
 - doc/13 — performance-report (compile/VM/GRN/Gray-Scott numbers quoted in §1)
-- doc/37 — biological-validity-performance-decoupling (validation 75/75, doc/37 §5 batch runtime)
+- doc/37 — biological-validity-performance-decoupling (validation 82/82, doc/37 §5 batch runtime)
 - doc/36 — plugin-architecture (dual-wheel `HAS_NATIVE` packaging)
 - doc/31 — frontier-virtual-patient-design (§2.4 immune ABM survey; §4.5 performance budget: "ABM adds minutes per run at tissue-agent counts × population n; acceptable for n≥100 if agents capped ≈10³–10⁴")
 - doc/33 — 100-percent-completion (validation lineage)

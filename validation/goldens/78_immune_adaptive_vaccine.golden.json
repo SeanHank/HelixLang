@@ -1,0 +1,26 @@
+{
+  "checks": {
+    "boost_anamnesis_faster_than_priming": true,
+    "infection_drives_antibody": true,
+    "memory_established_after_response": true,
+    "priming_is_delayed_not_instant": true,
+    "two_dose_schedule_peak_and_memory": true
+  },
+  "details": {
+    "effector_day1": 0.33712522573559367,
+    "effector_day7": 23.65546507259148,
+    "igg_after_infection": 299.4154068671883,
+    "memory_t": 90.23537799836305,
+    "peak_boosted": 60.55031034447865,
+    "peak_primary": 40.413487844139425,
+    "two_dose_peak_ab": 60.5592459562685
+  },
+  "id": "78_immune_adaptive_vaccine",
+  "reference": {
+    "doi": "10.1371/journal.pcbi.1002588; 10.3389/fimmu.2025.1596518",
+    "note": "effector/memory arms, two-dose antibody chain, APC priming delay",
+    "source": "doc/40 L5 (Pawelek et al. 2012), L8 (Front. Immunol. 16:1596518, 2025)"
+  },
+  "runtime_seconds": 0.006625625072047114,
+  "status": "PASS"
+}

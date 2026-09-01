@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "ckd_epi_female_in_range": true,
+    "ckd_epi_male_in_range": true,
+    "create_endocrine_returns_EndocrineSystem": true,
+    "hpa_cortisol_positive": true,
+    "hpt_tsh_non_negative": true,
+    "import_all_classes": true,
+    "insulin_glucose_positive": true
+  },
+  "details": {
+    "cortisol_after_24h": 12.6236,
+    "egfr_40yo_male_cr1": 97.58,
+    "egfr_70yo_female_cr2": 26.38,
+    "glucose_after_step": 100.0,
+    "tsh_after_step": 0.0
+  },
+  "id": "58_endocrine_renal",
+  "reference": "Inker LA et al. 2021, N Engl J Med 385:2031-2043 (CKD-EPI 2021); Bergman RN et al. 1979, Am J Physiol 236:E667 (minimal model)",
+  "runtime_seconds": 7.683294825255871e-05,
+  "status": "PASS"
+}

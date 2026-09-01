@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "crp_apr_panel_responds": true,
+    "crp_lag_compartment_delays_response": true,
+    "crp_reaches_sepsis_level_under_high_il6": true,
+    "friberg_drug_kill_reduces_neutrophils": true,
+    "ifn_rises_with_pathogen": true,
+    "ifn_suppresses_effective_pathogen": true
+  },
+  "details": {
+    "chemo_anc_nadir": 0.5849280733380561,
+    "crp_12h_high_il6": 394.8924854991245,
+    "crp_72h_high_il6": 1000.0,
+    "healthy_anc": 2.522238811575209,
+    "ifn_24h_high_signal": 9.738188173638147,
+    "ifn_effective_pathogen": 0.5431975523849958,
+    "pct_72h": 10.0
+  },
+  "id": "77_immune_ifn_crp_friberg",
+  "reference": {
+    "doi": "10.1371/journal.pcbi.1002588; 10.3389/fimmu.2018.00754; 10.1200/JCO.2002.20.23.4713",
+    "note": "IFN antiviral loop, IL-6\u2192CRP saturating kinetics with ~6h lag and widened sepsis range, and Friberg transit-chain granulopoiesis",
+    "source": "doc/40 L5 (Pawelek 2012), L9 (Sproston & Ashworth 2018), L4 (Friberg et al. 2002)"
+  },
+  "runtime_seconds": 0.00047854206059128046,
+  "status": "PASS"
+}

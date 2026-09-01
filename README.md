@@ -284,7 +284,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 ## Validation
 
-75 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
+82 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
 
 | # | Benchmark | Evidence |
 |---|-----------|----------|
@@ -299,17 +299,24 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 09 | Reaction-diffusion pattern | Reference + Robustness |
 | 10 | Whole-cell division time | Analytical |
 | 11-75| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
+| 76 | Unit-safety compile-time rejection (doc/41 Ring 3) | Functional |
+| 77 | Innate immune fidelity — IFN/CRP v2/Friberg (doc/40 Phase A) | Literature (Pawelek, Sproston, Friberg) |
+| 78 | Adaptive immunity + two-dose vaccination (doc/40 Phase B) | Literature (Pawelek, Front. Immunol.) |
+| 79 | Complement cascade + NK/mast/Eo/Baso + anaphylaxis (doc/40 Phase C) | Literature (Zewde & Morikis, BIS) |
+| 80 | Tissue-vs-blood immune pseudo-compartments (doc/40 Phase C/G10) | Literature (BIS, IIRABM) |
+| 81 | Virtual immune population — seeded variance + cohort determinism (doc/40 G13) | Literature (npj Syst Biol Appl) |
+| 82 | Spatial immune ABM — migration, contact signaling (doc/40 Phase F) | Functional |
 
 ### Scientific Validation Metrics
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **75/75** |
+| Benchmarks passing | **82/82** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
 | Worst-case error | **16.7%** (population doubling time) |
-| SHA256 golden verification | **44/44** |
+| SHA256 golden verification | **81/81** verifiable (82 total; `11_performance_comparison` is performance-only, no hash) |
 
 Every benchmark records: **Reference → Expected range → Helix result → Error → Reproducibility**.
 
@@ -372,7 +379,7 @@ python tests/test_determinism_audit.py
 ```
 
 - **3687 test cases**(all passing, 81% coverage)
-- [75/75 validation benchmarks](validation/report.md) with SHA256 goldens
+- [82/82 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

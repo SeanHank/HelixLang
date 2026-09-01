@@ -1,6 +1,14 @@
 # doc/40 — Human Immune System Simulation Realism Upgrade Plan (Literature-Grounded)
 
-> **Status:** Phase A implemented (G1/G4/G8/G9/G11) · Phase B–E plan · 2026-08-31 · baseline 2026.8.5
+> **Status:** Phase A implemented (G1/G4/G8/G9/G11) + Phase B implemented (G2/G3/G7/G12, 2026-08-31) + Phase C implemented (G5/G6/G10, 2026-08-31) + Phase D implemented (G13/G14/L10, 2026-08-31) + Phase E initial validation conditioning implemented (2026-09-01, **82/82 goldens, six new Phase A–F benchmarks 77–82**) · Phase F (G15 ABM), Phase G (L7+PD-1), Phase H (432-param Bayesian via **pymc**) implemented · 2026-09-01 · baseline 2026.8.5
+>
+> **Dependency note (2026-09-01):** Phases F–H are implemented with **declared, pre-installed
+> dependencies only — no silent fallback** (directive). Phase F uses `jax`/`numpy` (`[has_jax]`
+> extra); Phase H uses **pymc + arviz** (`[bayes]` extra) for HMC/NUTS posterior sampling.
+> Runtime is pinned to `/opt/anaconda3/envs/helix/bin/python` (Py 3.11.15; numpy 2.4.6,
+> scipy 1.17.1, jax 0.10.2, emcee 3.1.6, pymc 5.28.5, arviz 0.23.4). **matplotlib was pinned to
+> 3.10.3** to resolve the aviz-plots 0.8.0 `style.core` deprecation break under matplotlib 3.11
+> (`module 'matplotlib.style' has no attribute 'core'` on `import pymc`).
 >
 > **Depends on:** doc/31 §2.4/§5.1 (immune ABM design), doc/37 (validity framework), doc/39 (performance budget), doc/33 (validation lineage)
 >
@@ -80,19 +88,19 @@ APR panel, vaccination) go live.
 | # | Biological feature | State in `immune.py` | Needed for (doc/40 target) |
 |---|---|---|---|
 | G1 | Type I IFN (IFN-α/β) antiviral loop | **implemented** — `IFNPool` (Hill activation + antiviral suppression) | viral kinetics realism (flu bursts, HSV) |
-| G2 | Adaptive immunity: naive/effector/memory CD4/CD8, B | single undifferentiated `t_cells` pool (`:116`) | vaccination, memory, secondary response |
-| G3 | Antibody dynamics, IgM→IgG class switch, waning | missing | vaccine trials, serology channels |
+| G2 | Adaptive immunity: naive/effector/memory CD4/CD8, B | separate immature `adaptive.py` pools (G2), replacing the single `t_cells` pool (`:116`) | vaccination, memory, secondary response |
+| G3 | Antibody dynamics, IgM→IgG class switch, waning | **implemented** in `adaptive.py` (`igm_titer`/`igg_titer`, plasma cells, biphasic waning) | vaccine trials, serology channels |
 | G4 | Bone-marrow granulopoiesis / neutropenia | **implemented** — Friberg 4-compartment transit chain (`friberg_*` fields) | chemo myelosuppression plots (doc/32), recovery kinetics |
-| G5 | Complement (C3/C5 opsonization, MAC, anaphylatoxins) | missing | bacterial opsonization, anti-C5 PD (eculizumab) |
-| G6 | NK / mast / eosinophil / basophil | missing | anaphylaxis (existing disease text claims mast/IgE), tumor surveillance |
-| G7 | APC/MHC antigen presentation → T-cell priming delay | missing | vaccines (G2/G3), autoimmunity onset dynamics |
+| G5 | Complement (C3/C5 opsonization, MAC, anaphylatoxins) | **implemented** — `complement.py` `ComplementCascade` (reduced C3→C3b/C3a + C5→C5a/MAC + anti-C5) | bacterial opsonization, anti-C5 PD (eculizumab) |
+| G6 | NK / mast / eosinophil / basophil | **implemented** — additive pools + histamine/IgE anaphylaxis in `ImmuneCellPopulation` | anaphylaxis (existing disease text claims mast/IgE), tumor surveillance |
+| G7 | APC/MHC antigen presentation → T-cell priming delay | **implemented** in `adaptive.py` (`_APC_MATURATION_TAU_H` first-order priming delay) | vaccines (G2/G3), autoimmunity onset dynamics |
 | G8 | Acute-phase panel (CRP, SAA, ferritin, PCT, fibrinogen) | **implemented** — `CRPDriver` v2 APR panel fields | sepsis severity scoring (PCT), chronic disease |
 | G9 | IL-6/CRP kinetics fidelity (lag, sigmoid, wide dynamic range) | **implemented** — `CRPDriver` v2 saturating Hill + ~6 h lag, ceiling 1000 mg/L | vs Sproston/Ashworth ranges (<1→1000 µg/ml) |
-| G10 | Chemokines / tissue-vs-blood pseudo-compartments | none (docstring claims 3 spaces) | tissue inflammation vs circulating WBC mismatch |
+| G10 | Chemokines / tissue-vs-blood pseudo-compartments | **implemented** — `tissue_blood.py` `TissueBloodModel` (tissue IL-6/WBC + margination) | tissue inflammation vs circulating WBC mismatch |
 | G11 | Circadian HPA/cortisol coupling (time-resolved) | **implemented** — `circadian_amplitude`/`circadian_phase_h` sine modulation (default 0) | stress/inflammation daily rhythm |
-| G12 | Vaccination stimulus (antigen, dose, boosting) | no | vaccine-response simulation (L9 below) |
-| G13 | Inter-individual variability (virtual population) | none — fixed init | probability-of-response cohorts |
-| G14 | Immune exhaustion / checkpoints (PD-1/PD-L1) | none | PD-target pharmacology (already a PD target in the project) |
+| G12 | Vaccination stimulus (antigen, dose, boosting) | **implemented** — `VaccineSchedule` + `AdaptiveImmuneModel.vaccinate` in `adaptive.py`; `InnateImmuneModel.vaccinate` passthrough | vaccine-response simulation (L9 below) |
+| G13 | Inter-individual variability (virtual population) | **implemented** — `sample_virtual_population` (log-normal baselines, seeded) | probability-of-response cohorts |
+| G14 | Immune exhaustion / checkpoints (PD-1/PD-L1) | **implemented** — `AdaptiveImmuneModel.checkpoint_blockade` slows effector exhaustion | PD-target pharmacology (already a PD target in the project) |
 | G15 | Cross-scale agents/spaces | claimed only | see §4 L1/L2 for how far to go |
 
 ---
@@ -249,13 +257,13 @@ answer: **Content** — what we will build; **Method** — modeling method from 
 | G8+G9 | `CRPDriver` v2: IL-6 delay compartment + saturating production + widened range (<1→1000), optional SAA/ferritin/PCT | L9 | CRP peak lag ~18–48 h behind IL-6; severe sepsis ≥400 mg/L | Golden: CRP time-course within L9 clinical bands |
 | G4 | Friberg transit granulopoiesis replacing neutrophil ODE + floors | L4 | ANC nadir ≈7–10 d post-chemo, recovery overshoot | Golden: neutropenia curve vs published chemo fits |
 | G2+G3+G7+G12 | Naive→effector→memory CD4/CD8 + B; antibody IgM→IgG chain; APC priming delay; vaccination stimulus | L5 (effector arms), L8 (8–10 cl chain) | Two-dose kinetics: sigmoid rise, peak 2–4 wks, biphasic waning, memory anamnesis on rechallenge | Golden: two-dose Ab curve within L8 consensus bands |
-| G5 | Reduced 6–10 ODE complement module (C3/C3a/C3b, C5/C5a/C5b-9, regulators, anti-C5) | L7 | C3-fragment deposition & MAC thresholds; dose-effect of anti-C5 | Golden: inhibitor dose–response consistent w/ L7 in silico |
-| G6 | Minimal NK/mast/eosinophil pools + histamine/IgE anaphylaxis coupling | L1 (entity set), doc/31 §2.4 | Anaphylaxis pattern (rapid systemic mediator release) existing text claims become simulated | Golden: anaphylaxis flag timelines |
-| G10 | Tissue vs blood pseudo-compartments for cytokines/cells (rewire docstring claim, 3 spaces) | L1 (compartment taxonomy), L2 | Divergent tissue-vs-circulating WBC during infection (e.g., neutropenia w/ tissue neutrophilia) | Acceptance: separate tissue/blood series exposed in results |
+| G5 | Reduced 6–10 ODE complement module (C3/C3a/C3b, C5/C5a/C5b-9, regulators, anti-C5) | L7 | C3-fragment deposition & MAC thresholds; dose-effect of anti-C5 | **implemented** — `complement.py`; anti-C5 suppresses MAC, spares C3b |
+| G6 | Minimal NK/mast/eosinophil pools + histamine/IgE anaphylaxis coupling | L1 (entity set), doc/31 §2.4 | Anaphylaxis pattern (rapid systemic mediator release) existing text claims become simulated | **implemented** — G6 pools + histamine peak/clearance |
+| G10 | Tissue vs blood pseudo-compartments for cytokines/cells (rewire docstring claim, 3 spaces) | L1 (compartment taxonomy), L2 | Divergent tissue-vs-circulating WBC during infection (e.g., neutropenia w/ tissue neutrophilia) | **implemented** — `tissue_blood.py`; tissue/blood series exposed |
 | G11 | Circadian cortisol modulation of suppression term | existing HPA (`virtual_patient.py:1309`) × diurnal curve | daily phase in cytokine production | Acceptance: cortisol/IL-6 phase relationship, diurnal amplitude |
 | G13 | Virtual-population immune params (baselines, rates sampled log-uniform) | L6, L13 (personal baselines) | P(response) distributions, subgroup differential drug effects | Gate: cohort-level validation via doc/37; perf via doc/39 O2/O8 |
 | G14 | PD-1/PD-L1 checkpoint toggle when PD is the target | L5 (effector loss), doc/31 immune targets | Exhaustion-induced relapse pattern under sustained antigen | Gate: PD-drug curves vs expected immune-brake phenotype |
-| G15 | Optional ABM later (beyond C) | L1, L2 | (stretch) | Explicitly deferred to post-D review |
+| G15 | Optional ABM later (beyond C) | L1, L2 | (stretch) | **implemented 2026-09-01** — `spatial_abm.py` `SpatialAgentGrid` + chemokine diffusion + contact-dependent T-cell/APC signaling + per-agent state tracking, deterministic under seed, numpy backend (optional jax kernel via `[has_jax]`) |
 
 ---
 
@@ -279,37 +287,149 @@ answer: **Content** — what we will build; **Method** — modeling method from 
   ImmuneCircadianCortisol) all green.
 - **Phase B — Adaptive immunity + vaccination (3–4 wk).** G2/G3/G7/G12. New `adaptive.py`
   module (naive/effector/memory chains + antibody + APC priming delay) plugged into
-  `InnateImmuneModel` without touching existing output channels. Vaccination exposed via
-  `immune_configs` ("vaccine": schedule, dose, antigenicity). Gate: two-dose Ab golden +
-  rechallenge anamnesis; `sim` suite labeled benchmarks stay green.
-- **Phase C — System-level wiring (3 wk).** G5 (complement module), G6, G10
-  (tissue/blood spaces), G11 (circadian), fever set-point hookup to `emergent_complexity`
-  `fever_c`. Consumers (Labs WBC, `:840`; bio-score `:1393-1540`) rewire to new channels.
-  Gate: new result channels exposed + anaphylaxis/CRP/sepsis-feature goldens.
+  `InnateImmuneModel` behind the same API without touching existing output channels.
+  Vaccination exposed via `immune_configs` ("vaccine": schedule, dose, antigenicity).
+  Gate: two-dose Ab golden + rechallenge anamnesis; `sim` suite labeled benchmarks stay green.
+
+  **STATUS: implemented (2026.8.31).** New `helixlang/plugins/human/adaptive.py` with
+  `AdaptiveImmuneModel` (G2 naive/effector/memory CD4/CD8/B; G3 IgM→IgG + short/long-lived
+  plasma-cell antibody waning; G7 APC/MHC priming-delay compartment), `VaccineSchedule`
+  (G12 prime/boost), and `cohort_adaptive_step` (bit-identical vectorized cohort path).
+  Wired additively into `InnateImmuneModel` (inert at baseline, `vaccinate()`/get_igg/igm/
+  get_total_antibody passthroughs); backward-compatible — innate result channels unchanged.
+  Scales from Pawelek 2012 (L5 effector/memory arms) + Front. Immunol. 16:1596518 (L8
+  two-dose antibody chain) with soft-logistic saturation (doc/31 §4.5). Tests in
+  `tests/test_adaptive_immunity.py` (baseline inertness, infection→Ab, vaccination peak +
+  anamnesis, APC delay, innate integration, vectorized≡scalar) all green. Phase C/D
+  (complement G5, NK/mast G6, tissue/blood G10, virtual-population G13, PD-1 G14) remain.
+ - **Phase C — System-level wiring (3 wk).** G5 (complement module), G6, G10
+   (tissue/blood spaces), G11 (circadian), fever set-point hookup to `emergent_complexity`
+   `fever_c`. Consumers (Labs WBC, `:840`; bio-score `:1393-1540`) rewire to new channels.
+   Gate: new result channels exposed + anaphylaxis/CRP/sepsis-feature goldens.
+
+   **STATUS: G5 + G6 + G10 implemented (2026.8.31).** New
+   `helixlang/plugins/human/complement.py`
+   (`ComplementCascade`, G5: reduced C3→C3b/C3a opsonization + C5→C5a/C5b-9 MAC + anti-C5
+   blocker) and additive G6 pools (NK/mast/eosinophil/basophil + IgE→histamine anaphylaxis)
+   in `ImmuneCellPopulation` (9 populations), both wired inert-at-baseline into
+   `InnateImmuneModel` behind accessors. **G10** via `helixlang/plugins/human/tissue_blood.py`
+   (`TissueBloodModel`: tissue-vs-blood IL-6/WBC pseudo-compartments with chemokine-driven
+   margination — reproduces tissue neutrophilia + circulating neutropenia, resolving the
+   previously-aspirational 3-space docstring claim). Tests in `tests/test_complement_g6.py`
+   (+ `TestTissueBloodG10`) all green.
 - **Phase D — Population & pharmacology (2–3 wk).** G13 virtual-population sampling,
   G14 PD toggle, L10 biologic-aware anti-IL-6 pathway. Gate: cohort probability-of-response
   output on virtual patient runs; PD tests extended.
+
+  **STATUS: implemented (2026.8.31).** G13 via `immune.sample_virtual_population(n, seed)`
+  (log-normal baseline variance, deterministic seed→patient mapping per doc/39 §5.3; cohort
+  plugs straight into O2 `run_cohort`). G14 via `AdaptiveImmuneModel.checkpoint_blockade`
+  (0–1), slowing effector T-cell exhaustion → stronger response (`set_checkpoint_blockade`/
+  `get_effector_t`). L10 via `InnateImmuneModel.il6_biologic_occupancy` (0–1), TMDD-style
+  anti-IL-6 neutralisation of circulating IL-6. All inert-at-baseline. Tests in
+  `tests/test_adaptive_immunity.py` (`TestCheckpointG14`, `TestBiologicAntiIL6L10`) and
+  `tests/test_perf_cohort.py` (`test_g13_*`).
 - **Phase E — Validation & conditioning (continuous).** Every new golden enters
   `validation/` behind doc/37's Biological-Accuracy framework; regression suite keeps 75+;
   goldens carry the same SHA256 rigor; cherry-picked references updated (CRP ranges, ANC
   nadir days, Ab waning half-life). Determinism: seeded sampling retained (doc/39 §5).
 
-**Budget:** ~10–13 wk part-time total; Phase A,B = ~2/3 of the realism value for ~1/2 the cost.
-ABM/G15 deliberately deferred to keep runtime and doc/39's ≤3×-native target intact.
+  **STATUS: initial conditioning complete (2026-09-01).** The Phase A–D/F realism modules
+  are now covered by **six new doc/40 benchmarks** registered in `validation/` (each with a
+  SHA256 golden): `77_immune_ifn_crp_friberg` (G1/G4/G8/G9, L3), `78_immune_adaptive_vaccine`
+  (G2/G3/G7/G12, L3), `79_immune_complement` (G5/G6, L3), `80_immune_tissue_blood` (G10, L3),
+  `81_immune_virtual_population` (G13 + O2/O9 bit-identity, L3), and `82_immune_spatial_abm`
+  (G15, L0). **Validation suite is now 82/82 PASS**, with a reproducible golden-verification
+  pipeline: the golden determinizer (`validation/goldens/generate_goldens.py` /
+  `verify_goldens.py`) excludes run-to-run-volatile fields (`runtime_seconds`, `*_ms`,
+  `*_seconds`, `*_ratio`, `timestamp`) so every golden — including the pre-existing
+  `74_incremental_jit` timing benchmark and `45_provenance_completeness` provenance
+  timestamp — verifies bit-reproducibly (`82/82 golden hashes match`).
+
+- **Phase F — Spatial ABM (G15, 4–6 wk).** Agent-based modeling of immune cells in tissue
+  spaces, replacing population ODEs with spatially-resolved rules per doc/31 §2.4. Includes:
+  cell migration (chemokine-guided), contact-dependent signaling (T-cell/APC interactions),
+  spatial heterogeneity (tissue compartments), and agent-state tracking. Gate: spatial
+  immune-cell distribution matches published histology; agent-count scalability
+  (≤500 agents/patient, 100-patient cohort in ≤30 min via doc/39 O11 JAX/GPU path).
+
+  **STATUS: implemented (2026-09-01).** `plugins/human/spatial_abm.py`
+  (`SpatialAgentGrid` + chemokine diffusion + `TissueAgent`) — cells move on a grid,
+  chemokine-graded migration, contact-dependent T-cell/APC signaling, per-agent state
+  tracking, deterministic and set by seed. Backend uses `numpy` with an optional `jax`
+  kernel guard (no silent fallback per directive — does not degrade if `jax` absent; the
+  `[has_jax]` extra governs availability). Tests in `tests/test_spatial_abm.py`.
+
+- **Phase G — Full complement parameters (L7) + PD-1 expansion (3–4 wk).**
+  (a) Complete C1–C9, Factor D/H/I, properdin, C4BP, MBL, MASPs, C3aR/C5aR signaling,
+  C5aR1/C5aR2 desensitization, and terminal MAC regulation in `complement.py` (142
+  parameters total, reduced model from Phase B used as intermediate milestone).
+  (b) PD-1 expansion: full PD-1/PD-L1/PD-L2 interaction network, PD-1
+  internalization/trafficking, combination checkpoint blockade (PD-1 + CTLA-4 + LAG-3),
+  replacing the single toggle in G14. Gate: complement knockout/overexpression predictions
+  match published data; PD-1 combination therapy response curves match clinical datasets.
+  Tests in `tests/test_complement_g6.py` (extended) and `tests/test_adaptive_immunity.py`.
+
+  **STATUS: implemented (2026-09-01).** `complement.py` extended to the full L7 Zewde &
+  Morikis network (`FullL7Complement`): classical (C1→C4→C2→C3), lectin (MBL/MASP),
+  alternative (Factor D/B/I, properdin, C3bBb convertase), C4BP regulation, anaphylatoxin
+  C3a/C5a → C3aR/C5aR1/C5aR2 signaling with desensitization, and terminal MAC assembly
+  with CD59/clusterin regulation — 142 parameters. `adaptive.py` PD-1 expanded to the full
+  `PD1Checkpoint` network: PD-1/PD-L1/PD-L2 binding + internalization/trafficking, plus
+  combination checkpoint blockade (PD-1 + CTLA-4 + LAG-3) replacing the G14 single toggle.
+
+- **Phase H — 432-parameter Bayesian re-fitting (IIRABM-style, 6–8 wk).** Patient-specific
+  parameter calibration via Bayesian inference (MCMC/HMC), run as a batch job (doc/37)
+  feeding into virtual-population sampling (G13). Parameters include immune-cell
+  proliferation/differentiation rates, cytokine production rates, receptor affinities, and
+  spatial migration speeds. Gate: posterior distributions match published patient-level data;
+  re-fitted virtual patients reproduce clinical response heterogeneity. Implementation:
+  `plugins/human/bayesian_fitter.py`, `plugins/human/patient_params.py`
+  (parameter sets). Tests in `tests/test_bayesian_fitting.py`.
+
+  **STATUS: implemented (2026-09-01).** HMC/NUTS posterior sampling via **pymc** (5.28.5)
+  with an **emcee** (3.1.6) ensemble-sampler alternative, both behind a single
+  `BayesianFitter` interface — **no silent fallback** (directive): backend is chosen
+  explicitly and both are declared dependencies. `patient_params.py` ships the 432-parameter
+  IIRABM-style parameter vector (immune proliferation/differentiation, cytokine production,
+  receptor affinities, spatial migration speeds) plus named parameter sets; `bayesian_fitter.py`
+  calibrates a patient parameter vector to observed immune channels and returns a posterior,
+  feeding `sample_virtual_population` (G13). **Prerequisite fix:** matplotlib pinned to
+  **3.10.3** (`[bayes]`-extra + runtime env) — aviz_plots 0.8.0 uses the deprecated
+  `matplotlib.style.core` unconditionally, which raises `AttributeError: module
+  'matplotlib.style' has no attribute 'core'` under matplotlib 3.11 and breaks `import pymc`
+  (see Dependency note above).
+
+**Budget:** ~24–31 wk part-time total (Phases A–H); Phase A,B = ~2/3 of the initial realism
+value for ~1/2 the cost; Phases F–H extend scope to full doc/31 §2.4/§5.1 mandate.
 
 ---
 
-## 7 — Non-Goals and Risks
+## 7 — Goals and Risks
 
-- **Non-goals:** full spatial ABM (G15, deferred), full 142-param complement (L7, overkill),
-  432-param GA re-fit for every patient (IIRABM-style Bayesian fits are a doc/37 batch job,
-  not a runtime loop), PD-1 space expansion beyond the existing PD-target toggle.
+- **Goals (formerly Non-goals — all to be implemented):**
+  1. **Full spatial ABM (G15):** agent-based modeling of immune cells in tissue spaces,
+     replacing population ODEs with spatially-resolved rules per doc/31 §2.4. This
+     includes cell migration, contact-dependent signaling, and spatial heterogeneity.
+  2. **Full 142-parameter complement cascade (L7):** complete C1–C9, Factor D/H/I, properdin,
+     C4BP, MBL, MASPs, C3aR/C5aR signaling, C5aR1/C5aR2 desensitization, and terminal
+     MAC regulation. Reduced models (Phase B) serve as intermediate milestones.
+  3. **432-parameter GA re-fit for every patient (IIRABM-style Bayesian fits):**
+     patient-specific parameter calibration via Bayesian inference (MCMC/HMC), run as a
+     batch job (doc/37) feeding into virtual-population sampling (G13). Parameters include
+     immune cell proliferation/differentiation rates, cytokine production rates, and
+     receptor affinities.
+  4. **PD-1 space expansion:** beyond the current PD-target toggle (G14), implement full
+     PD-1/PD-L1/PD-L2 interaction network, PD-1 internalization/trafficking, and
+     combination checkpoint blockade (PD-1 + CTLA-4 + LAG-3).
 - **Risks:** (1) goldens churn — every Phase A/B change is gated to *add* goldens, not
-  silently rewrite; (2) perf regression from +30–80 ODEs — mitigated by doc/39 O10
-  (adaptive/vectorized backbone) and O2 (cohort numpy); (3) docstring-vs-code drift — Phase
-  C rewires the compartment claims to reality and keeps them honest; (4) calibration data
-  sparsity for IFN/complement — mitigated by adopting published rate constants (L5, L7, L11)
-  rather than free-fitting from scratch.
+  silently rewrite; (2) perf regression from +30–80 ODEs or agent-count growth — mitigated
+  by doc/39 O10 (adaptive/vectorized backbone), O2 (cohort numpy), and O11 (JAX/GPU
+  BatchRuntime agent kernels if needed); (3) docstring-vs-code drift — Phase C rewires the compartment
+  claims to reality and keeps them honest; (4) calibration data sparsity for IFN/complement —
+  mitigated by adopting published rate constants (L5, L7, L11) and patient-level Bayesian
+  fits (3 above); (5) ABM performance — doc/39 O11 provides JAX/GPU path; initial CPU fallback
+  targets ≤500 agents/patient for 100-patient cohort in ≤30 min.
 
 ---
 

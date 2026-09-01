@@ -19,7 +19,7 @@
     "trace_len": 40
   },
   "reference": "doc/38 \u00a78 unit system & dimensional safety (core/dimensions.py)",
-  "runtime_seconds": 0.14937012502923608,
+  "runtime_seconds": 0.07554529095068574,
   "layer": "compiler",
   "name": "Unit system & dimensional safety",
   "level": "L0"

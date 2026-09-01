@@ -5,7 +5,7 @@
     "n_cells_tested": 3,
     "tolerance": 1e-06
   },
-  "runtime_seconds": 0.00041775000863708556,
+  "runtime_seconds": 0.0008525419980287552,
   "status": "PASS",
   "topology": {
     "n_edges_dense_max": 90,

@@ -382,7 +382,7 @@ def _simplex_native_available() -> bool:
     pkg = "helixlang._accel.simplex"
     return any(
         importlib.util.find_spec(f"{pkg}.impl_{impl}") is not None
-        for impl in ("cext", "cython")
+        for impl in ("cext", "cython", "rust")
     )
 
 
@@ -418,21 +418,28 @@ def test_simplex_backends_equivalent():
     assert bp == bb
     assert _simplex_maxdiff(tp, tb) < 1e-12
     if _simplex_native_available():
-        cy = _il.import_module("helixlang._accel.simplex.impl_cython")
-        tc = copy.deepcopy(T)
-        bc = b[:]
-        s_cy = cy.run(tc, bc, obj, n)
-        assert s_cy == s_py
-        assert bc == bp
-        assert _simplex_maxdiff(tc, tp) < 1e-12
+        import importlib as _il
+        for _impl in ("cext", "cython", "rust"):
+            try:
+                nat = _il.import_module(
+                    f"helixlang._accel.simplex.impl_{_impl}")
+            except (ImportError, ModuleNotFoundError):
+                continue  # prebuilt .so is for a different interpreter ABI
+            t_n = copy.deepcopy(T)
+            b_n = b[:]
+            s_n = nat.run(t_n, b_n, obj, n)
+            assert s_n == s_py
+            assert b_n == bp
+            assert _simplex_maxdiff(t_n, tp) < 1e-12
 
 
 def test_simplex_native_loader_resolves(monkeypatch):
     """Default loader picks a compiled simplex impl when built, else numpy."""
     impl = choose_backend("helixlang._accel.simplex")
-    assert impl in ("impl_cext", "impl_cython", "impl_numpy", "impl_python")
+    assert impl in ("impl_cext", "impl_cython", "impl_rust",
+                    "impl_numpy", "impl_python")
     if _simplex_native_available():
-        assert impl in ("impl_cext", "impl_cython")
+        assert impl in ("impl_cext", "impl_cython", "impl_rust")
 
 
 # ── Phase 3: VM + population dispatch C backend (doc/36 §5.5, item 2) ──────

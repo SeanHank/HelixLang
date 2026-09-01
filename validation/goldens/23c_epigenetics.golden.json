@@ -17,7 +17,7 @@
     "sites_found": 4
   },
   "id": "23c_epigenetics",
-  "runtime_seconds": 0.0019082920043729246,
+  "runtime_seconds": 0.0005835419287905097,
   "status": "PASS",
   "validation": {
     "cpg_acgt_repeat": true,

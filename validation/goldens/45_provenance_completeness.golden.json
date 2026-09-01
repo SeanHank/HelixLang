@@ -1,18 +1,99 @@
 {
   "checks": {
+    "backend_impl_descriptor": true,
+    "complete_fills_contract": true,
+    "complete_preserves_existing_values": true,
+    "engine_run_produces_fba_result": true,
     "fba_result_has_provenance": true,
-    "import_simulation_modules": true,
-    "population_result_has_provenance": true,
-    "provenance_has_required_keys": true,
-    "stochastic_result_has_provenance": true
+    "fidelity_mode_defaults_full": true,
+    "identical_runs_byte_identical_provenance": true,
+    "model_version_field_present": true,
+    "parameter_set_fingerprint_stable": true,
+    "parameter_set_has_fingerprint": true,
+    "provenance_has_8_field_contract": true,
+    "provenance_has_benchmark16_superset": true,
+    "random_seed_tracks_seed": true,
+    "solver_field_present": true
   },
   "details": {
-    "fba_provenance": null,
-    "fba_provenance_keys": [],
-    "population_provenance": null,
-    "stochastic_provenance": null
+    "backend_implementation": {
+      "module": "",
+      "name": "fba",
+      "native": true,
+      "version": ""
+    },
+    "fba_provenance": {
+      "backend": "fba",
+      "backend_implementation": {
+        "module": "",
+        "name": "fba",
+        "native": true,
+        "version": ""
+      },
+      "dependencies": {
+        "biopython": "1.88",
+        "esm": "3.2.1.post1",
+        "flask": "3.1.3",
+        "numpy": "2.4.6",
+        "python": "3.11.15",
+        "rdkit": "2026.3.5",
+        "torch": "2.13.0"
+      },
+      "extra": {},
+      "fidelity_mode": "full",
+      "helix_version": "2026.8.5",
+      "literature_references": [],
+      "model_version": "",
+      "parameter_set": {
+        "fields": {
+          "backend": "fba",
+          "kind": "classic",
+          "ops_per_tick": 64,
+          "output": "BIOMASS",
+          "react_steps": 1,
+          "species": "ecoli",
+          "table": "standard",
+          "ticks": 100,
+          "use_central_dogma": false
+        },
+        "fingerprint": "sha256:0c86957658e86b371cc7ce8be6a8af0da694ae8e5a99d872a74cce0be6d4c3f0"
+      },
+      "parameters": {
+        "backend": "fba",
+        "kind": "classic",
+        "ops_per_tick": 64,
+        "output": "BIOMASS",
+        "react_steps": 1,
+        "species": "ecoli",
+        "table": "standard",
+        "ticks": 100,
+        "use_central_dogma": false
+      },
+      "random_seed": {
+        "seed": 42
+      },
+      "runtime_seconds": null,
+      "seed": 42,
+      "solver": {
+        "id": "unknown:see backend"
+      },
+      "source_hash": "",
+      "source_path": null,
+      "timestamp": "2026-09-01T02:43:52Z"
+    },
+    "fidelity_mode": "full",
+    "missing_contract_keys": [],
+    "missing_legacy_keys": [],
+    "model_version": "",
+    "parameter_set_fingerprint_prefix": "sha256:0c86",
+    "random_seed": {
+      "seed": 42
+    },
+    "solver": {
+      "id": "unknown:see backend"
+    }
   },
   "id": "45_provenance_completeness",
-  "runtime_seconds": 0.08801462498377077,
+  "runtime_seconds": 0.011997709050774574,
   "status": "PASS"
 }

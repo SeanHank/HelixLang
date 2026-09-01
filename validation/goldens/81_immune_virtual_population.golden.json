@@ -1,0 +1,20 @@
+{
+  "checks": {
+    "cohort_baselines_are_physiologic": true,
+    "cohort_deterministic_across_runs": true,
+    "cohort_has_baseline_variance": true,
+    "cohort_matches_scalar_advance": true
+  },
+  "details": {
+    "il6_after_cohort": 9.429052287196038,
+    "il6_span_fraction": 0.5715998646258261
+  },
+  "id": "81_immune_virtual_population",
+  "reference": {
+    "doi": "10.1038/s41540-023-00269-6",
+    "note": "seeded log-normal virtual population; cohort-vectorized run is bit-identical to scalar",
+    "source": "doc/40 L6 (npj Syst Biol Appl 11, 2023); doc/39 O2/O9"
+  },
+  "runtime_seconds": 0.6595520410919562,
+  "status": "PASS"
+}

@@ -6,26 +6,26 @@
     "import_metabolism_module": true
   },
   "details": {
-    "cobrapy_growth_rate": 0.8739215069684303,
+    "cobrapy_growth_rate": 0.8739215069684307,
     "helixlang_growth_rate": 0.0,
     "model_metabolites": 37,
     "model_reactions": 42,
-    "speedup_ratio": 0.4230822345271126,
+    "speedup_ratio": 0.7381172994699432,
     "timing": {
       "cobrapy_ecoli_core": {
-        "ms": 1.0615839855745435
+        "ms": 0.9356249356642365
       },
       "comparison": {
-        "cobrapy_ms": 1.0615839855745435,
-        "helixlang_ms": 2.5091670104302466,
-        "speedup_ratio": 0.4230822345271126
+        "cobrapy_ms": 0.9356249356642365,
+        "helixlang_ms": 1.2675829930230975,
+        "speedup_ratio": 0.7381172994699432
       },
       "helixlang_ecoli_core": {
-        "ms": 2.5091670104302466
+        "ms": 1.2675829930230975
       }
     }
   },
   "id": "43_performance_scaling",
-  "runtime_seconds": 0.720832041988615,
+  "runtime_seconds": 0.015628832974471152,
   "status": "PASS"
 }

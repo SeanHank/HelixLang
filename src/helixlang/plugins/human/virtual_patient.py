@@ -62,6 +62,18 @@ from helixlang.plugins.human.phenotype import ExternalTraits, PhenotypeCalculato
 from helixlang.plugins.human.physiology import HumanPhysiology
 from helixlang.plugins.human.recovery import RecoveryModel, create_recovery_model
 
+from helixlang.core.dimensions import (
+    DIM_AMOUNT,
+    DIM_CONCENTRATION,
+    DIMENSIONLESS,
+    DIM_MASS,
+    DIM_TIME,
+    DIM_VOLUME,
+    Dimension,
+    Quantity,
+    UnitError,
+)
+
 try:
     from helixlang.plugins.human.gem_human import HumanGEMLoader
 except ImportError:  # pragma: no cover
@@ -2349,9 +2361,83 @@ class _DrugPBPK:
         self._doses_given: list[float] = []
         self._last_dose_count: int = 0
 
+        self.verify_units()
+
     # ------------------------------------------------------------------
-    # Dosing
+    # Runtime unit guard (doc/41 Item 5 Ring 3)
     # ------------------------------------------------------------------
+
+    def verify_units(self) -> None:
+        """Hoisted runtime dimension check over the PBPK parameter set.
+
+        Ring 3 (doc/41 §6.3): the hot stepping loop operates on plain floats
+        for speed (doc/39-compatible bit-identical numerics), so the *dimension*
+        checks are lifted out of that tight loop and run exactly once here, at
+        engine construction, against :class:`dimensions.Quantity`.  A parameter
+        whose declared unit resolves to the wrong physical dimension raises
+        :class:`UnitError` naming both dimension trees — a runtime analogue of
+        the compile-time ``DimensionError`` — while a consistent configuration
+        verifies **bit-identical**: this method is read-only, mutates no state
+        and performs no arithmetic, so goldens and determinism are preserved.
+
+        Parameters carrying a named unit are validated dimensionally through
+        :meth:`check_dimension`; the composite parameters without a single
+        named unit (organ flows in ``L/h``, the elimination rate constants in
+        ``1/h``, and the molar mass in ``g/mol``) are validated for the
+        expected *kind* via a finite, (non-negatively-)signed numeric sanity
+        check on their physical axis.
+        """
+        # Named-unit parameters (validated dimensionally).
+        self.check_dimension("plasma_volume_l", self.vc_l, "L", DIM_VOLUME)
+        for name, v in self.organ_volumes_l.items():
+            self.check_dimension(f"organ_volume_l.{name}", v, "L", DIM_VOLUME)
+        self.check_dimension(
+            "central_concentration_um", self.conc_um["central"], "µM",
+            DIM_CONCENTRATION)
+        self.check_dimension("dose_mg", self.drug.dose_mg, "mg", DIM_MASS)
+        self.check_dimension(
+            "bioavailability", self.drug.bioavailability, None, DIMENSIONLESS)
+
+        # Composite-kind parameters (no single named unit): finite values.
+        # Only *non-finite* values are rejected here — the numerals the engine
+        # already tolerates (a cleared clearance → zero elimination rate, an
+        # unset molecular weight of 0) must keep running so the guard is
+        # behaviour-neutral and goldens/determinism are unchanged.
+        for name, v in self.organ_flows_l_per_h.items():
+            if not math.isfinite(v) or v < 0.0:
+                raise UnitError(
+                    f"PBPK parameter 'organ_flow_l_per_h.{name}' is not a "
+                    f"finite non-negative flow (L/h): {v:g}")
+        if not math.isfinite(self.q_total_l_per_h) or self.q_total_l_per_h < 0.0:
+            raise UnitError("PBPK parameter 'q_total_l_per_h' is not a finite "
+                            f"non-negative flow (L/h): {self.q_total_l_per_h:g}")
+        for name, v in (("k_renal_per_h", self.k_renal_per_h),
+                        ("k_hepatic_per_h", self.k_hepatic_per_h)):
+            if not math.isfinite(v) or v < 0.0:
+                raise UnitError(
+                    f"PBPK elimination rate constant {name!r} is not a finite "
+                    f"non-negative 1/h value: {v:g}")
+        mw = self.drug.molecule.molecular_weight_da
+        if not math.isfinite(mw) or mw < 0.0:
+            raise UnitError(
+                f"PBPK molecular weight is not a finite non-negative "
+                f"g/mol: {mw:g}")
+
+    @staticmethod
+    def check_dimension(label: str, value: float, unit: str | None,
+                        expected: Dimension) -> None:
+        """Assert ``value`` expressed in ``unit`` has dimension ``expected``.
+
+        Public so parsers/benchmarks/tests can reuse the same runtime guard
+        Ring 3 wires into the PBPK hot path.  Raises :class:`UnitError` naming
+        both dimension trees on a mismatch.
+        """
+        q = Quantity(value, unit)
+        if q.dim != expected:
+            raise UnitError(
+                f"PBPK parameter {label!r} ({q.base_value:g} {unit!r}) has "
+                f"dimension {q.dim.tree()}; expected {expected.tree()!r}")
+
 
     def _administer_dose(self) -> None:
         """Apply one scheduled dose according to the route."""

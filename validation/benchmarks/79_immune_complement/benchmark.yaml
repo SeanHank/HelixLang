@@ -1,0 +1,16 @@
+id: 79_immune_complement
+name: Complement cascade + NK/mast/Eo/Baso + anaphylaxis (G5/G6)
+layer: human
+level: L3
+reference: doc/40 G5/G6 — L7 (Zewde & Morikis 2018 complement), L1 (BIS entity set for G6)
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - signal_drives_opsonization_and_mac
+    - anti_c5_suppresses_mac_spares_opsonization
+    - nk_rises_with_innate_signal
+    - ige_drive_releases_histamine
+    - histamine_clears_after_signal_removed

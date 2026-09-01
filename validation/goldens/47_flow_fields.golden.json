@@ -1,0 +1,33 @@
+{
+  "checks": {
+    "2d_max_magnitude_positive": true,
+    "2d_monotonic_to_centre": true,
+    "2d_peak_is_max": true,
+    "2d_peak_ratio": true,
+    "2d_spatial_mean": true,
+    "2d_v_component_zero": true,
+    "3d_peak_to_mean_ratio": true,
+    "3d_vw_components_zero": true,
+    "direction_sign_flip": true,
+    "stagnant_all_zero": true,
+    "unit_conversion": true
+  },
+  "details": {
+    "2d_max_magnitude": 44.550000000000004,
+    "2d_peak_ratio": 0.9900000000000001,
+    "2d_spatial_mean_ratio": 1.0050000000000008,
+    "3d_peak_to_mean_ratio": 2.0365244879380957,
+    "unit_conversion_result": 60.0
+  },
+  "id": "47_flow_fields",
+  "reference": {
+    "authors": "Boussinesq J",
+    "doi": "10.1017/S0368393100000734",
+    "journal": "Journal de Mathematiques Pures et Appliquees",
+    "note": "2D peak/mean = 1.5; Square duct peak/mean ~ 2.096",
+    "source": "Hagen-Poiseuille law; Boussinesq 1868 duct flow",
+    "year": 1868
+  },
+  "runtime_seconds": 0.00046316697262227535,
+  "status": "PASS"
+}

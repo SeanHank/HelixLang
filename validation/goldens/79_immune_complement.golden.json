@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "anti_c5_suppresses_mac_spares_opsonization": true,
+    "full_l7_complement_importable": true,
+    "histamine_clears_after_signal_removed": true,
+    "ige_drive_releases_histamine": true,
+    "nk_rises_with_innate_signal": true,
+    "signal_drives_opsonization_and_mac": true
+  },
+  "details": {
+    "c3": 0.1982598099747749,
+    "c3a": 0.007199145940245864,
+    "histamine_after_clear": 1.1607332948404359e-61,
+    "histamine_peak": 40.09939646627378,
+    "l7_n_params": 142.0,
+    "mac": 0.2077338233925378,
+    "nk_24h": 0.2875705755586409,
+    "opsonization": 0.14471969110074348,
+    "placebo_mac": 0.2077338233925378,
+    "treated_mac": 0.015069328107044718,
+    "treated_opsonization": 0.14471969110074348
+  },
+  "id": "79_immune_complement",
+  "reference": {
+    "doi": "10.1371/journal.pone.0198644; 10.1186/1742-4682-8-9",
+    "note": "reduced complement cascade + anti-C5 PD; NK/mast/eosinophil/basophil pools and histamine anaphylaxis",
+    "source": "doc/40 L7 (Zewde & Morikis 2018), L1 (BIS entity set)"
+  },
+  "runtime_seconds": 0.0005715829320251942,
+  "status": "PASS"
+}

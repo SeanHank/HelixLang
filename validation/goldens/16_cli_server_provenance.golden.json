@@ -13,12 +13,20 @@
       "backend": "fba",
       "fields": [
         "backend",
+        "backend_implementation",
         "custom_key",
         "dependencies",
+        "extra",
+        "fidelity_mode",
         "helix_version",
+        "literature_references",
+        "model_version",
+        "parameter_set",
         "parameters",
+        "random_seed",
         "runtime_seconds",
         "seed",
+        "solver",
         "source_hash",
         "source_path",
         "timestamp"
@@ -31,6 +39,6 @@
     }
   },
   "id": "16_cli_server_provenance",
-  "runtime_seconds": 0.2178411660133861,
+  "runtime_seconds": 0.041772875003516674,
   "status": "PASS"
 }

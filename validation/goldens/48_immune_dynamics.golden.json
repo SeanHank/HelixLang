@@ -1,0 +1,35 @@
+{
+  "checks": {
+    "cortisol_suppresses_il6": true,
+    "crp_bounded": true,
+    "crp_increases_with_il6": true,
+    "il10_induced_by_proinflammatory": true,
+    "il6_increases_under_infection": true,
+    "neutrophils_increased": true,
+    "no_infection_low_il6": true,
+    "tnf_increases_under_infection": true,
+    "wbc_total_positive": true
+  },
+  "details": {
+    "crp_0": 0.5,
+    "crp_72h": 990.3137371276001,
+    "il10_24h": 20.559276079472802,
+    "il6_24h_infection": 25.96850214061802,
+    "il6_baseline": 1.0,
+    "il6_no_infection_48h": 1.1850780923454945e-13,
+    "il6_normal_48h": 8.200235750559717,
+    "il6_suppressed_48h": 6.560188600447798,
+    "neutrophils_0": 4.0,
+    "neutrophils_48h": 4.413216063806422,
+    "tnf_24h": 7.213475204189397,
+    "wbc_total": 7.580562431815572
+  },
+  "id": "48_immune_dynamics",
+  "reference": {
+    "doi": "10.1056/NEJM199505183322007",
+    "note": "Innate immune cytokine/cell dynamics validated against known qualitative behavior",
+    "source": "Chrousos GP 1995, N Engl J Med 332:1351-1362"
+  },
+  "runtime_seconds": 0.0010083329398185015,
+  "status": "PASS"
+}

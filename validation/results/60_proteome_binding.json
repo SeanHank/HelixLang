@@ -23,7 +23,7 @@
     "warfarin_n_significant": 5
   },
   "reference": "Yoshida K et al. 2020, CPT Pharmacometrics Syst Pharmacol 9:51 (DDI prediction)",
-  "runtime_seconds": 0.707176374970004,
+  "runtime_seconds": 0.4548814999870956,
   "layer": "pharmacology",
   "name": "Proteome binding + DDI",
   "level": "L0"

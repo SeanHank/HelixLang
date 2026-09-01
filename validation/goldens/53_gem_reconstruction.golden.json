@@ -1,0 +1,47 @@
+{
+  "checks": {
+    "consensus_merge": true,
+    "consensus_to_metabolic_model": true,
+    "create_reaction_dicts": true,
+    "import_modules": true,
+    "sbml_contains_reactions": true,
+    "sbml_model_id_and_organism": true,
+    "sbml_valid_xml": true
+  },
+  "details": {
+    "biomass_reaction": "PFK",
+    "bu_count": 3,
+    "consensus_reaction_count": 4,
+    "high_confidence": 2,
+    "high_confidence_ids": [
+      "GAPD",
+      "PFK"
+    ],
+    "medium_confidence": 2,
+    "model_metabolite_count": 13,
+    "model_reaction_count": 4,
+    "reaction_ids": [
+      "BU_ONLY",
+      "GAPD",
+      "PFK",
+      "TD_ONLY"
+    ],
+    "sbml_length": 8274,
+    "sbml_reaction_ids": [
+      "BU_ONLY",
+      "GAPD",
+      "PFK",
+      "TD_ONLY",
+      null,
+      "BU_ONLY",
+      "GAPD",
+      "PFK",
+      "TD_ONLY"
+    ],
+    "td_count": 3
+  },
+  "id": "53_gem_reconstruction",
+  "reference": "Thiele I, Palsson BO 2010, Nat Protoc 5:93-110",
+  "runtime_seconds": 0.0002406249986961484,
+  "status": "PASS"
+}

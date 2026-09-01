@@ -1,0 +1,30 @@
+{
+  "checks": {
+    "import_pbpk_classes": true,
+    "pbpk_config_default": true,
+    "pbpk_model_has_run": true,
+    "pbpk_model_has_step": true,
+    "simulation_non_negative": true,
+    "terminal_half_life_positive": true,
+    "trapezoid_auc": true
+  },
+  "details": {
+    "config_dt_min": 1.0,
+    "config_total_time_h": 24.0,
+    "final_concentrations": {
+      "adipose": 1.020436,
+      "brain": 4.7435,
+      "central": 3.879411,
+      "kidney": 3.801594,
+      "liver": 4.117959,
+      "muscle": 2.137906
+    },
+    "terminal_half_life_h": 6.931471805599452,
+    "trapezoid_auc_computed": 2.0,
+    "trapezoid_auc_expected": 2.0
+  },
+  "id": "57_pbpk_pharmacokinetics",
+  "reference": "Jones HM, Rowland-Yeo K 2013, CPT Pharmacometrics Syst Pharmacol 2:e737 (PBPK)",
+  "runtime_seconds": 0.0005450830794870853,
+  "status": "PASS"
+}

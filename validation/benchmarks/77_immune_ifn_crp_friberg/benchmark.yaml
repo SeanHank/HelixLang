@@ -1,0 +1,16 @@
+id: 77_immune_ifn_crp_friberg
+name: Innate immune fidelity — type-I IFN, CRP v2 (IL-6→CRP lag/range), Friberg granulopoiesis
+layer: human
+level: L3
+reference: doc/40 G1/G4/G8/G9 — L5 (Pawelek 2012 IFN), L9 (Sproston & Ashworth 2018 CRP), L4 (Friberg 2002 granulopoiesis)
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - ifn_rises_with_pathogen
+    - ifn_suppresses_effective_pathogen
+    - crp_reaches_sepsis_level_under_high_il6
+    - crp_lag_compartment_delays_response
+    - friberg_drug_kill_reduces_neutrophils

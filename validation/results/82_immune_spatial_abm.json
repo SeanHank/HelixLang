@@ -1,0 +1,30 @@
+{
+  "id": "82_immune_spatial_abm",
+  "status": "PASS",
+  "checks": {
+    "agent_counts_match_config": true,
+    "step_advances_and_diffuses": true,
+    "chemokine_guides_migration": true,
+    "contact_signaling_activates_tcells": true,
+    "deterministic_replay": true
+  },
+  "details": {
+    "n_tcell": 60.0,
+    "n_apc": 12.0,
+    "step_index": 5.0,
+    "mean_chemokine": 0.03125,
+    "mean_dist_initial": 20.3265306122449,
+    "mean_dist_after_migration": 16.714285714285715,
+    "activated_tcells": 22.0,
+    "cell_counts": 147.0
+  },
+  "reference": {
+    "source": "doc/40 G15; doc/31 \u00a72.4 (BIS agent taxonomy, spatial ABM design)",
+    "doi": "10.1186/1742-4682-8-9",
+    "note": "agent grid + chemokine diffusion + contact signaling, deterministic replay under numpy backend"
+  },
+  "runtime_seconds": 0.4584013749845326,
+  "layer": "human",
+  "name": "Spatial immune ABM \u2014 chemokine migration, contact signaling, deterministic replay (G15)",
+  "level": "L0"
+}

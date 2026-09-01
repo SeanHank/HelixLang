@@ -1,0 +1,35 @@
+{
+  "checks": {
+    "accuracy_report_pass": true,
+    "parameter_fit_improves": true,
+    "replication_identical": true,
+    "scope_in_out_detection": true,
+    "uncertainty_ci_valid": true
+  },
+  "details": {
+    "fit_improvement_pct": 100.0,
+    "fit_residual_after": 0.0,
+    "fit_residual_before": 0.984127,
+    "fitted_growth_rate": 0.87,
+    "out_of_scope_growth_rate": "out_of_scope",
+    "overall_accuracy": 0.9873,
+    "replication_hashes_unique": 1,
+    "replication_runs": 5,
+    "report_status": "PASS",
+    "scope_safe_checks": 3,
+    "uncertainty_ci": [
+      0.7943,
+      0.9677
+    ],
+    "uncertainty_mean": 0.8729
+  },
+  "id": "68_bio_validity",
+  "reference": {
+    "generation_time": "Wanner BL 1996",
+    "growth_rate": "Orth JD et al. 2010, EcoSal Plus 4",
+    "kinetics": "Bar-Even A et al. 2011, Biochemistry 50:4402",
+    "repressilator": "Elowitz MB et al. 2000, Nature 403:335"
+  },
+  "runtime_seconds": 0.005493332981131971,
+  "status": "PASS"
+}

@@ -1,30 +1,8 @@
 {
   "id": "56_blast_search",
-  "status": "PASS",
-  "checks": {
-    "import_blast_module": true,
-    "hit_dataclass": true,
-    "search_result_hits_for": true,
-    "diamond_live": true
-  },
-  "details": {
-    "hit_fields": {
-      "query_id": "query1",
-      "subject_id": "subj1",
-      "identity": 95.5,
-      "e_value": 1e-50,
-      "bit_score": 250.0
-    },
-    "q1_hit_count": 2,
-    "q2_hit_count": 1,
-    "diamond_available": true,
-    "diamond_hit_count": 1,
-    "diamond_first_hit_subject": "s1"
-  },
-  "reference": {
-    "diamond": "Buchfink B et al. 2021, Nat Methods 18:705-708"
-  },
-  "runtime_seconds": 0.17737933399621397,
+  "status": "FAIL",
+  "error": "",
+  "runtime_seconds": 0.04311929200775921,
   "layer": "annotation",
   "name": "BLAST search wrapper",
   "level": "L0"

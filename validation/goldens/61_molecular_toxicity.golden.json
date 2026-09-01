@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "aspirin_returns_toxicity_profile": true,
+    "aspirin_tox_has_fields": true,
+    "import_all_classes": true,
+    "predictor_instantiates": true,
+    "rdkit_descriptors_molwt_positive": true,
+    "rdkit_descriptors_returns_dict": true,
+    "smiles_autofill_benzene_returns_toxicity": true,
+    "toxicity_profile_has_organ_fields": true
+  },
+  "details": {
+    "aspirin_cardiotox": 0.0,
+    "aspirin_confidence": 1.0,
+    "aspirin_hepatotox": 0.05,
+    "aspirin_nephrotox": 0.1,
+    "benzene_molwt": 78.11399999999999,
+    "benzene_tox_confidence": 1.0,
+    "rdkit_available": true
+  },
+  "id": "61_molecular_toxicity",
+  "reference": {
+    "authors": "Hughes JP, Rees S, Kalindjian SB, Philpott KL",
+    "journal": "Br J Pharmacol",
+    "pages": "731-739",
+    "source": "Hughes JP et al. 2008",
+    "volume": "154",
+    "year": 2008
+  },
+  "runtime_seconds": 0.0019834170816466212,
+  "status": "PASS"
+}

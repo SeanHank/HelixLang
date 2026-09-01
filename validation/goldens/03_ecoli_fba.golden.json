@@ -1,20 +1,23 @@
 {
+  "actual": {
+    "value": 0.8739215069676898
+  },
   "comparison": {
-    "growth_rate_rel_error": 8.473515659247073e-13,
+    "growth_rate_rel_error": 8.478597227858311e-13,
     "growth_rate_tolerance": 0.05,
     "pearson_r_threshold": 0.99,
-    "pearson_r_top10_fluxes": 0.9999999999999999,
+    "pearson_r_top10_fluxes": 1.0000000000000002,
     "top10_cobrapy": [
       45.51400977451748,
-      43.59898531199755,
-      38.53460965051545,
-      29.17582713556585,
-      -29.17582713556585,
+      43.598985311997545,
+      38.53460965051544,
+      29.175827135565818,
+      -29.175827135565818,
       22.80983331020497,
       -22.80983331020497,
-      21.799492655998773,
-      -21.799492655998773,
-      17.530865429786694
+      -21.79949265599877,
+      21.79949265599877,
+      17.5308654297867
     ],
     "top10_helixlang": [
       45.514009774489296,
@@ -24,8 +27,8 @@
       -29.17582713554964,
       22.809833310193312,
       -22.8098333101899,
-      21.799492655986228,
       -21.79949265598634,
+      21.799492655986228,
       17.530865429785877
     ],
     "top10_reactions": [
@@ -36,12 +39,24 @@
       "H2Ot",
       "EX_co2_e",
       "CO2t",
-      "O2t",
       "EX_o2_e",
+      "O2t",
       "EX_h_e"
     ]
   },
+  "error": {
+    "abs_error": 7.409628466348295e-13,
+    "message": null,
+    "passed": true,
+    "rel_error": 8.478597227858311e-13
+  },
   "errors": [],
+  "expected": {
+    "metric": "growth_rate",
+    "tolerance": 0.05,
+    "unit": "h^-1",
+    "value": 0.8739215069684307
+  },
   "experimental_comparison": {
     "experimental_range": {
       "max": 0.87,
@@ -62,13 +77,20 @@
     "model_reactions": 95
   },
   "id": "03_ecoli_fba",
+  "layer": "metabolism",
+  "name": "E. coli core FBA growth rate",
   "reference": {
-    "glc_uptake": 10.0,
-    "growth_rate": 0.8739215069684303,
-    "n_metabolites": 72,
-    "n_reactions": 95,
-    "source": "BiGG e_coli_core via COBRApy"
+    "authors": "Orth et al.",
+    "doi": "10.1371/journal.pcbi.1000822",
+    "journal": "PLoS Comput Biol 6:e1000822",
+    "source": "BiGG e_coli_core via COBRApy",
+    "year": 2010
   },
-  "runtime_seconds": 1.9069816659903154,
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 0.9003800000064075,
   "status": "PASS"
 }

@@ -30,8 +30,8 @@ def _make_deterministic(d, float_prec=6):
         return {
             k: _make_deterministic(v, float_prec)
             for k, v in d.items()
-            if k not in {"runtime_seconds", "ms", "speedup_ratio"}
-            and not (isinstance(k, str) and k.endswith("_ms"))
+            if k not in {"runtime_seconds", "ms", "speedup_ratio", "timestamp"}
+            and not (isinstance(k, str) and k.endswith(("_ms", "_seconds", "_ratio")))
             and not (isinstance(k, str) and "timing" in k.lower() and isinstance(v, (int, float)))
         }
     elif isinstance(d, list):

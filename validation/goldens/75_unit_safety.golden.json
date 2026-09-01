@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "base_value_equality": true,
+    "cross_unit_arithmetic_rejected": true,
+    "dimension_tree_in_message": true,
+    "dims_do_not_change_chunk": true,
+    "dims_do_not_change_trace": true,
+    "minutes_seconds_exact": true,
+    "minutes_to_seconds_static": true,
+    "same_dim_program_compiles": true,
+    "unknown_unit_rejected": true
+  },
+  "details": {
+    "conversion_min_to_s": 60.0,
+    "conversion_s_to_min": 1.0,
+    "min_plus_s_equality": "True",
+    "trace_len": 40
+  },
+  "id": "75_unit_safety",
+  "reference": "doc/38 \u00a78 unit system & dimensional safety (core/dimensions.py)",
+  "runtime_seconds": 0.0010737919947132468,
+  "status": "PASS"
+}

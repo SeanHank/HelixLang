@@ -37,7 +37,7 @@
     }
   },
   "reference": "doc/37 \u00a75.4/\u00a77.4 batch runtime; doc/36 R5 no-silent-fallbacks",
-  "runtime_seconds": 15.978169332956895,
+  "runtime_seconds": 6.740327707957476,
   "layer": "runtime",
   "name": "Vector batch runtime parity (numpy/JAX) vs the portable IR VM",
   "level": "L0"

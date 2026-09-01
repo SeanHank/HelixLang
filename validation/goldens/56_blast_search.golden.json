@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "diamond_live": true,
+    "hit_dataclass": true,
+    "import_blast_module": true,
+    "search_result_hits_for": true
+  },
+  "details": {
+    "diamond_available": true,
+    "diamond_first_hit_subject": "s1",
+    "diamond_hit_count": 1,
+    "hit_fields": {
+      "bit_score": 250.0,
+      "e_value": 1e-50,
+      "identity": 95.5,
+      "query_id": "query1",
+      "subject_id": "subj1"
+    },
+    "q1_hit_count": 2,
+    "q2_hit_count": 1
+  },
+  "id": "56_blast_search",
+  "reference": {
+    "diamond": "Buchfink B et al. 2021, Nat Methods 18:705-708"
+  },
+  "runtime_seconds": 0.02418220799881965,
+  "status": "PASS"
+}

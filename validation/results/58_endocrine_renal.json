@@ -18,7 +18,7 @@
     "egfr_70yo_female_cr2": 26.38
   },
   "reference": "Inker LA et al. 2021, N Engl J Med 385:2031-2043 (CKD-EPI 2021); Bergman RN et al. 1979, Am J Physiol 236:E667 (minimal model)",
-  "runtime_seconds": 0.5853747499641031,
+  "runtime_seconds": 0.4494632499990985,
   "layer": "pharmacology",
   "name": "Endocrine + renal ODEs",
   "level": "L0"

@@ -6,7 +6,7 @@
   },
   "details": {
     "ecoli_config_bigg_id": "iML1515",
-    "growth_rate": 0.8217979336265827,
+    "growth_rate": 0.8326136426825184,
     "modules_verified": [
       "bridge",
       "full_model",
@@ -17,8 +17,9 @@
       "organism_registry",
       "sbml_import"
     ],
-    "n_metabolites": 1877,
-    "n_reactions": 2712,
+    "n_metabolites": 72,
+    "n_reactions": 95,
+    "source": "fallback",
     "supported_organisms": [
       "b_subtilis",
       "e_coli",
@@ -31,6 +32,7 @@
     ]
   },
   "id": "25_gem_reconstruction",
-  "runtime_seconds": 3.4491053330129944,
+  "runtime_seconds": 0.4585397079354152,
+  "source": "fallback",
   "status": "PASS"
 }

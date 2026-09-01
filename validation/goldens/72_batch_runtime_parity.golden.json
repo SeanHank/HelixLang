@@ -1,0 +1,41 @@
+{
+  "checks": {
+    "cells_in_lockstep": true,
+    "effects_parity": true,
+    "engine_agree": true,
+    "jax_parity": true,
+    "numpy_parity": true,
+    "underflow_raises": true
+  },
+  "details": {
+    "arithmetic_cells": [
+      {},
+      {},
+      {},
+      {},
+      {}
+    ],
+    "effects": {
+      "0": {
+        "0": 30.0,
+        "1": 30.0,
+        "3": 30.0
+      },
+      "1": {
+        "0": 30.0,
+        "1": 30.0,
+        "3": 30.0
+      },
+      "2": {
+        "0": 30.0,
+        "1": 30.0,
+        "3": 30.0
+      }
+    },
+    "jax_engine": "jax"
+  },
+  "id": "72_batch_runtime_parity",
+  "reference": "doc/37 \u00a75.4/\u00a77.4 batch runtime; doc/36 R5 no-silent-fallbacks",
+  "runtime_seconds": 5.537737749982625,
+  "status": "PASS"
+}

@@ -1,0 +1,45 @@
+{
+  "checks": {
+    "cyp_activity_nonempty": true,
+    "cyp_activity_returns_dict": true,
+    "default_traits_is_external_traits": true,
+    "has_compute_cyp_activity": true,
+    "has_compute_physiology": true,
+    "has_config": true,
+    "has_run_method": true,
+    "human_simulation_instantiates": true,
+    "import_all_classes": true,
+    "phenotype_calculator_instantiates": true,
+    "sim_config_has_dfa_dt": true,
+    "sim_config_has_duration": true,
+    "sim_config_instantiates": true,
+    "traits_has_age": true,
+    "traits_has_bmi": true,
+    "traits_has_sex": true
+  },
+  "details": {
+    "cyp_enzymes": [
+      "CYP1A2",
+      "CYP2C19",
+      "CYP2C9",
+      "CYP2D6",
+      "CYP2E1",
+      "CYP3A4"
+    ],
+    "default_age": 30.0,
+    "default_bmi": 24.221453287197235,
+    "default_sex": "male",
+    "sim_config_duration_days": 30.0
+  },
+  "id": "63_phenotype_simulation",
+  "reference": {
+    "authors": "Ursino M, Zingales M, Magosso E, et al.",
+    "journal": "Front Physiol",
+    "pages": "556",
+    "source": "Ursino M et al. 2020",
+    "volume": "11",
+    "year": 2020
+  },
+  "runtime_seconds": 0.00040254101622849703,
+  "status": "PASS"
+}

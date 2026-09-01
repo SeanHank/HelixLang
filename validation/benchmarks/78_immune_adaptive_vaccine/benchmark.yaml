@@ -1,0 +1,16 @@
+id: 78_immune_adaptive_vaccine
+name: Adaptive immunity + vaccination — two-dose antibody kinetics, APC priming, memory
+layer: human
+level: L3
+reference: doc/40 G2/G3/G7/G12 — L5 (Pawelek 2012 effector/memory arms), L8 (Front. Immunol. 16:1596518 two-dose vaccine consensus)
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - infection_drives_antibody
+    - memory_established_after_response
+    - two_dose_schedule_peak_and_memory
+    - boost_anamnesis_faster_than_priming
+    - priming_is_delayed_not_instant

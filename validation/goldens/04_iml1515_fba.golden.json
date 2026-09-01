@@ -1,21 +1,22 @@
 {
   "comparison": {
-    "growth_rate_rel_error": 2.6204891226202698e-14,
+    "growth_rate_rel_error": 8.476056443552692e-13,
     "growth_rate_tolerance": 0.05
   },
   "helixlang": {
-    "growth_rate": 0.8769972144269635,
-    "model_reactions": 2712
+    "growth_rate": 0.8739215069676898,
+    "model_reactions": 95
   },
   "id": "04_iml1515_fba",
   "reference": {
     "expected_approx": 0.871,
     "glc_uptake": 10.0,
-    "growth_rate": 0.8769972144269406,
-    "n_metabolites": 1877,
-    "n_reactions": 2712,
-    "source": "BiGG iML1515 via COBRApy"
+    "growth_rate": 0.8739215069684305,
+    "n_metabolites": 72,
+    "n_reactions": 95,
+    "source": "vendored E. coli core (fallback)"
   },
-  "runtime_seconds": 3.810072583000874,
+  "runtime_seconds": 0.9893894589040428,
+  "source": "fallback",
   "status": "PASS"
 }

@@ -18,7 +18,7 @@
     "folded_after_6_steps": 95.06,
     "atp_cost_per_step": 3095.53
   },
-  "runtime_seconds": 0.06216433295048773,
+  "runtime_seconds": 0.04321441694628447,
   "layer": "molecular",
   "name": "Coupled transcription-translation",
   "level": "L0"

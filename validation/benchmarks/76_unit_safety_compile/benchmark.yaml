@@ -1,0 +1,17 @@
+id: 76_unit_safety_compile
+name: Compile-time dimensional rejection (doc/41 Item 5 Ring 3)
+layer: compiler
+level: L0
+reference: doc/41 §6.3 acceptance — a program adding Float<µM> to Float<L> fails during compile with a DimensionError
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - cross_unit_symbol_add_rejected
+    - dimension_tree_in_message
+    - millimolar_plus_litre_named
+    - same_dim_program_compiles
+    - config_quantity_round_trip
+    - minutes_to_seconds_static

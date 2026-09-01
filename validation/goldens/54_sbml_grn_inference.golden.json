@@ -1,0 +1,23 @@
+{
+  "checks": {
+    "evidence_level_enum": true,
+    "grn_result_instantiation": true,
+    "import_modules": true,
+    "known_interactions_nonempty": true,
+    "regulatory_edge_lifecycle": true,
+    "sbml_import": true
+  },
+  "details": {
+    "known_interaction_count": 44,
+    "model_metabolite_count": 3,
+    "model_reaction_count": 2,
+    "reaction_ids": [
+      "R1",
+      "R2"
+    ]
+  },
+  "id": "54_sbml_grn_inference",
+  "reference": "Keating SM et al. 2020, Nat Biotechnol 38:534-543",
+  "runtime_seconds": 0.001740708015859127,
+  "status": "PASS"
+}

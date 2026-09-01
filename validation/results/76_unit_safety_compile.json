@@ -1,0 +1,21 @@
+{
+  "id": "76_unit_safety_compile",
+  "status": "PASS",
+  "checks": {
+    "cross_unit_symbol_add_rejected": true,
+    "dimension_tree_in_message": true,
+    "millimolar_plus_litre_named": true,
+    "same_dim_program_compiles": true,
+    "minutes_to_seconds_static": true,
+    "config_quantity_round_trip": true
+  },
+  "details": {
+    "5min_in_s": 300,
+    "converted": "5min == 300s"
+  },
+  "reference": "doc/41 \u00a76.3 acceptance \u2014 compile-time DimensionError (core/dim_inferencer.py, core/semantic.py)",
+  "runtime_seconds": 0.035878916969522834,
+  "layer": "compiler",
+  "name": "Compile-time dimensional rejection (doc/41 Item 5 Ring 3)",
+  "level": "L0"
+}

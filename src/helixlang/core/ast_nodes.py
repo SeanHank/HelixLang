@@ -139,6 +139,21 @@ class Config:
     # Simulation parameters not consumed by the classic pipeline, preserved
     # verbatim as strings; coerced by the backend adapter (sim_runtime.py).
     sim: dict[str, str] = field(default_factory=dict)
+    # doc/41 Item 5 Ring 2: unit-tagged ``#config`` numeric values resolved to
+    # a Quantity (value preserved verbatim in ``sim`` for source round-trip;
+    # this parallel map carries the parsed physical quantity). Keys mirror
+    # ``sim``; populated only for values with a recognized unit suffix.
+    quantities: dict[str, Any] = field(default_factory=dict)
+
+    def quantity(self, key: str, unit: str) -> Any:
+        """Return the ``#config`` value for ``key`` as a Quantity in ``unit``.
+
+        Raises :class:`~helixlang.core.dimensions.UnitError` when the value is
+        not a unit-carrying number of a compatible dimension, or
+        :class:`KeyError` when ``key`` is not a unit-tagged config value.
+        """
+        q = self.quantities[key]
+        return q.convert_to(unit)
 
 
 @dataclass(slots=True)

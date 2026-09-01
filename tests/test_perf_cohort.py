@@ -18,6 +18,7 @@ from helixlang.plugins.human.immune import (
     cohort_immune_step,
     create_immune_model,
     run_cohort,
+    sample_virtual_population,
 )
 from helixlang.plugins.human.physiology import create_default_physiology
 from helixlang.plugins.human.virtual_patient import _DrugPBPK
@@ -143,3 +144,41 @@ def test_o9_run_cohort_two_workers_matches():
     ):
         for x, y in zip(r1, r2, strict=True):
             assert abs(x - y) <= 1e-9, (x, y)
+
+
+def test_g13_sample_pop_spread():
+    """sample_virtual_population produces physiologic variance."""
+    pop = sample_virtual_population(200, seed=42)
+    anc = [p.cells.neutrophils for p in pop]
+    assert min(anc) > 0.5
+    assert max(anc) > 4.0
+    assert min(anc) < 4.0 < max(anc)
+    assert len({round(a, 4) for a in anc}) > 100
+
+
+def test_g13_sample_pop_deterministic():
+    """Same seed → identical population."""
+    pop1 = sample_virtual_population(50, seed=99)
+    pop2 = sample_virtual_population(50, seed=99)
+    for p1, p2 in zip(pop1, pop2, strict=True):
+        assert p1.cells.neutrophils == p2.cells.neutrophils
+        assert p1.cytokines.il6 == p2.cytokines.il6
+        assert p1.ifn.ifn_vmax == p2.ifn.ifn_vmax
+
+
+def test_g13_sample_pop_different_seeds():
+    """Different seeds → different populations."""
+    pop1 = sample_virtual_population(50, seed=1)
+    pop2 = sample_virtual_population(50, seed=2)
+    assert pop1[0].cells.neutrophils != pop2[0].cells.neutrophils
+
+
+def test_g13_cohort_run():
+    """Sampled cohort runs through O2 vectorized kernel without error."""
+    pop = sample_virtual_population(20, seed=7)
+    for p in pop:
+        p.infection_severity = 0.8
+    run_cohort(pop, 48, 1.0, workers=1)
+    il6s = [p.cytokines.il6 for p in pop]
+    assert max(il6s) > 5.0
+    assert len({round(x, 3) for x in il6s}) > 5

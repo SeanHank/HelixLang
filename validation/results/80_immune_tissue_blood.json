@@ -1,0 +1,28 @@
+{
+  "id": "80_immune_tissue_blood",
+  "status": "PASS",
+  "checks": {
+    "baseline_divergence_zero": true,
+    "infection_creates_tissue_blood_divergence": true,
+    "margination_raises_tissue_neutrophils": true,
+    "model_infection_raises_tissue_il6": true
+  },
+  "details": {
+    "divergence_stim": 0.3471997238995762,
+    "tissue_neuts": 2.940995491791657,
+    "blood_neuts": 1.5590045082083446,
+    "tissue_il6": 4.711968197944639,
+    "model_tissue_il6": 16.176371661274825,
+    "model_divergence": 4.017766349631246,
+    "blood_il6_after_signal": 1.0
+  },
+  "reference": {
+    "source": "doc/40 G10; L1 (BIS compartment taxonomy), L2 (IIRABM)",
+    "doi": "10.1186/1742-4682-8-9; 10.3389/fphys.2021.662845",
+    "note": "tissue-vs-blood pseudo-compartments and chemokine-driven margination"
+  },
+  "runtime_seconds": 0.45648437493946403,
+  "layer": "human",
+  "name": "Tissue-vs-blood immune pseudo-compartments (G10)",
+  "level": "L3"
+}

@@ -20,7 +20,7 @@
     "lacZ_low": true,
     "lacY_low": true
   },
-  "runtime_seconds": 0.07345058303326368,
+  "runtime_seconds": 0.06676945800427347,
   "layer": "runtime",
   "name": "lac operon biphasic growth",
   "level": "L3",

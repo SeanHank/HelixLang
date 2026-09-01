@@ -17,7 +17,7 @@
     ],
     "spatial_atlas_works": true
   },
-  "runtime_seconds": 0.3757142089307308,
+  "runtime_seconds": 0.2982371669495478,
   "layer": "omics",
   "name": "Omics Integration \u2014 expression inference and spatial omics",
   "level": "L0"

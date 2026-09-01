@@ -129,7 +129,7 @@
     ]
   },
   "id": "08_population_dynamics",
-  "runtime_seconds": 0.06339641602244228,
+  "runtime_seconds": 0.007950750063173473,
   "status": "PASS",
   "validation": {
     "doubling_time_15_25": true,

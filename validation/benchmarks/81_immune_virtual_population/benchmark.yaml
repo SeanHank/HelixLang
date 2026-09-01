@@ -1,0 +1,15 @@
+id: 81_immune_virtual_population
+name: Virtual immune population — seeded baseline variance + cohort determinism (G13/O9)
+layer: human
+level: L3
+reference: doc/40 G13 — L6 (npj Syst Biol Appl 2023 virtual-population QSP)
+input: programmatic
+expected:
+  metric: all_validations_pass
+  value: true
+  tolerance: 0
+  checks:
+    - cohort_has_baseline_variance
+    - cohort_baselines_are_physiologic
+    - cohort_deterministic_across_runs
+    - cohort_matches_scalar_advance

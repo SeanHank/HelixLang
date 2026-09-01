@@ -1,42 +1,42 @@
 {
   "01_codon_translation": {
-    "sha256": "f620f7689467c6d28b1b033a84a342355febe1475afdb6d9fbe753cf7ea89a5a",
+    "sha256": "2f5e2dbe57d089af4becd4816bd80bea15712582966f0e77ac0354df5766f7e6",
     "status": "PASS"
   },
   "02_lac_operon": {
-    "sha256": "091a0cbcc4b408eaecd9e0ea334835eaff12517c4efa7230d2300b9226a3f302",
+    "sha256": "bdba4bb48cd508a5af9c32c0750549c3af48c4604d5974a45ab84ea001565106",
     "status": "PASS"
   },
   "03_ecoli_fba": {
-    "sha256": "b284296b8c4b704828b85345afd730d06f3b2f5eca98fd253623aba5affc2156",
+    "sha256": "7883b7d27287c89af4427ff43e02a29a704d84a6ac6eaa659f1bc06b7daa10b4",
     "status": "PASS"
   },
   "04_iml1515_fba": {
-    "sha256": "d44fa267aeab9750ea995ec93729e1160cb0cde6193cc8a5e83d5d1fee89f2c9",
+    "sha256": "9cde3888a63602711a1d7b6bac19d6fc78d24e382b2c59dcfe2a63dc420fbd50",
     "status": "PASS"
   },
   "05_in678_photoauto": {
-    "sha256": "9bdc43ec89d4668ec989f33bb54fd38932b2a296425aac076d5227d6f5eedbb9",
+    "sha256": "af81dbffc422b27c5cb1c4f78e6722d9c4fc40eeb6d305cdb27517cedf08eed3",
     "status": "PASS"
   },
   "06_dfba_diauxic": {
-    "sha256": "8b0525cd6dc328f0aeabcaee34c89d380699783b119143486408b6e093a17816",
+    "sha256": "ecb62d6bdaa4fb11bde01541abda622c9c63c1bfcee35d6e17d0c060eb256b18",
     "status": "PASS"
   },
   "07_grn_repressilator": {
-    "sha256": "ed7a2501cad64c6a8845acb9b11dcb310d831323c4a8ba415d03a364beb0169c",
+    "sha256": "e5b90c5df69b35ab20dce8e0a287c5fbe1a4fa936a922d732626bd6863c1d1e5",
     "status": "PASS"
   },
   "08_population_dynamics": {
-    "sha256": "7a669409f0e8169f4556287086beaa55c80999bbfaa7daecc6e03ed51c744e75",
+    "sha256": "ba5b7fe08b0f98e3029e63822ec85c65bf762fb8995eb68177c8d39b62cdb1cb",
     "status": "PASS"
   },
   "09_reaction_diffusion": {
-    "sha256": "d72d73b423cd16ac12b6e12cad62c3206efb5df25b389597e25b81c77c72c0f8",
+    "sha256": "4ac61f9bd229720aade814f968118e325b9ab10948485bdcb84634cc5c209b6f",
     "status": "PASS"
   },
   "10_whole_cell": {
-    "sha256": "a07887df2372f20bdbddf0d0cad4b7b424d2e2d67c71e61629c1763fc89f1e20",
+    "sha256": "2e9614ed636a453e90239b9b17b676bfbd2cd1aece4223bb04158c6528465cc6",
     "status": "PASS"
   },
   "11_performance_comparison": {
@@ -49,7 +49,7 @@
     "status": "PASS"
   },
   "13_bytecode_vm_roundtrip": {
-    "sha256": "dce1f466552c44b8e85c0aed9f1653af433570d6353d1966ab284a5367066c6f",
+    "sha256": "c2f75f944c2ff3b0b444721a9412b7db83680124ed1d5b784e660c1f61473652",
     "status": "PASS"
   },
   "14_type_system_flow": {
@@ -61,7 +61,7 @@
     "status": "PASS"
   },
   "16_cli_server_provenance": {
-    "sha256": "1761694fb61fb7afda3b36971b53923243c872d834f21f0b8b6da9283247b286",
+    "sha256": "e0a4a44b23f60281dc85a04ef86f8b84b9a99f073bdd4205dd956a159bf006ce",
     "status": "PASS"
   },
   "17a_cell": {
@@ -81,7 +81,7 @@
     "status": "PASS"
   },
   "20_sparse_grn": {
-    "sha256": "729f4d291d3b32d44f5a2820a591b4eb8156239eded4ffe276ca952040878c31",
+    "sha256": "fe9b3f3796b48a4ea636a082321985ded271b8064b545a87595680d2647b4c0c",
     "status": "PASS"
   },
   "23a_evolution": {
@@ -97,11 +97,11 @@
     "status": "PASS"
   },
   "25_gem_reconstruction": {
-    "sha256": "6d8403db95c34e03469b00a646c8dff19532e13bd93bb8b319c88a1cc8f3b185",
+    "sha256": "eb7e3bdb4c5d9a860ddd36b685ce677ae262a9254178544ce7fc0685c328066a",
     "status": "PASS"
   },
   "26_gapfill_validation": {
-    "sha256": "1841976f6f28a7f509e9a177859dedcca45d0fd4182222adb5c5e47ff2001862",
+    "sha256": "362331594d7cd0af31c8ef62b67dace8e14418478923102af04f85f34aa81410",
     "status": "PASS"
   },
   "27_annotation_ec_mapping": {
@@ -117,7 +117,7 @@
     "status": "PASS"
   },
   "30_pk_simulation": {
-    "sha256": "375a65ff8c476c55a65f727aedb781e2cff66e738b858b503d8be45aa0ca99f1",
+    "sha256": "11aec09f8df4443329e2e0ba19161ef28a29152d0080f285a7108ba516324193",
     "status": "PASS"
   },
   "31_pd_dose_response": {
@@ -177,7 +177,155 @@
     "status": "PASS"
   },
   "45_provenance_completeness": {
-    "sha256": "c0a0d1791806eb27dc41c0f8ab2f646d3e4ee79ce64e192116958d4eb79bebb9",
+    "sha256": "51e3961122a3830e87ae93ee4da609400f3119c74fa4cd85fd81bc9debf62fe6",
+    "status": "PASS"
+  },
+  "46_vectorized_grn": {
+    "sha256": "02a5360198d718ad7136d7bc6991ff9918e8a627a68b1f09cd9d3e914ef9d74e",
+    "status": "PASS"
+  },
+  "47_flow_fields": {
+    "sha256": "af120b3dbd2e8945a4e392aed278cfda0437faa6fcc1c33bad8b4af338e31807",
+    "status": "PASS"
+  },
+  "48_immune_dynamics": {
+    "sha256": "f141a1f0c0bc137313606d0eee52e787374754239debc4364ac4a6b3e07490ed",
+    "status": "PASS"
+  },
+  "49_ecgem": {
+    "sha256": "305996879c823f48a786d30d623b728dd1c1f04185eed38b1613b8f5eb84587a",
+    "status": "PASS"
+  },
+  "50_protein_structure": {
+    "sha256": "5919dcba73f41c1e61ae0ff2903471ed6fcfa58ef67647d5e30b20ca105a25bd",
+    "status": "PASS"
+  },
+  "51_morphology_3d": {
+    "sha256": "702b7f0b595fef3ea7196ae15ff7a887d4c84d179218e1e53b3c079e827d2074",
+    "status": "PASS"
+  },
+  "52_community_fba": {
+    "sha256": "dda629a11edf7a5beeb19d3de721e1b7cb8769f0b4c1f94231f1263c2561d47b",
+    "status": "PASS"
+  },
+  "53_gem_reconstruction": {
+    "sha256": "beed139ea633dab057e4b810c30e2665970907eccdffe32cb37a2f5bc7406943",
+    "status": "PASS"
+  },
+  "54_sbml_grn_inference": {
+    "sha256": "950d6de9fc7f7bc0a3a588f41bd7c9eb06e1fb2368854ba17495ff8db92423ec",
+    "status": "PASS"
+  },
+  "55_annotation_tools": {
+    "sha256": "07335cd97bdacaebbd3d0a23ebc0f1634567758a161ae58005b59b412ad00b88",
+    "status": "PASS"
+  },
+  "56_blast_search": {
+    "sha256": "e4936d5f5665d28e4174124a04d1c2edc12e6ddddab53736b9ad9e0e9d364f0b",
+    "status": "PASS"
+  },
+  "57_pbpk_pharmacokinetics": {
+    "sha256": "9343578f4c3cfbafc7ac5e7cdd09ab8105dbb9ef08a44299c9003ab99c604937",
+    "status": "PASS"
+  },
+  "58_endocrine_renal": {
+    "sha256": "ca764a8e90792f8963f69e83d57d8c077576306400bb10701c1a1e518eb23cb5",
+    "status": "PASS"
+  },
+  "59_hematology": {
+    "sha256": "2a8c0f5fe202ed6ec561872166698fdf051686aadc4c19ce8c7d032a4f3a3b27",
+    "status": "PASS"
+  },
+  "60_proteome_binding": {
+    "sha256": "bdefb144126a969d61146d997d8532a45d84aca49523b67575da85677b950eae",
+    "status": "PASS"
+  },
+  "61_molecular_toxicity": {
+    "sha256": "f51863b6b023ec64e1045763d24e29d0a773d30ab33ae0f64935e1f5f079d35a",
+    "status": "PASS"
+  },
+  "62_disease_recovery": {
+    "sha256": "862e6ee909e9b97a7132366bb2b7e42650b7f79659c27f61ad4d8dea3c9ec444",
+    "status": "PASS"
+  },
+  "63_phenotype_simulation": {
+    "sha256": "7e191625182e2c7c752d5fc222433cc215f19b806dc5eef2419815f48d95814c",
+    "status": "PASS"
+  },
+  "64_stochastic_doseopt": {
+    "sha256": "ab211c45f6a2d9d7d2226b38792f3d373c1c8a8915a16c1fadecaf826ef76bed",
+    "status": "PASS"
+  },
+  "65_qsp_binding": {
+    "sha256": "12fc389243c0ee033b7743a81779197209e60ad3670d5ea0ae4ef44d5fb504dc",
+    "status": "PASS"
+  },
+  "66_infrastructure": {
+    "sha256": "a54bbb8e04d32d8986315ff10624c4c2009b657adbc44533af795535a4942102",
+    "status": "PASS"
+  },
+  "67_microbiome_crosstalk": {
+    "sha256": "a6f14b46dfee27363015270252d7ef23cc31ab87f316cf020cbea82d859403ca",
+    "status": "PASS"
+  },
+  "68_bio_validity": {
+    "sha256": "7e954db3af01becd69cd4459dcc07c94921c810b4b47b8145f4bb612a063a74c",
+    "status": "PASS"
+  },
+  "69_performance_benchmark": {
+    "sha256": "c89106dfd95878a0cb638d896d0d32968d7023599228fe49df3fb58d734d9247",
+    "status": "PASS"
+  },
+  "70_decoupling_verify": {
+    "sha256": "aef2eac46b930c90f151c7f0e28c0cf5a85269035a49795ed3cc4503f7877fb7",
+    "status": "PASS"
+  },
+  "71_ir_roundtrip": {
+    "sha256": "4e53dfe7645e6dc7f8c01ac29e023eb9f78b657ada6130f26043f84c194835b8",
+    "status": "PASS"
+  },
+  "72_batch_runtime_parity": {
+    "sha256": "31b6e6f1472dd91b0f1388e61ce1c22f66dfb3babb1e761a8097ddb207d5e4a1",
+    "status": "PASS"
+  },
+  "73_ir_serialization": {
+    "sha256": "c1064bdcb97221c57669de0a96ca35b5113dfdea8a4ce4524ee00eea7e2d409e",
+    "status": "PASS"
+  },
+  "74_incremental_jit": {
+    "sha256": "30f90901073049539d865b241a7a1a440764622d3d04e3ef9157d818510bee52",
+    "status": "PASS"
+  },
+  "75_unit_safety": {
+    "sha256": "eca725ac4a0d96e28f4165ef5828eb4af7eb137824d86831eaee6db144d2bb78",
+    "status": "PASS"
+  },
+  "76_unit_safety_compile": {
+    "sha256": "717b8139f261d6c62b5ed0599b2373d13736974e89016302a5fdc2132211529c",
+    "status": "PASS"
+  },
+  "77_immune_ifn_crp_friberg": {
+    "sha256": "b5557246822cc74fa94834a7e30169fde3f9ae6c16876950971faf0c4e4ed680",
+    "status": "PASS"
+  },
+  "78_immune_adaptive_vaccine": {
+    "sha256": "48abd5372ff733439896643e8047777717a23d91a9579e9326d60a2c1c3f3c4f",
+    "status": "PASS"
+  },
+  "79_immune_complement": {
+    "sha256": "1110a412e47f66fe469b7bf207b6cb7aee5bc81149a129c4fb77d55519184843",
+    "status": "PASS"
+  },
+  "80_immune_tissue_blood": {
+    "sha256": "50acd957b6dba13822c9356c4377e76004dada216d25d042ec39e763903921d9",
+    "status": "PASS"
+  },
+  "81_immune_virtual_population": {
+    "sha256": "a88010043dae5d9fb5da07af71f976ccd8b823f76b5f30791acb6b4b78c80a94",
+    "status": "PASS"
+  },
+  "82_immune_spatial_abm": {
+    "sha256": "0a66b7056d2bf24657205cc3ebcce2a9e4329361d7c047bc3ca4cacea24f9111",
     "status": "PASS"
   }
 }

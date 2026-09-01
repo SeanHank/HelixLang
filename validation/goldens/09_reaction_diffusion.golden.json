@@ -69,7 +69,7 @@
     "robustness_ok": true,
     "threshold": 3
   },
-  "runtime_seconds": 3.566007958026603,
+  "runtime_seconds": 3.492880375008099,
   "stability_analysis": {
     "diffusion_ratio": 0.5,
     "homogeneous_stable": true,
