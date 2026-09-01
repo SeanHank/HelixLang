@@ -103,6 +103,8 @@ def run() -> dict:
                 "journal": "Br J Pharmacol",
                 "volume": "154",
                 "pages": "731-739",
+                "doi": "10.1038/sj.bjp.0707373",
+                "note": "Hughes JP et al. 2008 principles of early drug discovery; therapeutic index and in vitro toxicity screening.",
             },
             "runtime_seconds": time.perf_counter() - t0,
         }

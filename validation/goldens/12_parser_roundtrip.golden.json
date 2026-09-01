@@ -6,7 +6,7 @@
   "genes": 1,
   "id": "12_parser_roundtrip",
   "orf_length": 11,
-  "runtime_seconds": 0.00045729195699095726,
+  "runtime_seconds": 0.0004640829283744097,
   "status": "PASS",
   "tokens": 17
 }

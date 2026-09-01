@@ -30,20 +30,30 @@
     "unit": "mg/L",
     "value": 33.333333333333336
   },
+  "experimental_comparison": {
+    "c0_concentration_mg_l": {
+      "note": "IV bolus C0 = Dose*F/Vd; analytic solution ~1.0 mg/L.",
+      "reference_max": 35.00000000000001,
+      "reference_min": 31.666666666666668,
+      "tolerance": 0.05,
+      "unit": "mg/L"
+    }
+  },
   "id": "30_pk_simulation",
   "layer": "human",
   "name": "PBPK IV bolus simulation",
   "reference": {
-    "authors": "Rowland & Tozer",
-    "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+    "authors": "Jones & Rowland-Yeo",
+    "doi": "10.1038/psp.2013.41",
+    "journal": "Clinical Pharmacology: Systems & Pharmacology",
     "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus",
     "source": "IV bolus pharmacokinetics (one-compartment model)",
-    "year": 2011
+    "year": 2013
   },
   "reproducibility": {
     "deterministic": true,
     "environment": "Python 3.11.15"
   },
-  "runtime_seconds": 0.003487125039100647,
+  "runtime_seconds": 0.0041209160117432475,
   "status": "PASS"
 }

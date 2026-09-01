@@ -1,8 +1,9 @@
 id: 60_proteome_binding
 name: Proteome binding + DDI
 layer: pharmacology
-level: L0
+level: L4
 reference: Yoshida et al. 2020, CPT
+reference_doi: 10.1002/psp4.12315
 input: programmatic
 expected:
   check: automated

@@ -77,7 +77,30 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428 (Friberg model)",
+            "reference": {
+                "source": "Friberg semimechanistic myelosuppression model",
+                "authors": "Friberg LE et al.",
+                "year": 2002,
+                "journal": "J Pharmacokinet Pharmacodyn",
+                "doi": "10.1023/A:1020492211773",
+                "note": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428. Semi-mechanistic model of drug-induced myelosuppression: drug exposure decreases proliferating cells with time-delayed neutrophil nadir.",
+            },
+            "experimental_comparison": {
+                "anc_stable_no_drug_pct_change": {
+                    "reference_min": 0.0,
+                    "reference_max": 0.20,
+                    "tolerance": 0.20,
+                    "unit": "fraction of baseline",
+                    "note": "No drug exposure → ANC stays within 20% of baseline (homeostatic steady state).",
+                },
+                "anc_decreases_under_cytotoxic_drug": {
+                    "reference_min": 1.0,
+                    "reference_max": 1.0,
+                    "tolerance": 0.0,
+                    "unit": "boolean",
+                    "note": "Repeated cytotoxic exposure produces neutrophil decline (drug-induced neutropenia).",
+                },
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:
@@ -85,7 +108,13 @@ def run() -> dict:
             "status": "FAIL",
             "checks": {},
             "details": {"error": str(e)},
-            "reference": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428 (Friberg model)",
+            "reference": {
+                "source": "Friberg semimechanistic myelosuppression model",
+                "authors": "Friberg LE et al.",
+                "year": 2002,
+                "doi": "10.1023/A:1020492211773",
+                "note": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428.",
+            },
             "runtime_seconds": time.perf_counter() - t0,
         })
     return results

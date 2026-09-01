@@ -36,6 +36,6 @@
   },
   "id": "72_batch_runtime_parity",
   "reference": "doc/37 \u00a75.4/\u00a77.4 batch runtime; doc/36 R5 no-silent-fallbacks",
-  "runtime_seconds": 5.537737749982625,
+  "runtime_seconds": 6.047934541944414,
   "status": "PASS"
 }

@@ -32,7 +32,9 @@ a Hill-shaped attractant, matching the doc/40 Hill convention.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 try:  # numpy optional (doc/39 O2/O10 idiom)
     import numpy as _np
@@ -45,7 +47,7 @@ except Exception:  # pragma: no cover - pure-python install
 def _hill(x: float, half: float, n: float) -> float:
     xp = x ** n
     hp = half ** n + 1e-12
-    return xp / (hp + xp)
+    return float(xp / (hp + xp))
 
 
 @dataclass
@@ -183,7 +185,7 @@ def cohort_tissue_blood_step(
     np = _np
     n = len(models)
 
-    def arr(get):
+    def arr(get: Callable[[Any], float]) -> Any:
         return np.array([get(m) for m in models], dtype=float)
 
     b_il6 = np.array(blood_il6, dtype=float)
@@ -225,7 +227,7 @@ def cohort_tissue_blood_step(
         m.tissue_neutrophils = float(t_neut[i])
         m.tissue_macrophages = float(t_max[i])
         m.tissue_il6 = float(t_il6[i])
-    return [float((t_neut[i] - base[i])) for i in range(n)]
+    return [float(t_neut[i] - base[i]) for i in range(n)]
 
 
 __all__ = ["TissueBloodModel", "cohort_tissue_blood_step"]

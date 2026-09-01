@@ -371,7 +371,7 @@
     "repression_weight": -30.0,
     "threshold": 0.0
   },
-  "runtime_seconds": 0.018757291953079402,
+  "runtime_seconds": 0.01866566704120487,
   "status": "PASS",
   "validation": {
     "both_oscillate": true,

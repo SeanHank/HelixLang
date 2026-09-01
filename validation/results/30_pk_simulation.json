@@ -5,10 +5,20 @@
   "name": "PBPK IV bolus simulation",
   "reference": {
     "source": "IV bolus pharmacokinetics (one-compartment model)",
-    "authors": "Rowland & Tozer",
-    "year": 2011,
-    "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+    "doi": "10.1038/psp.2013.41",
+    "authors": "Jones & Rowland-Yeo",
+    "year": 2013,
+    "journal": "Clinical Pharmacology: Systems & Pharmacology",
     "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus"
+  },
+  "experimental_comparison": {
+    "c0_concentration_mg_l": {
+      "reference_min": 31.666666666666668,
+      "reference_max": 35.00000000000001,
+      "tolerance": 0.05,
+      "unit": "mg/L",
+      "note": "IV bolus C0 = Dose*F/Vd; analytic solution ~1.0 mg/L."
+    }
   },
   "expected": {
     "metric": "c0_concentration",
@@ -45,6 +55,6 @@
     "n_time_points": 289,
     "final_concentration": 0.110688
   },
-  "runtime_seconds": 0.5211232920410112,
-  "level": "L1"
+  "runtime_seconds": 0.5563777500065044,
+  "level": "L4"
 }

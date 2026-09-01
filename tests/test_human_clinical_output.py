@@ -162,3 +162,31 @@ class TestVitalsModel:
         labs = ClinicalLabs(crp_mg_per_l=50.0, egfr_ml_per_min=30.0)
         result = model.update(dt_h=1.0, labs=labs, disease_severity=0.8)
         assert result.temperature_c > 37.0
+
+
+class TestVitalsModelPhysiologicalCore:
+    """doc/42 Phase B: opt-in CV/gas/thermo vitals (RL-1/2/4) wiring."""
+
+    def test_default_has_no_physiological_driver(self):
+        phys = create_default_physiology()
+        model = VitalsModel.create_from_physiology(phys)
+        assert model._physio_driver is None
+
+    def test_opt_in_uses_physiological_driver(self):
+        phys = create_default_physiology()
+        model = VitalsModel.create_from_physiology(phys, physiological_core=True)
+        assert model._physio_driver is not None
+        model.update(dt_h=1.0)
+        vs = model.get_current()
+        assert 90.0 <= vs.spo2_pct <= 100.0
+        assert 60.0 <= vs.systolic_bp_mmhg <= 140.0
+
+    def test_fever_raises_physiological_temperature(self):
+        phys = create_default_physiology()
+        healthy = VitalsModel.create_from_physiology(phys, physiological_core=True)
+        febrile = VitalsModel.create_from_physiology(phys, physiological_core=True)
+        for _ in range(24):
+            healthy.update(1.0, labs=ClinicalLabs(crp_mg_per_l=1.0))
+            febrile.update(1.0, labs=ClinicalLabs(crp_mg_per_l=80.0))
+        assert febrile.current.temperature_c > healthy.current.temperature_c
+        assert febrile.current.temperature_c > 37.0

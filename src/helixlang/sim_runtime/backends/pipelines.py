@@ -927,6 +927,69 @@ def _run_codon_usage(program: Program) -> ScoreResult:
         meta={"kind": "codon_usage", "species": species_list},
     )
 
+_CARDIOLOGY_COLUMNS = [
+    "period_s",
+    "heart_rate_bpm",
+    "stroke_volume_ml",
+    "cardiac_output_l_min",
+    "cardiac_index_l_min_m2",
+    "map_mmhg",
+    "systolic_bp_mmhg",
+    "diastolic_bp_mmhg",
+    "conduction",
+]
+
+def _run_cardiology(program: Program) -> ScoreResult:
+    """``#sim kind=cardiology`` — closed-loop cardiac cycle (doc/42 Phase E).
+
+    Drives the Phase B RL-1 closed-loop cardiovascular core
+    (:class:`~helixlang.plugins.human.physiological_core.HemodynamicModel`) from
+    each ``#cardiac_cycle`` annotation (``period`` in seconds, ``conduction``),
+    so the directive produces real hemodynamic output instead of only validating
+    a period.  Deterministic (no RNG), so the result is golden-verifiable.
+    """
+    from helixlang.plugins.human.physiological_core import HemodynamicModel
+
+    ext = program.sim_extensions or {}
+    cycles = ext.get("cardiac_cycle") or []
+    if not isinstance(cycles, list) or not cycles:
+        raise SimConfigError(
+            "#sim kind=cardiology requires at least one #cardiac_cycle annotation")
+
+    default_conduction = "normal"
+    rows: list[dict[str, Any]] = []
+    for entry in cycles:
+        period_s = _opt_float({"period": entry.get("period", "0.8")}, "period", 0.8)
+        if not 0.0 < period_s <= 5.0:
+            raise SimConfigError(
+                f"#cardiac_cycle period={entry.get('period')!r} outside (0, 5] s")
+        conduction = str(entry.get("conduction", default_conduction) or default_conduction)
+
+        # warm the closed-loop core to steady state, then drive for one period.
+        h = HemodynamicModel(baseline_hr_bpm=72.0, baseline_sv_ml=70.0)
+        for _ in range(24):
+            h.step(1.0)
+        dt_h = period_s / 3600.0
+        h.step(dt_h)
+        s = h.state
+        rows.append({
+            "period_s": round(period_s, 4),
+            "heart_rate_bpm": round(s.heart_rate_bpm, 2),
+            "stroke_volume_ml": round(s.stroke_volume_ml, 2),
+            "cardiac_output_l_min": round(s.cardiac_output_l_min, 3),
+            "cardiac_index_l_min_m2": round(s.cardiac_index_l_min_m2, 3),
+            "map_mmhg": round(s.map_mmhg, 2),
+            "systolic_bp_mmhg": round(s.systolic_bp_mmhg, 1),
+            "diastolic_bp_mmhg": round(s.diastolic_bp_mmhg, 1),
+            "conduction": conduction,
+        })
+    columns = _select_columns(program, rows, default=_CARDIOLOGY_COLUMNS)
+    return ScoreResult(
+        backend="cardiology", columns=columns,
+        rows=[_project(r, columns) for r in rows],
+        meta={"kind": "cardiology", "cardiac_cycles": len(rows)},
+    )
+
 def _run_ecosystem(program: Program) -> ScoreResult:
     """``#sim kind=ecosystem`` — multi-species/multi-patch ecosystem with
     dispersal, biogeochemistry, environmental forcing and an invasion-fitness
@@ -2083,4 +2146,133 @@ def _run_benchmark(program: Program) -> ScoreResult:
         rows=[_project(row, columns)],
         meta={"fitted_biomass_to_atp": result["fitted_biomass_to_atp"]},
     )
+
+
+_ODE_MODEL_COLUMNS = [
+    "name",
+    "species",
+    "t_end",
+    "initial",
+    "final",
+    "conserved_sum",
+    "max_abs_rate",
+]
+
+
+def _run_ode_model(program: Program) -> ScoreResult:
+    """``#sim kind=ode_model`` — integrate a user-authored ODE model.
+
+    Phase D (doc/42 RT-1): this is the "author biology in Helix" backend.
+    It consumes ``#model`` / ``#species`` / ``#reaction`` annotations from
+    :attr:`Program.sim_extensions`, builds an explicit-order RK4 integrator,
+    and reports each species' initial/final concentration on an arbitrary
+    well-mixed model.  Deterministic (no RNG), so the output is
+    golden-verifiable.
+
+    Species not covered by any ``#reaction`` are treated as held constant
+    (rate zero).  The ``final`` state is reported at ``t = t_end``.
+    """
+    sim = program.sim_extensions or {}
+    model = sim.get("ode_model")
+    if not isinstance(model, list) or not model:
+        raise SimConfigError(
+            "#sim kind=ode_model requires a #model declaration")
+    meta = model[0]
+    name = str(meta.get("name", "ode"))
+    try:
+        params = {
+            k: float(meta[k]) for k in ("k1", "k2")
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise SimConfigError("ode model needs numeric k1 and k2") from exc
+
+    species_rows = sim.get("ode_species") or []
+    if not isinstance(species_rows, list) or not species_rows:
+        raise SimConfigError("ode model needs at least one #species")
+    initial: dict[str, float] = {}
+    units: dict[str, str] = {}
+    for sp in species_rows:
+        sname = str(sp.get("name", ""))
+        if not sname:
+            continue
+        initial[sname] = float(sp.get("initial", 0.0))
+        units[sname] = str(sp.get("units", "") or "")
+
+    rate_exprs: dict[str, str] = {}
+    for rxn in sim.get("ode_reaction") or []:
+        target = str(rxn.get("species", ""))
+        expr = str(rxn.get("expr", ""))
+        if target and expr:
+            rate_exprs[target] = expr
+
+    species_order = sorted(initial)
+    if not species_order:
+        raise SimConfigError("ode model species list is empty")
+    state = [initial[s] for s in species_order]
+    get: dict[str, Any] = {"__builtins__": {"pow": pow}}
+    get.update(params)
+    compiled = {s: _compile_rate(expr, species_order, get)
+                for s, expr in rate_exprs.items()}
+    for s in species_order:
+        if s not in compiled:
+            compiled[s] = ("0.0", get)
+
+    t_end = _opt_float(meta, "t_end", 10.0)
+    steps = _opt_int(meta, "steps", 100)
+    dt = t_end / steps
+
+    max_abs_rate: dict[str, float] = {}
+    for _ in range(steps):
+        rates_now = {s: _eval_rate(tpl, state, species_order)
+                     for s, tpl in compiled.items()}
+        k1 = [rates_now[s] for s in species_order]
+        if max_abs_rate == {}:
+            for s in species_order:
+                max_abs_rate[s] = abs(k1[species_order.index(s)])
+        # RK4 advance, holding un-compiled species constant.
+        k2 = [_eval_rate(tpl, [v + 0.5 * dt * k1[i] for i, v in enumerate(state)],
+                         species_order) for i, (s, tpl) in enumerate(compiled.items())]
+        k3 = [_eval_rate(tpl, [v + 0.5 * dt * k2[i] for i, v in enumerate(state)],
+                         species_order) for i, (s, tpl) in enumerate(compiled.items())]
+        k4 = [_eval_rate(tpl, [v + dt * k3[i] for i, v in enumerate(state)],
+                         species_order) for i, (s, tpl) in enumerate(compiled.items())]
+        for i, s in enumerate(species_order):
+            if s in compiled:
+                state[i] += dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
+
+    final = {s: state[species_order.index(s)] for s in species_order}
+    rows = [{
+        "name": name,
+        "species": s,
+        "t_end": round(t_end, 6),
+        "initial": round(initial[s], 6),
+        "final": round(final[s], 6),
+        "conserved_sum": round(sum(final.values()), 6),
+        "max_abs_rate": round(max_abs_rate[s], 6),
+    } for s in species_order]
+
+    columns = _select_columns(program, rows, default=_ODE_MODEL_COLUMNS)
+    return ScoreResult(
+        backend="ode_model", columns=columns,
+        rows=[_project(r, columns) for r in rows],
+        meta={"model": name, "units": units, "rates": dict(rate_exprs)},
+    )
+
+
+def _compile_rate(expr: str, order: list[str], get: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Return (rate_expr, eval_namespace) — expr is kept as a string to avoid
+    exec of arbitrary code beyond the allowed math surface."""
+    return (expr, get)
+
+
+def _eval_rate(tpl: tuple[str, dict[str, Any]], state: list[float],
+               order: list[str]) -> float:
+    expr, ns = tpl
+    if expr == "0.0":
+        return 0.0
+    env = dict(ns)
+    for name, value in zip(order, state, strict=True):
+        env[name] = value
+    return float(eval(expr, {"__builtins__": {"pow": pow}}, env))  # noqa: S307
+
 

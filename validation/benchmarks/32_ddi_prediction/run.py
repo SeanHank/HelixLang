@@ -86,6 +86,27 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "reference": {
+                "source": "CYP inhibition DDI mechanism and typical AUC-fold-change ranges (warfarin + fluconazole)",
+                "doi": "10.1038/psp.2013.41",
+                "note": "Jones HM & Rowland-Yeo K. Clin Pharmacol Syst Pharmacol 2013;2:e43. CYP2C9 inhibition by fluconazole raises warfarin AUC/exposure; moderate co-administration interaction.",
+            },
+            "experimental_comparison": {
+                "warfarin_clearance_modifier": {
+                    "reference_min": 0.3,
+                    "reference_max": 0.8,
+                    "tolerance": 0.2,
+                    "unit": "fraction of baseline clearance",
+                    "note": "CYP2C9 inhibition reduces warfarin clearance; expected reported AUC fold-change ~2-3 (moderate DDI).",
+                },
+                "warfarin_alert_severity_moderate_or_higher": {
+                    "reference_min": 1.0,
+                    "reference_max": 1.0,
+                    "tolerance": 0.0,
+                    "unit": "boolean",
+                    "note": "Warfarin+fluconazole is a documented moderate/severe co-administration interaction.",
+                },
+            },
             "checks": {
                 "create_default_ddi_model_has_rules": True,
                 "warfarin_fluconazole_is_known_ddi": True,

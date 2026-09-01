@@ -1,0 +1,9 @@
+id: 85_ode_model
+name: User-authored ODE model authored in the Helix language (doc/42 Phase D)
+layer: language
+level: L3
+reference: Ten Berge, Polynomial approach to two-compartment drug disposition
+reference_doi: 10.1016/0010-4825(93)90017-5
+input: programmatic
+expected:
+  check: automated

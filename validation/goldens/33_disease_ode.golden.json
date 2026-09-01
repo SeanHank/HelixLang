@@ -23,6 +23,11 @@
     "trajectory_length": 366
   },
   "id": "33_disease_ode",
-  "runtime_seconds": 0.00013499998021870852,
+  "reference": {
+    "doi": "10.1152/ajpendo.1981.240.4.E480",
+    "note": "Bergman RN et al. 1981 minimal model of glucose disappearance, Am J Physiol 240:E480-E490; qualitative T2D beta-cell decline used here.",
+    "source": "Minimal model of glucose-insulin dynamics; T2D beta-cell glucotoxicity progression"
+  },
+  "runtime_seconds": 0.00013037491589784622,
   "status": "PASS"
 }

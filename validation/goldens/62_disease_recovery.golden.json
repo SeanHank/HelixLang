@@ -41,12 +41,14 @@
   "id": "62_disease_recovery",
   "reference": {
     "authors": "Sonnenberg FA, Beck JR",
+    "doi": "10.1177/0272989X9301300409",
     "journal": "Med Decis Making",
+    "note": "Sonnenberg FA, Beck JR 1993 Markov models in medical decision making (disease progression).",
     "pages": "322",
     "source": "Sonnenberg FA, Beck JR 1993",
     "volume": "13",
     "year": 1993
   },
-  "runtime_seconds": 7.029203698039055e-05,
+  "runtime_seconds": 8.004205301404e-05,
   "status": "PASS"
 }

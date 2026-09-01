@@ -27,9 +27,9 @@ from helixlang.core.manifest import (
 
 def test_import_surface_modules():
     assert set(api.__all__) == {"accel", "ast", "backend", "bytecode",
-                                "capabilities", "compiler", "errors", "gem",
-                                "grammar", "language", "registry", "sbol",
-                                "units"}
+                                "capabilities", "compiler", "dimensions",
+                                "errors", "gem", "grammar", "language",
+                                "registry", "sbol", "units"}
     assert api_ast.ProgramView is not None
     assert api_backend.SimResult is not None
     assert api_backend.Backend is not None
@@ -146,6 +146,24 @@ def test_manifest_grammar_drift():
     ok = PluginManifest(name="human", version="1", entry_point="x",
                         provides=ManifestProvides(grammars=("person",)))
     manifest_matches_grammars(ok, grammars)
+
+
+def test_bundled_cardiology_manifest_contract():
+    """Phase E1: the shipped cardiology manifest parses + matches its grammars."""
+    from helixlang.core.grammar_registry import grammar_registry
+    root = Path(__file__).resolve().parents[1] / "src" / "helixlang" / "plugins"
+    manifests = discover_manifests(root)
+    cardio = {m.name: m for m in manifests}.get("cardiology")
+    assert cardio is not None, [m.name for m in manifests]
+    assert cardio.entry_point == "helixlang.plugins.cardiology"
+    assert cardio.provides.grammars == ("cardiac_cycle",)
+    assert "cardiology" in cardio.provides.backends
+
+    api_registry.Registry().discover("cardiology")
+    registered = {g.keyword: g for g in grammar_registry.grammars()
+                  if g.keyword in cardio.provides.grammars}
+    assert set(registered) == set(cardio.provides.grammars)
+    manifest_matches_grammars(cardio, registered)
 
 
 class _DummyBackend(api_backend.Backend):

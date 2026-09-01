@@ -46,10 +46,12 @@ except ImportError:  # pragma: no cover - numpy is a project dependency
 from helixlang.plugins.human.adaptive import (  # noqa: E402
     AdaptiveImmuneModel as _AdaptiveImmuneModel,
 )
+
 # doc/40 Phase C: reduced complement cascade (G5) and NK/mast pools (G6).
 from helixlang.plugins.human.complement import (  # noqa: E402
     ComplementCascade as _ComplementCascade,
 )
+
 # doc/40 Phase C: tissue vs blood pseudo-compartments (G10).
 from helixlang.plugins.human.tissue_blood import (  # noqa: E402
     TissueBloodModel as _TissueBloodModel,
@@ -416,21 +418,21 @@ class InnateImmuneModel:
     # --- Adaptive immunity (doc/40 Phase B: G2/G3/G7/G12) ---
     # Additive and inert at baseline: no infection + no vaccine leaves every
     # adaptive pool at its naive baseline and antibody at the baseline titer.
-    adaptive: "_AdaptiveImmuneModel" = field(
+    adaptive: _AdaptiveImmuneModel = field(
         default_factory=_AdaptiveImmuneModel)
 
     # --- Complement cascade (doc/40 Phase C: G5) ---
     # Additive and inert at baseline: no signal -> C3/C5 at 1.0, anaphylatoxins
     # and MAC ~0.  ``anti_c5_dose`` (0-1) simulates an anti-C5 agent that
     # suppresses the MAC arm while sparing C3b opsonization.
-    complement: "_ComplementCascade" = field(
+    complement: _ComplementCascade = field(
         default_factory=_ComplementCascade)
 
     # --- Tissue vs blood pseudo-compartments (doc/40 Phase C: G10) ---
     # Additive and inert at baseline: blood fields mirror the circulating
     # channels (so existing consumers are unchanged), tissue fields sit at
     # baseline, and the tissue-vs-blood divergence is ~0 with no signal.
-    tissue_blood: "_TissueBloodModel" = field(
+    tissue_blood: _TissueBloodModel = field(
         default_factory=_TissueBloodModel)
 
 
@@ -1089,7 +1091,10 @@ def sample_virtual_population(
     models: list[InnateImmuneModel] = []
     for i in range(n):
         local = rng if rng is not None else _rnd.Random(seed * 1000003 + i)
-        g = lambda mean: math.exp(local.gauss(0.0, sd_log)) * mean
+
+        def g(mean: float, local: Any = local, sd_log: float = sd_log) -> float:
+            return math.exp(local.gauss(0.0, sd_log)) * mean
+
         m = InnateImmuneModel()
 
         # Cytokine baselines (pg/mL) around healthy reference values.

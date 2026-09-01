@@ -19,9 +19,32 @@
     "anc_end_after_7d_drug": 2.1299,
     "hemoglobin_after_24h": 14.5
   },
-  "reference": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428 (Friberg model)",
-  "runtime_seconds": 0.4382319579599425,
+  "reference": {
+    "source": "Friberg semimechanistic myelosuppression model",
+    "authors": "Friberg LE et al.",
+    "year": 2002,
+    "journal": "J Pharmacokinet Pharmacodyn",
+    "doi": "10.1023/A:1020492211773",
+    "note": "Friberg LE et al. 2002, J Pharmacokinet Pharmacodyn 29:411-428. Semi-mechanistic model of drug-induced myelosuppression: drug exposure decreases proliferating cells with time-delayed neutrophil nadir."
+  },
+  "experimental_comparison": {
+    "anc_stable_no_drug_pct_change": {
+      "reference_min": 0.0,
+      "reference_max": 0.2,
+      "tolerance": 0.2,
+      "unit": "fraction of baseline",
+      "note": "No drug exposure \u2192 ANC stays within 20% of baseline (homeostatic steady state)."
+    },
+    "anc_decreases_under_cytotoxic_drug": {
+      "reference_min": 1.0,
+      "reference_max": 1.0,
+      "tolerance": 0.0,
+      "unit": "boolean",
+      "note": "Repeated cytotoxic exposure produces neutrophil decline (drug-induced neutropenia)."
+    }
+  },
+  "runtime_seconds": 0.6323643330251798,
   "layer": "pharmacology",
   "name": "Hematology myelosuppression",
-  "level": "L0"
+  "level": "L4"
 }

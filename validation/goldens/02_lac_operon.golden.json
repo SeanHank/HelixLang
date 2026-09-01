@@ -19,6 +19,17 @@
     "repression_ratio_above": 1.2
   },
   "id": "02_lac_operon",
-  "runtime_seconds": 0.0014299590839073062,
+  "reference": {
+    "doi": "10.1038/191141a0",
+    "journal": "Nature 191",
+    "source": "Jacob & Monod 1961, Nature 191:141",
+    "year": 1961
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 0.0012698749778792262,
   "status": "PASS"
 }

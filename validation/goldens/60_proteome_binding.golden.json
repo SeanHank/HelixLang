@@ -20,8 +20,31 @@
     "warfarin_n_bindings": 5,
     "warfarin_n_significant": 5
   },
+  "experimental_comparison": {
+    "binding_occupancy_range": {
+      "note": "Mass-action occupancy O = [L]/(Kd+[L]) is bounded in [0,1]; Kd=5uM, [L]=10uM gives 0.67.",
+      "reference_max": 1.0,
+      "reference_min": 0.0,
+      "tolerance": 0.1,
+      "unit": "fraction"
+    },
+    "ddi_auc_ratio_positive": {
+      "note": "Warfarin+amiodarone co-administration increases warfarin exposure; AUC ratio ~1.5-2.5 reported (moderate DDI).",
+      "reference_max": 4.0,
+      "reference_min": 1.0,
+      "tolerance": 1.5,
+      "unit": "fold change in AUC"
+    }
+  },
   "id": "60_proteome_binding",
-  "reference": "Yoshida K et al. 2020, CPT Pharmacometrics Syst Pharmacol 9:51 (DDI prediction)",
-  "runtime_seconds": 3.233388997614384e-05,
+  "reference": {
+    "authors": "Yoshida K et al.",
+    "doi": "10.1002/psp4.12315",
+    "journal": "CPT Pharmacometrics Syst Pharmacol",
+    "note": "Yoshida K et al. 2018, CPT:PSP 7:517-524. Quantitative prediction of transporter-mediated clinical DDIs; mass-action inhibitor occupancy used here for AUC ratio estimation.",
+    "source": "Quantitative DDI prediction from binding/occupancy; mass-action occupancy for CYP binding",
+    "year": 2018
+  },
+  "runtime_seconds": 6.687501445412636e-05,
   "status": "PASS"
 }

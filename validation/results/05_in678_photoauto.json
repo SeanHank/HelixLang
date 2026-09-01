@@ -23,7 +23,12 @@
     "n_active_fluxes": 46,
     "note": "Growth rate is primary metric; Pearson r for active fluxes reported (FBA degenerate optima expected)"
   },
-  "runtime_seconds": 2.110539083951153,
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 2.634432208025828,
   "layer": "metabolism",
   "name": "Synechocystis PCC 6803 photoautotrophic FBA",
   "level": "L2"

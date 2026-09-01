@@ -1,0 +1,110 @@
+{
+  "checks": {
+    "alveolar_100pct_higher": true,
+    "alveolar_room_air": true,
+    "ci_normal_range": true,
+    "ckd_drops_clearance": true,
+    "ckd_metabolic_acidosis": true,
+    "co_from_flow_balance": true,
+    "fever_core_below_setpoint": true,
+    "fever_core_tracks_setpoint": true,
+    "fever_raises_setpoint": true,
+    "gas_normal_ph": true,
+    "gas_normal_spo2": true,
+    "hf_baroreflex_tachycardia": true,
+    "hf_collapses_sv": true,
+    "hh_normal_ph": true,
+    "hypovent_acidosis": true,
+    "hypovent_lowers_spo2": true,
+    "hypovent_raises_paco2": true,
+    "renal_creatinine_turnover_positive": true,
+    "renal_gfr_driven_cl": true,
+    "renal_normal_egfr": true,
+    "renal_normal_ph": true,
+    "renal_tubular_reabsorption": true,
+    "renal_tubular_secretion": true,
+    "rl5_hepatic_failure_reduces_cl": true,
+    "rl5_renal_failure_reduces_cl": true,
+    "severinghaus_100_normal": true,
+    "severinghaus_60_lower": true,
+    "severinghaus_inverse_roundtrip": true,
+    "thermo_basal_core": true,
+    "thermo_heat_balanced": true
+  },
+  "details": {
+    "ci_l_min_m2": 3.351,
+    "ckd_egfr": 30.0,
+    "ckd_ph": 7.301,
+    "co_l_min": 6.2,
+    "fever_core_c": 37.974,
+    "fever_setpoint_c": 38.516,
+    "gas_ph": 7.391,
+    "gas_spo2_pct": 96.92,
+    "hf_co_l_min": 6.0,
+    "hf_hr_bpm": 200.0,
+    "hf_sv_ml": 30.0,
+    "hr_bpm": 88.57,
+    "hypovent_paco2": 80.0,
+    "hypovent_spo2": 74.59,
+    "map_mmhg": 93.0,
+    "pao2_room_air": 89.73,
+    "renal_cl_l_per_h": 6.0,
+    "renal_egfr": 100.0,
+    "renal_ph": 7.391,
+    "rl5_cl_ckd30_l_per_h": 3.0,
+    "rl5_cl_normal_l_per_h": 10.0,
+    "rl5_hepatic_cl_low_l_per_h": 3.0,
+    "sao2_at_100": 97.75,
+    "sao2_at_60": 90.58,
+    "thermo_core_c": 37.058
+  },
+  "experimental_comparison": {
+    "arterial_oxygen_saturation_at_PaO2_100_pct": {
+      "note": "Severinghaus curve: SaO2 ~97.7% at PaO2 100 mmHg.",
+      "reference_max": 99.0,
+      "reference_min": 96.0,
+      "unit": "%"
+    },
+    "cardiac_index_l_min_m2": {
+      "note": "Normal adult cardiac index (Guyton & Hall).",
+      "reference_max": 4.0,
+      "reference_min": 2.5,
+      "unit": "L/min/m2"
+    },
+    "core_temperature_normal_c": {
+      "note": "Afebrile core temperature at heat-balance steady state.",
+      "reference_max": 37.6,
+      "reference_min": 36.5,
+      "unit": "degC"
+    },
+    "fever_setpoint_c": {
+      "note": "CRP-driven hypothalamic set-point elevation (fever).",
+      "reference_max": 40.0,
+      "reference_min": 37.5,
+      "unit": "degC"
+    },
+    "plasma_ph_normal": {
+      "note": "Henderson-Hasselbalch normal arterial pH.",
+      "reference_max": 7.45,
+      "reference_min": 7.35,
+      "unit": "pH"
+    },
+    "renal_clearance_reduction_ckd30_fraction": {
+      "note": "eGFR 100->30 mL/min reduces renal clearance ~3x.",
+      "reference_max": 0.5,
+      "reference_min": 0.2,
+      "tolerance": 0.1,
+      "unit": "fraction of baseline"
+    }
+  },
+  "id": "83_physiological_realism",
+  "reference": {
+    "authors": "Severinghaus JW; West JB; Guyton AC & Hall JE; Inker LA et al.",
+    "doi": "10.1152/jappl.1979.46.3.599",
+    "note": "Severinghaus JW, J Appl Physiol 1979;46(3):599-602. doi:10.1152/jappl.1979.46.3.599.",
+    "source": "Severinghaus 1979 (O2 dissociation); West, Respiratory Physiology (alveolar gas eq.); Guyton & Hall (cardiovascular control, thermoregulation); CKD-EPI 2021 (eGFR)",
+    "year": 1979
+  },
+  "runtime_seconds": 0.3805118330055848,
+  "status": "PASS"
+}

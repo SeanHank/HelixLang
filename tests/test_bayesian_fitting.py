@@ -8,21 +8,19 @@ an unknown backend must raise.
 """
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from helixlang.plugins.human.bayesian_fitter import (
-    BayesianFitter,
     BayesianFitResult,
+    BayesianFitter,
     forward_observables,
     posterior_virtual_population,
 )
 from helixlang.plugins.human.patient_params import (
+    DOMAIN_SLICES,
     N_PARAMS,
     PatientParameterSet,
     PatientParameterTable,
-    DOMAIN_SLICES,
     nominal_params,
 )
 

@@ -6,6 +6,17 @@
     "spots_F0.035_k0.065_var": 0.025333,
     "stripes_F0.04_k0.06_var": 0.024052
   },
+  "reference": {
+    "doi": "10.1098/rstb.1993.0002",
+    "journal": "Phil Trans R Soc B 237",
+    "source": "Turing 1952, Phil Trans R Soc B 237:37; Pearson 1993",
+    "year": 1952
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
   "robustness_sweep": {
     "n_params": 5,
     "n_pass": 5,
@@ -69,7 +80,7 @@
     "robustness_ok": true,
     "threshold": 3
   },
-  "runtime_seconds": 3.492880375008099,
+  "runtime_seconds": 3.505063834018074,
   "stability_analysis": {
     "diffusion_ratio": 0.5,
     "homogeneous_stable": true,

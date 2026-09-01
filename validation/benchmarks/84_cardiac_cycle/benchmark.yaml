@@ -1,0 +1,9 @@
+id: 84_cardiac_cycle
+name: Cardiology closed-loop cardiac cycle (doc/42 Phase E)
+layer: pharmacology
+level: L3
+reference: Guyton & Hall, Textbook of Medical Physiology
+reference_doi: 10.1016/B978-0-323-39335-5.00001-1
+input: programmatic
+expected:
+  check: automated

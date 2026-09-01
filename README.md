@@ -164,9 +164,9 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 207 |
-| Test cases | 3687 (81% coverage) |
-| Validation benchmarks | 75 (75 pass) |
+| Source modules | 219 |
+| Test cases | 3859 (81% coverage) |
+| Validation benchmarks | 85 (84 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
@@ -284,7 +284,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 ## Validation
 
-82 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
+85 reproducible benchmarks validating every subsystem — all with SHA256-verified golden outputs:
 
 | # | Benchmark | Evidence |
 |---|-----------|----------|
@@ -298,7 +298,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | 08 | Population doubling time | Analytical |
 | 09 | Reaction-diffusion pattern | Reference + Robustness |
 | 10 | Whole-cell division time | Analytical |
-| 11-75| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
+| 11-85| Parser, bytecode, CRISPR, evolution, GEM, pharmacology, ecosystem, determinism | Functional + Performance |
 | 76 | Unit-safety compile-time rejection (doc/41 Ring 3) | Functional |
 | 77 | Innate immune fidelity — IFN/CRP v2/Friberg (doc/40 Phase A) | Literature (Pawelek, Sproston, Friberg) |
 | 78 | Adaptive immunity + two-dose vaccination (doc/40 Phase B) | Literature (Pawelek, Front. Immunol.) |
@@ -311,7 +311,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **82/82** |
+| Benchmarks passing | **84/85** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
@@ -332,7 +332,7 @@ python validation/goldens/verify_goldens.py
 
 ## Documentation
 
-Full technical documentation in [`doc/`](doc/) (42 files, 25,000+ lines):
+Full technical documentation in [`doc/`](doc/) (43 files, 25,000+ lines):
 
 | Document | What it covers |
 |----------|---------------|
@@ -378,8 +378,8 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3687 test cases**(all passing, 81% coverage)
-- [82/82 validation benchmarks](validation/report.md) with SHA256 goldens
+- **3859 test cases**(all passing, 81% coverage)
+- [84/85 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

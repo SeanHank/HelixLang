@@ -28,6 +28,6 @@
   },
   "id": "73_ir_serialization",
   "reference": "doc/37 \u00a75.3 HLIR serialization (ir_serialize.py)",
-  "runtime_seconds": 0.00034374999813735485,
+  "runtime_seconds": 0.0003779999678954482,
   "status": "PASS"
 }

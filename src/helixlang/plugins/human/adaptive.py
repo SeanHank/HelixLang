@@ -44,7 +44,9 @@ antibodies in IU/mL, times in hours):
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 try:
     import numpy as _np
@@ -121,7 +123,7 @@ def _delay_rate(tau_h: float) -> float:
 def _hill(x: float, half: float, n: float) -> float:
     xp = x ** n
     hp = half ** n
-    return xp / (hp + xp)
+    return float(xp / (hp + xp))
 # ---------------------------------------------------------------------------
 
 
@@ -538,7 +540,9 @@ def cohort_adaptive_step(models: list[AdaptiveImmuneModel], dt_h: float,
     n = len(models)
     if doses is None:
         doses = [None] * n
-    e = math.exp; hl = _hl_rate; delay = _delay_rate
+    e = math.exp
+    hl = _hl_rate
+    delay = _delay_rate
     pc_short_f = e(-dt_h * hl(_TC_DEATH_HALF_LIFE_H))
     pc_long_f = e(-dt_h * hl(_IGG_TURNOVER_LONG_HALF_LIFE_H))
     igm_f = e(-dt_h * hl(_IGM_TURNOVER_HALF_LIFE_H))
@@ -546,7 +550,7 @@ def cohort_adaptive_step(models: list[AdaptiveImmuneModel], dt_h: float,
     mem_f = e(-dt_h * hl(_T_MEMORY_HALF_LIFE_H))
     ant_f = e(-dt_h / _ANTIGEN_DECAY_TAU_H)
 
-    def arr(get):
+    def arr(get: Callable[[Any], float]) -> Any:
         return np.array([get(m) for m in models], dtype=float)
 
     a_inf = np.array(antigens, dtype=float)
@@ -575,8 +579,9 @@ def cohort_adaptive_step(models: list[AdaptiveImmuneModel], dt_h: float,
     eff_f = np.exp(-dt_h * (np.log(2.0) / (ell_hl + 1e-12)))
 
     for i, m in enumerate(models):
-        if doses[i] is not None and doses[i] > 0:
-            m.vaccinate(doses[i])
+        dose = doses[i]
+        if dose is not None and dose > 0:
+            m.vaccinate(dose)
         a_vac[i] = m.antigen_available * ant_f
 
     drive = a_inf + a_vac
@@ -590,7 +595,9 @@ def cohort_adaptive_step(models: list[AdaptiveImmuneModel], dt_h: float,
     na4l = np.minimum(naive4, _CD4_PROLIF * primed * naive4 * dt_h)
     na8l = np.minimum(naive8, _CD8_PROLIF * primed * naive8 * dt_h)
     nabl = np.minimum(naiveb, _B_PROLIF * primed * naiveb * dt_h)
-    naive4 -= na4l; naive8 -= na8l; naiveb -= nabl
+    naive4 -= na4l
+    naive8 -= na8l
+    naiveb -= nabl
 
     mb4 = _CD4_PROLIF * _MEMORY_BOOST * primed * mem4 * dt_h
     mb8 = _CD8_PROLIF * _MEMORY_BOOST * primed * mem8 * dt_h
@@ -608,34 +615,55 @@ def cohort_adaptive_step(models: list[AdaptiveImmuneModel], dt_h: float,
 
     mc4 = np.minimum(eff4, _PLASMA_TO_MEMORY * eff4 * dt_h)
     mc8 = np.minimum(eff8, _PLASMA_TO_MEMORY * eff8 * dt_h)
-    eff4 -= mc4; eff8 -= mc8
-    mem4 += mc4; mem8 += mc8
+    eff4 -= mc4
+    eff8 -= mc8
+    mem4 += mc4
+    mem8 += mc8
 
-    eff4 *= eff_f; eff8 *= eff_f; effb *= eff_f
-    mem4 *= mem_f; mem8 *= mem_f; mem_b *= mem_f
-    pshort *= pc_short_f; plong *= pc_long_f
+    eff4 *= eff_f
+    eff8 *= eff_f
+    effb *= eff_f
+    mem4 *= mem_f
+    mem8 *= mem_f
+    mem_b *= mem_f
+    pshort *= pc_short_f
+    plong *= pc_long_f
     llpc = np.minimum(pshort, _CLASS_SWITCH_RATE * 0.2 * pshort * dt_h)
-    pshort -= llpc; plong += llpc
+    pshort -= llpc
+    plong += llpc
 
-    sat = lambda a: a / (1.0 + a / _CAPACITY)
-    eff4 = sat(eff4); eff8 = sat(eff8); effb = sat(effb)
-    mem4 = sat(mem4); mem8 = sat(mem8); mem_b = sat(mem_b)
-    pshort = sat(pshort); plong = sat(plong)
+    def _sat(a: Any) -> Any:
+        return a / (1.0 + a / _CAPACITY)
+
+    eff4 = _sat(eff4)
+    eff8 = _sat(eff8)
+    effb = _sat(effb)
+    mem4 = _sat(mem4)
+    mem8 = _sat(mem8)
+    mem_b = _sat(mem_b)
+    pshort = _sat(pshort)
+    plong = _sat(plong)
 
     ab_prod = _ANTIBODY_PER_PC_H * (pshort + plong) * dt_h
     igg = np.maximum(_BASELINE_IGG, igg * igg_f + ab_prod * 0.7)
     igm = np.maximum(_BASELINE_IGM, igm * igm_f + ab_prod * 0.3)
 
     for i, m in enumerate(models):
-        m.naive_cd4 = float(naive4[i]); m.naive_cd8 = float(naive8[i])
+        m.naive_cd4 = float(naive4[i])
+        m.naive_cd8 = float(naive8[i])
         m.naive_b = float(naiveb[i])
-        m.effector_cd4 = float(eff4[i]); m.effector_cd8 = float(eff8[i])
+        m.effector_cd4 = float(eff4[i])
+        m.effector_cd8 = float(eff8[i])
         m.effector_b = float(effb[i])
-        m.plasma_short = float(pshort[i]); m.plasma_long = float(plong[i])
-        m.memory_b = float(mem_b[i]); m.memory_cd4 = float(mem4[i])
+        m.plasma_short = float(pshort[i])
+        m.plasma_long = float(plong[i])
+        m.memory_b = float(mem_b[i])
+        m.memory_cd4 = float(mem4[i])
         m.memory_cd8 = float(mem8[i])
-        m.igm_titer = float(igm[i]); m.igg_titer = float(igg[i])
-        m.apc_primed = float(apc[i]); m.antigen_available = float(a_vac[i])
+        m.igm_titer = float(igm[i])
+        m.igg_titer = float(igg[i])
+        m.apc_primed = float(apc[i])
+        m.antigen_available = float(a_vac[i])
 
     return list(igg + igm)
 

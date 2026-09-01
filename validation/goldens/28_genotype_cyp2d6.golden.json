@@ -17,6 +17,11 @@
     "transporter_count": 11
   },
   "id": "28_genotype_cyp2d6",
-  "runtime_seconds": 5.549995694309473e-05,
+  "reference": {
+    "doi": "10.1002/cpt.1735",
+    "note": "Caudle KE et al. 2020, Clin Pharmacol Ther 107:154-170; PharmVar Consortium CYP2D6 allele definitions.",
+    "source": "CPIC/PharmVar CYP2D6 star-allele activity score table"
+  },
+  "runtime_seconds": 6.229197606444359e-05,
   "status": "PASS"
 }

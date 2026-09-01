@@ -2,7 +2,7 @@
   "deterministic": true,
   "final_energy": 1200000000.0,
   "id": "13_bytecode_vm_roundtrip",
-  "runtime_seconds": 0.0048166250344365835,
+  "runtime_seconds": 0.0048443329287692904,
   "serialized_bytes": 588,
   "status": "PASS",
   "trace_ticks": 1

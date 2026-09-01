@@ -107,6 +107,11 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "reference": {
+                "source": "Minimal model of glucose-insulin dynamics; T2D beta-cell glucotoxicity progression",
+                "doi": "10.1152/ajpendo.1981.240.4.E480",
+                "note": "Bergman RN et al. 1981 minimal model of glucose disappearance, Am J Physiol 240:E480-E490; qualitative T2D beta-cell decline used here.",
+            },
             "checks": {
                 "create_disease_model_returns_ode_model": True,
                 "model_has_step_method": True,

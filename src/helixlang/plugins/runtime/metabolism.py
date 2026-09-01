@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import random
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -576,6 +577,46 @@ def _simplex_max_numpy(tableau: np.ndarray,
 
 
 # ============================================================================
+# doc/42 Phase C PF-2 — optional native simplex (never the bit-identical path)
+# ============================================================================
+
+def _simplex_native_optin() -> bool:
+    """True only when the operator explicitly requests the native simplex kernel.
+
+    The FBA/dFBA accepted-state results are golden-verifiable and must stay
+    *bit-identical* (doc/42 Phase C gate: goldens stay 82/82).  The reference
+    numpy pivot is byte-identical to the accel ``impl_numpy`` backend, but
+    compiled native backends (cython/rust) agree only to ~1e-14.  Native simplex
+    is therefore opt-in via ``HELIX_ACCEL_SIMPLEX`` and is never the default —
+    crossing even a fractional-fidelity boundary is explicit, per
+    ``_accel._loaders`` (never silently cross a fidelity boundary).
+    """
+    return os.environ.get("HELIX_ACCEL_SIMPLEX", "").strip().lower() in (
+        "1", "true", "native", "accel",
+    )
+
+
+def _simplex_max_dispatch(tab_np: np.ndarray,
+                          basis: list[int],
+                          obj_np: np.ndarray,
+                          n_vars: int,
+                          eps: float = _EPS,
+                          max_iter: int = 10000,
+                          forbidden: set[int] | None = None) -> str:
+    """Route a phase pivot through the native accel kernel when opted in.
+
+    Falls back to the byte-identical :func:`_simplex_max_numpy` by default so
+    golden hashes never drift.
+    """
+    if _simplex_native_optin():
+        from helixlang.api.accel import simplex_run
+        return simplex_run(tab_np, basis, obj_np, n_vars, eps, max_iter,
+                           forbidden)
+    return _simplex_max_numpy(tab_np, basis, obj_np, n_vars, eps, max_iter,
+                              forbidden)
+
+
+# ============================================================================
 # simplex internal helper functions (P2#12: split out of the original
 # 184-line simplex(), algorithm-equivalent)
 # ============================================================================
@@ -821,8 +862,8 @@ def simplex(c: list[float],
     if use_numpy:
         tab_np = np.array(tableau, dtype=np.float64)
         obj1_np = np.array(phase1_obj, dtype=np.float64)
-        _simplex_max_numpy(tab_np, basis, obj1_np,
-                           total_vars, eps, max_iter)
+        _simplex_max_dispatch(tab_np, basis, obj1_np,
+                              total_vars, eps, max_iter)
         # sync back to the list view (the artificial-variable removal
         # step uses list indexing syntax)
         tableau = tab_np.tolist()
@@ -870,9 +911,9 @@ def simplex(c: list[float],
     if use_numpy:
         tab_np = np.array(tableau, dtype=np.float64)
         obj2_np = np.array(phase2_obj, dtype=np.float64)
-        status2 = _simplex_max_numpy(tab_np, basis, obj2_np,
-                                     total_vars, eps, max_iter,
-                                     forbidden=artificial_set)
+        status2 = _simplex_max_dispatch(tab_np, basis, obj2_np,
+                                        total_vars, eps, max_iter,
+                                        forbidden=artificial_set)
         tableau = tab_np.tolist()
     else:
         status2 = _simplex_max(tableau, basis, phase2_obj, total_vars, eps,

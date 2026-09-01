@@ -21,6 +21,6 @@
     "note": "effector/memory arms, two-dose antibody chain, APC priming delay",
     "source": "doc/40 L5 (Pawelek et al. 2012), L8 (Front. Immunol. 16:1596518, 2025)"
   },
-  "runtime_seconds": 0.006625625072047114,
+  "runtime_seconds": 0.006625332986004651,
   "status": "PASS"
 }

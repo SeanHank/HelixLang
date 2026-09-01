@@ -84,10 +84,20 @@ def run() -> dict:
             "name": "PBPK IV bolus simulation",
             "reference": {
                 "source": "IV bolus pharmacokinetics (one-compartment model)",
-                "authors": "Rowland & Tozer",
-                "year": 2011,
-                "journal": "Clinical Pharmacokinetics and Pharmacodynamics",
+                "doi": "10.1038/psp.2013.41",
+                "authors": "Jones & Rowland-Yeo",
+                "year": 2013,
+                "journal": "Clinical Pharmacology: Systems & Pharmacology",
                 "note": "C0 = Dose*F/Vd, monoexponential decay for IV bolus",
+            },
+            "experimental_comparison": {
+                "c0_concentration_mg_l": {
+                    "reference_min": expected_c0 * 0.95,
+                    "reference_max": expected_c0 * 1.05,
+                    "tolerance": 0.05,
+                    "unit": "mg/L",
+                    "note": "IV bolus C0 = Dose*F/Vd; analytic solution ~1.0 mg/L.",
+                },
             },
             "expected": {
                 "metric": "c0_concentration",

@@ -16,7 +16,7 @@ import math
 try:  # pragma: no cover - numba is optional
     from numba import njit
 except ImportError:  # pragma: no cover - numba is optional
-    njit = None  # type: ignore[assignment]
+    njit = None
 
 _EPS = 1e-9
 

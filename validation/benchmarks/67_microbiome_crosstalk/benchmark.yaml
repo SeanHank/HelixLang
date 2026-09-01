@@ -1,8 +1,9 @@
 id: 67_microbiome_crosstalk
 name: Microbiome + organ crosstalk
 layer: physiology
-level: L0
-reference: Spanogiannopoulos et al. 2016, Nat Rev Pharmacol
+level: L3
+reference: Spanogiannopoulos et al. 2016, Nat Rev Microbiol
+reference_doi: 10.1038/nrmicro.2016.17
 input: programmatic
 expected:
   check: automated

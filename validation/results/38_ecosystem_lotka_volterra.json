@@ -19,7 +19,7 @@
     "V_final": 0.3037817553027593,
     "V_relative_diff": 0.015563022675658934
   },
-  "runtime_seconds": 0.31385741697158664,
+  "runtime_seconds": 0.5319864160846919,
   "layer": "ecosystem",
   "name": "Ecosystem \u2014 Lotka-Volterra predator-prey dynamics",
   "level": "L0"

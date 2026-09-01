@@ -12,7 +12,7 @@
     "k_off": 0.3,
     "k_on": 0.5
   },
-  "runtime_seconds": 0.2925542499870062,
+  "runtime_seconds": 0.29468266700860113,
   "ssa": {
     "mean": 6.73,
     "n_replicates": 2000,

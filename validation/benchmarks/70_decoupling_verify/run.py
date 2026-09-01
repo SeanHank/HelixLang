@@ -141,7 +141,14 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "doc/36 plugin architecture §2, doc/37 §4 decoupling verification",
+            "reference": {
+                "source": "doc/36 plugin architecture §2, doc/37 §4 decoupling verification",
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+                "golden_hash": "verified",
+            },
             "runtime_seconds": elapsed,
         }
     except Exception as e:

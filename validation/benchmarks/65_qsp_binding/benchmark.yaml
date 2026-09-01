@@ -1,8 +1,9 @@
 id: 65_qsp_binding
 name: QSP binding models
 layer: pharmacology
-level: L0
+level: L4
 reference: Mager & Jusko 2001, JPKPD
+reference_doi: 10.1023/A:1014414520282
 input: programmatic
 expected:
   check: automated

@@ -1,0 +1,58 @@
+{
+  "checks": {
+    "ci_normal_range": true,
+    "co_from_flow_balance": true,
+    "deterministic": true,
+    "hr_physiologic": true,
+    "map_physiologic": true,
+    "produces_result": true,
+    "sbp_gt_dbp": true,
+    "uses_cardiology_backend": true
+  },
+  "details": {
+    "co_l_min": 6.2,
+    "hr_bpm": 88.57,
+    "map_mmhg": 93.0,
+    "row": {
+      "cardiac_index_l_min_m2": 3.351,
+      "cardiac_output_l_min": 6.2,
+      "conduction": "normal",
+      "diastolic_bp_mmhg": 70.7,
+      "heart_rate_bpm": 88.57,
+      "map_mmhg": 93.0,
+      "period_s": 0.8,
+      "stroke_volume_ml": 70.0,
+      "systolic_bp_mmhg": 115.2
+    }
+  },
+  "experimental_comparison": {
+    "cardiac_index_l_min_m2": {
+      "note": "Normal adult cardiac index.",
+      "reference_max": 4.0,
+      "reference_min": 2.5,
+      "unit": "L/min/m2"
+    },
+    "heart_rate_bpm": {
+      "note": "Normal resting adult heart rate.",
+      "reference_max": 120.0,
+      "reference_min": 55.0,
+      "unit": "bpm"
+    },
+    "mean_arterial_pressure_mmhg": {
+      "note": "Normal resting mean arterial pressure.",
+      "reference_max": 110.0,
+      "reference_min": 70.0,
+      "unit": "mmHg"
+    }
+  },
+  "id": "84_cardiac_cycle",
+  "reference": {
+    "authors": "Guyton AC, Hall JE",
+    "doi": "10.1016/B978-0-323-39335-5.00001-1",
+    "note": "Closed-loop cardiac output / MAP regulation from the Frank-Starling and baroreflex control of the circulation (Guyton & Hall, 13th ed.).",
+    "source": "Guyton & Hall, Textbook of Medical Physiology (closed-loop cardiovascular control)",
+    "year": 2016
+  },
+  "runtime_seconds": 0.4330489580752328,
+  "status": "PASS"
+}

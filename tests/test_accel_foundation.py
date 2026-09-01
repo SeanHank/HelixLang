@@ -442,6 +442,78 @@ def test_simplex_native_loader_resolves(monkeypatch):
         assert impl in ("impl_cext", "impl_cython", "impl_rust")
 
 
+# ── doc/42 Phase C PF-2 — native simplex opt-in dispatch ────────────────────
+
+
+def test_accel_simplex_facade_present():
+    from helixlang.api.accel import simplex_run
+    T, b, obj, n = _simplex_problem()
+    import copy
+    tb = copy.deepcopy(T)
+    bb = b[:]
+    status = simplex_run(tb, bb, obj, n)
+    assert status in ("optimal", "unbounded", "max_iter")
+    assert status == "optimal"
+
+
+def test_simplex_dispatch_defaults_byte_identical(monkeypatch):
+    """Without HELIX_ACCEL_SIMPLEX the dispatch uses the numpy reference path,
+    so FBA/dFBA goldens stay bit-identical (doc/42 Phase C gate)."""
+    from helixlang.plugins.runtime.metabolism import (
+        _simplex_max_dispatch,
+        _simplex_max_numpy,
+        _simplex_native_optin,
+    )
+    monkeypatch.delenv("HELIX_ACCEL_SIMPLEX", raising=False)
+    assert not _simplex_native_optin()
+    T, b, obj, n = _simplex_problem()
+    import numpy as np
+    tab1 = np.array(T, dtype=np.float64)
+    bas1 = b[:]
+    tab2 = np.array(T, dtype=np.float64)
+    bas2 = b[:]
+    o = np.array(obj, dtype=np.float64)
+    s_disp = _simplex_max_dispatch(tab1, bas1, o, n, 1e-9, 10000)
+    s_ref = _simplex_max_numpy(tab2, bas2, o, n, 1e-9, 10000)
+    assert s_disp == s_ref
+    assert bas1 == bas2
+    assert np.array_equal(tab1, tab2)  # byte-identical default
+
+
+def test_simplex_dispatch_optin_routes_to_accel(monkeypatch):
+    """HELIX_ACCEL_SIMPLEX routes the pivot loop through the accel kernel."""
+    import numpy as np
+
+    from helixlang.plugins.runtime.metabolism import (
+        _simplex_max_dispatch,
+        _simplex_native_optin,
+    )
+    monkeypatch.setenv("HELIX_ACCEL_SIMPLEX", "native")
+    assert _simplex_native_optin()
+    T, b, obj, n = _simplex_problem()
+    tab = np.array(T, dtype=np.float64)
+    bas = b[:]
+    o = np.array(obj, dtype=np.float64)
+    status = _simplex_max_dispatch(tab, bas, o, n, 1e-9, 10000)
+    assert status == "optimal"
+
+
+def test_metabolism_simplex_matches_across_dispatch(monkeypatch):
+    """simplex() objective is identical whether the native path is on or off."""
+    from helixlang.plugins.runtime import metabolism as M
+    c = [2.0, 3.0]
+    A = [[1.0, 1.0], [1.0, 0.0]]
+    b = [4.0, 2.0]
+    bounds = [(0.0, 2.0), (0.0, 2.0)]
+    monkeypatch.delenv("HELIX_ACCEL_SIMPLEX", raising=False)
+    res_ref = M.simplex(c, A, b, bounds, maximize=True)
+    monkeypatch.setenv("HELIX_ACCEL_SIMPLEX", "native")
+    res_nat = M.simplex(c, A, b, bounds, maximize=True)
+    assert res_ref["status"] == res_nat["status"] == "optimal"
+    assert abs(res_ref["objective"] - res_nat["objective"]) < 1e-9
+    assert abs(res_nat["objective"] - 10.0) < 1e-9
+
+
 # ── Phase 3: VM + population dispatch C backend (doc/36 §5.5, item 2) ──────
 
 

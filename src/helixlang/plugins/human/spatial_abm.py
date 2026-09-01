@@ -35,7 +35,7 @@ try:
     import numpy as _np
     _HAS_NUMPY = True
 except Exception:  # pragma: no cover
-    _np = None
+    _np = None  # type: ignore[assignment]
     _HAS_NUMPY = False
 
 
@@ -111,14 +111,13 @@ class _JaxKernel:
     Imported lazily; raised as a hard error if absent (no silent fallback).
     """
 
-    _compiled = None
+    _compiled: Any = None
 
     @classmethod
     def ensure(cls) -> None:
         if cls._compiled is not None:
             return
         try:
-            import jax
             import jax.numpy as jnp
             from jax import jit
         except Exception as exc:  # pragma: no cover - declared dep path
@@ -127,7 +126,8 @@ class _JaxKernel:
                 "the [has_jax] extra is required (no silent fallback)") from exc
 
         @jit
-        def _step(chem, source, agents_x, agents_y, cxs, cys, d, dt):
+        def _step(chem: Any, source: Any, agents_x: Any, agents_y: Any,
+                  cxs: Any, cys: Any, d: Any, dt: Any) -> Any:
             # 5-point Laplacian diffusion + a fixed source (site of injury).
             lap = (jnp.roll(chem, 1, 0) + jnp.roll(chem, -1, 0)
                    + jnp.roll(chem, 1, 1) + jnp.roll(chem, -1, 1)
@@ -144,7 +144,9 @@ class _JaxKernel:
         cls._compiled = _step
 
     @staticmethod
-    def step(chem, source, agents_x, agents_y, cxs, cys, d, dt, shape):
+    def step(chem: Any, source: Any, agents_x: Any, agents_y: Any,
+             cxs: Any, cys: Any, d: Any, dt: Any,
+             shape: Any) -> tuple[Any, Any]:
         _JaxKernel.ensure()
         _, nx, ny = _JaxKernel._compiled(
             chem, source, agents_x, agents_y, cxs, cys, d, dt)
@@ -165,7 +167,7 @@ class SpatialAgentGrid:
     """
 
     def __init__(self, config: SpatialABMConfig | None = None,
-                 agents: "list[TissueAgent] | None" = None) -> None:
+                 agents: list[TissueAgent] | None = None) -> None:
         self.cfg = config or SpatialABMConfig()
         if self.cfg.backend not in ("numpy", "jax"):
             raise ValueError(
@@ -186,7 +188,7 @@ class SpatialAgentGrid:
             # a wound/infection compartment in the centre.
             cx, cy = self.W // 2, self.H // 2
             self.source[cx, cy] = 40.0
-            self._wound = (cx, cy)
+            self._wound: tuple[int, int] | None = (cx, cy)
         else:
             self._wound = None
 
@@ -253,7 +255,8 @@ class SpatialAgentGrid:
 
         # apply movement with tissue-resistance weighting + stochasticity
         for k, a in enumerate(self.agents):
-            nx = int(xs[k]); ny = int(ys[k])
+            nx = int(xs[k])
+            ny = int(ys[k])
             if a.cell_type != CellType.EPITHELIAL:
                 if self.tissue[nx, ny] > 0:
                     # stroma slows, not stops, migration (probabilistic)
@@ -267,7 +270,7 @@ class SpatialAgentGrid:
         self._age_states(dt)
         self.step_index += 1
 
-    def _laplacian(self, arr: "_np.ndarray") -> "_np.ndarray":
+    def _laplacian(self, arr: _np.ndarray) -> _np.ndarray:
         # periodic in x, reflecting in y to bound the tissue
         out = _np.zeros_like(arr)
         out[1:-1, 1:-1] = (arr[:-2, 1:-1] + arr[2:, 1:-1]
@@ -275,8 +278,8 @@ class SpatialAgentGrid:
                            - 4.0 * arr[1:-1, 1:-1])
         return out
 
-    def _migrate_numpy(self, xs: "_np.ndarray", ys: "_np.ndarray",
-                       ) -> tuple["_np.ndarray", "_np.ndarray"]:
+    def _migrate_numpy(self, xs: _np.ndarray, ys: _np.ndarray,
+                       ) -> tuple[_np.ndarray, _np.ndarray]:
         """Chemotactic drift along the local gradient (numpy fallback path).
 
         Not a "silent fallback" of a declared feature: numpy is the default
@@ -294,34 +297,77 @@ class SpatialAgentGrid:
         # only move when gradient exceeds a noise threshold (directed, not Brownian)
         mag = _np.hypot(gx, gy)
         strong = mag > 1e-9
-        nx = xs.copy(); ny = ys.copy()
+        nx = xs.copy()
+        ny = ys.copy()
         nx[strong] += _np.sign(gx[strong]).astype(int)
         ny[strong] += _np.sign(gy[strong]).astype(int)
         return _np.clip(nx, 0, self.W - 1), _np.clip(ny, 0, self.H - 1)
 
     # -- interactions ------------------------------------------------------
     def _contact_signaling(self) -> None:
-        """Contact-dependent T-cell/APC activation (nearest-neighbour within r)."""
+        """Contact-dependent T-cell/APC activation (nearest-neighbour within r).
+
+        Contact *detection* is vectorized with numpy (one O(n_tcell x n_apc)
+        boolean matrix) instead of a nested Python scan, but each T-cell's
+        activation is still accumulated per contacting APC in the same
+        ascending-APC order, capped at 1.0 — so the numerics (and final
+        activation/state per agent) are bit-identical to the sequential loop.
+        Falls back to the reference loop when numpy is unavailable.
+        """
         r = int(self.cfg.contact_radius)
-        # index agents by cell for O(n^2) contact detection (n<=500).
+        half = self.cfg.chemokine_half
+        tcells = [
+            a for a in self.agents
+            if a.cell_type == CellType.TCELL
+            and a.state not in (AgentState.ACTIVATED, AgentState.EXHAUSTED)
+        ]
         apcs = [a for a in self.agents if a.cell_type == CellType.APC]
-        for a in self.agents:
-            if a.cell_type != CellType.TCELL or a.state in (
-                    AgentState.ACTIVATED, AgentState.EXHAUSTED):
+        if not tcells or not apcs:
+            return
+        if _np is None:  # pragma: no cover - numpy is the default backend
+            for a in tcells:
+                for apc in apcs:
+                    if apc.state == AgentState.APOPTOTIC:
+                        continue
+                    if abs(a.x - apc.x) <= r and abs(a.y - apc.y) <= r:
+                        chem = 1.0 + math.tanh(self.chemokine[a.x, a.y] / 10.0)
+                        p = chem / (chem + half)
+                        a.activation = min(1.0, a.activation + 0.2 * p)
+                        if a.activation >= 0.5:
+                            a.state = AgentState.ACTIVATED
+                        elif a.activation >= 0.2:
+                            a.state = AgentState.ACTIVATING
+            return
+
+        txs = _np.array([a.x for a in tcells], dtype=int)
+        tys = _np.array([a.y for a in tcells], dtype=int)
+        axs = _np.array([a.x for a in apcs], dtype=int)
+        ays = _np.array([a.y for a in apcs], dtype=int)
+        apc_alive = _np.array(
+            [a.state != AgentState.APOPTOTIC for a in apcs], dtype=bool
+        )
+        contact = (
+            (abs(txs[:, None] - axs[None, :]) <= r)
+            & (abs(tys[:, None] - ays[None, :]) <= r)
+            & apc_alive[None, :]
+        )
+
+        for i, a in enumerate(tcells):
+            idxs = _np.nonzero(contact[i])[0]
+            if idxs.size == 0:
                 continue
-            for apc in apcs:
-                if apc.state == AgentState.APOPTOTIC:
-                    continue
-                if abs(a.x - apc.x) <= r and abs(a.y - apc.y) <= r:
-                    # contact-driven priming (Hill in APC activation)
-                    half = self.cfg.chemokine_half
-                    chem = 1.0 + math.tanh(self.chemokine[a.x, a.y] / 10.0)
-                    p = chem / (chem + half)
-                    a.activation = min(1.0, a.activation + 0.2 * p)
-                    if a.activation >= 0.5:
-                        a.state = AgentState.ACTIVATED
-                    elif a.activation >= 0.2:
-                        a.state = AgentState.ACTIVATING
+            # ``p`` depends only on the T-cell's cell (chemokine read) + config.
+            chem = 1.0 + math.tanh(self.chemokine[a.x, a.y] / 10.0)
+            p = chem / (chem + half)
+            inc = 0.2 * p
+            # accumulate per contacting APC in ascending ``apcs`` order —
+            # identical sequence of identical floats to the scalar loop.
+            for _ in range(idxs.size):
+                a.activation = min(1.0, a.activation + inc)
+            if a.activation >= 0.5:
+                a.state = AgentState.ACTIVATED
+            elif a.activation >= 0.2:
+                a.state = AgentState.ACTIVATING
 
     def _age_states(self, dt: float) -> None:
         """Advance lifetime + exhaustion/apoptosis with contact decay."""
@@ -357,7 +403,7 @@ class SpatialAgentGrid:
                    if a.cell_type == CellType.TCELL
                    and a.state in (AgentState.ACTIVATING, AgentState.ACTIVATED))
 
-    def clone(self) -> "SpatialAgentGrid":
+    def clone(self) -> SpatialAgentGrid:
         """Deep-copy (deterministic replay / cohort composition)."""
         cfg = replace(self.cfg)
         new = SpatialAgentGrid(config=cfg, agents=[replace(a) for a in self.agents])
@@ -383,7 +429,7 @@ def run_spatial_abm(config: SpatialABMConfig | None = None,
 
 def run_cohort_spatial(n: int, steps: int = 60,
                        seed: int = 0,
-                       **cfg_overrides) -> list[SpatialAgentGrid]:
+                       **cfg_overrides: Any) -> list[SpatialAgentGrid]:
     """Run ``n`` independent single-grid trajectories (G13-style cohort).
 
     Each grid uses a per-patient derived seed so the cohort is deterministic

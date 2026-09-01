@@ -67,6 +67,11 @@ chr22 42128000 CYP2D6*4 A G . . GENE=CYP2D6;CSQ=hom_alt
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "reference": {
+                "source": "CPIC/PharmVar CYP2D6 star-allele activity score table",
+                "doi": "10.1002/cpt.1735",
+                "note": "Caudle KE et al. 2020, Clin Pharmacol Ther 107:154-170; PharmVar Consortium CYP2D6 allele definitions.",
+            },
             "checks": {
                 "create_default_genotype_returns_valid_profile": True,
                 "cyp2d6_star4_star4_is_poor_metabolizer": True,

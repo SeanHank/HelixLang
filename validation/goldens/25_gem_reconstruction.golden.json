@@ -32,7 +32,18 @@
     ]
   },
   "id": "25_gem_reconstruction",
-  "runtime_seconds": 0.4585397079354152,
+  "reference": {
+    "doi": "10.1038/nbt.1614",
+    "journal": "Nat Biotechnol 28:245",
+    "source": "Orth et al. 2010, BiGG database",
+    "year": 2010
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 0.6743295829510316,
   "source": "fallback",
   "status": "PASS"
 }

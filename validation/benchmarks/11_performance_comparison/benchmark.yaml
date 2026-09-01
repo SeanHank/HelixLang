@@ -1,7 +1,10 @@
 id: 11_performance_comparison
 name: FBA solve-time performance vs COBRApy
 layer: metabolism
-level: L2
+# L1 (analytical): asserts the quantitative claim HelixLang FBA is faster than
+# COBRApy. Not L2 because timings are wall-clock and are intentionally NOT
+# golden-hashed (performance-only output, doc/42 Phase A level rebase).
+level: L1
 reference: Orth et al. 2010, Nat Biotechnol 28:245
 input: BiGG models via COBRApy
 parameters:

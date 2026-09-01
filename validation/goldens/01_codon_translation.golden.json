@@ -50,6 +50,6 @@
     "deterministic": true,
     "environment": "Python 3.11.15"
   },
-  "runtime_seconds": 0.04262470791582018,
+  "runtime_seconds": 0.039602624950930476,
   "status": "PASS"
 }

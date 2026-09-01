@@ -1,0 +1,9 @@
+id: 83_physiological_realism
+name: Physiological realism (CV/gas/renal/thermo + organ-failure PK)
+layer: pharmacology
+level: L4
+reference: Severinghaus 1979; West; Guyton & Hall; CKD-EPI 2021
+reference_doi: 10.1152/jappl.1979.46.3.599
+input: programmatic
+expected:
+  check: automated

@@ -86,9 +86,31 @@ def run() -> dict:
             "checks": checks,
             "details": details,
             "reference": {
+                "source": "Mager & Jusko target-mediated drug disposition (TMDD); mass-action occupancy",
+                "authors": "Mager DE, Jusko WJ",
+                "year": 2001,
+                "journal": "J Pharmacokinet Pharmacodyn",
+                "doi": "10.1023/A:1014414520282",
+                "note": "Mager DE, Jusko WJ 2001, J Pharmacokinet Pharmacodyn 28:507. TMDD; mass-action binding occupancy O = D/(Kd+D).",
                 "tmdd": "Mager DE, Jusko WJ 2001, J Pharmacokinet Pharmacodyn 28:507",
                 "qss_tmdd": "Gibiansky L, Gibiansky E 2014, J Pharmacokinet Pharmacodyn 41:275",
                 "schild": "Schild HO 1949, Br J Pharmacol 4:277",
+            },
+            "experimental_comparison": {
+                "mass_action_occupancy_at_100nM": {
+                    "reference_min": 0.85,
+                    "reference_max": 0.95,
+                    "tolerance": 0.05,
+                    "unit": "fraction",
+                    "note": "Mass-action occupancy O = D/(Kd+D) = 100/(10+100) = 0.909 at Kd=10nM.",
+                },
+                "competitive_antagonist_reduces_effect": {
+                    "reference_min": 1.0,
+                    "reference_max": 1.0,
+                    "tolerance": 0.0,
+                    "unit": "boolean",
+                    "note": "Schild-type competitive antagonism: antagonist reduces agonist effect at same agonist concentration.",
+                },
             },
             "runtime_seconds": elapsed,
         }

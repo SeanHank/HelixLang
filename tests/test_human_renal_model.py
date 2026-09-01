@@ -213,3 +213,60 @@ class TestValidation:
         model = create_renal_model()
         with pytest.raises(ValueError):
             model.step(-24.0)
+
+
+class TestRenalFiltrationClearance:
+    """doc/42 Phase B RL-3: filtration / clearance / tubular / acid-base."""
+
+    def test_filtration_fraction_normal_range(self):
+        model = create_renal_model()
+        ff = model.filtration_fraction()
+        assert 0.15 < ff < 0.30
+
+    def test_renal_clearance_increases_with_gfr(self):
+        a = create_renal_model(initial_egfr=90.0)
+        b = create_renal_model(initial_egfr=30.0)
+        assert a.renal_clearance_l_per_h() > b.renal_clearance_l_per_h()
+        # conversion sanity: 90 mL/min * 0.06 = 5.4 L/h
+        assert 5.0 < a.renal_clearance_l_per_h() < 6.0
+
+    def test_protein_binding_lowers_clearance(self):
+        model = create_renal_model()
+        free = model.renal_clearance_l_per_h(protein_binding_fraction=0.0)
+        bound = model.renal_clearance_l_per_h(protein_binding_fraction=0.9)
+        assert bound < free
+        assert math.isclose(bound, free * 0.1, rel_tol=1e-6)
+
+    def test_tubular_secretion_exceeds_gfr(self):
+        model = create_renal_model()
+        ratio = model.tubular_clearance_ratio(secretion_factor=3.0)
+        assert ratio > 1.0
+
+    def test_tubular_reabsorption_reduces_clearance(self):
+        model = create_renal_model()
+        ratio = model.tubular_clearance_ratio(reabsorption_factor=1.5)
+        assert ratio <= 1.0
+
+    def test_creatinine_turnover_matches_clearance_definition(self):
+        model = create_renal_model()
+        cl = model.creatinine_turnover(production_mg_per_day=1000.0)
+        # CL = P / Scr (normalized): 1000 / (Scr * 1440)
+        expected = 1000.0 / (model.serum_creatinine * 1440.0)
+        assert math.isclose(cl, expected, rel_tol=1e-6)
+
+    def test_acid_base_ph_normal(self):
+        model = create_renal_model()
+        ph = model.acid_base_ph(paco2_mmhg=40.0)
+        assert 7.35 < ph < 7.45
+
+    def test_acid_base_acidity_with_falling_gfr(self):
+        healthy = create_renal_model(initial_egfr=90.0)
+        advanced = create_renal_model(initial_egfr=20.0)
+        # falling GFR retains acid -> lower pH (metabolic acidosis)
+        assert advanced.acid_base_ph() < healthy.acid_base_ph()
+
+    def test_acid_base_respiratory_compensation(self):
+        model = create_renal_model(initial_egfr=25.0)
+        base_ph = model.acid_base_ph(paco2_mmhg=40.0)
+        hyperventilated = model.acid_base_ph(paco2_mmhg=32.0)
+        assert hyperventilated > base_ph

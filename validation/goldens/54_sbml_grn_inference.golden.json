@@ -18,6 +18,6 @@
   },
   "id": "54_sbml_grn_inference",
   "reference": "Keating SM et al. 2020, Nat Biotechnol 38:534-543",
-  "runtime_seconds": 0.001740708015859127,
+  "runtime_seconds": 0.0022125840187072754,
   "status": "PASS"
 }

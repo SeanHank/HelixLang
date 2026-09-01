@@ -10,9 +10,9 @@ import copy
 import pytest
 
 from helixlang.plugins.human.complement import (
+    N_L7_PARAMS,
     ComplementCascade,
     FullL7Complement,
-    N_L7_PARAMS,
     cohort_complement_step,
     complement_knockout,
 )

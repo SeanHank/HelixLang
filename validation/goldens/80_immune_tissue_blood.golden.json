@@ -20,6 +20,6 @@
     "note": "tissue-vs-blood pseudo-compartments and chemokine-driven margination",
     "source": "doc/40 G10; L1 (BIS compartment taxonomy), L2 (IIRABM)"
   },
-  "runtime_seconds": 0.0009156250162050128,
+  "runtime_seconds": 0.0009231250733137131,
   "status": "PASS"
 }

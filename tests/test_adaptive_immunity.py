@@ -17,7 +17,7 @@ from helixlang.plugins.human.adaptive import (
     VaccineSchedule,
     cohort_adaptive_step,
 )
-from helixlang.plugins.human.immune import InnateImmuneModel, create_immune_model
+from helixlang.plugins.human.immune import create_immune_model
 
 
 class TestAdaptiveBaseline:
@@ -143,7 +143,7 @@ class TestCohortAdaptive:
         ms = [AdaptiveImmuneModel() for _ in range(3)]
         refs = [copy.deepcopy(m) for m in ms]
         antigens = [0.8, 0.5, 0.0]
-        for t in range(24 * 7):
+        for _ in range(24 * 7):
             cohort_adaptive_step(ms, 1.0, antigens, use_numpy=True)
             for r in range(3):
                 refs[r].step(1.0, antigens[r])

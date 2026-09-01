@@ -50,6 +50,11 @@
     "warfarin_validation_problems": []
   },
   "id": "29_drug_adme",
-  "runtime_seconds": 0.0002626669593155384,
+  "reference": {
+    "doi": "10.1093/nar/gkx1004",
+    "note": "Wishart DS et al. 2018, Nucleic Acids Res 46:D618-D625 (DrugBank 5.0); CPIC ADME gene-drug tables.",
+    "source": "DrugBank, CPIC guidelines, Rowland & Tozer Clinical PK/PD"
+  },
+  "runtime_seconds": 0.00025866704527288675,
   "status": "PASS"
 }

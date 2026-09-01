@@ -1,8 +1,9 @@
 id: 32_ddi_prediction
 name: Drug-drug interaction prediction
 layer: human
-level: L0
+level: L4
 reference: Lynch & Price 2007, CPIC guidelines
+reference_doi: 10.1038/psp.2013.41
 input: none (built-in DDI rules)
 parameters:
   substrate: warfarin

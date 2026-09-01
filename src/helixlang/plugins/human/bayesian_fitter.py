@@ -24,14 +24,18 @@ the fitted parameters remain the physically-named anchors of the 432-vector.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # pragma: no cover
+    from helixlang.plugins.human.patient_params import PatientParameterSet
 
 try:
     import numpy as _np
     _HAS_NUMPY = True
 except Exception:  # pragma: no cover
-    _np = None
+    _np = None  # type: ignore[assignment]
     _HAS_NUMPY = False
 
 # ---------------------------------------------------------------------------
@@ -43,7 +47,7 @@ def _hill(x: float, half: float, n: float) -> float:
     if half <= 0:
         return 1.0
     h = half ** n
-    return x ** n / (h + x ** n)
+    return float(x ** n / (h + x ** n))
 
 
 def forward_observables(params: Sequence[float],
@@ -62,7 +66,7 @@ def forward_observables(params: Sequence[float],
         "il6_clearance": 96 + 5,
         "tnf_clearance": 96 + 6,
     }
-    get = O.get
+    get = O.__getitem__
     il6_p = float(p[get("il6_production")]) if _HAS_NUMPY else p[get("il6_production")]
     tnf_p = float(p[get("tnf_production")])
     il10_p = float(p[get("il10_production")])
@@ -122,7 +126,7 @@ class BayesianFitResult:
     converged: bool = False
     metadata: dict = field(default_factory=dict)
 
-    def map_params(self, n: int = 432) -> "PatientParameterSet":
+    def map_params(self, n: int = 432) -> PatientParameterSet:
         """Rebuild a full 432-vector with MAP on the fitted base."""
         from helixlang.plugins.human.patient_params import PatientParameterSet
         base = PatientParameterSet().to_list()
@@ -181,7 +185,7 @@ class BayesianFitter:
                         n_restarts: int = 8) -> tuple[list[float], float]:
         """Coordinate-descent MAP over the log-parameter base (deterministic)."""
         rng = _np.random.default_rng(self.seed) if _HAS_NUMPY else None
-        best = None
+        best: list[float] | None = None
         best_ll = -1e300
         for k in range(n_restarts):
             if rng is not None:
@@ -194,18 +198,23 @@ class BayesianFitter:
                 for j in range(len(self.param_indices)):
                     cur = self._log_likelihood_vec(lp, stimulus)
                     step = 0.25
-                    cand_up = list(lp); cand_up[j] += step
-                    cand_dn = list(lp); cand_dn[j] -= step
+                    cand_up = list(lp)
+                    cand_up[j] += step
+                    cand_dn = list(lp)
+                    cand_dn[j] -= step
                     up = self._log_likelihood_vec(cand_up, stimulus)
                     dn = self._log_likelihood_vec(cand_dn, stimulus)
                     if up > cur and up >= dn:
-                        lp = cand_up; cur = up
+                        lp = cand_up
+                        cur = up
                     elif dn > cur:
-                        lp = cand_dn; cur = dn
+                        lp = cand_dn
+                        cur = dn
             ll = self._log_likelihood_vec(lp, stimulus)
             if ll > best_ll:
                 best_ll = ll
                 best = lp
+        assert best is not None
         return best, best_ll
 
     # -- samplers ----------------------------------------------------------
@@ -294,7 +303,7 @@ class BayesianFitter:
         ndim = n
         n_walkers = max(n_walkers, 2 * ndim + 1)
 
-        def lnprob(lp):
+        def lnprob(lp: Any) -> Any:
             if not _np.isfinite(lp).all():
                 return -_np.inf
             prior = -0.5 * _np.sum(((lp - _np.asarray(self._prior)) / _np.asarray(self._prior_sd)) ** 2)
@@ -330,14 +339,15 @@ class BayesianFitter:
         return self._fit_emcee(n_walkers, n_steps, stimulus)
 
 
-def _hill_sym(x: float, half: float, n: float):
+def _hill_sym(x: float, half: float, n: float) -> Any:
     """Hill in pymc's pytensor-graph space."""
     import pytensor.tensor as pt
     h = pt.maximum(half, 1e-12) ** n
     return x ** n / (h + x ** n)
 
 
-def _pm_sample(self: "BayesianFitter", draws: int, tune: int, n_chains: int):
+def _pm_sample(self: BayesianFitter, draws: int, tune: int,
+               n_chains: int) -> Any:
     """Run ``pm.sample`` with deterministic seeding and no progress bar."""
     import pymc as pm
     return pm.sample(draws=draws, tune=tune, chains=n_chains,
@@ -352,7 +362,7 @@ def _pm_sample(self: "BayesianFitter", draws: int, tune: int, n_chains: int):
 
 def posterior_virtual_population(result: BayesianFitResult, n: int,
                                  seed: int = 0,
-                                 sd_log: float = 0.12) -> "list[PatientParameterSet]":
+                                 sd_log: float = 0.12) -> list[PatientParameterSet]:
     """Sample a virtual population (G13) from a fitted posterior.
 
     Each virtual patient is the nominal 432-vector with the fitted parameters
@@ -360,11 +370,12 @@ def posterior_virtual_population(result: BayesianFitResult, n: int,
     (doc/40 §6 Phase H: "re-fitted virtual patients reproduce clinical
     response heterogeneity").
     """
+    import math
+    import random
+
     from helixlang.plugins.human.patient_params import (
         PatientParameterSet,
     )
-    import random
-    import math
 
     base = PatientParameterSet().to_list()
     med = {name: v for name, v in zip(result.param_names, result.median, strict=True)}

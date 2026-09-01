@@ -14,6 +14,7 @@ from helixlang.plugins.human.simulation import (
     HumanSimulation,
     HumanSimulationConfig,
     HumanSimulationResult,
+    run_human_simulation_cohort,
 )
 
 
@@ -181,3 +182,35 @@ def test_simulation_batch_multi_drug_advance_matches_per_engine():
     # all engines advanced in lockstep to the same time
     assert all(b.time_h == bat[0].time_h for b in bat)
     assert bat[0].time_h == 12.0
+
+
+class TestCohortParallelism:
+    """doc/42 Phase C PF-3 — cohort-level parallel HumanSimulation runs."""
+
+    def test_single_process_cohort(self):
+        cfg = _config(days=1.0)
+        results = run_human_simulation_cohort(cfg, n_simulations=2, workers=1)
+        assert len(results) == 2
+        for r in results:
+            assert len(r.time_h) > 0
+            assert len(r.plasma_concentration) > 0
+
+    def test_parallel_matches_serial(self):
+        cfg = _config(days=1.0)
+        serial = run_human_simulation_cohort(cfg, n_simulations=2, workers=1)
+        parallel = run_human_simulation_cohort(cfg, n_simulations=2, workers=2)
+        assert [x.plasma_concentration for x in serial] == [
+            x.plasma_concentration for x in parallel
+        ]
+        assert [x.biomarker_history for x in serial] == [
+            x.biomarker_history for x in parallel
+        ]
+
+    def test_cohort_with_drug(self):
+        cfg = _config(
+            days=1.0,
+            drugs=[get_predefined_drug("METFORMIN")],
+        )
+        results = run_human_simulation_cohort(cfg, n_simulations=2, workers=2)
+        assert len(results) == 2
+        assert all(len(r.drug_concentrations) > 0 for r in results)

@@ -29,6 +29,15 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
+from helixlang.api.dimensions import (
+    DIM_CONCENTRATION,
+    DIM_MASS,
+    DIM_VOLUME,
+    DIMENSIONLESS,
+    Dimension,
+    Quantity,
+    UnitError,
+)
 from helixlang.plugins.human.clinical_output import ClinicalLabModel, ClinicalLabs, VitalsModel
 from helixlang.plugins.human.ddi import DDIModel, assess_additive_toxicity
 from helixlang.plugins.human.disease import DiseaseState
@@ -59,20 +68,9 @@ from helixlang.plugins.human.pharmacokinetics import (
     PBPKConfig,
 )
 from helixlang.plugins.human.phenotype import ExternalTraits, PhenotypeCalculator
+from helixlang.plugins.human.physiological_core import PhysiologicalCoupler
 from helixlang.plugins.human.physiology import HumanPhysiology
 from helixlang.plugins.human.recovery import RecoveryModel, create_recovery_model
-
-from helixlang.core.dimensions import (
-    DIM_AMOUNT,
-    DIM_CONCENTRATION,
-    DIMENSIONLESS,
-    DIM_MASS,
-    DIM_TIME,
-    DIM_VOLUME,
-    Dimension,
-    Quantity,
-    UnitError,
-)
 
 try:
     from helixlang.plugins.human.gem_human import HumanGEMLoader
@@ -198,6 +196,7 @@ __all__ = [
     "VirtualPatient",
     "VirtualPatientConfig",
     "VirtualPatientResult",
+    "run_virtual_patient_cohort",
 ]
 
 # ============================================================================
@@ -401,7 +400,11 @@ class VirtualPatientConfig:
     track_metabolites: bool = True
     track_biomarkers: bool = True
 
-    # --- Model paths ---
+    # --- doc/42 Phase B: physiological (flow/heat-balanced) vitals ---
+    # Opt-in; default False keeps the classic delta-based vitals path
+    # bit-identical (goldens unchanged).
+    physiological_core: bool = False
+
     base_model_path: str = ""
 
     def __post_init__(self) -> None:
@@ -413,7 +416,7 @@ class VirtualPatientConfig:
 
         if self.drugs:
             for drug in self.drugs:
-                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                key = norm_drug_key(drug.molecule.name)
                 if key not in self.pharmacodynamics:
                     pd = get_predefined_pd(drug.molecule.name)
                     if pd is not None:
@@ -686,7 +689,10 @@ class VirtualPatient:
         self.config = config
         self._physiology = self._build_physiology()
         self._labs_model = self._build_labs_model()
-        self._vitals_model = VitalsModel.create_from_physiology(self._physiology)
+        self._vitals_model = VitalsModel.create_from_physiology(
+            self._physiology,
+            physiological_core=self.config.physiological_core,
+        )
         self._disease_model = self._build_disease_model()
         self._recovery_model = self._build_recovery_model()
         self._ddi_model = config.ddi_model or DDIModel()
@@ -1028,8 +1034,31 @@ class VirtualPatient:
 
     def _init_drug_engines(self) -> None:
         for drug in self.config.drugs:
-            key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+            key = norm_drug_key(drug.molecule.name)
             self._drug_engine[key] = _DrugPBPK(drug, self._physiology)
+
+    def _apply_rl5_clearance_coupling(self, labs: Any) -> None:
+        """doc/42 Phase B RL-5: couple organ clearance to organ function.
+
+        A failing kidney (falling eGFR) reduces renal elimination and a
+        falling liver function reduces hepatic elimination of every on-drug
+        PBPK engine, so organ disease measurably changes drug exposure.  Only
+        invoked when the opt-in ``physiological_core`` flag is set; otherwise
+        elimination is unchanged and goldens remain bit-identical.
+        """
+        egfr = getattr(labs, "egfr_ml_per_min", 100.0) if labs is not None else 100.0
+        hepatic_function = max(0.1, 1.0 - self._disease_severity() * 0.5)
+        renal_mod = PhysiologicalCoupler.renal_clearance_from_egfr(1.0, egfr)
+        hepatic_mod = PhysiologicalCoupler.hepatic_clearance_from_function(
+            1.0, hepatic_function
+        )
+        for engine in self._drug_engine.values():
+            engine.renal_clearance_modifier = renal_mod
+            engine.hepatic_clearance_modifier = hepatic_mod
+
+    def _disease_severity(self) -> float:
+        disease = getattr(self.config, "disease", None)
+        return getattr(disease, "severity", 0.0) if disease is not None else 0.0
 
     # ------------------------------------------------------------------
     # Main loop
@@ -1078,7 +1107,7 @@ class VirtualPatient:
             self._emergent_complexity = _emergent_complexity()
         # Register drug SMILES with labs model for structure-based toxicity prediction
         for drug in self.config.drugs:
-            key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+            key = norm_drug_key(drug.molecule.name)
             smiles = getattr(drug.molecule, "smiles", None)
             if smiles:
                 self._labs_model.register_drug_smiles(key, smiles)
@@ -1089,6 +1118,15 @@ class VirtualPatient:
             if self._stochastic_active and self._sde_config is not None
             else None
         )
+
+        # Invariants hoisted out of the per-hour loop (doc/42 Phase C): these
+        # depend only on the fixed simulation config, so computing them once
+        # here is bit-identical to recomputing them every hour.
+        cyp_profile = {
+            enz: self.config.genotype.get_cyp_activity(enz)
+            for enz in CORE_CYP_ENZYMES
+        }
+        drug_names = [d.molecule.name for d in self.config.drugs]
 
         t_h = 0.0
         next_record = 0.0
@@ -1102,11 +1140,6 @@ class VirtualPatient:
                 self._endocrine.step(dt_h, clock_hour=clock_h)
 
             # --- DDI ---
-            cyp_profile = {
-                enz: self.config.genotype.get_cyp_activity(enz)
-                for enz in CORE_CYP_ENZYMES
-            }
-            drug_names = [d.molecule.name for d in self.config.drugs]
             # Pass an empty CYP profile: genotype-only effects are applied
             # separately via _compute_genetic_cyp_modifier below, so the DDI
             # model must report only true drug-drug interaction modifiers
@@ -1118,7 +1151,7 @@ class VirtualPatient:
             # --- doc/32 §8.3: Mechanistic DDI augmentation ---
             if self._mech_ddi_predictor is not None and len(drug_names) > 1:
                 mech_names = [
-                    n.lower().replace(" ", "_").replace("-", "_")
+                    norm_drug_key(n)
                     for n in drug_names
                 ]
                 mech_ddi_results = self._mech_ddi_predictor.predict_all_pairs(
@@ -1130,7 +1163,7 @@ class VirtualPatient:
                     # propagate AUC ratio as clearance reduction for the victim
                     victim = pred.drug_b.lower()
                     for dname in drug_names:
-                        key = dname.lower().replace(" ", "_").replace("-", "_")
+                        key = norm_drug_key(dname)
                         if key == victim:
                             clearance_mods[dname] = (
                                 clearance_mods.get(dname, 1.0)
@@ -1139,7 +1172,7 @@ class VirtualPatient:
 
             # --- Genetic CYP modulation on each drug ---
             for drug in self.config.drugs:
-                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                key = norm_drug_key(drug.molecule.name)
                 engine = self._drug_engine.get(key)
                 if engine is None:
                     continue
@@ -1156,7 +1189,7 @@ class VirtualPatient:
             # --- PBPK advance ---
             drug_concs: dict[str, float] = {}
             for drug in self.config.drugs:
-                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                key = norm_drug_key(drug.molecule.name)
                 engine = self._drug_engine.get(key)
                 if engine is None:
                     continue
@@ -1174,7 +1207,7 @@ class VirtualPatient:
             # --- PD flux modifiers ---
             pd_multipliers: dict[str, float] = {}
             for drug in self.config.drugs:
-                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                key = norm_drug_key(drug.molecule.name)
                 pd = self.config.pharmacodynamics.get(key)
                 if pd is not None and pd.effects:
                     for eff in pd.effects:
@@ -1266,7 +1299,7 @@ class VirtualPatient:
             if self._hematology is not None:
                 heme_exposures: dict[str, float] = {}
                 for drug in self.config.drugs:
-                    dkey = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    dkey = norm_drug_key(drug.molecule.name)
                     if dkey in drug_concs:
                         heme_exposures[dkey] = drug_concs[dkey]
                 heme = self._hematology.step(dt_h, heme_exposures or None)
@@ -1277,7 +1310,7 @@ class VirtualPatient:
             # --- Renal function model (CKD-EPI eGFR + AKI dynamics) ---
             if self._renal is not None:
                 for drug in self.config.drugs:
-                    dkey = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    dkey = norm_drug_key(drug.molecule.name)
                     conc = drug_concs.get(dkey, 0.0)
                     # Only induce AKI if no active episode (prevents timer
                     # reset every hour which blocks recovery)
@@ -1295,6 +1328,14 @@ class VirtualPatient:
                 reported_egfr = self._renal.step(dt_h)
                 labs.egfr_ml_per_min = max(1.0, reported_egfr)
                 labs.creatinine_mg_per_dl = max(0.3, self._renal.serum_creatinine)
+
+            # --- doc/42 Phase B RL-5: cross-system clearance coupling ---
+            # Only when the opt-in physiological_core flag is set.  Falling
+            # renal GFR (CKD/AKI) reduces renal elimination and organ-disease
+            # reduces hepatic elimination, so a failing organ measurably
+            # changes drug exposure.  Default off keeps goldens bit-identical.
+            if self.config.physiological_core:
+                self._apply_rl5_clearance_coupling(labs)
 
             # --- Recovery ---
             # Check if all drugs have finished their treatment duration
@@ -1384,7 +1425,7 @@ class VirtualPatient:
             # --- QSP binding ---
             if self._qsp_binding is not None:
                 for drug in self.config.drugs:
-                    key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    key = norm_drug_key(drug.molecule.name)
                     conc_nM = drug_concs.get(key, 0.0) * 1000.0  # µM → nM
                     self._qsp_binding.set_drug_concentration(key, conc_nM)
                 self._qsp_binding.step(dt_h)
@@ -1409,7 +1450,7 @@ class VirtualPatient:
             # Apply crosstalk effects to labs
             if self._organ_crosstalk.clearance_modifier_from_liver != 1.0:
                 for drug in self.config.drugs:
-                    key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    key = norm_drug_key(drug.molecule.name)
                     self._pending_clearance_scale[key] = (
                         self._pending_clearance_scale.get(key, 1.0)
                         * self._organ_crosstalk.clearance_modifier_from_liver
@@ -1452,7 +1493,7 @@ class VirtualPatient:
                 if hasattr(ro_model, 'step'):
                     drug_input = 0.0
                     for drug in self.config.drugs:
-                        key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                        key = norm_drug_key(drug.molecule.name)
                         drug_input += drug_concs.get(key, 0.0) * 1000.0  # µM → nmol/h proxy
                     ro_model.step(dt_h, drug_input)
                     # Feed portal-central gradient into liver clearance modifier
@@ -1462,7 +1503,7 @@ class VirtualPatient:
                         if abs(gradient) > 0.1:
                             rom_factor = max(0.5, min(2.0, 1.0 + 0.1 * gradient))
                             for drug in self.config.drugs:
-                                key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                                key = norm_drug_key(drug.molecule.name)
                                 self._pending_clearance_scale[key] = (
                                     self._pending_clearance_scale.get(key, 1.0)
                                     * rom_factor
@@ -1489,7 +1530,7 @@ class VirtualPatient:
             # --- doc/32 §7.7: Proteome-wide binding cascade ---
             if self._proteome_cascade is not None and self.config.drugs:
                 for drug in self.config.drugs:
-                    key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    key = norm_drug_key(drug.molecule.name)
                     smiles = getattr(drug.molecule, "smiles", "")
                     if key in drug_concs and smiles:
                         binding_profile = self._proteome_cascade.screen_drug(key, smiles, drug_concs[key])
@@ -1502,8 +1543,8 @@ class VirtualPatient:
                 if len(self.config.drugs) >= 2:
                     d0 = self.config.drugs[0]
                     d1 = self.config.drugs[1]
-                    k0 = d0.molecule.name.lower().replace(" ", "_").replace("-", "_")
-                    k1 = d1.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    k0 = norm_drug_key(d0.molecule.name)
+                    k1 = norm_drug_key(d1.molecule.name)
                     s0 = getattr(d0.molecule, "smiles", "")
                     s1 = getattr(d1.molecule, "smiles", "")
                     if k0 in drug_concs and k1 in drug_concs and s0 and s1:
@@ -1514,14 +1555,14 @@ class VirtualPatient:
                             drug_concs[k1] *= ddi_pred.auc_ratio
                 # Write proteome-modified concentrations back into PBPK engines
                 for _pw_drug in self.config.drugs:
-                    _pk = _pw_drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    _pk = norm_drug_key(_pw_drug.molecule.name)
                     if _pk in drug_concs and _pk in self._drug_engine:
                         self._drug_engine[_pk].conc_um["central"] = drug_concs[_pk]
 
             # --- Microbiome-drug interaction ---
             if self._microbiome_compartment is not None:
                 for drug in self.config.drugs:
-                    key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                    key = norm_drug_key(drug.molecule.name)
                     if key in drug_concs:
                         self._microbiome_compartment.set_drug_concentration(key, drug_concs[key])
                 mi_effects = self._microbiome_compartment.step(dt_h)
@@ -1588,7 +1629,7 @@ class VirtualPatient:
                     for _epi_drug in self.config.drugs:
                         _epi_frac = _epi_drug.cyp_metabolism.get(_epi_gene, 0.0)
                         if _epi_frac > 0.0:
-                            _dk = _epi_drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+                            _dk = norm_drug_key(_epi_drug.molecule.name)
                             self._pending_clearance_scale[_dk] = (
                                 self._pending_clearance_scale.get(_dk, 1.0)
                                 * (0.5 + 0.5 * _epi_val)
@@ -2140,6 +2181,25 @@ def _trapz(values: list[float], time_h: list[float]) -> float:
     return max(0.0, total)
 
 
+_NORM_KEY_CACHE: dict[str, str] = {}
+
+
+def norm_drug_key(name: str) -> str:
+    """Return the canonical normalized drug key for *name* (doc/42 Phase C).
+
+    Memoized pure function: the run's per-drug key
+    ``name.lower().replace(' ', '_').replace('-', '_')`` is invariant for the
+    whole simulation, so compute it once per unique name instead of recomputing
+    it (thousands of times) inside the per-hour loop.  Returns exactly the same
+    string as the inlined expression, so results are bit-identical.
+    """
+    k = _NORM_KEY_CACHE.get(name)
+    if k is None:
+        k = name.lower().replace(" ", "_").replace("-", "_")
+        _NORM_KEY_CACHE[name] = k
+    return k
+
+
 def _compute_genetic_cyp_modifier(drug: Drug, genotype: GenotypeProfile) -> float:
     """Compute clearance multiplier from genotype CYP profile.
 
@@ -2257,6 +2317,11 @@ class _DrugPBPK:
         self.drug = drug
         self.physiology = physiology
         self.clearance_modifier = 1.0
+        # doc/42 Phase B RL-5: organ-specific clearance coupling (default 1.0
+        # so elimination is unchanged unless a caller sets them from renal/
+        # hepatic function).  Applied at the sub-step elimination rate.
+        self.renal_clearance_modifier = 1.0
+        self.hepatic_clearance_modifier = 1.0
         self.sim_time_h = 0.0
 
         # Unit conversion: mg/L -> µM via molecular weight
@@ -2495,24 +2560,31 @@ class _DrugPBPK:
         ka_per_h: float,
         k_elim_per_h: float,
     ) -> None:
-        """One explicit Euler sub-step from the current state."""
+        """One explicit Euler sub-step from the current state.
+
+        Bit-identical to the previous implementation (doc/42 Phase C): the same
+        arithmetic is performed in the same per-organ order, but the temporary
+        ``organ_derivatives`` dict allocation is eliminated by folding each
+        organ's derivative + update into a single pass (``recirculation`` is
+        summed from the *pre-update* organ concentrations, matching the old
+        order of operations exactly, so floating-point results do not change).
+        """
         c = self.conc_um
         central = c["central"]
 
-        organ_derivatives: dict[str, float] = {}
+        recirculation = 0.0
         for name in ORGAN_NAMES:
-            organ_derivatives[name] = (
+            ci = c[name]
+            recirculation += (
+                self.organ_flows_l_per_h[name] * self.partition_ratios[name] * ci
+            )
+            deriv = (
                 self.organ_flows_l_per_h[name]
-                * (central - self.partition_ratios[name] * c[name])
+                * (central - self.partition_ratios[name] * ci)
                 / self.organ_volumes_l[name]
             )
+            c[name] = max(0.0, ci + deriv * h_sub_h)
 
-        recirculation = sum(
-            self.organ_flows_l_per_h[name]
-            * self.partition_ratios[name]
-            * c[name]
-            for name in ORGAN_NAMES
-        )
         absorbed_mg_per_h = ka_per_h * self.depot_mg
         d_central = (
             (recirculation - self.q_total_l_per_h * central) / self.vc_l
@@ -2521,8 +2593,6 @@ class _DrugPBPK:
         )
 
         c["central"] = max(0.0, central + d_central * h_sub_h)
-        for name in ORGAN_NAMES:
-            c[name] = max(0.0, c[name] + organ_derivatives[name] * h_sub_h)
         self.depot_mg = max(0.0, self.depot_mg - absorbed_mg_per_h * h_sub_h)
 
         # FcRn-mediated recycling for biologics (doc/33 biologics)
@@ -2628,9 +2698,13 @@ class _DrugPBPK:
                 self._administer_dose()
 
         ka_per_h = 1.0 / max(self.drug.absorption_rate_h, 1e-6)
+        # doc/42 Phase B RL-5: renal & hepatic clearance each scale with organ
+        # function; with both modifiers at 1.0 this is bit-identical to the
+        # legacy combined scalar path.
         k_elim_per_h = (
-            (self.k_renal_per_h + self.k_hepatic_per_h) * self.clearance_modifier
-        )
+            self.k_renal_per_h * self.renal_clearance_modifier
+            + self.k_hepatic_per_h * self.hepatic_clearance_modifier
+        ) * self.clearance_modifier
 
         # Nominal sub-step: same stability floor as the original fixed clamp.
         max_substep_h = self._EULER_SAFETY / self._max_rate_constant(ka_per_h, k_elim_per_h)
@@ -2650,3 +2724,60 @@ class _DrugPBPK:
     def get_concentrations(self) -> dict[str, float]:
         """Current concentration snapshot (µM) per compartment."""
         return dict(self.conc_um)
+
+
+# ============================================================================
+# doc/42 Phase C PF-3 — cohort-level parallelism for VirtualPatient
+# ============================================================================
+
+
+def _run_vp_worker(config: VirtualPatientConfig,
+                   seed: int,
+                   stochastic: bool,
+                   stochastic_config: Any) -> VirtualPatientResult:
+    """Top-level worker: build a fresh ``VirtualPatient``, run, return result.
+
+    Module-scope (picklable) so it can be dispatched through a ``spawn`` pool.
+    Each worker constructs its own instance from the (cheap, picklable) config
+    and never pickles the heavy mutable engine state.
+    """
+    vp = VirtualPatient(config)
+    if stochastic and seed is not None:
+        vp.enable_stochastic(stochastic_config, seed)
+    return vp.run()
+
+
+def run_virtual_patient_cohort(
+    config: VirtualPatientConfig,
+    n_patients: int = 1,
+    *,
+    workers: int = 1,
+    base_seed: int = 0,
+    stochastic: bool = True,
+    stochastic_config: Any | None = None,
+) -> list[VirtualPatientResult]:
+    """Run ``n_patients`` independent ``VirtualPatient`` simulations (doc/42 C PF-3).
+
+    Each patient derives an independent RNG seed from ``base_seed`` via the
+    immune-cohort determinism contract ``base_seed * 1000003 + i``, so a
+    stochastic cohort reproduces exactly given the same ``base_seed``, while
+    individual patients still vary.  When ``workers > 1`` patients are
+    distributed across a ``spawn`` multiprocessing pool; each worker builds its
+    own ``VirtualPatient(config)`` (no heavy state is pickled) and the
+    picklable ``VirtualPatientResult`` list is returned in index order.
+
+    Falls back to the single-process loop when ``workers <= 1`` or there is one
+    patient.  Results are bit-identical to the single-process loop for a given
+    seed (each patient's trajectory is independent).
+    """
+    n = max(1, int(n_patients))
+    seeds = [base_seed * 1000003 + i for i in range(n)]
+    args = [(config, s, stochastic, stochastic_config) for s in seeds]
+    if workers <= 1 or n <= 1:
+        return [_run_vp_worker(*a) for a in args]
+
+    import multiprocessing as _mp
+
+    ctx = _mp.get_context("spawn")
+    with ctx.Pool(processes=max(2, int(workers))) as pool:
+        return pool.starmap(_run_vp_worker, args)

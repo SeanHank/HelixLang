@@ -16,7 +16,12 @@
     "n_reactions": 95,
     "source": "vendored E. coli core (fallback)"
   },
-  "runtime_seconds": 0.9893894589040428,
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 1.655943916994147,
   "source": "fallback",
   "status": "PASS"
 }

@@ -10,22 +10,33 @@
     "helixlang_growth_rate": 0.0,
     "model_metabolites": 37,
     "model_reactions": 42,
-    "speedup_ratio": 0.7381172994699432,
+    "speedup_ratio": 0.702802480729193,
     "timing": {
       "cobrapy_ecoli_core": {
-        "ms": 0.9356249356642365
+        "ms": 0.9581249905750155
       },
       "comparison": {
-        "cobrapy_ms": 0.9356249356642365,
-        "helixlang_ms": 1.2675829930230975,
-        "speedup_ratio": 0.7381172994699432
+        "cobrapy_ms": 0.9581249905750155,
+        "helixlang_ms": 1.3632919872179627,
+        "speedup_ratio": 0.702802480729193
       },
       "helixlang_ecoli_core": {
-        "ms": 1.2675829930230975
+        "ms": 1.3632919872179627
       }
     }
   },
   "id": "43_performance_scaling",
-  "runtime_seconds": 0.015628832974471152,
+  "reference": {
+    "doi": "10.1038/nbt.1614",
+    "journal": "Nat Biotechnol 28:245",
+    "source": "Orth et al. 2010, BiGG database",
+    "year": 2010
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 0.016020916984416544,
   "status": "PASS"
 }

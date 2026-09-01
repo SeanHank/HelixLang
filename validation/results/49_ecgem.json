@@ -30,7 +30,7 @@
     "year": 2017,
     "note": "ECMpy 2.0 enzyme-constrained model building"
   },
-  "runtime_seconds": 0.32099400006700307,
+  "runtime_seconds": 0.5108017090242356,
   "layer": "metabolism",
   "name": "Enzyme-constrained GEM",
   "level": "L0"

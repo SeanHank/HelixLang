@@ -97,7 +97,30 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "Yoshida K et al. 2020, CPT Pharmacometrics Syst Pharmacol 9:51 (DDI prediction)",
+            "reference": {
+                "source": "Quantitative DDI prediction from binding/occupancy; mass-action occupancy for CYP binding",
+                "authors": "Yoshida K et al.",
+                "year": 2018,
+                "journal": "CPT Pharmacometrics Syst Pharmacol",
+                "doi": "10.1002/psp4.12315",
+                "note": "Yoshida K et al. 2018, CPT:PSP 7:517-524. Quantitative prediction of transporter-mediated clinical DDIs; mass-action inhibitor occupancy used here for AUC ratio estimation.",
+            },
+            "experimental_comparison": {
+                "ddi_auc_ratio_positive": {
+                    "reference_min": 1.0,
+                    "reference_max": 4.0,
+                    "tolerance": 1.5,
+                    "unit": "fold change in AUC",
+                    "note": "Warfarin+amiodarone co-administration increases warfarin exposure; AUC ratio ~1.5-2.5 reported (moderate DDI).",
+                },
+                "binding_occupancy_range": {
+                    "reference_min": 0.0,
+                    "reference_max": 1.0,
+                    "tolerance": 0.1,
+                    "unit": "fraction",
+                    "note": "Mass-action occupancy O = [L]/(Kd+[L]) is bounded in [0,1]; Kd=5uM, [L]=10uM gives 0.67.",
+                },
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:
@@ -105,7 +128,13 @@ def run() -> dict:
             "status": "FAIL",
             "checks": {},
             "details": {"error": str(e)},
-            "reference": "Yoshida K et al. 2020, CPT Pharmacometrics Syst Pharmacol 9:51 (DDI prediction)",
+            "reference": {
+                "source": "Quantitative DDI prediction from binding/occupancy",
+                "authors": "Yoshida K et al.",
+                "year": 2018,
+                "doi": "10.1002/psp4.12315",
+                "note": "Yoshida K et al. 2018, CPT:PSP 7:517-524.",
+            },
             "runtime_seconds": time.perf_counter() - t0,
         })
     return results

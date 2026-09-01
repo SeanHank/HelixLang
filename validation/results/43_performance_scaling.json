@@ -12,22 +12,33 @@
     "model_metabolites": 37,
     "helixlang_growth_rate": 0.0,
     "cobrapy_growth_rate": 0.8739215069684307,
-    "speedup_ratio": 0.4920391315131021,
+    "speedup_ratio": 12.169971952487465,
     "timing": {
       "helixlang_ecoli_core": {
-        "ms": 2.493874984793365
+        "ms": 2.8391670202836394
       },
       "cobrapy_ecoli_core": {
-        "ms": 1.227084081619978
+        "ms": 34.5525830052793
       },
       "comparison": {
-        "helixlang_ms": 2.493874984793365,
-        "cobrapy_ms": 1.227084081619978,
-        "speedup_ratio": 0.4920391315131021
+        "helixlang_ms": 2.8391670202836394,
+        "cobrapy_ms": 34.5525830052793,
+        "speedup_ratio": 12.169971952487465
       }
     }
   },
-  "runtime_seconds": 0.9662687920499593,
+  "reference": {
+    "source": "Orth et al. 2010, BiGG database",
+    "doi": "10.1038/nbt.1614",
+    "year": 2010,
+    "journal": "Nat Biotechnol 28:245"
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 3.7066535420017317,
   "layer": "performance",
   "name": "Performance Scaling \u2014 COBRApy vs HelixLang FBA timing",
   "level": "L2"

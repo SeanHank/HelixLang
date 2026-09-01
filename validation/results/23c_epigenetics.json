@@ -24,7 +24,7 @@
       13
     ]
   },
-  "runtime_seconds": 0.03288674994837493,
+  "runtime_seconds": 0.3001207079505548,
   "layer": "epigenetics",
   "name": "CpG site detection",
   "level": "L0"

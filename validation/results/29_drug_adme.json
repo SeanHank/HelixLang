@@ -1,6 +1,11 @@
 {
   "id": "29_drug_adme",
   "status": "PASS",
+  "reference": {
+    "source": "DrugBank, CPIC guidelines, Rowland & Tozer Clinical PK/PD",
+    "doi": "10.1093/nar/gkx1004",
+    "note": "Wishart DS et al. 2018, Nucleic Acids Res 46:D618-D625 (DrugBank 5.0); CPIC ADME gene-drug tables."
+  },
   "checks": {
     "list_predefined_drugs_returns_at_least_10": true,
     "get_predefined_drug_warfarin_returns_drug": true,
@@ -51,8 +56,8 @@
     ],
     "warfarin_validation_problems": []
   },
-  "runtime_seconds": 0.5289434170117602,
+  "runtime_seconds": 0.535477792029269,
   "layer": "human",
   "name": "Drug ADME predefined library lookup",
-  "level": "L0"
+  "level": "L3"
 }

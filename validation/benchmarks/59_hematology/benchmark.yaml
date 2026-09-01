@@ -1,8 +1,9 @@
 id: 59_hematology
 name: Hematology myelosuppression
 layer: pharmacology
-level: L0
+level: L4
 reference: Friberg et al. 2002, JPKPD
+reference_doi: 10.1023/A:1020492211773
 input: programmatic
 expected:
   check: automated

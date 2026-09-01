@@ -31,6 +31,7 @@ from helixlang.api import (
            bytecode,  # noqa: F401
            capabilities,  # noqa: F401
            compiler,  # noqa: F401
+           dimensions,  # noqa: F401
            errors,  # noqa: F401
            gem,  # noqa: F401
            grammar,  # noqa: F401
@@ -41,4 +42,5 @@ from helixlang.api import (
 )
 
 __all__ = ["accel", "ast", "backend", "bytecode", "capabilities", "compiler",
-           "errors", "gem", "grammar", "language", "registry", "sbol", "units"]
+           "dimensions", "errors", "gem", "grammar", "language", "registry",
+           "sbol", "units"]

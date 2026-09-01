@@ -25,9 +25,16 @@
       "adipose": 1.020436
     }
   },
-  "reference": "Jones HM, Rowland-Yeo K 2013, CPT Pharmacometrics Syst Pharmacol 2:e737 (PBPK)",
-  "runtime_seconds": 0.4540705420076847,
+  "reference": {
+    "source": "PBPK modeling methodology (Jones & Rowland-Yeo) and basic PK numeric integration",
+    "authors": "Jones HM, Rowland-Yeo K",
+    "year": 2013,
+    "journal": "CPT Pharmacometrics Syst Pharmacol",
+    "doi": "10.1038/psp.2013.41",
+    "note": "Jones HM, Rowland-Yeo K 2013, CPT:PSP 2:e43. PBPK model structure, numerical integration, terminal half-life estimation."
+  },
+  "runtime_seconds": 0.6131527500692755,
   "layer": "pharmacology",
   "name": "PBPK pharmacokinetics",
-  "level": "L0"
+  "level": "L3"
 }

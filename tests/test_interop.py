@@ -28,10 +28,21 @@ from helixlang.interop import (
     SBOL_ROLE_PROMOTER,
     SBOL_ROLE_RBS,
     SBOL_ROLE_TERMINATOR,
+    SubstrateField,
+    VirtualCell,
+    VirtualTissue,
+    cellml_to_model,
+    cells_from_csv,
+    cells_to_csv,
+    dict_to_tissue,
+    load_cellml,
     load_sbml,
     sbml_to_model,
     sbol3_dumps,
     sbol3_loads,
+    tissue_dumps,
+    tissue_loads,
+    tissue_to_dict,
 )
 
 # ============================================================================
@@ -275,3 +286,139 @@ def test_interop_no_cobrapy_required() -> None:
 
     m = sbml_to_model(_SBML_WITH_BOUNDS)
     assert FluxBalanceAnalysis(m).solve()["BIOMASS"] > 0
+
+
+# ============================================================================
+# CellML interop (doc/42 Phase E, gap RT-6)
+# ============================================================================
+
+_CELLML_ODE = """<?xml version="1.0" encoding="UTF-8"?>
+<model name="two_compartment" xmlns="http://www.cellml.org/cellml/1.1">
+  <component name="main">
+    <variable name="A" initial_value="100" units="mol"/>
+    <variable name="B" initial_value="0" units="mol"/>
+    <variable name="k1" units="per_second" value="0.1"/>
+    <variable name="k2" units="per_second" value="0.05"/>
+    <math xmlns="http://www.w3.org/1998/Math/MathML">
+      <apply><eq/>
+        <apply><diff/><bvar><ci>A</ci></bvar><ci>A</ci></apply>
+        <apply><minus/>
+          <apply><times/><ci>k2</ci><ci>B</ci></apply>
+          <apply><times/><ci>k1</ci><ci>A</ci></apply>
+        </apply>
+      </apply>
+      <apply><eq/>
+        <apply><diff/><bvar><ci>B</ci></bvar><ci>B</ci></apply>
+        <apply><minus/>
+          <apply><times/><ci>k1</ci><ci>A</ci></apply>
+          <apply><times/><ci>k2</ci><ci>B</ci></apply>
+        </apply>
+      </apply>
+    </math>
+  </component>
+</model>
+"""
+
+
+def test_cellml_parses_species_and_params() -> None:
+    m = cellml_to_model(_CELLML_ODE)
+    assert m["model_id"] == "two_compartment"
+    assert set(m["species"]) == {"A", "B"}
+    assert m["species"]["A"]["initial"] == 100.0
+    assert m["species"]["B"]["initial"] == 0.0
+    assert set(m["parameters"]) == {"k1", "k2"}
+    assert m["parameters"]["k1"] == 0.1
+
+
+def test_cellml_rate_expressions_translate() -> None:
+    m = cellml_to_model(_CELLML_ODE)
+    assert "k2" in m["rates"]["A"] and "k1" in m["rates"]["A"]
+    assert "k1" in m["rates"]["B"] and "k2" in m["rates"]["B"]
+    # infix string must be evaluable against the parameter namespace
+    ns = dict(m["parameters"])
+    ns["A"], ns["B"] = 100.0, 0.0
+    assert abs(eval(m["rates"]["A"], {"__builtins__": {}}, ns) - (-10.0)) < 1e-9
+
+
+def test_cellml_load_from_file(tmp_path) -> None:
+    path = tmp_path / "model.cellml"
+    path.write_text(_CELLML_ODE, encoding="utf-8")
+    m = load_cellml(str(path))
+    assert m["model_id"] == "two_compartment"
+
+
+def test_cellml_malformed_raises() -> None:
+    with pytest.raises(BioError):
+        cellml_to_model("<model><component>")
+
+
+def test_cellml_no_species_raises() -> None:
+    with pytest.raises(BioError):
+        cellml_to_model('<model xmlns="http://www.cellml.org/cellml/1.1">'
+                        '<component name="c"><variable name="k" value="1"/>'
+                        '</component></model>')
+
+
+# ============================================================================
+# Virtual-tissue interop (doc/42 Phase E, gap RT-6)
+# ============================================================================
+
+def _make_tissue() -> VirtualTissue:
+    return VirtualTissue(
+        cells=[
+            VirtualCell(x=1.0, y=2.0, z=0.0, cell_type=1,
+                        cycle_phase="M", volume=2.5,
+                        custom={"oxygen": 5.0}),
+            VirtualCell(x=10.0, y=20.0, z=0.0, cell_type=2, volume=1.0),
+        ],
+        substrates=[SubstrateField(
+            name="glucose", nx=2, ny=2, nz=1, dx=15.0, dy=15.0, dz=15.0,
+            data=[1.0, 2.0, 3.0, 4.0],
+        )],
+        meta={"simulation": "test"},
+    )
+
+
+def test_tissue_to_dict_roundtrip() -> None:
+    t = _make_tissue()
+    d = tissue_to_dict(t)
+    t2 = dict_to_tissue(d)
+    assert len(t2.cells) == 2
+    c0 = t2.cells[0]
+    assert (c0.x, c0.y, c0.z) == (1.0, 2.0, 0.0)
+    assert c0.cell_type == 1 and c0.cycle_phase == "M"
+    assert c0.custom == {"oxygen": 5.0}
+    assert t2.substrates[0].name == "glucose"
+    assert t2.substrates[0].data == [1.0, 2.0, 3.0, 4.0]
+    assert t2.meta == {"simulation": "test"}
+
+
+def test_tissue_json_roundtrip() -> None:
+    t = _make_tissue()
+    text = tissue_dumps(t)
+    restored = tissue_loads(text)
+    assert len(restored.cells) == 2
+    assert restored.cells[1].cell_type == 2
+    assert restored.substrates[0].data[3] == 4.0
+
+
+def test_tissue_malformed_json_raises() -> None:
+    with pytest.raises(BioError):
+        tissue_loads("{not json")
+
+
+def test_cells_csv_roundtrip() -> None:
+    t = _make_tissue()
+    text = cells_to_csv(t)
+    assert "position_x" in text.splitlines()[0]
+    assert "oxygen" in text.splitlines()[0]
+    parsed = cells_from_csv(text)
+    assert len(parsed) == 2
+    assert parsed[0].custom["oxygen"] == 5.0
+    assert parsed[1].cell_type == 2
+
+
+def test_cells_csv_empty_raises() -> None:
+    with pytest.raises(BioError):
+        cells_from_csv("position_x,position_y,position_z\n")
+

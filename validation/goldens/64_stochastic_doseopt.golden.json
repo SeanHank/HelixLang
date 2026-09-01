@@ -22,6 +22,6 @@
     "dose_optimization": "Jusko WJ, Ko HC 1994, J Pharmacokinet Biopharm 22:389",
     "euler_maruyama": "Maruyama K 1955, Proc Imp Acad 30:10"
   },
-  "runtime_seconds": 0.00010858301538974047,
+  "runtime_seconds": 0.00010145793203264475,
   "status": "PASS"
 }

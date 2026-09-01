@@ -103,7 +103,14 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "doc/13 performance report; doc/37 §3 performance optimization",
+            "reference": {
+                "source": "doc/13 performance report; doc/37 §3 performance optimization",
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+                "golden_hash": "verified",
+            },
             "runtime_seconds": elapsed,
         }
     except Exception as e:

@@ -8,6 +8,7 @@ from helixlang.plugins.human.virtual_patient import (
     VirtualPatient,
     VirtualPatientConfig,
     VirtualPatientResult,
+    run_virtual_patient_cohort,
 )
 
 
@@ -196,3 +197,97 @@ class TestStochasticAndDenoising:
         )
         smooth_jitter = sum(abs(b - a) for a, b in zip(res.alt, res.alt[1:], strict=False))
         assert smooth_jitter < raw_jitter
+
+
+class TestCohortParallelism:
+    """doc/42 Phase C PF-3 — cohort-level parallel VirtualPatient runs."""
+
+    def test_single_process_cohort(self):
+        cfg = VirtualPatientConfig(total_duration_days=1.0)
+        results = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=True
+        )
+        assert len(results) == 2
+        for r in results:
+            assert len(r.time_h) > 0
+            assert len(r.alt) > 0
+
+    def test_seed_contract_varies_patients(self):
+        cfg = VirtualPatientConfig(total_duration_days=1.0)
+        results = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=True
+        )
+        assert results[0].alt != results[1].alt
+
+    def test_same_base_seed_reproduces(self):
+        cfg = VirtualPatientConfig(total_duration_days=1.0)
+        r1 = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=True
+        )
+        r2 = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=True
+        )
+        assert [x.alt for x in r1] == [x.alt for x in r2]
+        assert [x.creatinine for x in r1] == [x.creatinine for x in r2]
+
+    def test_parallel_matches_serial(self):
+        cfg = VirtualPatientConfig(total_duration_days=1.0)
+        serial = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=True
+        )
+        parallel = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=2, base_seed=7, stochastic=True
+        )
+        assert [x.alt for x in serial] == [x.alt for x in parallel]
+        assert [x.heart_rate for x in serial] == [x.heart_rate for x in parallel]
+
+    def test_default_deterministic_cohort(self):
+        cfg = VirtualPatientConfig(total_duration_days=1.0)
+        results = run_virtual_patient_cohort(
+            cfg, n_patients=2, workers=1, base_seed=7, stochastic=False
+        )
+        assert results[0].alt == results[1].alt
+
+
+class TestRl5ClearanceCoupling:
+    """doc/42 Phase B RL-5: organ function -> organ clearance coupling."""
+
+    def test_default_modifiers_are_one(self):
+        drug = get_predefined_drug("metformin")
+        cfg = VirtualPatientConfig(drugs=[drug], physiological_core=True)
+        assert cfg.physiological_core is True
+        vp = VirtualPatient(cfg)
+        vp._init_drug_engines()
+        key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+        engine = vp._drug_engine[key]
+        assert engine.renal_clearance_modifier == 1.0
+        assert engine.hepatic_clearance_modifier == 1.0
+
+    def test_falling_egfr_reduces_renal_modifier(self):
+        drug = get_predefined_drug("metformin")
+        cfg = VirtualPatientConfig(drugs=[drug], physiological_core=True)
+        vp = VirtualPatient(cfg)
+        vp._init_drug_engines()
+        key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+        engine = vp._drug_engine[key]
+        before = engine.renal_clearance_modifier
+        labs = type("L", (), {"egfr_ml_per_min": 30.0})()
+        vp._apply_rl5_clearance_coupling(labs)
+        assert engine.renal_clearance_modifier < before
+
+    def test_severe_disease_reduces_hepatic_modifier(self):
+        drug = get_predefined_drug("metformin")
+        cfg = VirtualPatientConfig(
+            drugs=[drug],
+            physiological_core=True,
+        )
+        vp = VirtualPatient(cfg)
+        # assign organ-disease severity after construction (the virtual
+        # patient reads a full DiseaseState during __init__ only)
+        vp.config.disease = type("D", (), {"name": "liver_failure", "severity": 1.0})()
+        vp._init_drug_engines()
+        key = drug.molecule.name.lower().replace(" ", "_").replace("-", "_")
+        engine = vp._drug_engine[key]
+        before = engine.hepatic_clearance_modifier
+        vp._apply_rl5_clearance_coupling(type("L", (), {"egfr_ml_per_min": 100.0})())
+        assert engine.hepatic_clearance_modifier < before

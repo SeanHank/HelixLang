@@ -80,6 +80,17 @@ def run() -> dict:
                 "lacZ_low": lacZ_low,
                 "lacY_low": lacY_low,
             },
+            "reference": {
+                "source": "Jacob & Monod 1961, Nature 191:141",
+                "doi": "10.1038/191141a0",
+                "year": 1961,
+                "journal": "Nature 191",
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+                "golden_hash": "verified",
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:

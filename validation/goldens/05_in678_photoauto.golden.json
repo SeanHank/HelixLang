@@ -20,7 +20,12 @@
     "photon_uptake": 0.0,
     "source": "vendored E. coli core (glucose-fed, fallback)"
   },
-  "runtime_seconds": 1.1985787500161678,
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 1.22069820901379,
   "source": "fallback",
   "status": "PASS"
 }

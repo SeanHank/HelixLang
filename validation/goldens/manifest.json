@@ -4,7 +4,7 @@
     "status": "PASS"
   },
   "02_lac_operon": {
-    "sha256": "bdba4bb48cd508a5af9c32c0750549c3af48c4604d5974a45ab84ea001565106",
+    "sha256": "b979a88337be89abf9f141160ab4d1ecabc2d98173bdf9cfc171e8e1f571d977",
     "status": "PASS"
   },
   "03_ecoli_fba": {
@@ -12,15 +12,15 @@
     "status": "PASS"
   },
   "04_iml1515_fba": {
-    "sha256": "9cde3888a63602711a1d7b6bac19d6fc78d24e382b2c59dcfe2a63dc420fbd50",
+    "sha256": "3760e4fa519efb2533f139658963ec1e6b91fd3cbbfeea0d2cb6d87424f026ca",
     "status": "PASS"
   },
   "05_in678_photoauto": {
-    "sha256": "af81dbffc422b27c5cb1c4f78e6722d9c4fc40eeb6d305cdb27517cedf08eed3",
+    "sha256": "e11c62d76954651b99b63ccccebd15d1779bc3e905b0cff48cba1c3251661ddc",
     "status": "PASS"
   },
   "06_dfba_diauxic": {
-    "sha256": "ecb62d6bdaa4fb11bde01541abda622c9c63c1bfcee35d6e17d0c060eb256b18",
+    "sha256": "b60e5e6c32eb2364373c5f1943119dc02425ccf3186752c69db35da9e762b033",
     "status": "PASS"
   },
   "07_grn_repressilator": {
@@ -32,7 +32,7 @@
     "status": "PASS"
   },
   "09_reaction_diffusion": {
-    "sha256": "4ac61f9bd229720aade814f968118e325b9ab10948485bdcb84634cc5c209b6f",
+    "sha256": "1d6ac22412f576135699d6604ac62d2f362e8e89f7a231529600b8d9afa1676f",
     "status": "PASS"
   },
   "10_whole_cell": {
@@ -97,7 +97,7 @@
     "status": "PASS"
   },
   "25_gem_reconstruction": {
-    "sha256": "eb7e3bdb4c5d9a860ddd36b685ce677ae262a9254178544ce7fc0685c328066a",
+    "sha256": "b066b2091655bd39209755447cce6257e886384d781247112c3332e2d078036d",
     "status": "PASS"
   },
   "26_gapfill_validation": {
@@ -109,27 +109,27 @@
     "status": "PASS"
   },
   "28_genotype_cyp2d6": {
-    "sha256": "29c7c794d2589406e054ddfde16e67a59e1de12f2f769debfe1cdf2ea24204e5",
+    "sha256": "68c727676081f76d72a6156939ffa08ee530027225ce1c342d7aef2aef268cda",
     "status": "PASS"
   },
   "29_drug_adme": {
-    "sha256": "e82818267b06c1aaed72554d4a3707cd1a324675e549a870f2218054538b1485",
+    "sha256": "6dd3bf61f3bde3b39ab0ee404e417b84459c8cf08073db0eb46fcbfad111711c",
     "status": "PASS"
   },
   "30_pk_simulation": {
-    "sha256": "11aec09f8df4443329e2e0ba19161ef28a29152d0080f285a7108ba516324193",
+    "sha256": "58a55bd565b85929b94b37bb8430a8c9228cff460e5fce003683841b050eefce",
     "status": "PASS"
   },
   "31_pd_dose_response": {
-    "sha256": "48bbfd6a2c868a063640f3718482524fe5b3ae30e6e559857982a1837cacb307",
+    "sha256": "fcc65985645211f87491715c95f0e6dbeff744337806f71d7dfc434dbe82162f",
     "status": "PASS"
   },
   "32_ddi_prediction": {
-    "sha256": "a428b4e0bc5c1bd33eb48d3760bcdc5c554b4815fbd82a416ce3a4dd40704644",
+    "sha256": "b2372b814bbe56ee783565a02933aed2223244ac6e2ac0ffb2b46720a176a8bb",
     "status": "PASS"
   },
   "33_disease_ode": {
-    "sha256": "bb85207860afbf71355965f39783912e4d18b1aba908ba2d7bf7686e57eab7a6",
+    "sha256": "40c24f5fc1f7f37ef7cfa6b73f5cff24165083eb31fce79e0b3616fc050f2f9b",
     "status": "PASS"
   },
   "34_virtual_patient": {
@@ -169,7 +169,7 @@
     "status": "PASS"
   },
   "43_performance_scaling": {
-    "sha256": "1d3cbff6ed03af3fcadf61cd6d0c89a5a7208cfa9bb5f3d5a8a9db2b8e961285",
+    "sha256": "edc79970595ae5cbb75adc53c38813a574919a5c9f925cfa88b7711341731d7d",
     "status": "PASS"
   },
   "44_determinism_all_backends": {
@@ -225,27 +225,27 @@
     "status": "PASS"
   },
   "57_pbpk_pharmacokinetics": {
-    "sha256": "9343578f4c3cfbafc7ac5e7cdd09ab8105dbb9ef08a44299c9003ab99c604937",
+    "sha256": "1e7d01052a8f35562c15433fed9bbffbabbcd028a190164be2e96d25d4291e06",
     "status": "PASS"
   },
   "58_endocrine_renal": {
-    "sha256": "ca764a8e90792f8963f69e83d57d8c077576306400bb10701c1a1e518eb23cb5",
+    "sha256": "ed82836b707e05fad4136647cb2e7a94755c85c04ec474990b542b3e2892cac6",
     "status": "PASS"
   },
   "59_hematology": {
-    "sha256": "2a8c0f5fe202ed6ec561872166698fdf051686aadc4c19ce8c7d032a4f3a3b27",
+    "sha256": "7c91d21bc14e0532aaa333dcfd4271aa7eaa99a497039b8e54ca68d2dcbbff94",
     "status": "PASS"
   },
   "60_proteome_binding": {
-    "sha256": "bdefb144126a969d61146d997d8532a45d84aca49523b67575da85677b950eae",
+    "sha256": "3f5814f7d1e918539bc5f4f58c13f66bc2d5549bf3856cdd247ed483ca007beb",
     "status": "PASS"
   },
   "61_molecular_toxicity": {
-    "sha256": "f51863b6b023ec64e1045763d24e29d0a773d30ab33ae0f64935e1f5f079d35a",
+    "sha256": "d564c36256a7dbe6855535666ac373c8bb967d2aa6abb65288ad8cd2c37f686a",
     "status": "PASS"
   },
   "62_disease_recovery": {
-    "sha256": "862e6ee909e9b97a7132366bb2b7e42650b7f79659c27f61ad4d8dea3c9ec444",
+    "sha256": "0d89be5cbde1bc0d708fefd3c1a707a1507efdf03c3f1d6faf1eeca8622e6264",
     "status": "PASS"
   },
   "63_phenotype_simulation": {
@@ -257,7 +257,7 @@
     "status": "PASS"
   },
   "65_qsp_binding": {
-    "sha256": "12fc389243c0ee033b7743a81779197209e60ad3670d5ea0ae4ef44d5fb504dc",
+    "sha256": "b64669551311f6b9c4f0b7740f83548464141cd2103720d1cbeb64170e03df23",
     "status": "PASS"
   },
   "66_infrastructure": {
@@ -265,7 +265,7 @@
     "status": "PASS"
   },
   "67_microbiome_crosstalk": {
-    "sha256": "a6f14b46dfee27363015270252d7ef23cc31ab87f316cf020cbea82d859403ca",
+    "sha256": "2d30319feaf2db2907c235819b594b1e1b566667d478ad6b900ba90869a6b58e",
     "status": "PASS"
   },
   "68_bio_validity": {
@@ -273,11 +273,11 @@
     "status": "PASS"
   },
   "69_performance_benchmark": {
-    "sha256": "c89106dfd95878a0cb638d896d0d32968d7023599228fe49df3fb58d734d9247",
+    "sha256": "3bb27aa17100cd4c46adfa1db90ad07afdb7b8b290f4c349942cebf42296f27d",
     "status": "PASS"
   },
   "70_decoupling_verify": {
-    "sha256": "aef2eac46b930c90f151c7f0e28c0cf5a85269035a49795ed3cc4503f7877fb7",
+    "sha256": "7b6b0f234ddb0ca704d170b299dbb2a8a52e7d1b247ed177fd1dccf3ecd4bdb5",
     "status": "PASS"
   },
   "71_ir_roundtrip": {
@@ -326,6 +326,18 @@
   },
   "82_immune_spatial_abm": {
     "sha256": "0a66b7056d2bf24657205cc3ebcce2a9e4329361d7c047bc3ca4cacea24f9111",
+    "status": "PASS"
+  },
+  "83_physiological_realism": {
+    "sha256": "6505b9ad04125b61f7649d5b5888b816fb95b7502f35fd1d34e75ccacedbfbb9",
+    "status": "PASS"
+  },
+  "84_cardiac_cycle": {
+    "sha256": "2f431545b14a73965e1489ee5e532b23597c356322dd20130dfb39e83239cc56",
+    "status": "PASS"
+  },
+  "85_ode_model": {
+    "sha256": "96b05748ed7b41cb9b362964f24b694ef861be922ac1eb987380d49f565ab526",
     "status": "PASS"
   }
 }

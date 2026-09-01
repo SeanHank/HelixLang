@@ -26,6 +26,6 @@
     "note": "reduced complement cascade + anti-C5 PD; NK/mast/eosinophil/basophil pools and histamine anaphylaxis",
     "source": "doc/40 L7 (Zewde & Morikis 2018), L1 (BIS entity set)"
   },
-  "runtime_seconds": 0.0005715829320251942,
+  "runtime_seconds": 0.0005561250727623701,
   "status": "PASS"
 }

@@ -18,6 +18,8 @@ from copy import copy
 from dataclasses import dataclass
 from typing import Any
 
+from helixlang.plugins.human.physiological_core import PhysiologicalVitalsDriver
+
 __all__ = [
     "ClinicalLabs",
     "ClinicalLabModel",
@@ -681,13 +683,34 @@ class VitalsModel:
         self,
         base_vitals: VitalSigns,
         physiology: Any | None = None,
+        physiological_core: bool = False,
     ) -> None:
         self.baseline = base_vitals.snapshot()
         self.current = base_vitals.snapshot()
         self.physiology = physiology
 
+        # doc/42 Phase B RL-1/2/4: opt-in mass/flow/heat-balanced vitals driver.
+        # When enabled the CV gas & temperature signals come from the shared
+        # physiological core instead of the delta (target-tracking) rules below.
+        # Default off keeps the classic delta-based path bit-identical.
+        self._physio_driver: PhysiologicalVitalsDriver | None = None
+        if physiological_core:
+            self._physio_driver = self._build_physio_driver()
+
+    def _build_physio_driver(self) -> PhysiologicalVitalsDriver:
+        if self.physiology is not None:
+            return PhysiologicalVitalsDriver(
+                body_weight_kg=getattr(self.physiology, "body_weight_kg", 70.0),
+                age_years=getattr(self.physiology, "age_years", 30.0),
+                bsa_m2=getattr(self.physiology, "bsa_m2", 1.85),
+            )
+        return PhysiologicalVitalsDriver()
+
     @staticmethod
-    def create_from_physiology(physiology: Any) -> VitalsModel:
+    def create_from_physiology(
+        physiology: Any,
+        physiological_core: bool = False,
+    ) -> VitalsModel:
         """Create vitals model from a HumanPhysiology instance."""
         vs = VitalSigns(
             weight_kg=physiology.body_weight_kg,
@@ -704,7 +727,7 @@ class VitalsModel:
             vs.diastolic_bp_mmhg += excess * 0.6
             vs.heart_rate_bpm += excess * 0.2
 
-        return VitalsModel(base_vitals=vs, physiology=physiology)
+        return VitalsModel(base_vitals=vs, physiology=physiology, physiological_core=physiological_core)
 
     def update(
         self,
@@ -715,6 +738,54 @@ class VitalsModel:
     ) -> VitalSigns:
         """Advance vitals by *dt_h* hours and return updated snapshot."""
         drug_conc = drug_concentrations or {}
+
+        # --- doc/42 Phase B: physiological (flow/heat-balanced) vitals ---
+        if self._physio_driver is not None:
+            hgb = None
+            crp = 0.0
+            hco3 = 24.0
+            egfr = 100.0
+            if labs is not None:
+                hgb = getattr(labs, "hemoglobin_g_per_dl", None)
+                crp = getattr(labs, "crp_mg_per_l", 0.0)
+                bic = getattr(labs, "bicarbonate_meq_per_l", None)
+                if bic is not None:
+                    hco3 = bic
+                egfr = getattr(labs, "egfr_ml_per_min", 100.0)
+
+            vs = self._physio_driver.step(
+                dt_h,
+                drug_concs=drug_conc,
+                crp_mg_per_l=crp,
+                cytokines=disease_severity,
+                disease_contractility=max(0.4, 1.0 - 0.5 * disease_severity),
+                hemoglobin_g_per_dl=hgb,
+                hco3_meq_per_l=hco3,
+                egfr_ml_per_min=egfr,
+            )
+            self.current.systolic_bp_mmhg = vs.systolic_bp_mmhg
+            self.current.diastolic_bp_mmhg = vs.diastolic_bp_mmhg
+            self.current.heart_rate_bpm = vs.heart_rate_bpm
+            self.current.respiratory_rate_per_min = vs.respiratory_rate_per_min
+            self.current.temperature_c = vs.temperature_c
+            self.current.spo2_pct = vs.spo2_pct
+
+            # weight still drifts modestly with diuretic / disease
+            wt_delta = 0.0
+            for drug_key, (_s, _d, _h, w) in _VITAL_DRUG_EFFECTS.items():
+                conc = drug_conc.get(drug_key, 0.0)
+                if conc <= 0.0:
+                    continue
+                scale = min(conc / 30.0, 3.0) / 3.0
+                wt_delta += w * scale * (dt_h / 24.0)
+            wt_delta -= disease_severity * 0.02 * (dt_h / 24.0)
+            self.current.weight_kg = max(30.0, self.current.weight_kg + wt_delta)
+
+            # QTc (Bazett) still derived from the physiological heart rate
+            rr_s = 60.0 / max(self.current.heart_rate_bpm, 40.0)
+            self.current.qt_interval_ms = 380.0
+            self.current.qtc_ms = self.current.qt_interval_ms / (rr_s ** 0.5)
+            return self.current.snapshot()
 
         # --- Drug effects ---
         sbp_delta = 0.0

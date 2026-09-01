@@ -35,8 +35,10 @@ CORE_IMPL_ATTRS: dict[str, tuple[str, tuple[str, ...]]] = {
     "calibration": ("_run_calibration", ()),
     "benchmark": ("_run_benchmark", ()),
     "gem": ("_run_gem", ()),
+    "cardiology": ("_run_cardiology", ("cardiology", "cardiac_cycle")),
     # ecosystem was reachable both ways (elif + _SIM_BACKENDS) — keep so.
     "ecosystem": ("_run_ecosystem", ("ecosystem",)),
+    "ode_model": ("_run_ode_model", ("ode_model", "ode")),
     # ---- long-tail "#sim kind=" backends (legacy _SIM_BACKENDS table) ----
     "3d_morphology": ("_run_3d_morphology", ("3d_morphology",)),
     "codec_benchmark": ("_run_codec_benchmark", ("codec_benchmark",)),

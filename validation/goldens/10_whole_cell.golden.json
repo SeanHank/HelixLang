@@ -60,7 +60,7 @@
     "deterministic": true,
     "environment": "Python 3.11.15"
   },
-  "runtime_seconds": 0.3293797499500215,
+  "runtime_seconds": 0.34169033297803253,
   "status": "PASS",
   "trajectory_keyframes": [
     {

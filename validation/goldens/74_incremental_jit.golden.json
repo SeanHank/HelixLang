@@ -7,10 +7,10 @@
     "unchanged_source_rebuilds_nothing": true
   },
   "details": {
-    "full_rebuild_seconds": 0.0001075830077752471,
+    "full_rebuild_seconds": 0.00011362496297806501,
     "genes": 16,
-    "incremental_total_seconds": 0.004526543081738055,
-    "naive_recompile_total_seconds": 0.0016137451166287065,
+    "incremental_total_seconds": 0.00458900211378932,
+    "naive_recompile_total_seconds": 0.0017043744446709752,
     "per_edit_closure_sizes": [
       2,
       2,
@@ -29,10 +29,10 @@
       2,
       1
     ],
-    "work_reduction_ratio": 0.3565071816369585
+    "work_reduction_ratio": 0.3714041533233477
   },
   "id": "74_incremental_jit",
   "reference": "doc/38 \u00a73 incremental JIT (core/incr.py)",
-  "runtime_seconds": 0.01021641690749675,
+  "runtime_seconds": 0.010336500010453165,
   "status": "PASS"
 }

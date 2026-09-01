@@ -46,6 +46,7 @@ _BUNDLED_PLUGINS: tuple[str, ...] = (
     "kinetics",
     "omics",
     "cardiology",
+    "ode_model",
 )
 
 

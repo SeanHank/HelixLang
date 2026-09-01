@@ -108,12 +108,38 @@ def solve_sde(
     return SDETrajectory(times=times, states=states)
 
 
+def _solve_sde_worker(
+    t_end: float,
+    dt: float,
+    state0: float,
+    drift_fn: Callable[[float, float], float],
+    sigma_intrinsic: float,
+    sigma_extrinsic: float,
+    seed: int,
+) -> list[float]:
+    """Top-level worker: solve one SDE trajectory for a distinct seed.
+
+    Module-scope (picklable) so a ``spawn`` pool can run trajectories of an
+    ensemble in parallel.  Each trajectory's RNG is independent, so workers'
+    order does not change the per-trajectory result and the assembled ensemble
+    is identical to the single-process loop.
+    """
+    traj = solve_sde(
+        t_end, dt, state0, drift_fn,
+        sigma_intrinsic, sigma_extrinsic,
+        seed=seed,
+    )
+    return traj.states
+
+
 def solve_sde_ensemble(
     t_end: float,
     dt: float,
     state0: float,
     drift_fn: Callable[[float, float], float],
     config: SDEConfig | None = None,
+    *,
+    workers: int = 1,
 ) -> SDEDistribution:
     """Run ensemble of SDE simulations to compute population distribution.
 
@@ -123,6 +149,9 @@ def solve_sde_ensemble(
         state0: initial state (same for all patients)
         drift_fn: function(t, state) → drift coefficient
         config: SDE configuration (noise levels, n_patients, seed)
+        workers: number of processes over which to parallelize the ensemble
+            (1 = single-process).  Requires ``drift_fn`` to be picklable when
+            ``workers > 1``.  Results are identical for any ``workers`` value.
 
     Returns:
         SDEDistribution with statistics across ensemble
@@ -131,15 +160,27 @@ def solve_sde_ensemble(
         config = SDEConfig()
 
     base_seed = config.seed if config.seed is not None else 42
+    seeds = [base_seed + i for i in range(config.n_patients)]
 
-    trajectories: list[list[float]] = []
-    for i in range(config.n_patients):
-        traj = solve_sde(
-            t_end, dt, state0, drift_fn,
-            config.sigma_intrinsic, config.sigma_extrinsic,
-            seed=base_seed + i,
-        )
-        trajectories.append(traj.states)
+    if workers <= 1 or config.n_patients <= 1:
+        trajectories = [
+            _solve_sde_worker(
+                t_end, dt, state0, drift_fn,
+                config.sigma_intrinsic, config.sigma_extrinsic, seed,
+            )
+            for seed in seeds
+        ]
+    else:
+        import multiprocessing as _mp
+
+        args = [
+            (t_end, dt, state0, drift_fn,
+             config.sigma_intrinsic, config.sigma_extrinsic, s)
+            for s in seeds
+        ]
+        ctx = _mp.get_context("spawn")
+        with ctx.Pool(processes=max(2, int(workers))) as pool:
+            trajectories = pool.starmap(_solve_sde_worker, args)
 
     n_times = len(trajectories[0]) if trajectories else 0
     times = [i * dt for i in range(n_times)]

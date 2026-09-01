@@ -1,8 +1,9 @@
 id: 58_endocrine_renal
 name: Endocrine + renal ODEs
 layer: pharmacology
-level: L0
+level: L4
 reference: Inker et al. 2021, NEJM
+reference_doi: 10.1056/NEJMoa2102953
 input: programmatic
 expected:
   check: automated

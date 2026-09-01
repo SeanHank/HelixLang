@@ -1,8 +1,9 @@
 id: 33_disease_ode
 name: Disease ODE model simulation
 layer: human
-level: L0
+level: L3
 reference: Bergman RN 1981, Guyton & Hall 2016
+reference_doi: 10.1152/ajpendo.1981.240.4.E480
 input: none (model created inline)
 parameters:
   disease: metabolic_t2d

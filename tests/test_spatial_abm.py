@@ -7,12 +7,9 @@ no silent fallback) in :mod:`helixlang.plugins.human.spatial_abm`.
 """
 from __future__ import annotations
 
-import copy
-
 import pytest
 
 from helixlang.plugins.human.spatial_abm import (
-    AgentState,
     CellType,
     SpatialABMConfig,
     SpatialAgentGrid,

@@ -276,6 +276,16 @@ def run() -> dict:
                     "Enjalbert et al. 2015, J Bacteriol 197:2301",
                     "Varma & Palsson 1993, Appl Environ Microbiol 59:2465",
                 ],
+                "reference_range_min": {
+                    "glucose_depletion_h": 3.6,
+                    "acetate_peak_mM": 3.6,
+                    "unit": "h / mM",
+                },
+                "reference_range_max": {
+                    "glucose_depletion_h": 4.4,
+                    "acetate_peak_mM": 4.4,
+                    "unit": "h / mM",
+                },
                 "note": ("dFBA overpredicts acetate because simplified model "
                          "lacks full regulatory mechanisms"),
             },

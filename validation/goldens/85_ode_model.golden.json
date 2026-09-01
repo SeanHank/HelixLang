@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "authored_in_language": true,
+    "deterministic": true,
+    "equipartition_toward_steady_state": true,
+    "mass_conservation": true,
+    "produces_result": true,
+    "uses_ode_model_backend": true
+  },
+  "details": {
+    "final_A": 48.208677,
+    "final_B": 51.791323,
+    "model": "two_comp",
+    "n_reactions": 2,
+    "n_species": 2
+  },
+  "id": "85_ode_model",
+  "reference": {
+    "authors": "Ten Berge JTF",
+    "doi": "10.1016/0010-4825(93)90017-5",
+    "note": "Analytic solution of a linear two-compartment ODE (mass-conserving A <-> B exchange).",
+    "source": "Ten Berge, Polynomial approach to two-compartment drug disposition; numeric integration of an explicit-order RK4 scheme",
+    "year": 1993
+  },
+  "runtime_seconds": 0.290905624977313,
+  "status": "PASS"
+}

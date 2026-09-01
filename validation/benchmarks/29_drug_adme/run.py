@@ -73,6 +73,11 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "reference": {
+                "source": "DrugBank, CPIC guidelines, Rowland & Tozer Clinical PK/PD",
+                "doi": "10.1093/nar/gkx1004",
+                "note": "Wishart DS et al. 2018, Nucleic Acids Res 46:D618-D625 (DrugBank 5.0); CPIC ADME gene-drug tables.",
+            },
             "checks": {
                 "list_predefined_drugs_returns_at_least_10": True,
                 "get_predefined_drug_warfarin_returns_drug": True,

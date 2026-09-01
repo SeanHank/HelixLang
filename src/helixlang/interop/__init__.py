@@ -37,6 +37,21 @@ from helixlang.core.sbol import (  # noqa: F401  (single source, re-exported)
     SBOL_ROLE_TERMINATOR,
     SBOL_TYPE_DNA,
 )
+from helixlang.interop.cellml import (  # noqa: F401
+    cellml_to_model,
+    load_cellml,
+)
+from helixlang.interop.virtual_tissue import (  # noqa: F401
+    SubstrateField,
+    VirtualCell,
+    VirtualTissue,
+    cells_from_csv,
+    cells_to_csv,
+    dict_to_tissue,
+    tissue_dumps,
+    tissue_loads,
+    tissue_to_dict,
+)
 from helixlang.plugins.runtime.metabolism import (
     DEFAULT_UPPER_BOUND,
     MetabolicModel,
@@ -356,4 +371,8 @@ __all__ = [
     "SBOL_ROLE_TERMINATOR", "SBOL_ROLE_RBS",
     "sbml_to_model", "load_sbml",
     "sbol3_dumps", "sbol3_loads",
+    "cellml_to_model", "load_cellml",
+    "SubstrateField", "VirtualCell", "VirtualTissue",
+    "cells_from_csv", "cells_to_csv",
+    "dict_to_tissue", "tissue_dumps", "tissue_loads", "tissue_to_dict",
 ]

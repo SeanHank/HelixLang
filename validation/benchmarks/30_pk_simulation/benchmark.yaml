@@ -1,8 +1,9 @@
 id: 30_pk_simulation
 name: PBPK IV bolus simulation
 layer: human
-level: L1
+level: L4
 reference: Rowland & Tozer 2020, Guyton & Hall 2016
+reference_doi: 10.1038/psp.2013.41
 input: none (drug created inline)
 parameters:
   route: iv

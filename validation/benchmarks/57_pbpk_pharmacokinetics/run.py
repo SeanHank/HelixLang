@@ -91,7 +91,14 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "Jones HM, Rowland-Yeo K 2013, CPT Pharmacometrics Syst Pharmacol 2:e737 (PBPK)",
+            "reference": {
+                "source": "PBPK modeling methodology (Jones & Rowland-Yeo) and basic PK numeric integration",
+                "authors": "Jones HM, Rowland-Yeo K",
+                "year": 2013,
+                "journal": "CPT Pharmacometrics Syst Pharmacol",
+                "doi": "10.1038/psp.2013.41",
+                "note": "Jones HM, Rowland-Yeo K 2013, CPT:PSP 2:e43. PBPK model structure, numerical integration, terminal half-life estimation.",
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:
@@ -99,7 +106,11 @@ def run() -> dict:
             "status": "FAIL",
             "checks": {},
             "details": {"error": str(e)},
-            "reference": "Jones HM, Rowland-Yeo K 2013, CPT Pharmacometrics Syst Pharmacol 2:e737 (PBPK)",
+            "reference": {
+                "source": "PBPK modeling methodology (Jones & Rowland-Yeo)",
+                "doi": "10.1038/psp.2013.41",
+                "note": "Jones HM, Rowland-Yeo K 2013, CPT:PSP 2:e43.",
+            },
             "runtime_seconds": time.perf_counter() - t0,
         })
     return results

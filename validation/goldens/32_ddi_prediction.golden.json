@@ -12,7 +12,28 @@
     "warfarin_alert_severity": "severe",
     "warfarin_clearance_modifier": 0.3
   },
+  "experimental_comparison": {
+    "warfarin_alert_severity_moderate_or_higher": {
+      "note": "Warfarin+fluconazole is a documented moderate/severe co-administration interaction.",
+      "reference_max": 1.0,
+      "reference_min": 1.0,
+      "tolerance": 0.0,
+      "unit": "boolean"
+    },
+    "warfarin_clearance_modifier": {
+      "note": "CYP2C9 inhibition reduces warfarin clearance; expected reported AUC fold-change ~2-3 (moderate DDI).",
+      "reference_max": 0.8,
+      "reference_min": 0.3,
+      "tolerance": 0.2,
+      "unit": "fraction of baseline clearance"
+    }
+  },
   "id": "32_ddi_prediction",
-  "runtime_seconds": 2.1791900508105755e-05,
+  "reference": {
+    "doi": "10.1038/psp.2013.41",
+    "note": "Jones HM & Rowland-Yeo K. Clin Pharmacol Syst Pharmacol 2013;2:e43. CYP2C9 inhibition by fluconazole raises warfarin AUC/exposure; moderate co-administration interaction.",
+    "source": "CYP inhibition DDI mechanism and typical AUC-fold-change ranges (warfarin + fluconazole)"
+  },
+  "runtime_seconds": 2.675002906471491e-05,
   "status": "PASS"
 }

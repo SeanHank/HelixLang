@@ -21,12 +21,14 @@
   "id": "61_molecular_toxicity",
   "reference": {
     "authors": "Hughes JP, Rees S, Kalindjian SB, Philpott KL",
+    "doi": "10.1038/sj.bjp.0707373",
     "journal": "Br J Pharmacol",
+    "note": "Hughes JP et al. 2008 principles of early drug discovery; therapeutic index and in vitro toxicity screening.",
     "pages": "731-739",
     "source": "Hughes JP et al. 2008",
     "volume": "154",
     "year": 2008
   },
-  "runtime_seconds": 0.0019834170816466212,
+  "runtime_seconds": 0.002207915997132659,
   "status": "PASS"
 }

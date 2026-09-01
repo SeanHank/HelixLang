@@ -31,7 +31,12 @@ Modules:
     organ_crosstalk - organ-organ coupling (doc/30 §9)
     disease_ode_models - per-disease ODE systems (doc/30 §§1-8)
 
-Baseline: 100% real. Every parameter anchored to published literature.
+Baseline: literature-influenced physiological models, not faithful reproductions.
+Referenced physiology and pharmacology constants are anchored to published sources
+where validated (see validation/report.md levels and doc/42). **Not** a medical device
+and **not** clinical decision support — see DISCLAIMER.md. Some subsystems (e.g. gas
+exchange, thermoregulation, unified cardiovascular coupling) are simplified/partial in
+2026 baseline and tracked in doc/42 (Phases A-B).
 """
 from helixlang.plugins.human.bayesian_denoiser import BayesianDenoiser
 from helixlang.plugins.human.calibration_cascade import CalibrationCascade

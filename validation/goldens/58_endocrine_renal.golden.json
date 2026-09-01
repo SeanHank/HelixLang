@@ -15,8 +15,31 @@
     "glucose_after_step": 100.0,
     "tsh_after_step": 0.0
   },
+  "experimental_comparison": {
+    "egfr_40yo_male_cr1_ml_min_173": {
+      "note": "CKD-EPI 2021: 40yo male, creatinine 1.0 mg/dL \u2192 eGFR near ~110; range reflects expected adult normal.",
+      "reference_max": 120.0,
+      "reference_min": 90.0,
+      "tolerance": 15.0,
+      "unit": "mL/min/1.73m2"
+    },
+    "egfr_70yo_female_cr2_ml_min_173": {
+      "note": "CKD-EPI 2021: 70yo female, creatinine 2.0 mg/dL \u2192 moderately reduced eGFR (G3a).",
+      "reference_max": 60.0,
+      "reference_min": 20.0,
+      "tolerance": 20.0,
+      "unit": "mL/min/1.73m2"
+    }
+  },
   "id": "58_endocrine_renal",
-  "reference": "Inker LA et al. 2021, N Engl J Med 385:2031-2043 (CKD-EPI 2021); Bergman RN et al. 1979, Am J Physiol 236:E667 (minimal model)",
-  "runtime_seconds": 7.683294825255871e-05,
+  "reference": {
+    "authors": "Inker LA et al.",
+    "doi": "10.1056/NEJMoa2102953",
+    "journal": "N Engl J Med",
+    "note": "Inker LA et al. 2021, N Engl J Med 385:2031-2043. CKD-EPI 2021 creatinine-based eGFR equation.",
+    "source": "CKD-EPI 2021 eGFR equation",
+    "year": 2021
+  },
+  "runtime_seconds": 6.874999962747097e-05,
   "status": "PASS"
 }

@@ -13,6 +13,6 @@
   },
   "id": "76_unit_safety_compile",
   "reference": "doc/41 \u00a76.3 acceptance \u2014 compile-time DimensionError (core/dim_inferencer.py, core/semantic.py)",
-  "runtime_seconds": 0.00015537498984485865,
+  "runtime_seconds": 0.00015616696327924728,
   "status": "PASS"
 }

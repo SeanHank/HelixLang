@@ -76,6 +76,27 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
+            "reference": {
+                "source": "Hill equation (Hill 1910); Mager & Jusko 2001 direct-effect PD review",
+                "doi": "10.1023/A:1014414520282",
+                "note": "E = E0 + (Emax*C^n)/(EC50^n + C^n); Hill coefficient steepness. Mager DE & Jusko WJ. J Pharmacokinet Pharmacodyn 2001;28:507-532.",
+            },
+            "experimental_comparison": {
+                "effect_at_ec50_fraction": {
+                    "reference_min": 0.4999,
+                    "reference_max": 0.5001,
+                    "tolerance": 0.0001,
+                    "unit": "fraction of Emax",
+                    "note": "At C=EC50, n=1, Hill equation gives exactly E=0.5*Emax.",
+                },
+                "effect_at_high_concentration_fraction": {
+                    "reference_min": 0.99,
+                    "reference_max": 1.0,
+                    "tolerance": 0.01,
+                    "unit": "fraction of Emax",
+                    "note": "At C=1000*EC50, effect approaches Emax.",
+                },
+            },
             "checks": {
                 "hill_at_zero_concentration_is_zero": True,
                 "hill_at_ec50_is_half_max": True,

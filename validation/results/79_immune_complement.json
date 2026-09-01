@@ -27,7 +27,7 @@
     "doi": "10.1371/journal.pone.0198644; 10.1186/1742-4682-8-9",
     "note": "reduced complement cascade + anti-C5 PD; NK/mast/eosinophil/basophil pools and histamine anaphylaxis"
   },
-  "runtime_seconds": 0.4451681670034304,
+  "runtime_seconds": 0.5520387919386849,
   "layer": "human",
   "name": "Complement cascade + NK/mast/Eo/Baso + anaphylaxis (G5/G6)",
   "level": "L3"

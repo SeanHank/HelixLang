@@ -1004,7 +1004,49 @@ __all__ = [
     "HumanSimulation",
     "HumanSimulationConfig",
     "HumanSimulationResult",
+    "run_human_simulation_cohort",
     "PBPKConfig",
     "PDEffect",
     "Pharmacodynamics",
 ]
+
+
+# ============================================================================
+# doc/42 Phase C PF-3 — cohort-level parallelism for HumanSimulation
+# ============================================================================
+
+
+def _run_hsim_worker(config: HumanSimulationConfig) -> HumanSimulationResult:
+    """Top-level worker: build a fresh ``HumanSimulation`` and run it.
+
+    Module-scope (picklable) for ``spawn`` pooling.  ``HumanSimulationConfig``
+    and ``HumanSimulationResult`` are both plain picklable objects, so the pool
+    transports configs in and results out without ever pickling the heavy
+    mutable engine state.
+    """
+    return HumanSimulation(config).run()
+
+
+def run_human_simulation_cohort(
+    config: HumanSimulationConfig,
+    n_simulations: int = 1,
+    *,
+    workers: int = 1,
+) -> list[HumanSimulationResult]:
+    """Run ``n_simulations`` independent ``HumanSimulation`` runs (doc/42 C PF-3).
+
+    Each simulation builds its own engine from the (cheap, picklable) config,
+    so results are identical regardless of whether execution is serial or
+    distributed across a ``spawn`` multiprocessing pool.  Falls back to the
+    single-process loop when ``workers <= 1`` or there is one simulation.
+    """
+    n = max(1, int(n_simulations))
+    args: list[tuple[HumanSimulationConfig]] = [(config,)] * n
+    if workers <= 1 or n <= 1:
+        return [_run_hsim_worker(*a) for a in args]
+
+    import multiprocessing as _mp
+
+    ctx = _mp.get_context("spawn")
+    with ctx.Pool(processes=max(2, int(workers))) as pool:
+        return pool.starmap(_run_hsim_worker, args)

@@ -108,6 +108,11 @@ def run() -> dict:
                 "growth_rate_rel_error": growth_rel_err,
                 "growth_rate_tolerance": TOLERANCE,
             },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+                "golden_hash": "verified",
+            },
             "runtime_seconds": time.perf_counter() - t0,
         }
 

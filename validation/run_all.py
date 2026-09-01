@@ -62,6 +62,17 @@ def run_benchmark(benchmark_dir: Path) -> dict:
         )
         elapsed = time.perf_counter() - t0
         if result.returncode != 0:
+            # A benchmark can legitimately exit nonzero for SKIP (e.g. an
+            # unavailable external tool, doc/41 §2.2: cannot run → skip).
+            # Honor its JSON status when present so a skip never downgrades
+            # to FAIL in the gate summary.
+            try:
+                data = json.loads(result.stdout)
+                if isinstance(data, dict) and data.get("status") == "SKIP":
+                    data["runtime_seconds"] = elapsed
+                    return data
+            except (json.JSONDecodeError, AttributeError, TypeError):
+                pass
             return {
                 "id": benchmark_dir.name,
                 "status": "FAIL",

@@ -23,11 +23,17 @@
     "child_pugh_score": 14.0
   },
   "reference": {
-    "microbiome": "Spanogiannopoulos P et al. 2016, Nat Rev Pharmacol 16:135",
+    "source": "Gut microbiome xenobiotic metabolism and organ crosstalk",
+    "authors": "Spanogiannopoulos P, Turnbaugh PJ et al.",
+    "year": 2016,
+    "journal": "Nat Rev Microbiol",
+    "doi": "10.1038/nrmicro.2016.17",
+    "note": "Spanogiannopoulos P et al. 2016, Nat Rev Microbiol 14:273-287. Gut microbial drug metabolism.",
+    "microbiome": "Spanogiannopoulos P et al. 2016, Nat Rev Microbiol 14:273",
     "organ_crosstalk": "Qi Z et al. 2017, PLoS Comput Biol 13:e1005416"
   },
-  "runtime_seconds": 0.4401594999944791,
+  "runtime_seconds": 0.6322176250396296,
   "layer": "physiology",
   "name": "Microbiome + organ crosstalk",
-  "level": "L0"
+  "level": "L3"
 }

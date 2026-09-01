@@ -24,7 +24,9 @@ backward-compatible.  Deterministic: every rate is a first-order constant.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 try:  # numpy optional (doc/39 O2/O10 idiom)
     import numpy as _np
@@ -43,7 +45,7 @@ def _rate(hl_h: float) -> float:
 def _hill(x: float, half: float, n: float) -> float:
     xp = x ** n
     hp = half ** n + 1e-12
-    return xp / (hp + xp)
+    return float(xp / (hp + xp))
 
 
 @dataclass
@@ -156,9 +158,8 @@ def cohort_complement_step(models: list[ComplementCascade], dt_h: float,
         return [m.anti_c5_dose for m in models]
 
     np = _np
-    n = len(models)
 
-    def arr(get):
+    def arr(get: Callable[[Any], float]) -> Any:
         return np.array([get(m) for m in models], dtype=float)
 
     c3 = arr(lambda m: m.c3)
@@ -176,10 +177,14 @@ def cohort_complement_step(models: list[ComplementCascade], dt_h: float,
     c5_step = 0.06 * (1.0 - block)
 
     c3_loss = np.minimum(c3, 0.12 * conv * c3 * dt_h)
-    c3 -= c3_loss; c3b += c3_loss; c3a += c3_loss
+    c3 -= c3_loss
+    c3b += c3_loss
+    c3a += c3_loss
 
     c5_loss = np.minimum(c5, c5_step * conv * c5 * dt_h)
-    c5 -= c5_loss; c5a += c5_loss; mac += c5_loss
+    c5 -= c5_loss
+    c5a += c5_loss
+    mac += c5_loss
 
     c3 += 0.02 * (1.0 - c3) * dt_h
     c5 += 0.02 * (1.0 - c5) * dt_h
@@ -187,12 +192,18 @@ def cohort_complement_step(models: list[ComplementCascade], dt_h: float,
     cas = np.exp(-_LN2 / 0.5 * dt_h)
     opsin = np.exp(-_LN2 / 4.0 * dt_h)
     macf = np.exp(-_LN2 / 6.0 * dt_h)
-    c3a *= cas; c5a *= cas; c3b *= opsin; mac *= macf
+    c3a *= cas
+    c5a *= cas
+    c3b *= opsin
+    mac *= macf
 
     for i, m in enumerate(models):
-        m.c3 = float(c3[i]); m.c5 = float(c5[i])
-        m.c3b = float(c3b[i]); m.c3a = float(c3a[i])
-        m.c5a = float(c5a[i]); m.mac = float(mac[i])
+        m.c3 = float(c3[i])
+        m.c5 = float(c5[i])
+        m.c3b = float(c3b[i])
+        m.c3a = float(c3a[i])
+        m.c5a = float(c5a[i])
+        m.mac = float(mac[i])
     return [m.anti_c5_dose for m in models]
 
 
@@ -223,7 +234,6 @@ __all__ = ["ComplementCascade", "cohort_complement_step",
 
 def _l7_parameter_table() -> dict[str, float]:
     """Return the 142-parameter table (Zewde & Morikis orderings by pathway)."""
-    ln2 = _LN2
     hl = _rate
     P: dict[str, float] = {}
 
@@ -351,21 +361,34 @@ class FullL7Complement:
         mac_reg                    regulator (CD59/clusterin) occupancy
     """
 
-    def __init__(self, params: "dict[str, float] | None" = None,
+    def __init__(self, params: dict[str, float] | None = None,
                  c5ar2_desensitise: bool = True) -> None:
         full = _complete_l7_parameters()
         if params:
             full.update(params)
         self.p = full
         self.c5ar2_desensitise = c5ar2_desensitise
+        self.reset_state()
 
-        self.c3 = 1.0; self.c5 = 1.0; self.c4 = 1.0; self.c2 = 1.0
+    def reset_state(self) -> None:
+        self.c3 = 1.0
+        self.c5 = 1.0
+        self.c4 = 1.0
+        self.c2 = 1.0
         self.factor_b = 1.0
-        self.c3b = 0.0; self.c3a = 0.0; self.c5a = 0.0
-        self.c4b2a = 0.0; self.c3bbb = 0.0
-        self.mac = 0.0; self.mac_reg = 0.0
-        self.c3ar = 0.0; self.c5ar1 = 0.0; self.c5ar2 = 0.0
-        self.c3ar_desens = 0.0; self.c5ar1_desens = 0.0; self.c5ar2_desens = 0.0
+        self.c3b = 0.0
+        self.c3a = 0.0
+        self.c5a = 0.0
+        self.c4b2a = 0.0
+        self.c3bbb = 0.0
+        self.mac = 0.0
+        self.mac_reg = 0.0
+        self.c3ar = 0.0
+        self.c5ar1 = 0.0
+        self.c5ar2 = 0.0
+        self.c3ar_desens = 0.0
+        self.c5ar1_desens = 0.0
+        self.c5ar2_desens = 0.0
         self._signal = 0.0
 
     # -- parameter accessors ------------------------------------------------
@@ -496,7 +519,7 @@ class FullL7Complement:
                 "mac": self.mac, "factor_h": self.p["factor_h_decode"]}
 
     def reset(self) -> None:
-        self.__init__(self.p)  # keep calibrated params, reset dynamics
+        self.reset_state()  # keep calibrated params, reset dynamics
 
 
 # Phase G knockout/overexpression helper for validation gates.

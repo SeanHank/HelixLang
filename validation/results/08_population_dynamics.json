@@ -135,7 +135,7 @@
     ],
     "note": "Model maps 1 tick = 1 min; TICKS_PER_DIVISION=20 matches 20 min doubling in rich media"
   },
-  "runtime_seconds": 0.3416931659448892,
+  "runtime_seconds": 0.47901174996513873,
   "layer": "population",
   "name": "Population dynamics",
   "level": "L4"

@@ -3,7 +3,7 @@
   "helix_types": 9,
   "id": "14_type_system_flow",
   "module_import_export": true,
-  "runtime_seconds": 0.001969749922864139,
+  "runtime_seconds": 0.0033391659380868077,
   "status": "PASS",
   "symbol_table_define_lookup": true,
   "type_annotation_parsing": true,

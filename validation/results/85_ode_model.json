@@ -1,0 +1,30 @@
+{
+  "id": "85_ode_model",
+  "status": "PASS",
+  "checks": {
+    "produces_result": true,
+    "uses_ode_model_backend": true,
+    "mass_conservation": true,
+    "equipartition_toward_steady_state": true,
+    "deterministic": true,
+    "authored_in_language": true
+  },
+  "details": {
+    "final_A": 48.208677,
+    "final_B": 51.791323,
+    "model": "two_comp",
+    "n_species": 2,
+    "n_reactions": 2
+  },
+  "reference": {
+    "source": "Ten Berge, Polynomial approach to two-compartment drug disposition; numeric integration of an explicit-order RK4 scheme",
+    "authors": "Ten Berge JTF",
+    "year": 1993,
+    "doi": "10.1016/0010-4825(93)90017-5",
+    "note": "Analytic solution of a linear two-compartment ODE (mass-conserving A <-> B exchange)."
+  },
+  "runtime_seconds": 0.7057847499381751,
+  "layer": "language",
+  "name": "User-authored ODE model authored in the Helix language (doc/42 Phase D)",
+  "level": "L3"
+}

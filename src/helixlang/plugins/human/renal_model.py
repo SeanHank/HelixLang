@@ -462,6 +462,93 @@ class RenalFunctionModel:
         """KDIGO risk-heatmap cell label (``"G4·A3"`` style)."""
         return f"{self.kdigo_g_stage()}·{self.kdigo_a_category()}"
 
+    # ------------------------------------------------------------------
+    # doc/42 Phase B RL-3 — filtration / clearance / tubular / acid-base
+    # ------------------------------------------------------------------
+
+    @property
+    def renal_plasma_flow_ml_per_min(self) -> float:
+        """Estimated renal plasma flow (RPF), scaled by kidney function.
+
+        Normal RPF is ~ 540 mL/min; as functional GFR falls the fraction
+        of perfused nephrons (and hence RPF) declines in parallel.
+        """
+        return 540.0 * max(0.1, self.functional_egfr / 100.0)
+
+    def filtration_fraction(self) -> float:
+        """FF = GFR / RPF (normal ~ 0.20, rises in some CKD states)."""
+        return self.functional_egfr / max(1.0, self.renal_plasma_flow_ml_per_min)
+
+    def renal_clearance_l_per_h(self, protein_binding_fraction: float = 0.0) -> float:
+        """GFR-driven solute clearance (L/h) for the unbound fraction.
+
+        Clearance = eGFR (mL/min) x unbound fraction, converted to L/h.
+        A diuretic/secreted solute adds net tubular secretion; a highly
+        protein-bound drug is filtered only in its unbound form.
+        """
+        egfr_ml_min = self.reported_egfr()
+        unbound = max(0.0, 1.0 - protein_binding_fraction)
+        return egfr_ml_min * unbound * 0.06
+
+    def tubular_clearance_ratio(
+        self,
+        secretion_factor: float = 1.0,
+        reabsorption_factor: float = 0.0,
+    ) -> float:
+        """Net tubular handling = (filtered + secreted - reabsorbed)/filtered.
+
+        * ``secretion_factor`` > 1 mimics active tubular secretion
+          (e.g. penicillins, furosemide) giving CL > GFR.
+        * ``reabsorption_factor`` > 0 mimics tubular reabsorption
+          (e.g. urate, water) giving CL < GFR.
+        """
+        filtered = 1.0
+        net = max(0.1, filtered + 0.5 * secretion_factor - reabsorption_factor)
+        return net
+
+    def creatinine_turnover(self, production_mg_per_day: float = 1000.0) -> float:
+        """Steady-state creatinine clearance implied by current serum creatinine.
+
+        At steady state CL_creat = production / serum_creatinine, matching the
+        clearance-defining kinetics already used to lag serum creatinine.
+        """
+        return production_mg_per_day / max(0.3, self.serum_creatinine * 1440.0)
+
+    def _bicarbonate_meq_per_l(self, base: float = 24.0) -> float:
+        """Metabolic bicarbonate with renal retention as GFR falls (acidosis)."""
+        if self.functional_egfr >= 60.0:
+            return base
+        drop = min(10.0, (60.0 - self.functional_egfr) * 0.15)
+        return max(10.0, base - drop)
+
+    def acid_base_ph(
+        self,
+        paco2_mmhg: float = 40.0,
+        bicarbonate_meq_per_l: float | None = None,
+    ) -> float:
+        """Plasma pH via Henderson-Hasselbalch (RL-3 acid-base buffer).
+
+        pH = 6.1 + log10( [HCO3-] / (0.03 x PaCO2) ).
+
+        Bicarbonate defaults to the model's metabolically-appropriate value
+        (renal retention as GFR falls), so a falling GFR trends toward
+        metabolic acidosis unless respiration compensates.
+        """
+        hco3 = (
+            bicarbonate_meq_per_l
+            if bicarbonate_meq_per_l is not None
+            else self._bicarbonate_meq_per_l()
+        )
+        return 6.1 + math.log10(max(0.05, hco3) / (0.0307 * max(0.05, paco2_mmhg)))
+
+    def acid_base_summary(self) -> dict[str, float]:
+        """RL-3 acid-base snapshot (pH + bicarbonate + PaCO2 default)."""
+        return {
+            "ph": self.acid_base_ph(),
+            "bicarbonate_meq_per_l": self._bicarbonate_meq_per_l(),
+            "paco2_mmhg": 40.0,
+        }
+
     def lab_values(self) -> dict[str, float]:
         """Snapshot formatted for ClinicalLabs-style integration."""
         return {
@@ -471,6 +558,10 @@ class RenalFunctionModel:
             "uacr_mg_g": self.uacr_mg_g,
             "chronic_slope_ml_min_per_year": self.chronic_slope_ml_per_year(),
             "kfre_5y_risk": self.kfre_risk(years=5),
+            "renal_plasma_flow_ml_per_min": self.renal_plasma_flow_ml_per_min,
+            "filtration_fraction": self.filtration_fraction(),
+            "renal_clearance_l_per_h": self.renal_clearance_l_per_h(),
+            "acid_base_ph": self.acid_base_ph(),
         }
 
 

@@ -30,6 +30,6 @@
     "kinetics": "Bar-Even A et al. 2011, Biochemistry 50:4402",
     "repressilator": "Elowitz MB et al. 2000, Nature 403:335"
   },
-  "runtime_seconds": 0.005493332981131971,
+  "runtime_seconds": 0.005713500082492828,
   "status": "PASS"
 }

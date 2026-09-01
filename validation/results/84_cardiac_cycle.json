@@ -1,0 +1,61 @@
+{
+  "id": "84_cardiac_cycle",
+  "status": "PASS",
+  "checks": {
+    "produces_result": true,
+    "uses_cardiology_backend": true,
+    "co_from_flow_balance": true,
+    "ci_normal_range": true,
+    "hr_physiologic": true,
+    "map_physiologic": true,
+    "sbp_gt_dbp": true,
+    "deterministic": true
+  },
+  "details": {
+    "row": {
+      "period_s": 0.8,
+      "heart_rate_bpm": 88.57,
+      "stroke_volume_ml": 70.0,
+      "cardiac_output_l_min": 6.2,
+      "cardiac_index_l_min_m2": 3.351,
+      "map_mmhg": 93.0,
+      "systolic_bp_mmhg": 115.2,
+      "diastolic_bp_mmhg": 70.7,
+      "conduction": "normal"
+    },
+    "hr_bpm": 88.57,
+    "co_l_min": 6.2,
+    "map_mmhg": 93.0
+  },
+  "reference": {
+    "source": "Guyton & Hall, Textbook of Medical Physiology (closed-loop cardiovascular control)",
+    "authors": "Guyton AC, Hall JE",
+    "year": 2016,
+    "doi": "10.1016/B978-0-323-39335-5.00001-1",
+    "note": "Closed-loop cardiac output / MAP regulation from the Frank-Starling and baroreflex control of the circulation (Guyton & Hall, 13th ed.)."
+  },
+  "experimental_comparison": {
+    "cardiac_index_l_min_m2": {
+      "reference_min": 2.5,
+      "reference_max": 4.0,
+      "unit": "L/min/m2",
+      "note": "Normal adult cardiac index."
+    },
+    "heart_rate_bpm": {
+      "reference_min": 55.0,
+      "reference_max": 120.0,
+      "unit": "bpm",
+      "note": "Normal resting adult heart rate."
+    },
+    "mean_arterial_pressure_mmhg": {
+      "reference_min": 70.0,
+      "reference_max": 110.0,
+      "unit": "mmHg",
+      "note": "Normal resting mean arterial pressure."
+    }
+  },
+  "runtime_seconds": 0.909455707995221,
+  "layer": "pharmacology",
+  "name": "Cardiology closed-loop cardiac cycle (doc/42 Phase E)",
+  "level": "L3"
+}

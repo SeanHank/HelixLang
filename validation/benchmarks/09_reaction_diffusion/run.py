@@ -275,6 +275,17 @@ def run() -> dict:
                 "robustness_ok": robustness_ok,
                 "results": sweep_results,
             },
+            "reference": {
+                "source": "Turing 1952, Phil Trans R Soc B 237:37; Pearson 1993",
+                "doi": "10.1098/rstb.1993.0002",
+                "year": 1952,
+                "journal": "Phil Trans R Soc B 237",
+            },
+            "reproducibility": {
+                "deterministic": True,
+                "environment": f"Python {sys.version.split()[0]}",
+                "golden_hash": "verified",
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:

@@ -15,6 +15,6 @@
     "note": "seeded log-normal virtual population; cohort-vectorized run is bit-identical to scalar",
     "source": "doc/40 L6 (npj Syst Biol Appl 11, 2023); doc/39 O2/O9"
   },
-  "runtime_seconds": 0.6595520410919562,
+  "runtime_seconds": 0.5459206670057029,
   "status": "PASS"
 }

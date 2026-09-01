@@ -46,10 +46,12 @@
     "year": 1993,
     "journal": "Med Decis Making",
     "volume": "13",
-    "pages": "322"
+    "pages": "322",
+    "doi": "10.1177/0272989X9301300409",
+    "note": "Sonnenberg FA, Beck JR 1993 Markov models in medical decision making (disease progression)."
   },
-  "runtime_seconds": 0.4430904999608174,
+  "runtime_seconds": 0.6122702090069652,
   "layer": "physiology",
   "name": "Disease progression + recovery",
-  "level": "L0"
+  "level": "L3"
 }

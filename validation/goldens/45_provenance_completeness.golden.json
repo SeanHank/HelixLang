@@ -79,7 +79,7 @@
       },
       "source_hash": "",
       "source_path": null,
-      "timestamp": "2026-09-01T02:43:52Z"
+      "timestamp": "2026-09-01T03:53:21Z"
     },
     "fidelity_mode": "full",
     "missing_contract_keys": [],
@@ -94,6 +94,6 @@
     }
   },
   "id": "45_provenance_completeness",
-  "runtime_seconds": 0.011997709050774574,
+  "runtime_seconds": 0.01279429194983095,
   "status": "PASS"
 }

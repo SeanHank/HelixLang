@@ -256,6 +256,11 @@ class TestSDESolver:
         assert abs(sde_final - ode_final) < 2.0
 
 
+def _mod_drift(t: float, s: float) -> float:
+    """Module-level linear-decline drift (picklable for spawn pool)."""
+    return -0.1 * s
+
+
 class TestSDEEnsemble:
     """Tests for SDE ensemble distribution."""
 
@@ -282,6 +287,35 @@ class TestSDEEnsemble:
         assert 0.05 in dist.percentiles
         assert 0.95 in dist.percentiles
         assert len(dist.percentiles[0.50]) > 0
+
+    def test_parallel_matches_serial(self) -> None:
+        # module-level drift fn so it is picklable under a spawn pool
+        config = SDEConfig(n_patients=20, seed=7)
+        serial = solve_sde_ensemble(
+            t_end=3.0, dt=0.2, state0=10.0,
+            drift_fn=_mod_drift,
+            config=config, workers=1,
+        )
+        parallel = solve_sde_ensemble(
+            t_end=3.0, dt=0.2, state0=10.0,
+            drift_fn=_mod_drift,
+            config=config, workers=2,
+        )
+        assert serial.trajectories == parallel.trajectories
+        assert serial.means == parallel.means
+        assert serial.stds == parallel.stds
+
+    def test_workers_one_matches_default(self) -> None:
+        config = SDEConfig(n_patients=10, seed=3)
+        default = solve_sde_ensemble(
+            t_end=2.0, dt=0.5, state0=10.0,
+            drift_fn=_mod_drift, config=config,
+        )
+        explicit = solve_sde_ensemble(
+            t_end=2.0, dt=0.5, state0=10.0,
+            drift_fn=_mod_drift, config=config, workers=1,
+        )
+        assert default.trajectories == explicit.trajectories
 
 
 # =============================================================================

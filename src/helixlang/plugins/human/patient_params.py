@@ -22,13 +22,13 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 try:  # numpy optional (doc/39 O2 idiom); only needed for array transforms
     import numpy as _np
     _HAS_NUMPY = True
 except Exception:  # pragma: no cover
-    _np = None
+    _np = None  # type: ignore[assignment]
     _HAS_NUMPY = False
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ _BIOPHYSICAL_KEYS: dict[str, tuple[str, int]] = {
 }
 
 
-def nominal_params() -> "list[float]":
+def nominal_params() -> list[float]:
     """Return the 432-length nominal (healthy-mean) parameter vector.
 
     Values are physically anchored (±15–30% physiologic ranges) so the posterior
@@ -206,7 +206,7 @@ class PatientParameterSet:
     (c) deterministic patient jitter for G13 feeding.
     """
 
-    def __init__(self, params: Sequence[float] | None = None, raw: "np.ndarray | None" = None) -> None:
+    def __init__(self, params: Sequence[float] | None = None, raw: _np.ndarray | None = None) -> None:
         if raw is not None:
             self._params = [float(v) for v in raw]
         elif params is not None:
@@ -242,13 +242,13 @@ class PatientParameterSet:
         lo, hi = DOMAIN_SLICES[name]
         return ParamSlice(name, lo, hi - lo)
 
-    def copy(self) -> "PatientParameterSet":
+    def copy(self) -> PatientParameterSet:
         return PatientParameterSet(list(self._params))
 
     # -- G13 jitter ---------------------------------------------------------
     @classmethod
     def patient_variant(cls, seed: int, patient_idx: int = 0,
-                        sd_log: float = 0.15) -> "PatientParameterSet":
+                        sd_log: float = 0.15) -> PatientParameterSet:
         """Deterministic per-patient log-normal jitter (G13 feeding, doc/39 §5.3)."""
         base = nominal_params()
         rnd = random.Random(seed * 1000003 + patient_idx)
@@ -257,7 +257,7 @@ class PatientParameterSet:
 
     # -- prior descriptor for the Bayesian re-fitter ----------------------
     @staticmethod
-    def prior(log_sd: float = 0.15) -> "list[float]":
+    def prior(log_sd: float = 0.15) -> list[float]:
         """Return a 432-length prior dispersion (log std) for HMC re-fit."""
         return [log_sd] * N_PARAMS
 
@@ -265,7 +265,7 @@ class PatientParameterSet:
 class PatientParameterTable:
     """Collection of named parameter sets (multiple patients / archetypes)."""
 
-    def __init__(self, sets: "dict[str, PatientParameterSet] | None" = None) -> None:
+    def __init__(self, sets: dict[str, PatientParameterSet] | None = None) -> None:
         self._sets: dict[str, PatientParameterSet] = dict(sets or {})
 
     def add(self, name: str, params: PatientParameterSet) -> None:
@@ -275,7 +275,7 @@ class PatientParameterTable:
         return self._sets[name]
 
     @classmethod
-    def from_seed(cls, n: int, seed: int = 0, sd_log: float = 0.15) -> "PatientParameterTable":
+    def from_seed(cls, n: int, seed: int = 0, sd_log: float = 0.15) -> PatientParameterTable:
         table = cls()
         for i in range(n):
             table.add(f"patient_{i}", PatientParameterSet.patient_variant(seed, i, sd_log))
@@ -288,7 +288,7 @@ class PatientParameterTable:
         return len(self._sets)
 
 
-def to_array(params: "list[float]") -> "np.ndarray":
+def to_array(params: list[float]) -> _np.ndarray:
     """Return the 432-vector as a numpy array (raises if numpy absent)."""
     if _np is None:
         raise RuntimeError("numpy is required for PatientParameterSet.to_array")

@@ -116,6 +116,8 @@ def run() -> dict:
                 "journal": "Med Decis Making",
                 "volume": "13",
                 "pages": "322",
+                "doi": "10.1177/0272989X9301300409",
+                "note": "Sonnenberg FA, Beck JR 1993 Markov models in medical decision making (disease progression).",
             },
             "runtime_seconds": time.perf_counter() - t0,
         }

@@ -22,6 +22,6 @@
     "note": "agent grid + chemokine diffusion + contact signaling, deterministic replay under numpy backend",
     "source": "doc/40 G15; doc/31 \u00a72.4 (BIS agent taxonomy, spatial ABM design)"
   },
-  "runtime_seconds": 0.013656500028446317,
+  "runtime_seconds": 0.01399041700642556,
   "status": "PASS"
 }

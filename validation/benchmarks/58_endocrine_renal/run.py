@@ -72,10 +72,30 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": (
-                "Inker LA et al. 2021, N Engl J Med 385:2031-2043 (CKD-EPI 2021); "
-                "Bergman RN et al. 1979, Am J Physiol 236:E667 (minimal model)"
-            ),
+            "reference": {
+                "source": "CKD-EPI 2021 eGFR equation",
+                "authors": "Inker LA et al.",
+                "year": 2021,
+                "journal": "N Engl J Med",
+                "doi": "10.1056/NEJMoa2102953",
+                "note": "Inker LA et al. 2021, N Engl J Med 385:2031-2043. CKD-EPI 2021 creatinine-based eGFR equation.",
+            },
+            "experimental_comparison": {
+                "egfr_40yo_male_cr1_ml_min_173": {
+                    "reference_min": 90.0,
+                    "reference_max": 120.0,
+                    "tolerance": 15.0,
+                    "unit": "mL/min/1.73m2",
+                    "note": "CKD-EPI 2021: 40yo male, creatinine 1.0 mg/dL → eGFR near ~110; range reflects expected adult normal.",
+                },
+                "egfr_70yo_female_cr2_ml_min_173": {
+                    "reference_min": 20.0,
+                    "reference_max": 60.0,
+                    "tolerance": 20.0,
+                    "unit": "mL/min/1.73m2",
+                    "note": "CKD-EPI 2021: 70yo female, creatinine 2.0 mg/dL → moderately reduced eGFR (G3a).",
+                },
+            },
             "runtime_seconds": elapsed,
         })
     except Exception as e:
@@ -83,10 +103,13 @@ def run() -> dict:
             "status": "FAIL",
             "checks": {},
             "details": {"error": str(e)},
-            "reference": (
-                "Inker LA et al. 2021, N Engl J Med 385:2031-2043 (CKD-EPI 2021); "
-                "Bergman RN et al. 1979, Am J Physiol 236:E667 (minimal model)"
-            ),
+            "reference": {
+                "source": "CKD-EPI 2021 eGFR equation",
+                "authors": "Inker LA et al.",
+                "year": 2021,
+                "doi": "10.1056/NEJMoa2102953",
+                "note": "CKD-EPI 2021 creatinine-based eGFR equation.",
+            },
             "runtime_seconds": time.perf_counter() - t0,
         })
     return results

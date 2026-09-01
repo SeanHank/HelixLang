@@ -1,0 +1,21 @@
+# Bundled plugin manifest (doc/38 §6.8) — cardiology.
+#
+# Declares what the bundled cardiology plugin provides (a grammar + a sim
+# backend) so `helixc plugin list` and the E5 gate can validate the manifest
+# contract without importing the plugin (stdlib tomllib only).
+name = "cardiology"
+version = "1.0.0"
+entry_point = "helixlang.plugins.cardiology"
+abi_version = 1
+
+[provides]
+grammars = ["cardiac_cycle"]
+ast = []
+ir = []
+backends = ["cardiology"]
+
+[capabilities]
+flags = ["--low-fidelity"]
+
+[requires]
+pip = []

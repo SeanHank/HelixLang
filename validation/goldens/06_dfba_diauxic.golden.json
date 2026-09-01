@@ -18,6 +18,16 @@
     "reference_acetate_peak_mM": 4.0,
     "reference_depletion_h": 4.0,
     "reference_glucose_mM": 15.0,
+    "reference_range_max": {
+      "acetate_peak_mM": 4.4,
+      "glucose_depletion_h": 4.4,
+      "unit": "h / mM"
+    },
+    "reference_range_min": {
+      "acetate_peak_mM": 3.6,
+      "glucose_depletion_h": 3.6,
+      "unit": "h / mM"
+    },
     "references": [
       "Enjalbert et al. 2015, J Bacteriol 197:2301",
       "Varma & Palsson 1993, Appl Environ Microbiol 59:2465"
@@ -178,7 +188,7 @@
       }
     ]
   },
-  "runtime_seconds": 1.2680304161040112,
+  "runtime_seconds": 1.3642829590244219,
   "status": "PASS",
   "validation": {
     "acetate_peak_30pct": true,

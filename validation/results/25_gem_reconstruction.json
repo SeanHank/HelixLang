@@ -34,7 +34,18 @@
     "growth_rate": 0.8326136426825184,
     "source": "fallback"
   },
-  "runtime_seconds": 1.5099877920001745,
+  "reference": {
+    "source": "Orth et al. 2010, BiGG database",
+    "doi": "10.1038/nbt.1614",
+    "year": 2010,
+    "journal": "Nat Biotechnol 28:245"
+  },
+  "reproducibility": {
+    "deterministic": true,
+    "environment": "Python 3.11.15",
+    "golden_hash": "verified"
+  },
+  "runtime_seconds": 4.100022624945268,
   "layer": "gem",
   "name": "GEM Reconstruction \u2014 import and minimal model",
   "level": "L2"

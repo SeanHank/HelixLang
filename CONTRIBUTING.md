@@ -104,10 +104,10 @@ src/helixlang/     The package: three layers —
                      • plugins/     biological runtime + scientific apps (lazy)
                      • sim_runtime/ server/ debugger/ interop/ web/ _accel/
                     169 source modules across core, plugins, and support packages
-tests/             pytest suite (132 files, 3,315 tests) + shared conftest fixtures
+tests/             pytest suite (137 files, 3,315 tests) + shared conftest fixtures
 examples/          runnable .helix programs (must always compile & run)
 doc/               All technical documentation (37 files, kept in sync with code)
-validation/        75 reproducible benchmarks with SHA256-verified golden outputs
+validation/        85 reproducible benchmarks with SHA256-verified golden outputs
 .github/workflows/ CI: lint / typecheck / test / examples-smoke
 ```
 
@@ -118,7 +118,7 @@ Key entry points for contributors:
 - `doc/02-language-spec.md` — the authoritative language spec.
 - `doc/08-api-reference.md` — per-module Python API reference.
 - `doc/34-architectural-improvement-plan.md` — architecture plan + validation suite.
-- `validation/` — 75 reproducible benchmarks with SHA256-verified golden outputs.
+- `validation/` — 85 reproducible benchmarks with SHA256-verified golden outputs.
 - `tests/conftest.py` — shared fixtures (Flask client, example sources, paths).
 
 ## Finding something to work on
@@ -349,7 +349,7 @@ python validation/goldens/generate_goldens.py
 ```
 
 Current metrics (2026-08-27):
-- **75/75** benchmarks PASS
+- **84/85** benchmarks PASS
 - **40+** published references cited
 - **0** non-deterministic failures
 - **Median error**: ~3.0% (quantitative benchmarks vs published/analytical references)
