@@ -45,18 +45,24 @@ except ImportError:  # pragma: no cover - numpy is a project dependency
 # lazily-safe; adaptive.py itself imports nothing from immune, so no cycle.
 from helixlang.plugins.human.adaptive import (  # noqa: E402
     AdaptiveImmuneModel as _AdaptiveImmuneModel,
+)
+from helixlang.plugins.human.adaptive import (  # noqa: E402
     cohort_adaptive_step as _cohort_adaptive_step,
 )
 
 # doc/40 Phase C: reduced complement cascade (G5) and NK/mast pools (G6).
 from helixlang.plugins.human.complement import (  # noqa: E402
     ComplementCascade as _ComplementCascade,
+)
+from helixlang.plugins.human.complement import (  # noqa: E402
     cohort_complement_step as _cohort_complement_step,
 )
 
 # doc/40 Phase C: tissue vs blood pseudo-compartments (G10).
 from helixlang.plugins.human.tissue_blood import (  # noqa: E402
     TissueBloodModel as _TissueBloodModel,
+)
+from helixlang.plugins.human.tissue_blood import (  # noqa: E402
     cohort_tissue_blood_step as _cohort_tissue_blood_step,
 )
 

@@ -92,6 +92,6 @@
     "note": "FBA predicts max growth rate under given constraints; experimental values vary by strain and conditions"
   },
   "errors": [],
-  "runtime_seconds": 1.5834787080530077,
+  "runtime_seconds": 1.3188734160503373,
   "level": "L4"
 }

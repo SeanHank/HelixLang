@@ -19,7 +19,7 @@
     "known_interaction_count": 44
   },
   "reference": "Keating SM et al. 2020, Nat Biotechnol 38:534-543",
-  "runtime_seconds": 3.0009000420104712,
+  "runtime_seconds": 2.739334874902852,
   "layer": "metabolism",
   "name": "SBML import + GRN inference",
   "level": "L0"

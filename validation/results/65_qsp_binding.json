@@ -53,7 +53,7 @@
       "note": "Schild-type competitive antagonism: antagonist reduces agonist effect at same agonist concentration."
     }
   },
-  "runtime_seconds": 0.523459666990675,
+  "runtime_seconds": 0.8144691670313478,
   "layer": "pharmacology",
   "name": "QSP binding models",
   "level": "L4"

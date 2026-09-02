@@ -17,7 +17,7 @@
     "tolerance": 1e-06,
     "n_cells_tested": 3
   },
-  "runtime_seconds": 0.18316237500403076,
+  "runtime_seconds": 0.19921212503686547,
   "layer": "regulatory",
   "name": "Sparse GRN",
   "level": "L0"

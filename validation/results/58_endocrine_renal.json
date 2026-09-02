@@ -41,7 +41,7 @@
       "note": "CKD-EPI 2021: 70yo female, creatinine 2.0 mg/dL \u2192 moderately reduced eGFR (G3a)."
     }
   },
-  "runtime_seconds": 0.5652449999470264,
+  "runtime_seconds": 0.5903310000430793,
   "layer": "pharmacology",
   "name": "Endocrine + renal ODEs",
   "level": "L4"

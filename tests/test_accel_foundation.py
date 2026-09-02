@@ -9,9 +9,9 @@ import importlib
 
 import pytest
 
-from helixlang.plugins.runtime.grn import GRN, TelegraphPromoter
 from helixlang._accel._loaders import choose_backend, load_hot
 from helixlang.core.errors import NativeBackendError
+from helixlang.plugins.runtime.grn import GRN, TelegraphPromoter
 
 
 def _clear_pkg(pkg: str) -> None:
@@ -172,7 +172,6 @@ def test_grn_step_accel_noise_matches_step(monkeypatch):
         return g
 
     a, b = build(), build()
-    import random
     # Interleave: a runs the scalar path, b runs accel path, then swap so the
     # RNG draw sequences line up between the two entry points tick-by-tick.
     for _ in range(20):

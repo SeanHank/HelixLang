@@ -18,7 +18,7 @@
     "utr5_length": 13,
     "utr3_length": 9
   },
-  "runtime_seconds": 0.054832750000059605,
+  "runtime_seconds": 0.07826479198411107,
   "layer": "molecular",
   "name": "DNA transcription",
   "level": "L0"

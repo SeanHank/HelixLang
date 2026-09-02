@@ -23,7 +23,7 @@
     "doi": "10.1186/1742-4682-8-9",
     "note": "agent grid + chemokine diffusion + contact signaling, deterministic replay under numpy backend"
   },
-  "runtime_seconds": 0.5524834590032697,
+  "runtime_seconds": 0.6627326249144971,
   "layer": "human",
   "name": "Spatial immune ABM \u2014 chemokine migration, contact signaling, deterministic replay (G15)",
   "level": "L0"
