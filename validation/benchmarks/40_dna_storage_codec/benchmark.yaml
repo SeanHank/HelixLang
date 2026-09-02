@@ -1,7 +1,7 @@
 id: 40_dna_storage_codec
 name: DNA Storage — encode/decode roundtrip
 layer: dna_storage
-level: L0
+level: L1
 reference: Goldman 2013, Erlich 2017
 input: none (test string "HELLO")
 parameters: {}

@@ -166,7 +166,7 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 |--------|-------|
 | Source modules | 219 |
 | Test cases | 3889 (81% coverage) |
-| Validation benchmarks | 85 (84 pass) |
+| Validation benchmarks | 85 (85 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
@@ -311,12 +311,12 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **84/85** |
+| Benchmarks passing | **85/85** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
 | Worst-case error | **16.7%** (population doubling time) |
-| SHA256 golden verification | **85/85** golden files (84 pass, 1 skip—`56_blast_search` needs external BLAST; `11_performance_comparison` is performance-only, no hash) |
+| SHA256 golden verification | **85/85** golden files (`11_performance_comparison` is performance-only, no hash) |
 
 Every benchmark records: **Reference → Expected range → Helix result → Error → Reproducibility**.
 
@@ -379,7 +379,7 @@ python tests/test_determinism_audit.py
 ```
 
 - **3889 test cases**(all passing, 81% coverage)
-- [84/85 validation benchmarks](validation/report.md) with SHA256 goldens
+- [85/85 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

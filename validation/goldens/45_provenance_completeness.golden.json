@@ -41,7 +41,7 @@
       },
       "extra": {},
       "fidelity_mode": "full",
-      "helix_version": "2026.8.5",
+      "helix_version": "2026.9.0",
       "literature_references": [],
       "model_version": "",
       "parameter_set": {
@@ -79,7 +79,7 @@
       },
       "source_hash": "",
       "source_path": null,
-      "timestamp": "2026-09-01T03:53:21Z"
+      "timestamp": "2026-09-02T14:48:19Z"
     },
     "fidelity_mode": "full",
     "missing_contract_keys": [],
@@ -94,6 +94,6 @@
     }
   },
   "id": "45_provenance_completeness",
-  "runtime_seconds": 0.01279429194983095,
+  "runtime_seconds": 0.41878883296158165,
   "status": "PASS"
 }

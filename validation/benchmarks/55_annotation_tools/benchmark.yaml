@@ -1,7 +1,7 @@
 id: 55_annotation_tools
 name: Annotation tools
 layer: annotation
-level: L0
+level: L1
 reference: Kanehisa & Goto 2000, Nucleic Acids Res
 input: programmatic
 expected:

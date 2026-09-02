@@ -1,7 +1,7 @@
 id: 50_protein_structure
 name: Protein secondary structure prediction
 layer: runtime
-level: L0
+level: L1
 reference: Chou-Fasman / GOR IV / IUPred
 input: programmatic
 expected:

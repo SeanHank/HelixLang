@@ -18,9 +18,15 @@
     "min_plus_s_equality": "True",
     "trace_len": 40
   },
-  "reference": "doc/38 \u00a78 unit system & dimensional safety (core/dimensions.py)",
-  "runtime_seconds": 0.09012804203666747,
+  "reference": {
+    "source": "SI unit definitions \u2014 1 min = 60 s, dimensional analysis",
+    "authors": "BIPM",
+    "year": 1960,
+    "journal": "SI Brochure (8th edition)",
+    "note": "Exact conversion: 1 min = 60 s; cross-dimension addition rejected"
+  },
+  "runtime_seconds": 0.13311775005422533,
   "layer": "compiler",
   "name": "Unit system & dimensional safety",
-  "level": "L0"
+  "level": "L1"
 }

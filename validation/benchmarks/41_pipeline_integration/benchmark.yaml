@@ -1,7 +1,7 @@
 id: 41_pipeline_integration
 name: Pipeline Integration — import all pipeline modules
 layer: pipeline
-level: L0
+level: L1
 reference: doc/26 Phase F
 input: none (module import check)
 parameters: {}

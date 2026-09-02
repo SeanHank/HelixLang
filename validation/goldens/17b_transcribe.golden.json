@@ -1,8 +1,14 @@
 {
-  "id": "17b_transcribe",
-  "runtime_seconds": 0.0005132090300321579,
-  "status": "PASS",
-  "transcript": {
+  "checks": {
+    "cds_length_exact": true,
+    "cds_starts_with_aug": true,
+    "elongation_time_positive": true,
+    "half_life_positive": true,
+    "poly_a_tail_15": true,
+    "utr3_present": true,
+    "utr5_present": true
+  },
+  "details": {
     "cds_length": 75,
     "elongation_time_s": 1.94,
     "half_life_min": 8.04,
@@ -10,13 +16,14 @@
     "utr3_length": 9,
     "utr5_length": 13
   },
-  "validation": {
-    "cds_length_75": true,
-    "cds_starts_with_aug": true,
-    "elongation_time_positive": true,
-    "half_life_positive": true,
-    "poly_a_tail_15": true,
-    "utr3_present": true,
-    "utr5_present": true
-  }
+  "id": "17b_transcribe",
+  "reference": {
+    "authors": "Crick FHC",
+    "journal": "Symposia of the Society for Experimental Biology",
+    "note": "CDS length = 25 codons \u00d7 3 nt = 75 nt",
+    "source": "Central dogma \u2014 transcription (codon \u00d7 3 nt = CDS length)",
+    "year": 1958
+  },
+  "runtime_seconds": 0.025507999933324754,
+  "status": "PASS"
 }

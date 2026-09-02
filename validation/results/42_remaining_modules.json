@@ -28,8 +28,8 @@
     "gc_atgc": 0.5,
     "rc_atgc": "GCAT"
   },
-  "runtime_seconds": 0.10443854099139571,
+  "runtime_seconds": 0.06085075007285923,
   "layer": "core",
   "name": "Remaining Modules \u2014 bio_data, morphology_3d, lsystem, protein_structure, protein_fitness, units, seq_utils",
-  "level": "L0"
+  "level": "L1"
 }

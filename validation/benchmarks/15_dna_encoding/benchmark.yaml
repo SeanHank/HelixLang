@@ -1,7 +1,7 @@
 id: 15_dna_encoding
 name: DNA encoding — dna_codec + biocodec + codon_table roundtrips
 layer: biology
-level: L0
+level: L1
 reference: Goldman 2013 Nature 494:77-80; Erlich & Zielinski 2017 Science 355:950-954
 input: hardcoded binary data + known codon table
 parameters:

@@ -1,7 +1,7 @@
 id: 56_blast_search
 name: BLAST search wrapper
 layer: annotation
-level: L0
+level: L1
 reference: Buchfink et al. 2021, Nat Methods
 input: programmatic
 expected:

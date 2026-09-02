@@ -1,7 +1,7 @@
 id: 44_determinism_all_backends
 name: Determinism — same seed produces identical output for all backends
 layer: determinism
-level: L0
+level: L1
 reference: seed reproducibility
 input: none (seed=42)
 parameters: {}

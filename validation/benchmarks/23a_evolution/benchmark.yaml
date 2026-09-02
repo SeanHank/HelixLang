@@ -1,7 +1,7 @@
 id: 23a_evolution
 name: Wright-Fisher evolution
 layer: population
-level: L0
+level: L1
 reference: Wright-Fisher model
 reference_doi: null
 input: none (programmatic)

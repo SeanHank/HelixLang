@@ -1,7 +1,7 @@
 id: 39_synbio_designer
 name: SynBio Designer — genetic circuit design and validation
 layer: synbio
-level: L0
+level: L1
 reference: Studier 1986, Sharp & Li 1987
 input: none (test protein sequence)
 parameters: {}

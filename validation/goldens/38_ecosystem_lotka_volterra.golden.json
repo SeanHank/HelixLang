@@ -18,6 +18,13 @@
     "prey_range": 13.041210934523411
   },
   "id": "38_ecosystem_lotka_volterra",
-  "runtime_seconds": 0.00012195797171443701,
+  "reference": {
+    "authors": "Lotka AJ, Volterra V",
+    "journal": "Genes, Paris",
+    "note": "V_initial=0.3086, V_final=0.3038, rel_diff=0.0156 (< 0.15 threshold)",
+    "source": "Lotka-Volterra conserved quantity V = \u03b4\u00b7ln(x) - \u03b3\u00b7x + \u03b2\u00b7ln(y) - \u03b1\u00b7y",
+    "year": 1926
+  },
+  "runtime_seconds": 0.3540784999495372,
   "status": "PASS"
 }

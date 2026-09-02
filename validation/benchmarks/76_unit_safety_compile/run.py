@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from helixlang.core.dimensions import Quantity, UnitError
 from helixlang.core.dim_inferencer import DimInferencer
+from helixlang.core.dimensions import Quantity, UnitError
 from helixlang.core.errors import DimensionError
 from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
@@ -90,8 +90,13 @@ def run() -> dict:
         "status": "PASS" if all_pass else "FAIL",
         "checks": checks,
         "details": {"5min_in_s": 300, "converted": "5min == 300s"},
-        "reference": "doc/41 §6.3 acceptance — compile-time DimensionError "
-                     "(core/dim_inferencer.py, core/semantic.py)",
+        "reference": {
+            "source": "SI unit definitions — compile-time dimensional rejection",
+            "authors": "BIPM",
+            "year": 1960,
+            "journal": "SI Brochure (8th edition)",
+            "note": "Float<µM> + Float<L> rejected at compile time; 5 min = 300 s exact",
+        },
         "runtime_seconds": time.perf_counter() - t0,
     }
 

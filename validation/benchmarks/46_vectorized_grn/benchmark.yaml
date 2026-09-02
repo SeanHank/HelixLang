@@ -1,7 +1,7 @@
 id: 46_vectorized_grn
 name: Vectorized GRN correctness
 layer: runtime
-level: L0
+level: L1
 reference: Elowitz & Leibler 2000
 input: programmatic
 expected:

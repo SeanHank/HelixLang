@@ -1,7 +1,7 @@
 id: 48_immune_dynamics
 name: Innate immune dynamics
 layer: runtime
-level: L0
+level: L1
 reference: IMEX ODE immune modelling
 input: programmatic
 expected:

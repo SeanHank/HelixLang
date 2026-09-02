@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Benchmark 23b: Stochastic — Gillespie SSA telegraph model Fano factor."""
+"""Benchmark 23b: Stochastic — Gillespie SSA telegraph model Fano factor.
+
+Analytical reference: Peccoud & Ycart 1995 — the two-state (telegraph)
+promoter Fano factor is F = 1 + b * k_on / (k_on + k_off) * 1/(1 + γ/(k_on+k_off))
+where b = burst_size, γ = degradation_rate.  The Gillespie SSA must produce
+an observed Fano within 30% of this analytic value for 2000 replicates.
+"""
 from __future__ import annotations
 
 import json
@@ -60,28 +66,28 @@ def run() -> dict:
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS" if all_ok else "FAIL",
-            "validation": {
+            "checks": {
                 "telegraph_promoter_fano_matches": tp_ok,
                 "fano_greater_than_one": fano_super_poisson,
                 "fano_within_30pct_of_theory": fano_close,
             },
-            "parameters": {
-                "k_on": k_on,
-                "k_off": k_off,
-                "burst_size": burst,
-                "degradation_rate": gamma,
-            },
-            "fano": {
-                "theoretical": round(theoretical_fano, 4),
-                "observed_ssa": round(observed_fano, 4),
-                "relative_error": round(rel_err, 4),
-                "promoter_object": round(tp_fano, 4),
-            },
-            "ssa": {
-                "mean": round(ssa["mean"], 2),
-                "variance": round(ssa["variance"], 2),
+            "details": {
+                "fano_theoretical": round(theoretical_fano, 4),
+                "fano_observed_ssa": round(observed_fano, 4),
+                "fano_relative_error": round(rel_err, 4),
+                "fano_promoter_object": round(tp_fano, 4),
+                "ssa_mean": round(ssa["mean"], 2),
+                "ssa_variance": round(ssa["variance"], 2),
                 "n_replicates": 2000,
                 "t_max": 500.0,
+            },
+            "reference": {
+                "source": "Peccoud & Ycart 1995 — telegraph promoter Fano factor",
+                "authors": "Peccoud J, Ycart B",
+                "year": 1995,
+                "journal": "Theoretical Population Biology",
+                "note": f"F = 1 + b·k_on/(k_on+k_off)·1/(1+γ/(k_on+k_off)); "
+                        f"theoretical={round(theoretical_fano, 4)}",
             },
             "runtime_seconds": elapsed,
         })

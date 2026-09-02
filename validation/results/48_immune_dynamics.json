@@ -31,8 +31,8 @@
     "doi": "10.1056/NEJM199505183322007",
     "note": "Innate immune cytokine/cell dynamics validated against known qualitative behavior"
   },
-  "runtime_seconds": 1.5233768749749288,
+  "runtime_seconds": 0.6339860829757527,
   "layer": "runtime",
   "name": "Innate immune dynamics",
-  "level": "L0"
+  "level": "L1"
 }

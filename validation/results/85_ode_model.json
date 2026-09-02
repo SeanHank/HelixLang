@@ -23,7 +23,7 @@
     "doi": "10.1016/0010-4825(93)90017-5",
     "note": "Analytic solution of a linear two-compartment ODE (mass-conserving A <-> B exchange)."
   },
-  "runtime_seconds": 2.5724200420081615,
+  "runtime_seconds": 0.45416983298491687,
   "layer": "language",
   "name": "User-authored ODE model authored in the Helix language (doc/42 Phase D)",
   "level": "L3"

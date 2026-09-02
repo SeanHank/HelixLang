@@ -1,15 +1,15 @@
 {
   "id": "17c_translate",
   "status": "PASS",
-  "validation": {
-    "protein_length_24": true,
+  "checks": {
+    "protein_length_exact": true,
     "protein_sequence_match": true,
     "stop_codon_taa": true,
     "elongation_time_positive": true,
     "rbs_found": true,
     "codon_rates_length": true
   },
-  "translation": {
+  "details": {
     "protein": "MAKSNVKASTWKSIAAMSSRMTVK",
     "protein_length": 24,
     "elongation_time_s": 2.4957,
@@ -18,8 +18,15 @@
     "rbs_sequence": "AGGAGG",
     "mean_codon_rate": 11.26
   },
-  "runtime_seconds": 0.0474127089837566,
+  "reference": {
+    "source": "Central dogma \u2014 translation (protein length = codons - 1 stop)",
+    "authors": "Crick FHC",
+    "year": 1958,
+    "journal": "Symposia of the Society for Experimental Biology",
+    "note": "Protein length = 25 codons - 1 stop = 24 aa"
+  },
+  "runtime_seconds": 0.08910608291625977,
   "layer": "molecular",
   "name": "mRNA translation",
-  "level": "L0"
+  "level": "L1"
 }

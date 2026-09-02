@@ -1,7 +1,7 @@
 id: 23c_epigenetics
 name: CpG site detection
 layer: epigenetics
-level: L0
+level: L1
 reference: Bird 2002 Cell 109:1-8
 reference_doi: null
 input: none (programmatic)

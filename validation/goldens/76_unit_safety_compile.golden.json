@@ -12,7 +12,13 @@
     "converted": "5min == 300s"
   },
   "id": "76_unit_safety_compile",
-  "reference": "doc/41 \u00a76.3 acceptance \u2014 compile-time DimensionError (core/dim_inferencer.py, core/semantic.py)",
-  "runtime_seconds": 0.00015616696327924728,
+  "reference": {
+    "authors": "BIPM",
+    "journal": "SI Brochure (8th edition)",
+    "note": "Float<\u00b5M> + Float<L> rejected at compile time; 5 min = 300 s exact",
+    "source": "SI unit definitions \u2014 compile-time dimensional rejection",
+    "year": 1960
+  },
+  "runtime_seconds": 0.0009734579361975193,
   "status": "PASS"
 }

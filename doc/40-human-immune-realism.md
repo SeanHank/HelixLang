@@ -340,8 +340,8 @@ answer: **Content** — what we will build; **Method** — modeling method from 
   (G2/G3/G7/G12, L3), `79_immune_complement` (G5/G6, L3), `80_immune_tissue_blood` (G10, L3),
   `81_immune_virtual_population` (G13 + O2/O9 bit-identity, L3), `82_immune_spatial_abm`
   (G15, L0), `83_physiological_realism`, `84_cardiac_cycle` (RT-4/VD-2), and
-  `85_ode_model` (RT-1, doc/41 ODE grammar). **Validation suite is now 84/85 PASS**
-  (1 skip, 0 failures), with a reproducible golden-verification pipeline: the golden
+  `85_ode_model` (RT-1, doc/41 ODE grammar). **Validation suite is now 85/85 PASS**
+  (0 skip, 0 failures, 2026-09-02), with a reproducible golden-verification pipeline: the golden
   determinizer (`validation/goldens/generate_goldens.py` / `verify_goldens.py`) excludes
   run-to-run-volatile fields (`runtime_seconds`, `*_ms`, `*_seconds`, `*_ratio`, `timestamp`)
   so every golden — including the pre-existing `74_incremental_jit` timing benchmark and

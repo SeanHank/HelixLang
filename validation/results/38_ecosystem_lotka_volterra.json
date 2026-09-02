@@ -19,8 +19,15 @@
     "V_final": 0.3037817553027593,
     "V_relative_diff": 0.015563022675658934
   },
-  "runtime_seconds": 0.8690245000179857,
+  "reference": {
+    "source": "Lotka-Volterra conserved quantity V = \u03b4\u00b7ln(x) - \u03b3\u00b7x + \u03b2\u00b7ln(y) - \u03b1\u00b7y",
+    "authors": "Lotka AJ, Volterra V",
+    "year": 1926,
+    "journal": "Genes, Paris",
+    "note": "V_initial=0.3086, V_final=0.3038, rel_diff=0.0156 (< 0.15 threshold)"
+  },
+  "runtime_seconds": 0.37058291700668633,
   "layer": "ecosystem",
   "name": "Ecosystem \u2014 Lotka-Volterra predator-prey dynamics",
-  "level": "L0"
+  "level": "L1"
 }

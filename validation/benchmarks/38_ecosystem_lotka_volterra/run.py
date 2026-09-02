@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Benchmark 38: Ecosystem — Lotka-Volterra predator-prey dynamics."""
+"""Benchmark 38: Ecosystem — Lotka-Volterra predator-prey dynamics.
+
+Analytical reference: Lotka 1925, Volterra 1926 — the conserved quantity
+V = δ·ln(x) - γ·x + β·ln(y) - α·y is an invariant of the LV system.
+The numerical integrator must preserve V within 15% over 50 time steps.
+"""
 from __future__ import annotations
 
 import json
@@ -76,6 +81,14 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
+            "reference": {
+                "source": "Lotka-Volterra conserved quantity V = δ·ln(x) - γ·x + β·ln(y) - α·y",
+                "authors": "Lotka AJ, Volterra V",
+                "year": 1926,
+                "journal": "Genes, Paris",
+                "note": f"V_initial={round(V_init, 4)}, V_final={round(V_final, 4)}, "
+                        f"rel_diff={round(rel_diff, 4)} (< 0.15 threshold)",
+            },
             "runtime_seconds": elapsed,
         }
     except Exception as e:

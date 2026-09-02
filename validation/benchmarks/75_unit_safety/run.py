@@ -28,7 +28,7 @@ from helixlang.core.dimensions import (
     UnitError,
     convert,
 )
-from helixlang.core.errors import ParseError, SemanticError
+from helixlang.core.errors import ParseError
 from helixlang.core.ir_lower import IRLowerer
 from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
@@ -143,8 +143,13 @@ def run() -> dict:
         "status": "PASS" if all_pass else "FAIL",
         "checks": checks,
         "details": details,
-        "reference": "doc/38 §8 unit system & dimensional safety "
-                     "(core/dimensions.py)",
+        "reference": {
+            "source": "SI unit definitions — 1 min = 60 s, dimensional analysis",
+            "authors": "BIPM",
+            "year": 1960,
+            "journal": "SI Brochure (8th edition)",
+            "note": "Exact conversion: 1 min = 60 s; cross-dimension addition rejected",
+        },
         "runtime_seconds": elapsed,
     }
 

@@ -1,16 +1,18 @@
 {
   "checks": {
+    "all_edits_splice_safe": true,
     "all_patches_byte_identical_to_full": true,
     "edit_cost_proportional_to_closure": true,
     "full_build_rebuilds_all": true,
+    "incremental_beats_naive_recompile": true,
     "leaf_edit_rebuilds_closure_only": true,
     "unchanged_source_rebuilds_nothing": true
   },
   "details": {
-    "full_rebuild_seconds": 0.00011362496297806501,
+    "edits_spliced": 16,
     "genes": 16,
-    "incremental_total_seconds": 0.00458900211378932,
-    "naive_recompile_total_seconds": 0.0017043744446709752,
+    "incremental_compile_seconds": 0.0006035850383341312,
+    "naive_recompile_seconds": 0.0012617489555850625,
     "per_edit_closure_sizes": [
       2,
       2,
@@ -29,10 +31,10 @@
       2,
       1
     ],
-    "work_reduction_ratio": 0.3714041533233477
+    "work_reduction_ratio": 2.0904245059941102
   },
   "id": "74_incremental_jit",
-  "reference": "doc/38 \u00a73 incremental JIT (core/incr.py)",
-  "runtime_seconds": 0.010336500010453165,
+  "reference": "doc/38 \u00a73 incremental JIT (core/incr.py, splice fast-path)",
+  "runtime_seconds": 0.008727542008273304,
   "status": "PASS"
 }

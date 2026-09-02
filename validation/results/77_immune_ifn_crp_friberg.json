@@ -23,7 +23,7 @@
     "doi": "10.1371/journal.pcbi.1002588; 10.3389/fimmu.2018.00754; 10.1200/JCO.2002.20.23.4713",
     "note": "IFN antiviral loop, IL-6\u2192CRP saturating kinetics with ~6h lag and widened sepsis range, and Friberg transit-chain granulopoiesis"
   },
-  "runtime_seconds": 0.5617879580240697,
+  "runtime_seconds": 0.6584105420624837,
   "layer": "human",
   "name": "Innate immune fidelity \u2014 type-I IFN, CRP v2 (IL-6\u2192CRP lag/range), Friberg granulopoiesis",
   "level": "L3"

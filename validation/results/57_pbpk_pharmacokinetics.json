@@ -33,7 +33,7 @@
     "doi": "10.1038/psp.2013.41",
     "note": "Jones HM, Rowland-Yeo K 2013, CPT:PSP 2:e43. PBPK model structure, numerical integration, terminal half-life estimation."
   },
-  "runtime_seconds": 0.5979217910207808,
+  "runtime_seconds": 0.6848411249229684,
   "layer": "pharmacology",
   "name": "PBPK pharmacokinetics",
   "level": "L3"

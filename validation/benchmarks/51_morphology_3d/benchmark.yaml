@@ -1,7 +1,7 @@
 id: 51_morphology_3d
 name: 3D L-system morphology
 layer: runtime
-level: L0
+level: L1
 reference: Prusinkiewicz & Lindenmayer 1990
 input: programmatic
 expected:

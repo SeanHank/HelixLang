@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Benchmark 17c: mRNA translation — translate a known transcript."""
+"""Benchmark 17c: mRNA translation — translate a known transcript.
+
+Analytical reference: protein length = num_codons - 1 (stop codon excluded).
+The 25-codon ORF (24 sense + 1 stop) yields a 24-aa protein.
+"""
 from __future__ import annotations
 
 import json
@@ -13,6 +17,7 @@ _CDS_PARTS = [
 ]
 _DNA_SEQ = "TTTTAAGAGGAGG" + "".join(_CDS_PARTS) + "GGGAAACCC"
 _EXPECTED_PROTEIN = "MAKSNVKASTWKSIAAMSSRMTVK"
+_EXPECTED_PROTEIN_LEN = len(_CDS_PARTS) - 1  # 24 aa (stop excluded)
 
 
 def run() -> dict:
@@ -33,19 +38,21 @@ def run() -> dict:
         assert len(tx_result.codon_rates) == 24
 
         elapsed = time.perf_counter() - t0
+        actual_len = len(tx_result.protein)
+        len_error = abs(actual_len - _EXPECTED_PROTEIN_LEN)
         results.update({
             "status": "PASS",
-            "validation": {
-                "protein_length_24": len(tx_result.protein) == 24,
+            "checks": {
+                "protein_length_exact": len_error == 0,
                 "protein_sequence_match": tx_result.protein == _EXPECTED_PROTEIN,
                 "stop_codon_taa": tx_result.stop_codon == "TAA",
                 "elongation_time_positive": tx_result.elongation_time > 0,
                 "rbs_found": tx_result.rbs_found,
-                "codon_rates_length": len(tx_result.codon_rates) == 24,
+                "codon_rates_length": len(tx_result.codon_rates) == _EXPECTED_PROTEIN_LEN,
             },
-            "translation": {
+            "details": {
                 "protein": tx_result.protein,
-                "protein_length": len(tx_result.protein),
+                "protein_length": actual_len,
                 "elongation_time_s": round(tx_result.elongation_time, 4),
                 "stop_codon": tx_result.stop_codon,
                 "stop_efficiency": tx_result.stop_efficiency,
@@ -53,6 +60,13 @@ def run() -> dict:
                 "mean_codon_rate": round(
                     sum(tx_result.codon_rates) / len(tx_result.codon_rates), 2
                 ),
+            },
+            "reference": {
+                "source": "Central dogma — translation (protein length = codons - 1 stop)",
+                "authors": "Crick FHC",
+                "year": 1958,
+                "journal": "Symposia of the Society for Experimental Biology",
+                "note": f"Protein length = {len(_CDS_PARTS)} codons - 1 stop = {_EXPECTED_PROTEIN_LEN} aa",
             },
             "runtime_seconds": elapsed,
         })

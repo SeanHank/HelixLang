@@ -54,7 +54,7 @@
       "note": "Normal resting mean arterial pressure."
     }
   },
-  "runtime_seconds": 1.3472494171001017,
+  "runtime_seconds": 0.7565832079853863,
   "layer": "pharmacology",
   "name": "Cardiology closed-loop cardiac cycle (doc/42 Phase E)",
   "level": "L3"

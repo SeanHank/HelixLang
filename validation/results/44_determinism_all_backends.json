@@ -41,8 +41,8 @@
       "seed": 42
     }
   },
-  "runtime_seconds": 1.8303997919429094,
+  "runtime_seconds": 1.9790957500226796,
   "layer": "determinism",
   "name": "Determinism \u2014 same seed produces identical output for all backends",
-  "level": "L0"
+  "level": "L1"
 }

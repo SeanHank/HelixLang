@@ -1,6 +1,6 @@
 # doc/42 — Production Readiness: 100% Biologically Realistic Simulation via the Helix Language (Gap Assessment & Remediation Plan)
 
-> **Status:** Remediation mostly implemented (re-audited 2026-09-02). Open items remain, listed in §7. RD-1–RD-3 (validation-level, prod-readiness, realism remediation) landed: benchmarks 83 (`physiological_realism`), 84 (`cardiac_cycle`), 85 (`ode_model`); ODE-grammar objects (`#model`/`#species`/`#reaction`); PF-3 multiprocessing; PF-4 audit; RT-5/RT-6. Validation 84/85 (1 skip), goldens 85/85, L0×46·L1×2·L2×7·L3×16·L4×14·L5×0. Residual: PF-1 (fixed grid + deep copies partial), PF-2 (native simplex opt-in, not default), L5 clinical tier 0, RT-4 only cardiology bundles a manifest.
+> **Status:** Remediation mostly implemented (re-audited 2026-09-02). Open items remain, listed in §7. RD-1–RD-3 (validation-level, prod-readiness, realism remediation) landed: benchmarks 83 (`physiological_realism`), 84 (`cardiac_cycle`), 85 (`ode_model`); ODE-grammar objects (`#model`/`#species`/`#reaction`); PF-3 multiprocessing; PF-4 audit; RT-5/RT-6. Validation 85/85, goldens 85/85, L0×0·L1×48·L2×7·L3×16·L4×14·L5×0 (all former L0 smoke tests upgraded to L1 analytical, 2026-09-02). Residual: PF-1 (fixed grid + deep copies partial), PF-2 (native simplex opt-in, not default), L5 clinical tier 0, RT-4 only cardiology bundles a manifest.
 >
 > **Depends on:** doc/34 (architectural plan), doc/37 (validity framework), doc/39 (performance budget + O1–O12), doc/40 (human immune realism Phases A–H), doc/41 (validation-level taxonomy + extensible parser), doc/38 (compiler modernization + plugin platform), doc/04 (simulation model), doc/27-32 (virtual patient / disease / pharmacology)
 >
@@ -89,7 +89,7 @@ evidence-anchored (file:line) and cross-checked against prior doc claims.
 | # | Pri | Gap | Evidence | Severity |
 |---|-----|-----|----------|----------|
 | RT-1 | **P0** | **Helix cannot author novel bio models** — DSL is parameter-annotation over Python-hardcoded models; no user ODE/expressions/functions/control-flow in the language | `type_system.py`, `grammar_handlers.py`, `sim_runtime/backends/pipelines.py` (`#sim kind=` bespoke `_run_*`); ~24k LOC in `plugins/human/*.py` | HIGH |
-| VD-1 | **P0** | **Human stack unvalidated** — only 13/82 benchmarks L3+; 59/82 (72%) L0 smoke; human PK/PD/DDI/tox/virtual-patient are L0; no L5 clinical tier (0) | `validation/report.md` (L0×59·L1×2·L2×8·L3×7·L4×6·L5×0); `benchmarks/{28-34,57-67}` | HIGH |
+| VD-1 | **P0→PV2** | **Human stack unvalidated** — originally only 13/82 benchmarks L3+; 59/82 (72%) L0 smoke; human PK/PD/DDI/tox/virtual-patient L0. **Partially remediated 2026-09-02**: all former L0 benchmarks upgraded to L1 analytical (L0×0·L1×48·L2×7·L3×16·L4×14·L5×0, 85/85 goldens). Residual: no L5 clinical tier (0/85) | `validation/report.md` (2026-09-02: L1×48·L2×7·L3×16·L4×14·L5×0); `benchmarks/{28-34,57-67}` | HIGH (residual = L5) |
 | VD-2 | **P0** | **"100% real" over-claim vs `DISCLAIMER.md`** — README + `human/__init__.py:34` claim every parameter anchored to literature, while the disclaimer says outputs "not faithful reproductions" | `README.md:159`, `plugins/human/__init__.py:34`, `DISCLAIMER.md` | HIGH (doc risk) |
 | PF-1 | **P1** | **PBPK/ODE efficiency regression** — O3 step-doubling layered on the fixed `_EULER_SAFETY`/`_MAX_SUBSTEPS` outer grid; each slot deep-copies full state dict twice (coarse+fine), more on recursion → ≥3–10× work vs plain Euler | `virtual_patient.py:2569-2602,2635-2642` (`_snapshot_state`/`_restore_state`) | HIGH |
 | PF-2 | **P1** | **dFBA LP not wired to native simplex** — per-hour LP solve per patient in pure numpy; `_accel/simplex` (Rust 9.9–65.8×) not integrated | `runtime/metabolism.py` (`simplex` is a Python module); `_accel/simplex/` exists unused by dFBA | HIGH |
@@ -287,12 +287,16 @@ Re-audit of §3's gap register against the shipped code:
 - **RT-1** — the language authors biology: `#model` / `#species` / `#reaction` ODE-grammar
   objects (doc/41) with `--ir-text`, benchmark 85 (`ode_model`), and the incremental splice JIT.
 - **VD-2** — docs/benchmarks now match code (doc/37, doc/38, doc/40 headers), 0 level-gate
-  warnings, validation levels L0×46·L1×2·L2×7·L3×16·L4×14·L5×0.
+  warnings, validation levels L0×0·L1×48·L2×7·L3×16·L4×14·L5×0 (2026-09-02).
 - **PF-3** — multiprocessing is native to `run_cohort`/`_advance_slab`; 1- vs 4-worker
   bit-identical (`test_o8`, `test_perf_cohort.py`).
 - **RT-5** — cohort virtual-population runner (`81_immune_virtual_population`) with genome-wide,
   karyotype, and winter-float fixtures.
-- **RT-6** — 84/85 pass, 1 skip, 0 failures; goldens 85/85.
+- **RT-6** — 85/85 pass, 0 failures, 0 skips; goldens 85/85 (2026-09-02; the prior
+  `56_blast_search` skip now passes on a self-contained fixture).
+- **VD-1 (partial)** — 2026-09-02: all 46 former L0 smoke tests upgraded to **L1 analytical**
+  validation (quantitative reference + error metric while the assert-parity/composite checks
+  remain), eliminating the L0 tier entirely: L0×0·L1×48·L2×7·L3×16·L4×14·L5×0.
 
 **Still open (validated as the plan's Phase-B/C/D/E work)**
 

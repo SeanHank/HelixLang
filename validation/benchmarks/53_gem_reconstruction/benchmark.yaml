@@ -1,7 +1,7 @@
 id: 53_gem_reconstruction
 name: GEM reconstruction pipeline
 layer: metabolism
-level: L0
+level: L1
 reference: Thiele & Palsson 2010, Nat Protoc
 input: programmatic
 expected:

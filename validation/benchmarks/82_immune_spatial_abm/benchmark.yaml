@@ -1,7 +1,7 @@
 id: 82_immune_spatial_abm
 name: Spatial immune ABM — chemokine migration, contact signaling, deterministic replay (G15)
 layer: human
-level: L0
+level: L1
 reference: doc/40 G15 — L1 (BIS agent taxonomy), doc/31 §2.4 spatial ABM design
 input: programmatic
 expected:

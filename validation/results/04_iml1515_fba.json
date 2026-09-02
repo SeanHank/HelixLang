@@ -24,7 +24,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 4.659815874998458,
+  "runtime_seconds": 5.303945709019899,
   "layer": "metabolism",
   "name": "E. coli iML1515 genome-scale FBA",
   "level": "L2"

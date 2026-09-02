@@ -31,13 +31,13 @@
       1
     ],
     "edits_spliced": 16,
-    "incremental_compile_seconds": 0.0008711648406460881,
-    "naive_recompile_seconds": 0.0015110807726159692,
-    "work_reduction_ratio": 1.7345520642170267
+    "incremental_compile_seconds": 0.0012742935214191675,
+    "naive_recompile_seconds": 0.002565041882917285,
+    "work_reduction_ratio": 2.012912911980141
   },
   "reference": "doc/38 \u00a73 incremental JIT (core/incr.py, splice fast-path)",
-  "runtime_seconds": 0.055499167065136135,
+  "runtime_seconds": 0.08344129100441933,
   "layer": "compiler",
   "name": "Incremental JIT \u2014 closure-limited gene recompile",
-  "level": "L0"
+  "level": "L1"
 }

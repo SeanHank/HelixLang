@@ -1,7 +1,7 @@
 id: 64_stochastic_doseopt
 name: Stochastic ODE + dose optimizer
 layer: pharmacology
-level: L0
+level: L1
 reference: Maruyama 1955; Jusko & Ko 1994
 input: programmatic
 expected:

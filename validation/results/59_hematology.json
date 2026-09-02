@@ -43,7 +43,7 @@
       "note": "Repeated cytotoxic exposure produces neutrophil decline (drug-induced neutropenia)."
     }
   },
-  "runtime_seconds": 0.6382025829516351,
+  "runtime_seconds": 0.6393529580673203,
   "layer": "pharmacology",
   "name": "Hematology myelosuppression",
   "level": "L4"

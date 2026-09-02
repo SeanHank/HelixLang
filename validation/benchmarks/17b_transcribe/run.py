@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Benchmark 17b: DNA transcription — transcribe a known ORF."""
+"""Benchmark 17b: DNA transcription — transcribe a known ORF.
+
+Analytical reference: CDS length = num_codons × 3 nt (central dogma).
+The 25-codon ORF (24 sense + 1 stop) yields a 75-nt CDS; the protein
+from translation is 24 aa (benchmark 17c validates the sequence).
+"""
 from __future__ import annotations
 
 import json
@@ -13,6 +18,8 @@ _CDS_PARTS = [
     "TCC", "CGG", "ATG", "ACG", "GTA", "AAA", "TAA",
 ]
 _DNA_SEQ = "TTTTAAGAGGAGG" + "".join(_CDS_PARTS) + "GGGAAACCC"
+_NUM_CODONS = len(_CDS_PARTS)  # 25
+_EXPECTED_CDS_LEN = _NUM_CODONS * 3  # 75 nt
 
 
 def run() -> dict:
@@ -39,12 +46,15 @@ def run() -> dict:
         has_utr5 = len(transcript.utr5) > 0
         has_utr3 = len(transcript.utr3) > 0
 
+        actual_cds_len = len(transcript.cds)
+        cds_error = abs(actual_cds_len - _EXPECTED_CDS_LEN)
+
         # All checks passed
         elapsed = time.perf_counter() - t0
         results.update({
             "status": "PASS",
-            "validation": {
-                "cds_length_75": len(transcript.cds) == 75,
+            "checks": {
+                "cds_length_exact": cds_error == 0,
                 "cds_starts_with_aug": transcript.cds.startswith("AUG"),
                 "half_life_positive": transcript.half_life_minutes > 0,
                 "poly_a_tail_15": has_poly_a,
@@ -52,13 +62,20 @@ def run() -> dict:
                 "utr5_present": has_utr5,
                 "utr3_present": has_utr3,
             },
-            "transcript": {
-                "cds_length": len(transcript.cds),
+            "details": {
+                "cds_length": actual_cds_len,
                 "half_life_min": round(transcript.half_life_minutes, 2),
                 "elongation_time_s": round(transcript.elongation_time_s, 4),
                 "initiation_freq": round(transcript.initiation_frequency_per_min, 4),
                 "utr5_length": len(transcript.utr5),
                 "utr3_length": len(transcript.utr3),
+            },
+            "reference": {
+                "source": "Central dogma — transcription (codon × 3 nt = CDS length)",
+                "authors": "Crick FHC",
+                "year": 1958,
+                "journal": "Symposia of the Society for Experimental Biology",
+                "note": f"CDS length = {_NUM_CODONS} codons × 3 nt = {_EXPECTED_CDS_LEN} nt",
             },
             "runtime_seconds": elapsed,
         })

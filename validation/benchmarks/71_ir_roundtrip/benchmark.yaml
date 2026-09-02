@@ -1,7 +1,7 @@
 id: 71_ir_roundtrip
 name: Helix IR pipeline round-trip and optimizer correctness
 layer: compiler
-level: L0
+level: L1
 reference: doc/37 Helix-IR-first-class §5-6
 input: programmatic
 expected:

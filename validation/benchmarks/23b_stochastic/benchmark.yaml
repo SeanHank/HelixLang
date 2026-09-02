@@ -1,7 +1,7 @@
 id: 23b_stochastic
 name: Gillespie SSA telegraph model
 layer: stochastic
-level: L0
+level: L1
 reference: Peccoud & Ycart 1995
 reference_doi: null
 input: none (programmatic)

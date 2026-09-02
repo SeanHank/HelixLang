@@ -26,8 +26,8 @@
       "orfs_found": 1
     }
   },
-  "runtime_seconds": 0.06630633398890495,
+  "runtime_seconds": 0.11868187505751848,
   "layer": "biology",
   "name": "DNA encoding \u2014 dna_codec + biocodec + codon_table roundtrips",
-  "level": "L0"
+  "level": "L1"
 }

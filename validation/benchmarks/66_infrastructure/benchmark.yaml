@@ -1,7 +1,7 @@
 id: 66_infrastructure
 name: Infrastructure (units, seq, codec)
 layer: infrastructure
-level: L0
+level: L1
 reference: NCBI / standard references
 input: programmatic
 expected:
