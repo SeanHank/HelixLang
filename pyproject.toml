@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixlang"
-version = "2026.8.5"
+version = "2026.9.0"
 description = "A domain-specific language where biological genetic material is the source, binary bytecode is the intermediate representation, and the execution semantics simulate biological behavior."
 readme = "README_PYPI.md"
 requires-python = ">=3.11,<3.12"

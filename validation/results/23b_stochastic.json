@@ -24,7 +24,7 @@
     "n_replicates": 2000,
     "t_max": 500.0
   },
-  "runtime_seconds": 0.36159374995622784,
+  "runtime_seconds": 0.3893294999143109,
   "layer": "stochastic",
   "name": "Gillespie SSA telegraph model",
   "level": "L0"

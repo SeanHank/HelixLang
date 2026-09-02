@@ -24,6 +24,7 @@ from helixlang.plugins.human.immune import (
     IFNPool,
     ImmuneCellPopulation,
     InnateImmuneModel,
+    cohort_immune_step,
     create_immune_model,
 )
 from helixlang.plugins.human.organ_crosstalk import (
@@ -648,6 +649,67 @@ class TestIFNPool:
         ifn.ifn_alpha_beta = 10.0
         eff = ifn.effective_pathogen(1.0)
         assert 0.0 <= eff < 1.0  # suppressed but not negative
+
+
+class TestCytokineHillIL10Feedback:
+    def test_default_is_inert_and_identical(self):
+        plain, flagged_false = CytokinePool(), CytokinePool(hill_il10_feedback=False)
+        assert flagged_false.hill_il10_feedback is False
+        plain.pathogen_signal = 0.7
+        flagged_false.pathogen_signal = 0.7
+        for _ in range(48):
+            plain.step(1.0)
+            flagged_false.step(1.0)
+        assert flagged_false.tnf_alpha == plain.tnf_alpha
+        assert flagged_false.il10 == plain.il10
+
+    def test_hill_production_saturates(self):
+        h = CytokinePool(hill_il10_feedback=True)
+        h.pathogen_signal = 1.0
+        for _ in range(48):
+            h.step(1.0)
+        peak = h.tnf_alpha
+        # Saturating drive: beyond the half-max (kd=0.5) the response stops
+        # growing linearly with signal, so doubling production drive can't
+        # double the steady-state P.
+        h2 = CytokinePool(hill_il10_feedback=True)
+        h2.pathogen_signal = 10.0
+        for _ in range(48):
+            h2.step(1.0)
+        assert h2.tnf_alpha < peak * 1.2
+
+    def test_il10_rises_with_lag_and_clamps_inflammation(self):
+        h = CytokinePool(hill_il10_feedback=True)
+        h.pathogen_signal = 0.9
+        for _ in range(48):
+            h.step(1.0)
+        assert h.il10 > 0.0
+        # Closure: once IL-10 comes up on its own kinetics it suppresses P
+        # below what the no-feedback linear model reaches at the same signal.
+        linear = CytokinePool()
+        linear.pathogen_signal = 0.9
+        for _ in range(48):
+            linear.step(1.0)
+        assert h.tnf_alpha < linear.tnf_alpha * 0.5
+
+    def test_create_immune_model_wires_flag(self):
+        immune, _ = create_immune_model(
+            infection_severity=0.5, hill_il10_feedback=True)
+        assert immune.cytokines.hill_il10_feedback is True
+        immune0, _ = create_immune_model(infection_severity=0.5)
+        assert immune0.cytokines.hill_il10_feedback is False
+
+    def test_cohort_falls_back_scalar_when_enabled(self):
+        import copy
+        enabled, _ = create_immune_model(
+            infection_severity=0.8, hill_il10_feedback=True)
+        for _ in range(10):
+            enabled.step(1.0)
+        cloned = copy.deepcopy(enabled)
+        cohort_immune_step([enabled], 1.0, use_numpy=True)
+        cloned.step(1.0)
+        assert enabled.cytokines.tnf_alpha == cloned.cytokines.tnf_alpha
+        assert enabled.cytokines.il10 == cloned.cytokines.il10
 
 
 class TestCRPDriverV2:

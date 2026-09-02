@@ -27,6 +27,7 @@ class SemanticAnalyzer:
         self._check_regulation_cycles()
         self._check_config()
         self._check_units()
+        self._check_type_inference()
         self._check_dim_inference()
         self._check_effects()
         self._check_use_directives()
@@ -141,20 +142,22 @@ class SemanticAnalyzer:
 
         Every annotation must parse to a known type and — when it carries a
         unit (``Float<µM>``) — to a known dimension; the error names the
-        offending symbol and the resolved dimension tree.
+        offending symbol and the resolved dimension tree.  Compound types
+        (``list[Float<µM>]``) parse as structural terms and are left to the
+        inference pass.
         """
         from helixlang.core.dimensions import UnitError, dim_of_unit
-        from helixlang.core.type_system import parse_type_annotation
+        from helixlang.core.type_system import UnitType, parse_type_annotation
 
         for name, spec in self.prog.type_annotations.items():
             try:
-                parse_type_annotation(spec)
+                parsed = parse_type_annotation(spec)
             except (UnitError, SemanticError) as exc:
                 raise SemanticError(
                     f"#type {name}={spec!r}: {exc}") from exc
-            if "<" not in spec:
+            if not isinstance(parsed, UnitType):
                 continue
-            unit = spec.split("<", 1)[1].rstrip(">").strip()
+            unit = parsed.unit
             try:
                 dim = dim_of_unit(unit)
             except UnitError as exc:
@@ -164,6 +167,22 @@ class SemanticAnalyzer:
                 raise SemanticError(
                     f"#type {name}={spec!r}: unit {unit!r} is dimensionless; "
                     f"drop the unit annotation")
+
+    def _check_type_inference(self) -> None:
+        """Run the doc/38 §7 type-system constraint pass.
+
+        Genes/promoters get fresh variables unified against their ground kind
+        and every ``#type`` product schema is instantiated into the same
+        system; an unsatisfiable system is an error naming the offending
+        symbol (constant solving, §7.2).  Zero-annotation programs resolve
+        every variable to a ground type, so this pass is lossless on valid
+        programs.
+        """
+        from helixlang.core.type_system import TypeChecker
+
+        errors = TypeChecker().check_types(self.prog)
+        if errors:
+            raise errors[0]
 
     def _check_effects(self) -> None:
         """Reject side-effecting ops in declared-pure gene regions (§7.3).

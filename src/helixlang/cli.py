@@ -397,10 +397,11 @@ def _run_watch(args: argparse.Namespace, config: LanguageConfig) -> int:
     incr = IncrementalCompiler(config)
     previous_ir: IRProgram | None = None
     previous_cache: IncrementalCache | None = None
+    previous_chunk: Chunk | None = None
     iteration = 0
 
     def _watch_compile(src: str) -> tuple[Program, CompileResult]:
-        nonlocal previous_ir, previous_cache, iteration
+        nonlocal previous_ir, previous_cache, previous_chunk, iteration
         iteration += 1
         get_registry()  # plugin grammars resolve out of the box (doc/41 §4.2)
         tokens = list(Lexer(src).tokens())
@@ -409,15 +410,18 @@ def _run_watch(args: argparse.Namespace, config: LanguageConfig) -> int:
         if args.ticks is not None:
             program.config.ticks = args.ticks
         result = incr.compile(
-            program, previous_ir=previous_ir, previous_cache=previous_cache)
+            program, previous_ir=previous_ir, previous_cache=previous_cache,
+            previous_chunk=previous_chunk)
         previous_ir, previous_cache = result.ir, result.cache
+        previous_chunk = result.chunk
         if result.stats.full_build:
             print(f"[jit] iteration {iteration}: full build "
                   f"({len(result.stats.rebuilt)} genes)")
         else:
             print(f"[jit] iteration {iteration}: rebuilt "
                   f"{sorted(result.stats.rebuilt) or '(none)'}, reused "
-                  f"{len(result.stats.reused)} genes")
+                  f"{len(result.stats.reused)} genes"
+                  + (", spliced" if result.stats.splice else ", re-lowered"))
         return program, result
 
     while True:

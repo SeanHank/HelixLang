@@ -45,16 +45,19 @@ except ImportError:  # pragma: no cover - numpy is a project dependency
 # lazily-safe; adaptive.py itself imports nothing from immune, so no cycle.
 from helixlang.plugins.human.adaptive import (  # noqa: E402
     AdaptiveImmuneModel as _AdaptiveImmuneModel,
+    cohort_adaptive_step as _cohort_adaptive_step,
 )
 
 # doc/40 Phase C: reduced complement cascade (G5) and NK/mast pools (G6).
 from helixlang.plugins.human.complement import (  # noqa: E402
     ComplementCascade as _ComplementCascade,
+    cohort_complement_step as _cohort_complement_step,
 )
 
 # doc/40 Phase C: tissue vs blood pseudo-compartments (G10).
 from helixlang.plugins.human.tissue_blood import (  # noqa: E402
     TissueBloodModel as _TissueBloodModel,
+    cohort_tissue_blood_step as _cohort_tissue_blood_step,
 )
 
 __all__ = [
@@ -104,6 +107,19 @@ class CytokinePool:
     # PAMP/DAMP signal (0=none, 1=severe infection)
     pathogen_signal: float = 0.0
 
+    # --- doc/40 Phase A G1+G11 (opt-in): saturating Hill production and a
+    # genuine IL-10 (A) negative-feedback compartment, after the reduced
+    # P/A/damage model (Reynolds et al. 2006, L2/L3 adoption).  Inert at
+    # baseline; when enabled the O2 cohort kernel falls back to the scalar
+    # path so parity is preserved by construction.
+    hill_il10_feedback: bool = False
+    hill_n: float = 2.0                 # Hill exponent on the PAMP/DAMP drive
+    hill_kd: float = 0.5                # signal at half-maximal drive
+    il10_feedback_half: float = 5.0     # pg/mL IL-10 at half-max suppression
+    il10_feedback_n: float = 2.0        # Hill exponent of IL-10 suppression
+    il10_p_half: float = 8.0            # pro-infl. load at half-max IL-10 induction
+    il10_hill: float = 2.0              # Hill exponent of IL-10 induction
+
     # --- Cached decay constants (doc/39 O1, math-equivalent) ---
     # ``k = ln2/half_life`` is loop-invariant across steps; hoisted out of
     # ``step`` and recomputed only when a half-life field is mutated.
@@ -131,22 +147,58 @@ class CytokinePool:
             self._decay = self._compute_decay()
 
     def step(self, dt_h: float) -> None:
-        """Advance cytokine dynamics one hour."""
+        """Advance cytokine dynamics one hour.
+
+        Baseline (``hill_il10_feedback=False``) reproduces the reduced
+        P/A/damage linear-production biomass exactly — behavior identical to
+        the vectorized ``_cohort_cytokine_step`` kernel.  When enabled
+        (doc/40 Phase A G1+G11), production of the pro-inflammatory cytokines
+        is driven by a saturating Hill activation of the pathogen signal, and
+        IL-10 becomes a genuine "L2/A"-compartment negative-feedback signal:
+        induced by combined pro-inflammatory load, and feeding back to
+        suppress TNF/IL-1/IL-6 production on its own Hill response.  This is
+        the exclusive reality switch the cohort kernel deliberately does not
+        mirror (it falls back to scalar stepping when enabled).
+        """
         self._ensure_decay_cached()
         k_tnf, k_il1, k_il6, k_il10 = self._decay
 
-        # Production stimulated by pathogen + pro-inflammatory feedback
         stim = self.pathogen_signal
-        self.tnf_alpha += dt_h * (
-            self.tnf_production_rate * stim - k_tnf * self.tnf_alpha)
-        self.il1_beta += dt_h * (
-            self.il1_production_rate * stim - k_il1 * self.il1_beta)
-        self.il6 += dt_h * (
-            self.il6_production_rate * stim - k_il6 * self.il6)
-        # IL-10 produced in response to pro-inflammatory cytokines
-        anti_stim = stim + 0.1 * (self.tnf_alpha + self.il1_beta) / 10.0
-        self.il10 += dt_h * (
-            self.il10_production_rate * anti_stim - k_il10 * self.il10)
+        if not self.hill_il10_feedback:
+            # --- baseline linear reduced model (unchanged) ---
+            self.tnf_alpha += dt_h * (
+                self.tnf_production_rate * stim - k_tnf * self.tnf_alpha)
+            self.il1_beta += dt_h * (
+                self.il1_production_rate * stim - k_il1 * self.il1_beta)
+            self.il6 += dt_h * (
+                self.il6_production_rate * stim - k_il6 * self.il6)
+            anti_stim = stim + 0.1 * (self.tnf_alpha + self.il1_beta) / 10.0
+            self.il10 += dt_h * (
+                self.il10_production_rate * anti_stim - k_il10 * self.il10)
+        else:
+            # --- doc/40 Phase A: saturating Hill physiology ---
+            n, kd = self.hill_n, self.hill_kd
+            drive = stim ** n / (kd ** n + stim ** n + 1e-12)
+            # IL-10 (A) feedback: more IL-10 → less pro-inflammatory drive.
+            fb = (self.il10 ** self.il10_feedback_n) / (
+                self.il10_feedback_half ** self.il10_feedback_n
+                + self.il10 ** self.il10_feedback_n + 1e-12)
+            self.tnf_alpha += dt_h * (
+                self.tnf_production_rate * drive * (1.0 - fb)
+                - k_tnf * self.tnf_alpha)
+            self.il1_beta += dt_h * (
+                self.il1_production_rate * drive * (1.0 - fb)
+                - k_il1 * self.il1_beta)
+            self.il6 += dt_h * (
+                self.il6_production_rate * drive * (1.0 - fb)
+                - k_il6 * self.il6)
+            # IL-10 induction by pro-inflammatory load (Hill, G11).
+            load = self.tnf_alpha + self.il1_beta + self.il6
+            i10_stim = (load ** self.il10_hill) / (
+                self.il10_p_half ** self.il10_hill
+                + load ** self.il10_hill + 1e-12)
+            self.il10 += dt_h * (
+                self.il10_production_rate * i10_stim - k_il10 * self.il10)
 
         # Floor
         self.tnf_alpha = max(0.0, self.tnf_alpha)
@@ -726,6 +778,7 @@ def create_immune_model(
     autoimmune_activation: float = 0.0,
     cortisol_level: float = 12.0,
     immunosuppression: float = 0.0,
+    hill_il10_feedback: bool = False,
 ) -> tuple[InnateImmuneModel, CRPDriver]:
     """Factory creating immune model + CRP driver.
 
@@ -734,6 +787,10 @@ def create_immune_model(
         autoimmune_activation: 0-1 scale of chronic autoimmunity
         cortisol_level: serum cortisol (µg/dL) for HPA suppression
         immunosuppression: 0-1 scale of drug-induced immunosuppression
+        hill_il10_feedback: opt in to saturating Hill cytokine production and
+            the IL-10 negative-feedback compartment (doc/40 Phase A G1+G11).
+            Off by default because it changes CytokinePool kinetics; a cohort
+            kernel run falls back to scalar stepping while it is enabled.
     """
     immune = InnateImmuneModel()
     immune.infection_severity = infection_severity
@@ -742,6 +799,8 @@ def create_immune_model(
     if cortisol_level > 20.0:
         immune.cortisol_suppression = min(1.0, (cortisol_level - 20.0) / 30.0)
     immune.immunosuppression = immunosuppression
+    if hill_il10_feedback:
+        immune.cytokines.hill_il10_feedback = True
 
     crp_driver = CRPDriver()
 
@@ -847,6 +906,16 @@ def cohort_immune_step(
             model.step(dt_h)
         return
 
+    # The vectorized kernel mirrors CytokinePool.step's default linear
+    # production exactly.  The opt-in saturating-Hill + IL-10 A-compartment
+    # physiology (doc/40 Phase A G1) is deliberately NOT mirrored there; a
+    # cohort that enables it falls through to scalar stepping so the
+    # equivalence guarantee in the docstring holds by construction.
+    if any(m.cytokines.hill_il10_feedback for m in models):
+        for model in models:
+            model.step(dt_h)
+        return
+
     np = _np
     n = len(models)
     if n == 0:
@@ -948,6 +1017,14 @@ def cohort_immune_step(
     prod_mono = base_mono * (1.0 - immuno * 0.7)
     prod_neut = prod_neut * (1.0 - immuno * 0.8)
 
+    # Biologic anti-IL-6 occupancy (doc/40 Phase D, L10): direct TMDD-style
+    # neutralisation of circulating IL-6 production, mirroring the scalar
+    # step (immune.step applies a 0.97 factor at occupancy 1.0).
+    occupancy = np.clip(
+        np.array([m.il6_biologic_occupancy for m in models], dtype=float),
+        0.0, 1.0)
+    prod_il6 = prod_il6 * (1.0 - 0.97 * occupancy)
+
     # --- Friberg transit chain (doc/40 G4) ---
     t1 = np.array([m.cells._transit_t1 for m in models], dtype=float)
     t2 = np.array([m.cells._transit_t2 for m in models], dtype=float)
@@ -1006,6 +1083,26 @@ def cohort_immune_step(
         # Circadian clock
         m._sim_hour = (m._sim_hour + dt_h) % 24.0
 
+    # --- Adaptive / complement / tissue-vs-blood sub-systems (doc/40) ---
+    # The scalar ``step`` drives these by the same post-IFN effective antigen
+    # signal it feeds the innate kernel.  Mirror them here with their own
+    # vectorized O2/O9 cohort kernels so a cohort run exercises the full
+    # doc/40 Phase B-F biology instead of silently skipping it.  Inert at
+    # baseline (no infection/vaccine/biologic), so default trajectories are
+    # unchanged; the blood compartments are refreshed from the just-written
+    # circulating channels exactly as the scalar step does.
+    epitope = list(np_max(0.0, stim_eff))
+    _cohort_adaptive_step([m.adaptive for m in models], dt_h, epitope,
+                          use_numpy=use_numpy)
+    _cohort_complement_step([m.complement for m in models], dt_h, epitope,
+                            use_numpy=use_numpy)
+    _cohort_tissue_blood_step(
+        [m.tissue_blood for m in models], dt_h, epitope,
+        [m.cytokines.il6 for m in models],
+        [m.cells.neutrophils for m in models],
+        [m.cells.monocytes for m in models],
+        use_numpy=use_numpy)
+
 
 # ============================================================================
 # Cohort runner (doc/39 O9-part-1 / doc/31 §2.4)
@@ -1044,6 +1141,10 @@ def _copy_state(src: InnateImmuneModel,
     dst.autoimmune_activation = src.autoimmune_activation
     dst.infection_severity = src.infection_severity
     dst._sim_hour = src._sim_hour
+    dst.adaptive = src.adaptive
+    dst.complement = src.complement
+    dst.tissue_blood = src.tissue_blood
+    dst.il6_biologic_occupancy = src.il6_biologic_occupancy
 
 
 # ============================================================================

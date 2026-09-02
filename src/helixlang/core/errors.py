@@ -114,6 +114,26 @@ class UnknownNodeError(RuntimeHelixError):
     """
 
 
+class UnknownOpcodeError(RuntimeHelixError):
+    """The VM encountered a byte that is not a valid opcode (doc/36 F-*).
+
+    Doc/38 hardening: an unknown opcode is never silently skipped along with
+    its operands — a chunk that is not closed under the opcode table produces
+    a wrong-result run, so it is a hard, typed error instead.  The error names
+    the offending byte and the instruction pointer.
+    """
+
+    def __init__(self, opcode: int, ip: int, *, msg: str = "",
+                 line: int = 0, col: int = 0):
+        detail = msg or (
+            f"unknown opcode byte 0x{opcode:02X} at ip={ip}; the chunk is not "
+            "closed under the opcode table (corrupt or exotic artifact)"
+        )
+        super().__init__(detail, line=line, col=col)
+        self.opcode = opcode
+        self.ip = ip
+
+
 # ── Restructure-specific explicit errors (doc/36 §3ξ.2) ──────────────────────
 
 

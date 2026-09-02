@@ -45,7 +45,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 4.100022624945268,
+  "runtime_seconds": 1.5392501250607893,
   "layer": "gem",
   "name": "GEM Reconstruction \u2014 import and minimal model",
   "level": "L2"

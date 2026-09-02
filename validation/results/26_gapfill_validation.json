@@ -13,7 +13,7 @@
     "pool_size": 6,
     "gapfill_pool_created": true
   },
-  "runtime_seconds": 2.1038095420226455,
+  "runtime_seconds": 1.8267965419217944,
   "layer": "gem",
   "name": "Gapfill Validation \u2014 restore incomplete model",
   "level": "L0"

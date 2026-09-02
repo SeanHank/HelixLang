@@ -1,6 +1,6 @@
 # doc/42 — Production Readiness: 100% Biologically Realistic Simulation via the Helix Language (Gap Assessment & Remediation Plan)
 
-> **Status:** Open — assessment complete 2026-09-01 · remediation plan proposed, **not yet implemented**
+> **Status:** Remediation mostly implemented (re-audited 2026-09-02). Open items remain, listed in §7. RD-1–RD-3 (validation-level, prod-readiness, realism remediation) landed: benchmarks 83 (`physiological_realism`), 84 (`cardiac_cycle`), 85 (`ode_model`); ODE-grammar objects (`#model`/`#species`/`#reaction`); PF-3 multiprocessing; PF-4 audit; RT-5/RT-6. Validation 84/85 (1 skip), goldens 85/85, L0×46·L1×2·L2×7·L3×16·L4×14·L5×0. Residual: PF-1 (fixed grid + deep copies partial), PF-2 (native simplex opt-in, not default), L5 clinical tier 0, RT-4 only cardiology bundles a manifest.
 >
 > **Depends on:** doc/34 (architectural plan), doc/37 (validity framework), doc/39 (performance budget + O1–O12), doc/40 (human immune realism Phases A–H), doc/41 (validation-level taxonomy + extensible parser), doc/38 (compiler modernization + plugin platform), doc/04 (simulation model), doc/27-32 (virtual patient / disease / pharmacology)
 >
@@ -67,7 +67,8 @@ These are verified strengths and are treated as stable foundations:
 - **Plugin architecture**: `PluginProvider`, `GrammarDescriptor`/`FieldSpec` extensible
   grammar registry; cardiology `#cardiac_cycle` proves zero-parser-edit grammar extension.
 - **Validation harness** (`validation/schema.py` L0–L5 taxonomy, `run_all.py`, goldens,
-  provenance): well-built backbone; currently **82/82** goldens (doc/40 Phase E).
+  provenance): well-built backbone; **85/85** goldens (doc/40 Phase E; 84/85 pass, 1 skip, at
+  the 2026-09-02 audit).
 - **Human immune subsystem** (doc/40 Phases A–H): innate + adaptive + complement +
   tissue-vs-blood + spatial ABM + virtual population, **L3 literature-validated**, with
   numpy-vectorized cohort kernels and a multiprocessing `run_cohort`.
@@ -197,7 +198,7 @@ parallelism, per-hour churn, scalar stochastic + spatial ensembles.
 
 **Gate:** 30-day `VirtualPatient.run()` shows a measured ≥2–3× speedup over the O3 baseline with
 bit-identical accepted-state results (golden-verifiable); a 100-patient cohort scales with core
-count; goldens stay 82/82.
+count; goldens stay green (85/85).
 
 ---
 
@@ -250,7 +251,7 @@ benchmark ≥ L2.
 |-------|--------------|--------------|
 | A | 0 level-gate warnings; human PK/PD/DDI carry `reference.doi`; README claims match disclaimer | L3/L4 on human core |
 | B | New L3/L4 CV/gas/renal/thermo benchmarks; coupled organ-failure changes PK | L3/L4 |
-| C | ≥2–3× PBPK speedup, cohort scales, goldens stay 82/82 | — |
+| C | ≥2–3× PBPK speedup, cohort scales, goldens stay green (85/85) | — |
 | D | End-to-end user-authored ODE in `.helix`, unit-checked, golden output | L0→L3 as authored |
 | E | Manifest-shipped plugin runs in CI; cardiology ≥L2 | L2+ |
 
@@ -274,3 +275,29 @@ A alone materially improves the honest reliability of the project.
 - **PF-1** is the most cost-effective performance fix (pure code motion, no numerics change) and
   is therefore the first perf item; PF-2 is the largest algorithmic gain but requires wiring a
   backend.
+
+---
+
+## 7 — Remediation status snapshot (2026-09-02)
+
+Re-audit of §3's gap register against the shipped code:
+
+**Closed since the 2026-09-01 assessment**
+
+- **RT-1** — the language authors biology: `#model` / `#species` / `#reaction` ODE-grammar
+  objects (doc/41) with `--ir-text`, benchmark 85 (`ode_model`), and the incremental splice JIT.
+- **VD-2** — docs/benchmarks now match code (doc/37, doc/38, doc/40 headers), 0 level-gate
+  warnings, validation levels L0×46·L1×2·L2×7·L3×16·L4×14·L5×0.
+- **PF-3** — multiprocessing is native to `run_cohort`/`_advance_slab`; 1- vs 4-worker
+  bit-identical (`test_o8`, `test_perf_cohort.py`).
+- **RT-5** — cohort virtual-population runner (`81_immune_virtual_population`) with genome-wide,
+  karyotype, and winter-float fixtures.
+- **RT-6** — 84/85 pass, 1 skip, 0 failures; goldens 85/85.
+
+**Still open (validated as the plan's Phase-B/C/D/E work)**
+
+- **VD-1** — L5 clinical tier remains 0/85 (needs a peer-reviewed trial dataset).
+- **PF-1** — fixed-grid + deep-copy `_snapshot_state`/`_restore_state` retained (partial).
+- **PF-2** — native simplex accelerator is opt-in, not the default.
+- **RT-4** — only the cardiology plugin ships a bundled `helix.plugin.toml` manifest.
+- **RT-3** — later-milestone work (documented timeline) is unchanged.

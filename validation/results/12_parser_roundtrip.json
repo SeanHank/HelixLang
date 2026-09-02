@@ -8,7 +8,7 @@
   "orf_length": 11,
   "bytecode_size": 20,
   "constants_count": 1,
-  "runtime_seconds": 0.04526658297982067,
+  "runtime_seconds": 0.048325541079975665,
   "layer": "language",
   "name": "Parser roundtrip \u2014 source \u2192 AST \u2192 bytecode",
   "level": "L0"

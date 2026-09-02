@@ -186,7 +186,11 @@ Extend `GRN.step_accel()` to support:
 - Hill kinetics (vectorized via numpy)
 - Telegraph noise (Monte Carlo perturbation on top of vectorized step)
 
-This eliminates the Python fallback for noisy/Hill GRNs.
+This eliminates the Python fallback for noisy/Hill GRNs. **Status:** shipped —
+`step_accel` layers the same per-node two-state-promoter perturbation as `step()`
+over the kernel mean on the same RNG, so noisy and Hill graphs advance through
+the accelerated kernel with results identical to the scalar path (verified
+draw-for-draw in `tests/test_accel_foundation.py`).
 
 ### 3.5 Profiling Harness
 

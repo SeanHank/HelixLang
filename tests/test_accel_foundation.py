@@ -9,6 +9,7 @@ import importlib
 
 import pytest
 
+from helixlang.plugins.runtime.grn import GRN, TelegraphPromoter
 from helixlang._accel._loaders import choose_backend, load_hot
 from helixlang.core.errors import NativeBackendError
 
@@ -148,12 +149,45 @@ def test_grn_step_accel_hill_matches_scalar(monkeypatch):
         assert a.nodes[n].level == b.nodes[n].level
 
 
-def test_grn_step_accel_rejects_noise():
+def test_grn_step_accel_noise_matches_step(monkeypatch):
+    """doc/37 §3.4: telegraph noise is no longer rejected in step_accel.  The
+    same per-node two-state-promoter perturbation is layered on the kernel
+    result with the same RNG, so step() and step_accel() stay draw-for-draw
+    identical even when interleaved."""
+    monkeypatch.setenv("HELIX_ACCEL", "python")
     from helixlang.plugins.runtime.grn import GRN
-    g = GRN(noise_enabled=True)
-    g.add_gene("g", threshold=0.0, initial_level=0.5)
-    with pytest.raises(ValueError):
-        g.step_accel()
+
+    def build() -> GRN:
+        g = GRN(noise_enabled=True, noise_seed=7)
+        for name, thr, init in (("ci", 0.0, 0.8), ("cro", 0.0, 0.2)):
+            g.add_gene(name, threshold=thr, initial_level=init, decay=0.5)
+        g.add_gene("out", threshold=0.3, initial_level=0.0, decay=0.5)
+        for name in g.nodes:
+            g.nodes[name].noise = TelegraphPromoter(
+                k_on=1.5, k_off=3.0, burst_size=2.0,
+                expression_scale=0.02)
+        g.add_edge("ci", "cro", -0.8)
+        g.add_edge("cro", "ci", -0.7)
+        g.add_edge("ci", "out", 1.2)
+        return g
+
+    a, b = build(), build()
+    import random
+    # Interleave: a runs the scalar path, b runs accel path, then swap so the
+    # RNG draw sequences line up between the two entry points tick-by-tick.
+    for _ in range(20):
+        for _1 in range(3):
+            a.step()
+            b.step()
+        ta, tb = a.step(), b.step_accel()
+        assert ta == tb
+        for n in a.nodes:
+            assert a.nodes[n].level == b.nodes[n].level
+    # A pure-accel run seeded identically reproduces the mixed run.
+    c = build()
+    for _ in range(20 * 4):
+        c.step_accel()
+    assert c.nodes["out"].level == a.nodes["out"].level
 
 
 # ── Phase 3: determinism at equivalent fidelity + no-silent-swap contract ──

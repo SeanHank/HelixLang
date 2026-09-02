@@ -31,6 +31,7 @@ from helixlang.core.ast_nodes import (
     Promoter,
     ReactionDecl,
     Regulation,
+    gene_block_digest,
 )
 from helixlang.core.errors import ParseError
 
@@ -128,8 +129,10 @@ class ParserGrammarMixin:
         if not codons:
             raise ParseError(f"#gene {name!r} has no DNA codons", line=t.line)
         orf = self._extract_orf(codons, name, t.line)
-        prog.genes.append(Gene(name=name, promoter=promoter,
-                               codons=codons, orf=orf, fields=fields))
+        gene = Gene(name=name, promoter=promoter,
+                    codons=codons, orf=orf, fields=fields)
+        gene.block_hash = gene_block_digest(gene)
+        prog.genes.append(gene)
         # Consume #end (if present)
         if self._peek() and self._peek().kind == "ANNOT_END":
             self._advance()

@@ -194,13 +194,10 @@ def accelerated_execute_pending(vm: CellVM) -> None:
             from helixlang.core.codon_table import Op
             op = Op(op_byte)
         except ValueError:
-            # Forward-compat skip (doc/11 §5.5) tracked via the VM's counter
-            # (doc/38 §10): the accelerated path must agree with the pure loop.
-            vm.skipped_unknown += 1
-            if vm.debug:
-                print(f"[tick={vm.tick} ip={vm.ip - 1}] "
-                      f"<unknown 0x{op_byte:02X}>")
-            continue
+            # Strict runtime error (doc/38): the accelerated path must agree
+            # with the pure loop — an unknown opcode is never silently skipped.
+            from helixlang.core.errors import UnknownOpcodeError
+            raise UnknownOpcodeError(opcode=op_byte, ip=vm.ip - 1) from None
         if vm.debug:
             print(f"[tick={vm.tick} ip={vm.ip - 1}] "
                   f"{op.name} stack={vm.stack}")

@@ -10,8 +10,8 @@
   },
   "details": {
     "ticks_executed": 500,
-    "vm_run_time_ms": 14.844,
-    "compile_time_ms": 0.205,
+    "vm_run_time_ms": 10.717,
+    "compile_time_ms": 0.146,
     "downsample_interval_20k": 40,
     "long_trace_entries": 501,
     "long_ticks": 1500,
@@ -28,7 +28,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 0.16863070894032717,
+  "runtime_seconds": 0.12772679200861603,
   "layer": "performance",
   "name": "Performance optimization \u2014 dispatch acceleration + snapshot downsampling",
   "level": "L2"

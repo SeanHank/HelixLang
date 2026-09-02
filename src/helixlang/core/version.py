@@ -6,7 +6,7 @@ The single source of truth for every version-bearing string is
 """
 from __future__ import annotations
 
-__version__ = "2026.8.5"
+__version__ = "2026.9.0"
 
 # ── .helixc semantic surface versions (doc/38 §2.4) ─────────────────────────
 # All are monotone integers.  The loader policy in core/hxbc.py is:

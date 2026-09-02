@@ -21,6 +21,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from helixlang.core import hxbc
+from helixlang.core.codon_table import STANDARD_TABLE, Op
 from helixlang.core.compiler import Compiler
 from helixlang.core.incr import (
     GeneDependencyGraph,
@@ -164,6 +165,14 @@ class TestBlockHashing:
         p_a, p_b = parse(SIMPLE), parse(edited)
         assert hash_gene_block(p_a.genes[1]) != hash_gene_block(p_b.genes[1])
         assert hash_gene_block(p_a.genes[0]) == hash_gene_block(p_b.genes[0])
+
+    def test_parser_stamps_block_hash(self):
+        """Parse-time block digest == the compiler's cache key (no re-hash)."""
+        p1, p2 = parse(SIMPLE), parse(SIMPLE.replace("TGG", "TCT", 1))
+        for g in p1.genes:
+            assert g.block_hash == hash_gene_block(g)
+        assert p1.genes[0].block_hash != p2.genes[0].block_hash
+        assert p1.genes[1].block_hash == p2.genes[1].block_hash
 
 
 class TestIncrementalCache:
@@ -340,6 +349,83 @@ ATG CGG TAA
         program = parse(art.source)
         cache = IncrementalCache.compute(program)
         assert cache.block_hashes.keys() == {"a", "b", "c"}
+
+
+# ---------------------------------------------------------------------------
+# 4b. bytecode-splice fast path (previous_chunk threaded)
+# ---------------------------------------------------------------------------
+class TestSplicePath:
+    def setup_method(self):
+        self.compiler = IncrementalCompiler(
+            LanguageConfig.for_table("standard"))
+
+    def test_equal_width_edit_splices_byte_identical(self):
+        r1 = self.compiler.compile(parse(SIMPLE))
+        edited = SIMPLE.replace("ATG CGC TGG TAA", "ATG CGG TGG TAA")
+        r2 = self.compiler.compile(parse(edited),
+                                   previous_ir=r1.ir, previous_cache=r1.cache,
+                                   previous_chunk=r1.chunk)
+        assert r2.stats.full_build is False
+        assert r2.stats.rebuilt == ["b"]
+        assert r2.stats.splice is True
+        fresh = self.compiler.compile(parse(edited))
+        assert bytes(r2.chunk.code) == bytes(fresh.chunk.code)
+        assert r2.chunk.gene_offsets == fresh.chunk.gene_offsets
+
+    def test_untouched_regions_copied_verbatim(self):
+        r1 = self.compiler.compile(parse(SIMPLE))
+        edited = SIMPLE.replace("ATG CGC TGG TAA", "ATG CGG TGG TAA")
+        r2 = self.compiler.compile(parse(edited),
+                                   previous_ir=r1.ir, previous_cache=r1.cache,
+                                   previous_chunk=r1.chunk)
+        # gene c is the tail region and untouched: bytes must be verbatim.
+        c_start = r2.chunk.gene_offsets["c"]
+        assert bytes(r2.chunk.code[c_start:]) == bytes(r1.chunk.code[c_start:])
+
+    def test_region_growth_declines_splice(self):
+        r1 = self.compiler.compile(parse(SIMPLE))
+        edited = SIMPLE.replace(
+            "#gene name=b call_target=a\nATG CGC TGG TAA",
+            "#gene name=b call_target=a\nATG CGG CGC TGG TAA")
+        r2 = self.compiler.compile(parse(edited),
+                                   previous_ir=r1.ir, previous_cache=r1.cache,
+                                   previous_chunk=r1.chunk)
+        assert r2.stats.splice is False
+        fresh = self.compiler.compile(parse(edited))
+        assert bytes(r2.chunk.code) == bytes(fresh.chunk.code)
+
+    def test_new_pool_literal_declines_splice(self):
+        table = {**STANDARD_TABLE, "TCT": Op.OP_PUSH_CONST}
+        cfg = LanguageConfig(table_name="t", codon_to_op=table,
+                             stop_codons=frozenset(c for c, o in table.items()
+                                                   if o is Op.OP_HALT),
+                             start_codons=frozenset(c for c, o in table.items()
+                                                    if o is Op.OP_START),
+                             translation={})
+        compiler = IncrementalCompiler(cfg)
+
+        def p(src: str):
+            return Parser(list(Lexer(src).tokens()), config=cfg).parse()
+
+        a = "#gene name=a\nATG TGG TAA\n#end\n#gene name=b\nATG TCT TAA\n#end"
+        b = a.replace("ATG TCT TAA", "ATG TCT TCC TAA")  # pushes a new literal
+        ra = compiler.compile(p(a))
+        rb = compiler.compile(p(b), previous_ir=ra.ir,
+                              previous_cache=ra.cache, previous_chunk=ra.chunk)
+        assert rb.stats.splice is False
+        assert bytes(rb.chunk.code) == bytes(compiler.compile(p(b)).chunk.code)
+
+    def test_previous_ir_not_mutated(self):
+        r1 = self.compiler.compile(parse(SIMPLE))
+        before = [tuple((i.opcode, i.operand) for i in fn.instrs)
+                  for fn in r1.ir.functions]
+        edited = SIMPLE.replace("ATG CGC TGG TAA", "ATG CGG TGG TAA")
+        self.compiler.compile(parse(edited),
+                              previous_ir=r1.ir, previous_cache=r1.cache,
+                              previous_chunk=r1.chunk)
+        after = [tuple((i.opcode, i.operand) for i in fn.instrs)
+                 for fn in r1.ir.functions]
+        assert before == after
 
 
 # ---------------------------------------------------------------------------

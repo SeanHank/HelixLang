@@ -270,3 +270,84 @@ def test_annotation_edit_forces_full_rebuild():
     p2 = _parse(base.replace("Float<min>", "Float<µM>"))
     r2 = compiler.compile(p2, previous_ir=r1.ir, previous_cache=r1.cache)
     assert r2.stats.full_build is True
+
+
+# ============================================================================
+# math-language type system: structural hierarchy + constraint solving
+# (doc/38 §7.1/§7.2 — real Type terms, unit-aware unification, occurs-check)
+# ============================================================================
+def test_unit_types_same_dimension_unify():
+    """Float<min> and Float<s> live in the same family -> unify (doc/38 §7.4)."""
+    u = Unifier()
+    t_min = UnitType(HelixType.FLOAT, "min")
+    t_s = UnitType(HelixType.FLOAT, "s")
+    u.unify(t_min, t_s, "t_clock")
+    assert u.resolve(t_min) is t_min
+
+
+def test_unit_type_unifies_with_plain_base():
+    """Float<µM> is a Float: unit vs plain base unifies without binding."""
+    u = Unifier()
+    u.unify(UnitType(HelixType.FLOAT, "µM"), HelixType.FLOAT, "g")
+    u.unify(HelixType.FLOAT, UnitType(HelixType.FLOAT, "mM"), "g")
+
+
+def test_unit_conflict_still_names_symbol():
+    """Incompatible dimensions (time vs volume) stay a named error."""
+    u = Unifier()
+    with pytest.raises(SemanticError, match="g"):
+        u.unify(UnitType(HelixType.FLOAT, "min"),
+                UnitType(HelixType.FLOAT, "µm3"), "g")
+
+
+def test_compound_annotation_parses_to_term():
+    from helixlang.core.type_system import ListType, RecordType
+    assert isinstance(parse_type_annotation("list[Float<µM>]"), ListType)
+    rec = parse_type_annotation("record{A: Float<µM>, B: Protein}")
+    assert isinstance(rec, RecordType)
+    assert isinstance(rec.fields["A"], UnitType)
+    assert rec.fields["B"] is HelixType.PROTEIN
+
+
+def test_compound_unification_structural():
+    from helixlang.core.type_system import ListType
+    u = Unifier()
+    v = TypeVar()
+    u.unify(v, ListType(HelixType.FLOAT), "xs")
+    assert u.resolve(v) == ListType(HelixType.FLOAT)
+
+
+def test_occurs_check_through_compound_terms():
+    """A variable must not be bound to a compound term it occurs inside."""
+    from helixlang.core.type_system import ListType
+    u = Unifier()
+    v = TypeVar()
+    with pytest.raises(SemanticError, match="infinite type"):
+        u.unify(v, ListType(v), "rec")
+
+
+def test_infer_program_is_constraint_driven_and_ground():
+    """The zero-annotation acceptance now runs through the Unifier."""
+    prog = _parse("#config ticks=100 ops_per_tick=100\n"
+                  "#promoter name=p1 strength=0.8\n"
+                  "#gene name=g promoter=p1\nATG TAA\n#end\n")
+    checker = TypeChecker()
+    st = checker.infer_program(prog)
+    assert st["g"] is HelixType.GENE
+    assert st["p1"] is HelixType.PROTEIN
+    assert not any(isinstance(t, TypeVar) for t in st.values())
+    assert checker.product_types == {}
+
+
+def test_compound_product_annotation_checks_in_semantic():
+    """A list-typed product annotation passes the full analyzer."""
+    prog = _parse("#type g=list[Float<µM>]\n"
+                  "#gene name=g\nATG TAA\n#end\n")
+    SemanticAnalyzer(prog).check()
+
+
+def test_check_types_surfaces_constraint_error():
+    """check_types reports an unsatisfiable system instead of raising."""
+    prog = _parse("#gene name=g\nATG TAA\n#end\n")
+    errors = TypeChecker().check_types(prog)
+    assert errors == []

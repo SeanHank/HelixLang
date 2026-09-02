@@ -165,7 +165,7 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 | Metric | Value |
 |--------|-------|
 | Source modules | 219 |
-| Test cases | 3859 (81% coverage) |
+| Test cases | 3884 (81% coverage) |
 | Validation benchmarks | 85 (84 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
@@ -316,7 +316,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
 | Worst-case error | **16.7%** (population doubling time) |
-| SHA256 golden verification | **81/81** verifiable (82 total; `11_performance_comparison` is performance-only, no hash) |
+| SHA256 golden verification | **85/85** golden files (84 pass, 1 skip—`56_blast_search` needs external BLAST; `11_performance_comparison` is performance-only, no hash) |
 
 Every benchmark records: **Reference → Expected range → Helix result → Error → Reproducibility**.
 
@@ -378,7 +378,7 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3859 test cases**(all passing, 81% coverage)
+- **3884 test cases**(all passing, 81% coverage)
 - [84/85 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest

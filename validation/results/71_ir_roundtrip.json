@@ -31,7 +31,7 @@
     "plain_instrs": 10
   },
   "reference": "doc/37 \u00a75-6 Helix IR pipeline (ir_builder/ir_lower/ir_opt/ir_serialize)",
-  "runtime_seconds": 0.1439510000636801,
+  "runtime_seconds": 0.08702616696245968,
   "layer": "compiler",
   "name": "Helix IR pipeline round-trip and optimizer correctness",
   "level": "L0"

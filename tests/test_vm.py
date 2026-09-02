@@ -848,37 +848,36 @@ class TestDebugOpcode:
 
 
 class TestUnknownOpcode:
-    """Unknown opcodes should be skipped (along with their operands)."""
+    """Unknown opcodes are strict errors (doc/38), never silently skipped."""
 
-    def test_unknown_opcode_skipped(self):
-        """0x00 is not a valid Op -> skip it and continue executing subsequent instructions."""
+    def test_unknown_opcode_raises(self):
+        """A byte that is not a valid Op raises UnknownOpcodeError (doc/38)."""
+        from helixlang.core.errors import UnknownOpcodeError
         c = Chunk()
-        # Directly append an unknown byte
+        # Directly append an unknown byte followed by a valid PUSH_CONST: the
+        # VM must stop at the unknown byte instead of skipping it.
         c.code.append(0x00)
         c.lines.append(0)
         c.codon_indices.append(-1)
-        # Follow it with a valid PUSH_CONST
         c.add_constant(5)
         c.emit(Op.OP_PUSH_CONST, 0)
-        vm = _run_chunk(c)
-        assert vm.stack == [5]
+        vm = _make_vm(c)
+        with pytest.raises(UnknownOpcodeError, match="0x00"):
+            vm._execute_pending()
 
-    def test_unknown_opcode_with_operand_bytes_skipped(self):
-        """Unimplemented opcodes skip their operand bytes.
-
-        Ops not listed in OP_OPERAND_BYTES are handled by the default branch:
-        OP_OPERAND_BYTES.get(op, 0) bytes are skipped.
-        For an unknown byte 0x01 (not in the Op enum), _dispatch is not called
-        (_execute_pending resolves with Op(op_byte); on failure it continues).
-        """
+    def test_unknown_opcode_raises_in_accel(self):
+        """The accelerated path agrees with the pure loop on unknown bytes."""
+        from helixlang.core.errors import UnknownOpcodeError
         c = Chunk()
         c.code.append(0x01)  # invalid opcode
         c.lines.append(0)
         c.codon_indices.append(-1)
         c.add_constant(7)
         c.emit(Op.OP_PUSH_CONST, 0)
-        vm = _run_chunk(c)
-        assert vm.stack == [7]
+        vm = _make_vm(c)
+        vm.use_accel = True
+        with pytest.raises(UnknownOpcodeError, match="0x01"):
+            vm._execute_pending()
 
 
 class TestVmRunIntegration:

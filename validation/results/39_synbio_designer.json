@@ -16,7 +16,7 @@
     "restriction_sites": [],
     "full_sequence_length": 198
   },
-  "runtime_seconds": 0.05458745895884931,
+  "runtime_seconds": 0.05402799998410046,
   "layer": "synbio",
   "name": "SynBio Designer \u2014 genetic circuit design and validation",
   "level": "L0"

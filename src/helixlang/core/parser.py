@@ -23,6 +23,7 @@ from helixlang.core.ast_nodes import (
     Gene,
     Program,
     UseDecl,
+    gene_block_digest,
 )
 from helixlang.core.errors import ParseError, UnknownKeywordError
 from helixlang.core.grammar_handlers import BIO_INSTRUCTION_KINDS, ParserGrammarMixin
@@ -390,7 +391,9 @@ class Parser(ParserGrammarMixin):
         name = f"__anon_{self.anon_counter}"
         self.anon_counter += 1
         orf = self._extract_orf(codons, name, codons[0].line if codons else 0)
-        return Gene(name=name, promoter=None, codons=codons, orf=orf)
+        gene = Gene(name=name, promoter=None, codons=codons, orf=orf)
+        gene.block_hash = gene_block_digest(gene)
+        return gene
 
     # -------- token utilities --------
     def _peek(self, k: int = 0) -> Token:

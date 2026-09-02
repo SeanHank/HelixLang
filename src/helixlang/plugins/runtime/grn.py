@@ -297,23 +297,18 @@ class GRN:
     def step_accel(self, prefer: str | None = None) -> list[str]:
         """Advance one tick via the isolated hot-loop kernel (doc/36 §4.1 P1).
 
-        Produces results identical to :meth:`step` for the noiseless sigmoid
-        *or* Hill path — a pure speed switch, never a fidelity switch.  The
-        kernel is selected by the ``_accel`` loader (native > numpy > python)
-        with the optional ``prefer`` override.  Returns the triggered gene
-        names, matching :meth:`step`.
-
-        Raises:
-            ValueError: if the graph uses telegraph noise, which the
-                equivalent-fidelity kernel does not mirror (doc/39 O6 keeps
-                noise a simulation-only feature; use ``step()`` for it).
+        Produces results identical to :meth:`step` — pure speed switch, never
+        a fidelity switch (doc/37 §3.4).  The deterministic mean comes from
+        the ``_accel`` kernel (native > numpy > python, optional ``prefer``
+        override) and, when the graph uses telegraph noise, the same
+        per-node two-state-promoter perturbation that :meth:`step` applies is
+        layered on top using the same RNG; the noiseless result is identical
+        to ``step()`` and the RNG draw sequence matches ``step()`` so the two
+        entry points can be interleaved deterministically.  Returns the
+        triggered gene names, matching :meth:`step`.
         """
         from helixlang.api.accel import grn_step, grn_step_mixed
 
-        if self.noise_enabled:
-            raise ValueError(
-                "step_accel requires noise disabled (telegraph noise is not "
-                "part of the equivalent-fidelity kernel; use step())")
         names = list(self.nodes)
         index = {n: i for i, n in enumerate(names)}
         levels = [self.nodes[n].level for n in names]
@@ -336,6 +331,25 @@ class GRN:
             new_levels, _trig = grn_step(
                 levels, src, dst, weights, decays, thresholds, default_decay,
             )
+
+        if self.noise_enabled:
+            # Mirror step(): the two-state-promoter telegraph perturbation is
+            # layered on the kernel's blended mean (identical arithmetic), so
+            # results match the scalar path draw-for-draw on the same RNG.
+            rng = self._noise_rng
+            for i, name in enumerate(names):
+                node = self.nodes[name]
+                if node.noise is None:
+                    continue
+                decay = (node.decay if node.decay is not None
+                         else self._default_decay)
+                fano = node.noise.fano_factor()
+                std = fano_to_noise_std(
+                    fano, float(max(0.0, new_levels[i])), decay,
+                    node.noise.expression_scale)
+                new_levels[i] = float(new_levels[i]) + rng.gauss(0.0, std)
+            new_levels = [max(0.0, min(1.0, x)) for x in new_levels]
+
         for name, lvl in zip(names, new_levels, strict=True):
             self.nodes[name].level = lvl
         return [n for n, l in zip(names, new_levels, strict=True) if l > 0.5]

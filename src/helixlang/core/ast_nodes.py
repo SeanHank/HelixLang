@@ -1,8 +1,30 @@
 """AST node definitions. All nodes use slots=True to reduce memory usage."""
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from typing import Any
+
+
+def gene_block_digest(gene: Gene) -> str:
+    """SHA-256 digest of a gene's parse block (doc/38 §3, cache key).
+
+    Covers the gene name, the ``#gene`` header fields (sorted), and the ORF
+    codon stream — exactly what :func:`helixlang.core.incr.hash_gene_block`
+    hashes.  The parser stamps this on ``Gene.block_hash`` so incremental
+    recompiles never re-hash untouched ORFs (the digest is produced during
+    the unavoidable parse pass instead).
+    """
+    h = hashlib.sha256()
+    h.update(gene.name.encode("utf-8"))
+    for key in sorted(gene.fields):
+        h.update(key.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(gene.fields[key].encode("utf-8"))
+        h.update(b"\x01")
+    for codon in gene.orf:
+        h.update(codon.seq.encode("utf-8"))
+    return "sha256:" + h.hexdigest()
 
 
 @dataclass(slots=True)
@@ -29,6 +51,7 @@ class Gene:
     codons: list[Codon]
     orf: list[Codon]
     fields: dict[str, str] = field(default_factory=dict)
+    block_hash: str = field(default="", repr=False, compare=False)
 
 
 @dataclass(slots=True)

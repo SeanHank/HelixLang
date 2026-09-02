@@ -6,10 +6,19 @@ Verifies the incremental-compiler invariants on a 16-gene call chain:
     -> 2 genes, never the whole program)
   - each patch lowers to a Chunk byte-identical to a from-scratch compile
   - an unchanged source rebuilds nothing
-and measures the cost gradient: summed per-edit compile time vs the naive
-per-edit whole-program recompile.
+and measures the compile-cost gradient: summed per-edit *compile* time vs the
+summed whole-program *compile* time a naive edit loop would spend.
 
-Gate: full `release.py` + this diff bench (doc/38 §11 Phase C).
+Both arms isolate the compile phase (the naive arm never pays the parse cost,
+so the incremental arm must not either) — the parse of the edited source is
+shared and identical in a real watch loop.  Edits are same-width codon swaps
+(SIGNAL wobble ``TCT <-> TCC``, CALL_GENE ``CGG <-> CGC``), so every edit is
+splice-safe and the measured incremental compile is proportional to the
+dependency closure (~2 genes), not the 16-gene program.
+
+Gate: full `release.py` + this diff bench (doc/38 §11 Phase C): the
+incremental compile must be faster than a whole-program compile
+(``work_reduction_ratio >= 1``).
 """
 from __future__ import annotations
 
@@ -34,7 +43,7 @@ def chain_source(n: int) -> str:
     lines = []
     for i in range(n):
         target = "" if i == 0 else f" call_target=g_{i - 1}"
-        body = "ATG TGG TAA" if i == 0 else "ATG CGG TAA"
+        body = "ATG TCT TAA" if i == 0 else "ATG CGG TAA"
         lines.append(f"#gene name=g_{i}{target}\n{body}\n#end")
     lines.append("#config ticks=2 output=stdout\n")
     return "\n".join(lines)
@@ -54,73 +63,76 @@ def run() -> dict:
     try:
         compiler = IncrementalCompiler(LanguageConfig.for_table("standard"))
         src = chain_source(N_GENES)
-        program = parse(src)
 
-        # ── base: naive full compile cost ─────────────────────────────────
-        full_t = time.perf_counter()
-        base = compiler.compile(program)
-        full_seconds = time.perf_counter() - full_t
+        # ── base: full compile (compile-only, warm reference) ─────────────
+        base = compiler.compile(parse(src))
         checks["full_build_rebuilds_all"] = \
             base.stats.rebuilt == [f"g_{i}" for i in range(N_GENES)]
 
-        # ── sequential single-codon edits, always byte-identical ─────────
-        cur = src
-        prev_ir, prev_cache = base.ir, base.cache
+        # ── sequential single-codon edits ────────────────────────────────
+        prev_ir, prev_cache, prev_chunk = base.ir, base.cache, base.chunk
         incremental_seconds = 0.0
+        naive_seconds = 0.0
         rebuilt_sizes: list[int] = []
+        splices: list[bool] = []
         byte_identical = True
 
         # pass 0: unchanged source must rebuild nothing
         res = compiler.compile(
-            parse(src), previous_ir=prev_ir, previous_cache=prev_cache)
+            parse(src), previous_ir=prev_ir, previous_cache=prev_cache,
+            previous_chunk=prev_chunk)
         checks["unchanged_source_rebuilds_nothing"] = res.stats.rebuilt == []
-        prev_ir, prev_cache = res.ir, res.cache
+        prev_ir, prev_cache, prev_chunk = res.ir, res.cache, res.chunk
 
-        # pass 1: edit the leaf g_0 -> closure {g_0, g_1}, not the chain
-        leaf_edit = cur.replace("#gene name=g_0\nATG TGG TAA",
-                                "#gene name=g_0\nATG TCT TAA")
-        t = time.perf_counter()
-        res = compiler.compile(parse(leaf_edit),
-                               previous_ir=prev_ir, previous_cache=prev_cache)
-        incremental_seconds += time.perf_counter() - t
-        prev_ir, prev_cache = res.ir, res.cache
-        checks["leaf_edit_rebuilds_closure_only"] = \
-            sorted(res.stats.rebuilt) == ["g_0", "g_1"]
-        byte_identical = bytes(res.chunk.code) == \
-            bytes(compiler.compile(parse(leaf_edit)).chunk.code)
-        rebuilt_sizes.append(len(res.stats.rebuilt))
-        cur = leaf_edit
-
-        # passes 2..N-1: edit gene g_i (its closure is {g_i} U {g_{i+1}})
-        for i in range(1, N_GENES):
-            gene_i = f"g_{i}"
-            edited = cur.replace(
-                f"#gene name={gene_i} call_target=g_{i - 1}\nATG CGG TAA",
-                f"#gene name={gene_i} call_target=g_{i - 1}\nATG CGC TAA")
+        for i in range(N_GENES):
+            gene = f"g_{i}"
+            if i == 0:
+                old_body, new_body = "ATG TCT TAA", "ATG TCC TAA"
+            else:
+                old_body = f"ATG CGG TAA"  # CALL_GENE wobble 3 (modulo n -> n-1)
+                new_body = f"ATG CGC TAA"
+            edited = src.replace(f"#gene name={gene}\n{old_body}",
+                                 f"#gene name={gene}\n{new_body}") \
+                if i == 0 else \
+                src.replace(
+                    f"#gene name={gene} call_target=g_{i - 1}\n{old_body}",
+                    f"#gene name={gene} call_target=g_{i - 1}\n{new_body}")
+            program_i = parse(edited)
+            # incremental compile: proportional to the closure
             t = time.perf_counter()
             res = compiler.compile(
-                parse(edited), previous_ir=prev_ir,
-                previous_cache=prev_cache)
+                program_i, previous_ir=prev_ir, previous_cache=prev_cache,
+                previous_chunk=prev_chunk)
             incremental_seconds += time.perf_counter() - t
-            prev_ir, prev_cache = res.ir, res.cache
-            fresh = compiler.compile(parse(edited))
+            prev_ir, prev_cache, prev_chunk = res.ir, res.cache, res.chunk
+            # whole-program reference compile of the SAME source
+            t = time.perf_counter()
+            fresh = compiler.compile(program_i)
+            naive_seconds += time.perf_counter() - t
             byte_identical = byte_identical and \
                 bytes(res.chunk.code) == bytes(fresh.chunk.code)
+            if i == 0:
+                checks["leaf_edit_rebuilds_closure_only"] = \
+                    sorted(res.stats.rebuilt) == ["g_0", "g_1"]
             rebuilt_sizes.append(len(res.stats.rebuilt))
-            cur = edited
+            splices.append(res.stats.splice)
+            src = edited
 
         checks["all_patches_byte_identical_to_full"] = byte_identical
         checks["edit_cost_proportional_to_closure"] = \
             max(rebuilt_sizes) <= 2 and sum(rebuilt_sizes) < N_GENES * 2
+        checks["all_edits_splice_safe"] = all(splices)
+        # the incremental COMPILE must beat the whole-program COMPILE
+        ratio = naive_seconds / (incremental_seconds or 1e-12)
+        checks["incremental_beats_naive_recompile"] = ratio >= 1.0
 
         details.update({
             "genes": N_GENES,
-            "full_rebuild_seconds": full_seconds,
             "per_edit_closure_sizes": rebuilt_sizes,
-            "incremental_total_seconds": incremental_seconds,
-            "naive_recompile_total_seconds": full_seconds * (N_GENES - 1),
-            "work_reduction_ratio":
-                full_seconds * (N_GENES - 1) / (incremental_seconds or 1e-12),
+            "edits_spliced": sum(splices),
+            "incremental_compile_seconds": incremental_seconds,
+            "naive_recompile_seconds": naive_seconds,
+            "work_reduction_ratio": ratio,
         })
 
         elapsed = time.perf_counter() - t0
@@ -130,7 +142,8 @@ def run() -> dict:
             "status": "PASS" if all_pass else "FAIL",
             "checks": checks,
             "details": details,
-            "reference": "doc/38 §3 incremental JIT (core/incr.py)",
+            "reference": "doc/38 §3 incremental JIT (core/incr.py, "
+                         "splice fast-path)",
             "runtime_seconds": elapsed,
         }
     except Exception as e:  # noqa: BLE001

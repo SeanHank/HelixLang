@@ -48,7 +48,7 @@
     "effect_with_baseline_at_zero": 0.2,
     "effect_with_baseline_at_high": 0.999201
   },
-  "runtime_seconds": 0.540689375018701,
+  "runtime_seconds": 0.5985187910264358,
   "layer": "human",
   "name": "Hill equation dose-response curve",
   "level": "L4"

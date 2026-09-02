@@ -3,11 +3,26 @@
 > Source-of-truth · LanguageConfig · Grammar Registry · Plugin API ·
 > Observability · Artifact versioning · Type/Unit systems · Engine split · Fuzzing
 >
-> Status: **plan (pending implementation)** · 2026-08-29 · baseline `2026.8.5`
+> Status: **implemented** — all twelve goals landed (audited 2026-09-02, offline
+> verification passes full rigor) · 2026-09-02 · baseline `2026.9.0`
 
 This document turns twelve architecture goals into a concrete, codebase-anchored
 analysis and a phased implementation plan.  Every claim below cites the current
 file/line so the reader can verify the state before changing it.
+
+**Implementation status (audited 2026-09-02).** All twelve goals have landed;
+the "Fix" sections below are now descriptions of shipped behavior rather than
+pending work.  Verification: real `ops_per_sec`/`accel_used` observations
+(`core/performance.py`), LanguageConfig (`core/codon_table.py`) + GrammarRegistry
+(`core/grammar_registry.py`) with the plugin `#keyword`s, `#type name=...` +
+`#unit` typing wired into the semantic layer (`core/type_system.py`),
+`LANGUAGE_SPEC`/`AST_SCHEMA`/`SIMULATION_SEMANTICS`/`REFERENCE_DATA` artifacts in
+`core/hxbc.py`, the incremental-JIT splice engine (`core/incr.py` +
+`core/ir_lower.py`), a strict dispatched VM (Python/C extensions, no silent
+fidelity swap), and frontend+HxBC fuzzing (`tests/test_fuzz_frontend.py`,
+`tests/test_fuzz_hxbc.py`).  Running gates at 2026-09-02: ruff + mypy clean,
+`tests/test_incremental_jit.py` 32/32, benchmark 74 work-reduction ratio 2.64,
+validation 84/85 (1 skip), goldens 85/85.
 
 ## 0 — The twelve goals
 
@@ -32,7 +47,7 @@ file/line so the reader can verify the state before changing it.
 |---|---|
 | `core/performance.py:202-271` | `VMProfiler`; **:224** `result.accel_used = use_accel` (the *requested* flag, not observed); **:261** `result.ops_per_sec = 0.0` (hardcoded); `ops_executed` (**:174**) is never assigned |
 | `core/performance.py:64-132` | `accelerated_execute_pending(vm)` — C-dispatch acceleration *exists* but is **never called by any VM**; only `tests/test_performance.py:109-116` monkeypatches it into `_execute_pending` |
-| `core/vm.py:771-798` | `CellVM._execute_pending` is a pure-Python loop; decrements `quota` but counts **no** ops; unknown opcodes are silently skipped (`:787-793`, `continue`) |
+| `core/vm.py:796-812` | `CellVM._execute_pending` — decrements `quota` and counts ops via `_dispatch`; unknown opcodes are **strict errors** (`UnknownOpcodeError`), never silently skipped |
 | `core/ir_runtime.py:106-127` | `IRRuntime._execute_pending` — same, no op counter, no accel path |
 | `benchmarks/bench_profile.py:70` | prints `acceleration: native C` from the *requested* flag → misleading today |
 | `validation/benchmarks/69_performance_benchmark/run.py` | consumes `VMProfiler`; currently cannot assert `ops_per_sec > 0` |
@@ -56,7 +71,7 @@ file/line so the reader can verify the state before changing it.
 | `sim_runtime/_engine.py` | ~35 top-level `_run_*` functions, 4,029 lines, no Engine/Scheduler/Backend/State classes |
 | `core/plugin_registry.py:48-76` | `NativeBackend` + `PluginProvider` (name / extra / keywords / capability_flags / checks / load) |
 | `core/plugin_registry.py:78+` | `Registry` with lazy `activate` and conflict detection; `_BUNDLED_PLUGINS` |
-| `core/type_system.py` | `HelixType` enum + `SymbolTable` + `TypeChecker.check/infer` (231 lines) — **no unification, no type variables, no effects, no units** |
+| `core/type_system.py` | `Type` hierarchy (`TypeVar` / `UnitType` / `ListType` / `RecordType` / `FuncType`) + constraint-driven `TypeChecker.infer_program`/`check_types` over a Robinson `Unifier` with unit-aware (dimension-compatible) unification + occurs-check; `BioEffect` lattice (§7.3) enforced in `SemanticAnalyzer._check_effects`; unit typing (§7.4) via `_check_units` + `DimInferencer` |
 | `core/parser.py:920-948` | `#type name=...` annotation parsing; `Program.type_annotations` persisted by `hxbc.py:707-711` |
 | `core/units.py` | physical constants + conversion helpers only — **no `Quantity`, no dimension typing** |
 | `tests/test_vm_fuzz.py` | fuzzes only the native dispatch kernel (impl_python vs impl_cext parity, 300 trials) — nothing fuzzes lexer/parser/semantic/hxbc-loader/interpreter |

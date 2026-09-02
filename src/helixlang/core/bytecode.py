@@ -7,7 +7,7 @@ from typing import Any
 from helixlang.core.codon_table import Op
 
 # ── Bytecode ABI version ──────────────────────────────────────────────────
-# Frozen as of HelixLang 2026.8.5.
+# Frozen as of HelixLang 2026.9.0.
 # or Chunk layout **must** bump this constant and update spec/bytecode-abi.md.
 # Note: OP_USE_PLUGIN (doc/36 §3.2) is a compiler-generated opcode that does NOT
 # change the codon→opcode mapping or operand layout of any prior op, so the ABI

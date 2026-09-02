@@ -19,7 +19,7 @@
   },
   "details": {
     "fba_provenance": {
-      "helix_version": "2026.8.5",
+      "helix_version": "2026.9.0",
       "seed": 42,
       "backend": "fba",
       "parameters": {
@@ -42,7 +42,7 @@
         "torch": "2.13.0",
         "esm": "3.2.1.post1"
       },
-      "timestamp": "2026-09-01T09:37:56Z",
+      "timestamp": "2026-09-02T00:59:51Z",
       "source_hash": "",
       "model_version": "",
       "parameter_set": {
@@ -95,7 +95,7 @@
     },
     "fidelity_mode": "full"
   },
-  "runtime_seconds": 1.0869922500569373,
+  "runtime_seconds": 0.49483395798597485,
   "layer": "provenance",
   "name": "Provenance \u2014 all simulation results carry provenance metadata",
   "level": "L0"

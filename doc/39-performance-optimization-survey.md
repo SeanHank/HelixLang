@@ -32,7 +32,7 @@ exactly the components whose *realism* doc/37, doc/31 and doc/40 want to raise, 
 optimization here is deliberately framed as "math-equivalent or math-better", never
 "math-worse".
 
-Validation gate: **82/82 validation goldens, SHA256-verified** (`validation/report.md`,
+Validation gate: **85/85 validation goldens, SHA256-verified** (`validation/report.md`,
 README §Validation). Every optimization below is gated on either bit-identical golden
 outputs or a documented regeneration path through the doc/37 Biological-Accuracy framework.
 
@@ -242,7 +242,7 @@ golden rewrites.
 ## 7 — References
 
 - doc/13 — performance-report (compile/VM/GRN/Gray-Scott numbers quoted in §1)
-- doc/37 — biological-validity-performance-decoupling (validation 82/82, doc/37 §5 batch runtime)
+- doc/37 — biological-validity-performance-decoupling (validation 85/85, doc/37 §5 batch runtime)
 - doc/36 — plugin-architecture (dual-wheel `HAS_NATIVE` packaging)
 - doc/31 — frontier-virtual-patient-design (§2.4 immune ABM survey; §4.5 performance budget: "ABM adds minutes per run at tissue-agent counts × population n; acceptable for n≥100 if agents capped ≈10³–10⁴")
 - doc/33 — 100-percent-completion (validation lineage)

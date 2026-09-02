@@ -24,8 +24,8 @@ from typing import TYPE_CHECKING, Any
 
 from helixlang.core.ast_nodes import BioInstruction, Program
 from helixlang.core.bytecode import Chunk
-from helixlang.core.codon_table import OP_OPERAND_BYTES, Op
-from helixlang.core.errors import StackUnderflowError
+from helixlang.core.codon_table import Op
+from helixlang.core.errors import StackUnderflowError, UnknownOpcodeError
 from helixlang.core.language import LanguageConfig
 from helixlang.core.opcode_semantics import (
     BIND_LEVEL_BOOST,
@@ -300,9 +300,14 @@ class BioInstructionDispatcher:
             case Op.OP_DEBUG:
                 print(f"DEBUG: {vm.cell.dump()}")
             case _:
-                # Unimplemented opcode: skip its operands (with bounds protection)
-                nbytes = OP_OPERAND_BYTES.get(op, 0)
-                vm.ip = min(vm.ip + nbytes, len(vm.chunk.code))
+                # Unreachable for compiler-built chunks (the match above covers
+                # every member of `Op`).  Keep it strict: an unhandled opcode is
+                # never skipped along with its operands.
+                raise UnknownOpcodeError(
+                    opcode=int(op),
+                    ip=max(vm.ip - 1, 0),
+                    msg=f"unhandled opcode {op.name}",
+                )
 
     # -------- bio instruction dispatch --------
     def process_bio_instructions(self) -> None:
@@ -815,14 +820,10 @@ class CellVM:
             try:
                 op = Op(op_byte)
             except ValueError:
-                # Unknown byte: cannot determine the operand length, skip only
-                # 1 byte; record it (doc/38 §10 keeps this observable instead
-                # of silent) and in debug mode print the byte.
-                self.skipped_unknown += 1
-                if self.debug:
-                    print(f"[tick={self.tick} ip={self.ip - 1}] "
-                          f"<unknown 0x{op_byte:02X}>")
-                continue
+                # Unknown byte: strict runtime error (doc/38).  A chunk that is
+                # not closed under the opcode table would otherwise be executed
+                # with discarded operands — silently producing a wrong result.
+                raise UnknownOpcodeError(opcode=op_byte, ip=self.ip - 1) from None
             if self.debug:
                 print(f"[tick={self.tick} ip={self.ip - 1}] "
                       f"{op.name} stack={self.stack}")

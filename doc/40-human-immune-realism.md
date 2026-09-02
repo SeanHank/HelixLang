@@ -1,6 +1,6 @@
 # doc/40 — Human Immune System Simulation Realism Upgrade Plan (Literature-Grounded)
 
-> **Status:** Phase A implemented (G1/G4/G8/G9/G11) + Phase B implemented (G2/G3/G7/G12, 2026-08-31) + Phase C implemented (G5/G6/G10, 2026-08-31) + Phase D implemented (G13/G14/L10, 2026-08-31) + Phase E initial validation conditioning implemented (2026-09-01, **82/82 goldens, six new Phase A–F benchmarks 77–82**) · Phase F (G15 ABM), Phase G (L7+PD-1), Phase H (432-param Bayesian via **pymc**) implemented · 2026-09-01 · baseline 2026.8.5
+> **Status:** Phase A implemented (G1/G4/G8/G9/G11) + Phase B implemented (G2/G3/G7/G12, 2026-08-31) + Phase C implemented (G5/G6/G10, 2026-08-31) + Phase D implemented (G13/G14/L10, 2026-08-31) + Phase E initial validation conditioning implemented (2026-09-01, **82/82 goldens at the time**) + Phase F (G15 ABM), Phase G (L7+PD-1), Phase H (432-param Bayesian via **pymc**) implemented · 2026-09-02 audit: **85/85 goldens, nine Phase A–F benchmarks 77–85**; G1+G11 saturating-Hill + IL-10 A-compartment now available as an opt-in (`hill_il10_feedback`, default off); the O2 cohort kernel now also drives the adaptive/complement/tissue-vs-blood and IL-6-occupancy sub-systems · 2026-09-02 · baseline 2026.9.0
 >
 > **Dependency note (2026-09-01):** Phases F–H are implemented with **declared, pre-installed
 > dependencies only — no silent fallback** (directive). Phase F uses `jax`/`numpy` (`[has_jax]`
@@ -335,16 +335,18 @@ answer: **Content** — what we will build; **Method** — modeling method from 
   nadir days, Ab waning half-life). Determinism: seeded sampling retained (doc/39 §5).
 
   **STATUS: initial conditioning complete (2026-09-01).** The Phase A–D/F realism modules
-  are now covered by **six new doc/40 benchmarks** registered in `validation/` (each with a
+  are now covered by **nine new doc/40 benchmarks** registered in `validation/` (each with a
   SHA256 golden): `77_immune_ifn_crp_friberg` (G1/G4/G8/G9, L3), `78_immune_adaptive_vaccine`
   (G2/G3/G7/G12, L3), `79_immune_complement` (G5/G6, L3), `80_immune_tissue_blood` (G10, L3),
-  `81_immune_virtual_population` (G13 + O2/O9 bit-identity, L3), and `82_immune_spatial_abm`
-  (G15, L0). **Validation suite is now 82/82 PASS**, with a reproducible golden-verification
-  pipeline: the golden determinizer (`validation/goldens/generate_goldens.py` /
-  `verify_goldens.py`) excludes run-to-run-volatile fields (`runtime_seconds`, `*_ms`,
-  `*_seconds`, `*_ratio`, `timestamp`) so every golden — including the pre-existing
-  `74_incremental_jit` timing benchmark and `45_provenance_completeness` provenance
-  timestamp — verifies bit-reproducibly (`82/82 golden hashes match`).
+  `81_immune_virtual_population` (G13 + O2/O9 bit-identity, L3), `82_immune_spatial_abm`
+  (G15, L0), `83_physiological_realism`, `84_cardiac_cycle` (RT-4/VD-2), and
+  `85_ode_model` (RT-1, doc/41 ODE grammar). **Validation suite is now 84/85 PASS**
+  (1 skip, 0 failures), with a reproducible golden-verification pipeline: the golden
+  determinizer (`validation/goldens/generate_goldens.py` / `verify_goldens.py`) excludes
+  run-to-run-volatile fields (`runtime_seconds`, `*_ms`, `*_seconds`, `*_ratio`, `timestamp`)
+  so every golden — including the pre-existing `74_incremental_jit` timing benchmark and
+  `45_provenance_completeness` provenance timestamp — verifies bit-reproducibly
+  (`85/85 golden hashes match`).
 
 - **Phase F — Spatial ABM (G15, 4–6 wk).** Agent-based modeling of immune cells in tissue
   spaces, replacing population ODEs with spatially-resolved rules per doc/31 §2.4. Includes:

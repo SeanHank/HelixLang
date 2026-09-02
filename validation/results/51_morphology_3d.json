@@ -33,7 +33,7 @@
     "year": 1968,
     "note": "L-system 3D turtle interpretation with Rodrigues rotation"
   },
-  "runtime_seconds": 0.04459054197650403,
+  "runtime_seconds": 0.03934274998027831,
   "layer": "runtime",
   "name": "3D L-system morphology",
   "level": "L0"

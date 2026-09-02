@@ -24,7 +24,7 @@
   "reference": {
     "diamond": "Buchfink B et al. 2021, Nat Methods 18:705-708"
   },
-  "runtime_seconds": 0.05241516698151827,
+  "runtime_seconds": 0.06311491690576077,
   "layer": "annotation",
   "name": "BLAST search wrapper",
   "level": "L0"

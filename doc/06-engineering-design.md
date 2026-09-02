@@ -543,8 +543,8 @@ class CellVM:
 - `OP_GROW_LSYSTEM`: by default acts on the first L-system, iterating once
 - `OP_REACT`: executes `config.react_steps` iterations of `field.step()`
 - `OP_EMIT_MORPHOGEN`: injects V at `(cell.x % n, cell.y % n)`
-- unknown opcode: skip its operand bytes (per `OP_OPERAND_BYTES`)
-- stack underflow: silently ignored (no exception, preserving prototype robustness)
+- unknown opcode: raises `UnknownOpcodeError` (strict runtime error, doc/38) — a chunk that is not closed under the opcode table is never executed with discarded operands
+- stack underflow: raises `StackUnderflowError` (doc/36 F11) — never a silent no-op
 
 ### 3.15 [`cli.py`](file:///Users/admin/PycharmProjects/HelixLang/src/helixlang/cli.py)
 

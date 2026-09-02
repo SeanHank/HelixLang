@@ -15,9 +15,11 @@ emitted chunk is byte-identical to ``Compiler().compile(program)``.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from helixlang.core.bytecode import Chunk
 from helixlang.core.codon_table import OP_OPERAND_BYTES, Op
-from helixlang.core.ir import IRFunction, IRProgram
+from helixlang.core.ir import IRFunction, IRInst, IRProgram
 
 
 class IRLowerer:
@@ -57,51 +59,87 @@ class IRLowerer:
         return chunk
 
     # -------- ORF encoding --------
+    def _encode_inst(self, chunk: Chunk, inst: IRInst,
+                     resolve_call: Callable[[str], int] | None) -> int:
+        """Encode one IR instruction, returning its start ip.
+
+        ``resolve_call`` is ``None`` on the full-lower path (a zero placeholder
+        is emitted and the site recorded for back-patching) or a gene-name →
+        absolute-offset function on the incremental splice path, where the
+        target offset of every ``OP_CALL_GENE`` is already known.  Both modes
+        emit identical bytes for the same IR, so the splice of
+        :mod:`helixlang.core.incr` is byte-faithful to :meth:`lower`.
+        """
+        op = inst.opcode
+        if op is Op.OP_PUSH_CONST:
+            # P0-1: the IR carries the literal; add it to the constant pool
+            # and emit its (deduplicated) index.
+            const_idx = chunk.add_constant(inst.operand)
+            return chunk.emit(op, const_idx, line=inst.line,
+                              codon_index=inst.codon_index)
+        if op is Op.OP_CALL_GENE:
+            target = str(inst.operand)
+            if resolve_call is None:
+                ip = chunk.emit(op, 0, 0, line=inst.line,
+                                codon_index=inst.codon_index)
+                self._call_sites.append((ip + 1, target))
+                return ip
+            return chunk.emit_u16(op, resolve_call(target), line=inst.line,
+                                  codon_index=inst.codon_index)
+        if op is Op.OP_JUMP or op is Op.OP_JUMP_IF_ZERO:
+            # IR-embedded jumps carry no operand (the builder never emits
+            # them symbolically) -- defensive zero placeholder.
+            return chunk.emit_u16(op, 0, line=inst.line,
+                                  codon_index=inst.codon_index)
+        nbytes = OP_OPERAND_BYTES.get(op, 0)
+        operand = inst.operand if isinstance(inst.operand, int) else 0
+        if nbytes == 1:
+            return chunk.emit(op, operand, line=inst.line,
+                              codon_index=inst.codon_index)
+        if nbytes == 0:
+            return chunk.emit(op, line=inst.line,
+                              codon_index=inst.codon_index)
+        return chunk.emit(op, *([0] * nbytes), line=inst.line,
+                          codon_index=inst.codon_index)
+
     def _emit_orf(self, chunk: Chunk, fn: IRFunction) -> int:
         """Emit one IR function, returning the ip of its last instruction."""
         last_op_ip = -1
         for inst in fn.instrs:
-            op = inst.opcode
-            if op is Op.OP_PUSH_CONST:
-                # P0-1: the IR carries the literal; add it to the constant pool
-                # and emit its (deduplicated) index — identical to the legacy
-                # compiler which added the wobble value to the pool.
-                const_idx = chunk.add_constant(inst.operand)
-                last_op_ip = chunk.emit(op, const_idx, line=inst.line,
-                                        codon_index=inst.codon_index)
-            elif op is Op.OP_CALL_GENE:
-                # Target name resolved at IR build time; emit a placeholder u16
-                # address to be back-patched once all gene offsets are known.
-                target = inst.operand
-                ip = chunk.emit(op, 0, 0, line=inst.line,
-                                codon_index=inst.codon_index)
-                self._call_sites.append((ip + 1, str(target)))
-                last_op_ip = ip
-            elif op is Op.OP_JUMP or op is Op.OP_JUMP_IF_ZERO:
-                # Relative u16 targets are back-patched by the caller when the
-                # target label is inside the same ORF; for IR-embedded jumps the
-                # builder never emitted them (only symbolically), so this branch
-                # is defensive: emits a zero operand placeholder.
-                last_op_ip = chunk.emit_u16(op, 0, line=inst.line,
-                                            codon_index=inst.codon_index)
-            else:
-                nbytes = OP_OPERAND_BYTES.get(op, 0)
-                operand = inst.operand if isinstance(inst.operand, int) else 0
-                if nbytes == 1:
-                    last_op_ip = chunk.emit(op, operand, line=inst.line,
-                                            codon_index=inst.codon_index)
-                elif nbytes == 0:
-                    last_op_ip = chunk.emit(op, line=inst.line,
-                                            codon_index=inst.codon_index)
-                else:
-                    last_op_ip = chunk.emit(op, *([0] * nbytes),
-                                            line=inst.line,
-                                            codon_index=inst.codon_index)
+            last_op_ip = self._encode_inst(chunk, inst, None)
         return last_op_ip
 
     @staticmethod
     def _last_op_is_halt(chunk: Chunk, last_op_ip: int) -> bool:
         return last_op_ip >= 0 and chunk.code[last_op_ip] == int(Op.OP_HALT)
+
+    def emit_gene_region(self, chunk: Chunk, fn: IRFunction,
+                         offset_of: Callable[[str], int],
+                         is_last: bool, end: int) -> tuple[int, int]:
+        """Emit one gene's complete code region with every reference resolved.
+
+        Produces exactly the bytes :meth:`lower` would emit for ``fn``: the
+        ORF, the trailing HALT guard, and (unless ``is_last``) the inter-gene
+        jump barrier to ``end``.  ``offset_of`` supplies the absolute byte
+        offset of every ``OP_CALL_GENE`` target and ``end`` the chunk end —
+        both are fixed on the incremental splice path (``core/incr.py``) by
+        the invariant that a splice-safe edit preserves every gene offset.
+
+        Returns the ``(start, end)`` ips of the region appended to ``chunk``.
+        """
+        start = len(chunk.code)
+        last_op_ip = -1
+        for inst in fn.instrs:
+            last_op_ip = self._encode_inst(chunk, inst, offset_of)
+        if not self._last_op_is_halt(chunk, last_op_ip):
+            chunk.emit(Op.OP_HALT, line=0, codon_index=-1)
+        if not is_last:
+            # Inter-gene barrier: relative to its own ip, exactly as lower's
+            # ``_patch_jumps_to_end`` back-patches (`end - barrier_ip - 3`).
+            barrier_ip = len(chunk.code)
+            chunk.emit_u16(Op.OP_JUMP, end - barrier_ip - 3, line=0,
+                           codon_index=-1)
+        return start, len(chunk.code)
 
     # -------- back-patching --------
     def _patch_calls(self, chunk: Chunk, ir: IRProgram) -> None:

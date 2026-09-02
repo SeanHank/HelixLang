@@ -28,7 +28,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 2.634432208025828,
+  "runtime_seconds": 2.136091124964878,
   "layer": "metabolism",
   "name": "Synechocystis PCC 6803 photoautotrophic FBA",
   "level": "L2"

@@ -101,7 +101,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 5.907368625048548,
+  "runtime_seconds": 6.02081779204309,
   "layer": "pattern_formation",
   "name": "Reaction-diffusion (Gray-Scott)",
   "level": "L2"

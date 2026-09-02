@@ -182,8 +182,9 @@ class HelixDebugger:
         try:
             op = Op(op_byte)
         except ValueError:
-            # Unknown opcode: skip it
-            return None
+            # Strict runtime error (doc/38): never skip an unknown opcode.
+            from helixlang.core.errors import UnknownOpcodeError
+            raise UnknownOpcodeError(opcode=op_byte, ip=vm.ip - 1) from None
         self._last_op = op
         vm._dispatch(op)
         return op

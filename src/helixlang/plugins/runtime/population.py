@@ -1037,7 +1037,8 @@ class CellPopulation:
             try:
                 op = Op(op_byte)
             except ValueError:
-                continue
+                from helixlang.core.errors import UnknownOpcodeError
+                raise UnknownOpcodeError(opcode=op_byte, ip=cell.vm_ip - 1) from None
             match op:
                 case Op.OP_START | Op.OP_NOP | Op.OP_TICK:
                     pass

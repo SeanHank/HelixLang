@@ -46,7 +46,7 @@
       "note": "Mass-action occupancy O = [L]/(Kd+[L]) is bounded in [0,1]; Kd=5uM, [L]=10uM gives 0.67."
     }
   },
-  "runtime_seconds": 0.6012206668965518,
+  "runtime_seconds": 0.5323756249854341,
   "layer": "pharmacology",
   "name": "Proteome binding + DDI",
   "level": "L4"

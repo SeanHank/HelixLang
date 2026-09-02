@@ -6,11 +6,12 @@
     "unchanged_source_rebuilds_nothing": true,
     "leaf_edit_rebuilds_closure_only": true,
     "all_patches_byte_identical_to_full": true,
-    "edit_cost_proportional_to_closure": true
+    "edit_cost_proportional_to_closure": true,
+    "all_edits_splice_safe": true,
+    "incremental_beats_naive_recompile": true
   },
   "details": {
     "genes": 16,
-    "full_rebuild_seconds": 0.0001645419979467988,
     "per_edit_closure_sizes": [
       2,
       2,
@@ -29,12 +30,13 @@
       2,
       1
     ],
-    "incremental_total_seconds": 0.004927293048240244,
-    "naive_recompile_total_seconds": 0.002468129969201982,
-    "work_reduction_ratio": 0.5009099205259288
+    "edits_spliced": 16,
+    "incremental_compile_seconds": 0.0008255011634901166,
+    "naive_recompile_seconds": 0.001639376045204699,
+    "work_reduction_ratio": 1.985916092805515
   },
-  "reference": "doc/38 \u00a73 incremental JIT (core/incr.py)",
-  "runtime_seconds": 0.06224324996583164,
+  "reference": "doc/38 \u00a73 incremental JIT (core/incr.py, splice fast-path)",
+  "runtime_seconds": 0.05261499993503094,
   "layer": "compiler",
   "name": "Incremental JIT \u2014 closure-limited gene recompile",
   "level": "L0"

@@ -2,7 +2,7 @@
 
 > **2026-08-28 — Rust/PyO3 removed.** The Rust/PyO3 accelerated backend (impl_pyomod, the pyomod/ Cargo crate, hl_dispatch, maturin) has been deleted; only pure-Python and C/Cython/numpy native backends remain. See §5.
 
-> **Status:** DRAFT (replaces previous draft, 2026-08-27)
+> **Status:** IMPLEMENTED  
 >
 > **Depends on:** doc/12 (language wiring), doc/13 (performance report), doc/34 (architectural plan)
 >

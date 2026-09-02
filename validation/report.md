@@ -1,6 +1,6 @@
 # HelixLang Validation Report
 
-Generated: 2026-09-01 10:01:27 UTC
+Generated: 2026-09-02 01:21:07 UTC
 
 ## Summary
 
@@ -26,7 +26,7 @@ Generated: 2026-09-01 10:01:27 UTC
 | 08_population_dynamics | Population dynamics | population | L4 | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | Reaction-diffusion (Gray-Scott) | pattern_formation | L2 | 1952 — Turing 1952, Phil Trans R Soc B 237:37; Pearson 1993 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | virtual_cell | L4 | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L1 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.04, ecoli_core.helixlang_100_solves_s=2.2231 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.04, ecoli_core.helixlang_100_solves_s=2.2231 → verified | ✅ PASS |
+| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L1 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0578, ecoli_core.helixlang_100_solves_s=2.065 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0578, ecoli_core.helixlang_100_solves_s=2.065 → verified | ✅ PASS |
 | 12_parser_roundtrip | Parser roundtrip — source → AST → bytecode | language | L0 | 8 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | Bytecode/VM roundtrip — compile → serialize → deserialize → execute | runtime | L0 | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | Type system & flow — type checking + module imports | language | L0 | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |
@@ -89,7 +89,7 @@ Generated: 2026-09-01 10:01:27 UTC
 | 71_ir_roundtrip | Helix IR pipeline round-trip and optimizer correctness | compiler | L0 | 12 automated checks → builder_gene_mapping=True, builder_opcode_faithful=True, lowering_byte_golden=True → passed=12, total=12 → verified | ✅ PASS |
 | 72_batch_runtime_parity | Vector batch runtime parity (numpy/JAX) vs the portable IR VM | runtime | L0 | 6 automated checks → numpy_parity=True, jax_parity=True, engine_agree=True → passed=6, total=6 → verified | ✅ PASS |
 | 73_ir_serialization | HLIR serialization robustness | compiler | L0 | 7 automated checks → rich_roundtrip=True, metadata_preserved=True, typed_operands=True → passed=7, total=7 → verified | ✅ PASS |
-| 74_incremental_jit | Incremental JIT — closure-limited gene recompile | compiler | L0 | 5 automated checks → full_build_rebuilds_all=True, unchanged_source_rebuilds_nothing=True, leaf_edit_rebuilds_closure_only=True → passed=5, total=5 → verified | ✅ PASS |
+| 74_incremental_jit | Incremental JIT — closure-limited gene recompile | compiler | L0 | 7 automated checks → full_build_rebuilds_all=True, unchanged_source_rebuilds_nothing=True, leaf_edit_rebuilds_closure_only=True → passed=7, total=7 → verified | ✅ PASS |
 | 75_unit_safety | Unit system & dimensional safety | compiler | L0 | 9 automated checks → minutes_seconds_exact=True, base_value_equality=True, cross_unit_arithmetic_rejected=True → passed=9, total=9 → verified | ✅ PASS |
 | 76_unit_safety_compile | Compile-time dimensional rejection (doc/41 Item 5 Ring 3) | compiler | L0 | 6 automated checks → cross_unit_symbol_add_rejected=True, dimension_tree_in_message=True, millimolar_plus_litre_named=True → passed=6, total=6 → verified | ✅ PASS |
 | 77_immune_ifn_crp_friberg | Innate immune fidelity — type-I IFN, CRP v2 (IL-6→CRP lag/range), Friberg granulopoiesis | human | L3 | doc/40 L5 (Pawelek 2012), L9 (Sproston & Ashworth 2018), L4  → verified | ✅ PASS |
