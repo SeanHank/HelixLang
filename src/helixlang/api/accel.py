@@ -10,22 +10,32 @@ from __future__ import annotations
 from typing import Any, cast
 
 
-def grn_step(*args: Any, **kwargs: Any) -> Any:
+def grn_step(levels: Any, src: Any, dst: Any, weights: Any, decays: Any,
+             thresholds: Any, default_decay: Any,
+             prefer: str | None = None) -> Any:
     """Run one GRN propagation step through the accelerated equivalent-fidelity
-    kernel, if the declared backend is available."""
+    kernel, if the declared backend is available.
+
+    ``prefer`` pins the backend tag (e.g. ``"python"`` for bit-identical numerics
+    — doc/37 §3.4; ``None`` lets the loader pick ``native > numpy > python``).
+    """
     from helixlang._accel.grn_step.backend import step
-    return step(*args, **kwargs)
+    return step(levels, src, dst, weights, decays, thresholds, default_decay,
+                prefer=prefer)
 
 
-def grn_step_mixed(*args: Any, **kwargs: Any) -> Any:
+def grn_step_mixed(levels: Any, src: Any, dst: Any, weights: Any, decays: Any,
+                   thresholds: Any, default_decay: Any, hill_ns: Any, kds: Any,
+                   prefer: str | None = None) -> Any:
     """Run one GRN step on mixed sigmoid/Hill activation (doc/39 O6).
 
-    Same selection/fidelity contract as :func:`grn_step`; compiled native
-    artifacts that predate the hook fall back to the byte-identical
-    ``impl_python`` kernel.
+    Same selection/fidelity contract as :func:`grn_step`; ``prefer`` pins the
+    backend tag.  Compiled native artifacts that predate the hook fall back to
+    the byte-identical ``impl_python`` kernel.
     """
     from helixlang._accel.grn_step.backend import step_mixed
-    return step_mixed(*args, **kwargs)
+    return step_mixed(levels, src, dst, weights, decays, thresholds,
+                      default_decay, hill_ns, kds, prefer=prefer)
 
 
 def simplex_run(tableau: Any, basis: Any, obj: Any, n_vars: int,

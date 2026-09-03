@@ -35,23 +35,31 @@ from helixlang._accel._loaders import load_hot
 from helixlang._accel.grn_step import impl_python
 
 
-def step(levels, src, dst, weights, decays, thresholds, default_decay):
-    """Alias to the fastest available equivalent-fidelity implementation."""
-    mod = load_hot("helixlang._accel.grn_step")
+def step(levels, src, dst, weights, decays, thresholds, default_decay,
+         prefer: str | None = None):
+    """Alias to the fastest available equivalent-fidelity implementation.
+
+    ``prefer`` pins the backend tag (doc/37 §3.4): ``"python"`` selects the
+    byte-identical reference kernel; ``None`` lets the loader pick
+    ``native > numpy > python``.
+    """
+    mod = load_hot("helixlang._accel.grn_step", prefer=prefer)
     return mod.step(levels, src, dst, weights, decays, thresholds, default_decay)
 
 
 def step_mixed(levels, src, dst, weights, decays, thresholds, default_decay,
-               hill_ns, kds):
+               hill_ns, kds, prefer: str | None = None):
     """Alias for the mixed sigmoid/Hill kernel (doc/39 O6).
 
-    Compiled ``impl_cext``/``impl_cython`` artifacts predate this hook; when the
-    selected backend lacks ``step_mixed`` the reference ``impl_python`` is used
-    instead (same algorithm, byte-identical numerics — a speed-only switch).
+    Same selection/fidelity contract as :func:`step`; ``prefer`` pins the tag.
+    Compiled ``impl_cext``/``impl_cython`` artifacts that predate this hook
+    fall back to the byte-identical ``impl_python`` kernel.
     """
-    mod = load_hot("helixlang._accel.grn_step")
+    mod = load_hot("helixlang._accel.grn_step", prefer=prefer)
     if hasattr(mod, "step_mixed"):
         return mod.step_mixed(levels, src, dst, weights, decays, thresholds,
                               default_decay, hill_ns, kds)
+    return impl_python.step_mixed(levels, src, dst, weights, decays, thresholds,
+                                  default_decay, hill_ns, kds)
     return impl_python.step_mixed(levels, src, dst, weights, decays, thresholds,
                                   default_decay, hill_ns, kds)
