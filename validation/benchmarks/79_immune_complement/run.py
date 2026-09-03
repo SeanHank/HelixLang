@@ -60,11 +60,13 @@ def run() -> dict:
         checks["anti_c5_suppresses_mac_spares_opsonization"] = (
             treated.get_mac() < placebo.get_mac() * 0.1
             and treated.get_opsonization() > 0.0)
-        # Full L7 network is importable and exposes the 142-parameter table.
+        # Full L7 network is importable and exposes the real parameter table
+        # (61 dynamics-referenced constants; no inert placeholder padding).
         full = FullL7Complement()
         details["l7_n_params"] = float(N_L7_PARAMS)
         checks["full_l7_complement_importable"] = (
-            N_L7_PARAMS >= 100 and full.n_params() >= 100)
+            N_L7_PARAMS >= 50 and full.n_params() == N_L7_PARAMS
+            and all(not k.startswith("rate_") for k in full.p))
 
         # ── G6: NK rises with innate signal ────────────────────────────────
         m, _crp = create_immune_model()

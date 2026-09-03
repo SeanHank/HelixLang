@@ -967,3 +967,58 @@ def test_op_feed_uses_named_constant(monkeypatch):
     vm_obj, trace = run_src(src, ticks=1)
     assert trace[-1]["energy"] == pytest.approx(INITIAL_CELL_ENERGY + 37.0)
 
+
+def test_vm_routes_grn_through_step_accel_when_use_accel(monkeypatch):
+    """doc/37 §3.4: with use_accel on the VM must advance the GRN through the
+    accelerated hot-loop kernel (bit-identical to scalar step), not the scalar
+    Python fallback."""
+    src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=3"
+    stop = {c for c, op in STANDARD_TABLE.items() if op == Op.OP_HALT}
+    toks = list(Lexer(src).tokens())
+    prog = Parser(toks, stop_codons=stop).parse()
+    SemanticAnalyzer(prog).check()
+    chunk = Compiler(STANDARD_TABLE).compile(prog)
+
+    calls = {"accel": 0, "prefer": []}
+    vm = CellVM(chunk, prog)
+    vm.use_accel = True
+    orig = vm.grn.__class__.step_accel
+    monkeypatch.setattr(
+        vm.grn.__class__, "step_accel",
+        lambda self, prefer=None: (
+            calls.__setitem__("accel", calls["accel"] + 1)
+            or calls["prefer"].append(prefer)
+            or orig(self, prefer=prefer)))
+    vm.run(3)
+
+    assert calls["accel"] > 0, "use_accel path must route the GRN through step_accel"
+    # doc/37 §3.4: with realism fully enforced (skip_validity=False, the
+    # default) the VM must pin the byte-identical python kernel so traces and
+    # goldens never drift a ULP.
+    assert calls["prefer"] and all(p == "python" for p in calls["prefer"])
+
+    # With accel disabled, the accelerated kernel is never entered.
+    calls2 = {"accel": 0}
+    vm2 = CellVM(chunk, prog)
+    vm2.use_accel = False
+    monkeypatch.setattr(
+        vm2.grn.__class__, "step_accel",
+        lambda self, prefer=None: (calls2.__setitem__("accel", calls2["accel"] + 1) or orig(self, prefer=prefer)))
+    vm2.run(3)
+    assert calls2["accel"] == 0, "non-accel path must use scalar step()"
+
+    # With skip_validity=True the VM may use the fast native kernel (prefer=None).
+    calls3 = {"accel": 0, "prefer": []}
+    vm3 = CellVM(chunk, prog)
+    vm3.use_accel = True
+    vm3.skip_validity = True
+    monkeypatch.setattr(
+        vm3.grn.__class__, "step_accel",
+        lambda self, prefer=None: (
+            calls3.__setitem__("accel", calls3["accel"] + 1)
+            or calls3["prefer"].append(prefer)
+            or orig(self, prefer=prefer)))
+    vm3.run(3)
+    assert calls3["accel"] > 0
+    assert all(p is None for p in calls3["prefer"])
+

@@ -1,6 +1,8 @@
 """Tests for the Virtual Patient unified facade (doc/28)."""
 from __future__ import annotations
 
+import pytest
+
 from helixlang.plugins.human.drug import Drug, DrugMolecule, get_predefined_drug
 from helixlang.plugins.human.genotype import create_default_genotype
 from helixlang.plugins.human.phenotype import ExternalTraits
@@ -55,6 +57,22 @@ class TestVirtualPatientResult:
         assert "drug_concentrations" in d
         assert "disease" in d
         assert "summary" in d
+        # doc/40 Phase B–D extended immune channels
+        immune = d["immune"]
+        assert "il6_pg_ml" in immune
+        assert "tnf_alpha_pg_ml" in immune
+        assert "neutrophils_x1000" in immune
+        assert "igg_au" in immune
+        assert "igm_au" in immune
+        assert "c3a_au" in immune
+        assert "c5a_au" in immune
+        assert "mac_au" in immune
+        assert "effector_t_au" in immune
+        assert "memory_t_au" in immune
+        assert "checkpoint_blockade" in immune
+        assert "il6_biologic_occupancy" in immune
+        assert "tissue_neutrophils" in immune
+        assert "tissue_blood_divergence" in immune
 
     def test_summary_string(self):
         r = VirtualPatientResult()
@@ -291,3 +309,64 @@ class TestRl5ClearanceCoupling:
         before = engine.hepatic_clearance_modifier
         vp._apply_rl5_clearance_coupling(type("L", (), {"egfr_ml_per_min": 100.0})())
         assert engine.hepatic_clearance_modifier < before
+
+
+class TestImmuneObservableWiring:
+    """doc/40 Phase B–D: immune observables reachable through VirtualPatient."""
+
+    def test_infection_populates_adaptive_and_tissue_channels(self):
+        cfg = VirtualPatientConfig(
+            disease_profile_name="TUBERCULOSIS",
+            total_duration_days=4.0,
+            dfa_dt_h=1.0,
+            output_time_resolution_h=4.0,
+        )
+        result = VirtualPatient(cfg).run()
+        assert len(result.igg) == len(result.time_h)
+        assert len(result.c3a) == len(result.time_h)
+        assert len(result.tissue_neutrophils) == len(result.time_h)
+        assert result.igm[-1] > 0.0
+        assert result.c3a[-1] > 0.0
+        assert result.c5a[-1] > 0.0
+        assert result.tissue_blood_divergence[-1] >= 0.0
+
+    def test_immune_configs_drive_vaccine_checkpoint_occupancy(self):
+        cfg = VirtualPatientConfig(
+            total_duration_days=2.0,
+            dfa_dt_h=1.0,
+            output_time_resolution_h=1.0,
+            immune_configs=[
+                {"vaccine_dose": 1.0},
+                {"checkpoint_blockade": 0.7},
+                {"il6_biologic_occupancy": 0.8},
+            ],
+        )
+        result = VirtualPatient(cfg).run()
+        # vaccine raises antibody accumulation vs a naive baseline
+        naive = VirtualPatient(
+            VirtualPatientConfig(
+                total_duration_days=2.0,
+                dfa_dt_h=1.0,
+                output_time_resolution_h=1.0,
+            )
+        ).run()
+        assert result.total_antibody[-1] > naive.total_antibody[-1]
+        assert result.checkpoint_blockade[-1] == pytest.approx(0.7)
+        assert result.il6_biologic_occupancy[-1] == pytest.approx(0.8)
+
+    def test_checkpoint_blockade_boosts_effector_t_under_infection(self):
+        base_cfg = dict(
+            disease_profile_name="TUBERCULOSIS",
+            total_duration_days=6.0,
+            dfa_dt_h=1.0,
+            output_time_resolution_h=6.0,
+        )
+        control = VirtualPatient(VirtualPatientConfig(**base_cfg)).run()
+        treated = VirtualPatient(
+            VirtualPatientConfig(
+                **base_cfg,
+                immune_configs=[{"checkpoint_blockade": 1.0}],
+            )
+        ).run()
+        assert any(t > 0.0 for t in treated.effector_t)
+        assert treated.effector_t[-1] > control.effector_t[-1]

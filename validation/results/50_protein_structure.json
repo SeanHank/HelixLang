@@ -38,7 +38,7 @@
     "year": 1978,
     "journal": "Biochemistry"
   },
-  "runtime_seconds": 0.04329829104244709,
+  "runtime_seconds": 0.04370737506542355,
   "layer": "runtime",
   "name": "Protein secondary structure prediction",
   "level": "L1"

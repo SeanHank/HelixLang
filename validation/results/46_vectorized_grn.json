@@ -22,7 +22,7 @@
     "journal": "Nature",
     "note": "sigmoid_max_diff=1.11e-16, hill_max_diff\u22480 (atol=1e-10)"
   },
-  "runtime_seconds": 1.7653758749365807,
+  "runtime_seconds": 1.5068777080159634,
   "layer": "runtime",
   "name": "Vectorized GRN correctness",
   "level": "L1"

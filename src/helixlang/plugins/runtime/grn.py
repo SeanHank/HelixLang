@@ -306,6 +306,12 @@ class GRN:
         to ``step()`` and the RNG draw sequence matches ``step()`` so the two
         entry points can be interleaved deterministically.  Returns the
         triggered gene names, matching :meth:`step`.
+
+        ``prefer="python"`` pins the backend to the byte-identical reference
+        kernel (doc/37 §3.4: the compiled native kernel is exact only to
+        ~1e-16, so callers that require bit-identical traces — e.g. the VM's
+        default realism path — must pin python).  ``prefer=None`` lets the
+        loader pick native > numpy > python.
         """
         from helixlang.api.accel import grn_step, grn_step_mixed
 
@@ -320,16 +326,20 @@ class GRN:
         default_decay = self._default_decay
         has_hill = any(self.nodes[n].hill_n is not None for n in names)
 
+        # prefer="python" (doc/37 §3.4) pins the byte-identical reference
+        # kernel, routed through the sanctioned ``helixlang.api.accel`` surface
+        # so the plugin stays on the documented import boundary.
         if has_hill:
             hill_ns = [self.nodes[n].hill_n for n in names]
             kds = [self.nodes[n].kd for n in names]
             new_levels, _trig = grn_step_mixed(
                 levels, src, dst, weights, decays, thresholds, default_decay,
-                hill_ns, kds,
+                hill_ns, kds, prefer=prefer,
             )
         else:
             new_levels, _trig = grn_step(
                 levels, src, dst, weights, decays, thresholds, default_decay,
+                prefer=prefer,
             )
 
         if self.noise_enabled:

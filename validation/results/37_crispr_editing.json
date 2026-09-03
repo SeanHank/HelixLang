@@ -16,7 +16,7 @@
     "on_target_score": 0.5349167577997496,
     "off_target_count": 0
   },
-  "runtime_seconds": 0.05095879198051989,
+  "runtime_seconds": 0.07812758395448327,
   "layer": "crispr",
   "name": "CRISPR Editing \u2014 PAM finding, guide design, off-target scoring",
   "level": "L1"

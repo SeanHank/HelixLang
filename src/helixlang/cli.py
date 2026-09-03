@@ -80,6 +80,10 @@ def main(argv: list[str] | None = None) -> int:
                    help="write HLIR JSON to PATH and exit")
     p.add_argument("--optimize", action="store_true",
                    help="run IR optimization (fold/dead/unreachable) before run")
+    p.add_argument("--skip-validity", action="store_true",
+                   help="doc/37 §2 (P2): decouple biological-validity/realism "
+                        "checks from the runtime — an opt-in fast path that "
+                        "skips realism checks for speed")
     p.add_argument("--runtime", choices=["classic", "ir", "batch"], default="classic",
                    help="execution runtime (classic=CellVM+C dispatch kernel, "
                         "ir=portable typed-IR VM, batch=vectorised numpy/JAX "
@@ -283,6 +287,9 @@ def main(argv: list[str] | None = None) -> int:
     # ----- Simulation backends (wiring.md §9) -----
     if args.ticks is not None:
         program.config.ticks = args.ticks
+    # doc/37 §2 (P2): the CLI can decouple realism checks from the fast path
+    if args.skip_validity:
+        program.config.skip_validity = True
     # --gem flag forces GEM backend
     if args.gem:
         effective_backend = "gem"

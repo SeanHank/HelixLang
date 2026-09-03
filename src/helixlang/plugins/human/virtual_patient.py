@@ -493,6 +493,28 @@ class VirtualPatientResult:
     il6: list[float] = field(default_factory=list)
     tnf_alpha: list[float] = field(default_factory=list)
     neutrophils: list[float] = field(default_factory=list)
+    # doc/40 Phase B–D extended immune channels (adaptive, complement,
+    # tissue/blood, PD-1, IL-6 biologic occupancy, innate cells)
+    igg: list[float] = field(default_factory=list)
+    igm: list[float] = field(default_factory=list)
+    total_antibody: list[float] = field(default_factory=list)
+    effector_t: list[float] = field(default_factory=list)
+    memory_t: list[float] = field(default_factory=list)
+    checkpoint_blockade: list[float] = field(default_factory=list)
+    il6_biologic_occupancy: list[float] = field(default_factory=list)
+    c3a: list[float] = field(default_factory=list)
+    c5a: list[float] = field(default_factory=list)
+    mac: list[float] = field(default_factory=list)
+    opsonization: list[float] = field(default_factory=list)
+    nk_cells: list[float] = field(default_factory=list)
+    mast_cells: list[float] = field(default_factory=list)
+    histamine: list[float] = field(default_factory=list)
+    eosinophils: list[float] = field(default_factory=list)
+    basophils: list[float] = field(default_factory=list)
+    tissue_neutrophils: list[float] = field(default_factory=list)
+    tissue_il6: list[float] = field(default_factory=list)
+    tissue_macrophages: list[float] = field(default_factory=list)
+    tissue_blood_divergence: list[float] = field(default_factory=list)
     tumor_volume: list[float] = field(default_factory=list)
     tumor_clone_fractions: list[dict[str, float]] = field(default_factory=list)
     resistance_mutations: list[list[str]] = field(default_factory=list)
@@ -560,6 +582,26 @@ class VirtualPatientResult:
                 "il6_pg_ml": self.il6,
                 "tnf_alpha_pg_ml": self.tnf_alpha,
                 "neutrophils_x1000": self.neutrophils,
+                "igg_au": self.igg,
+                "igm_au": self.igm,
+                "total_antibody_au": self.total_antibody,
+                "effector_t_au": self.effector_t,
+                "memory_t_au": self.memory_t,
+                "checkpoint_blockade": self.checkpoint_blockade,
+                "il6_biologic_occupancy": self.il6_biologic_occupancy,
+                "c3a_au": self.c3a,
+                "c5a_au": self.c5a,
+                "mac_au": self.mac,
+                "opsonization": self.opsonization,
+                "nk_cells": self.nk_cells,
+                "mast_cells": self.mast_cells,
+                "histamine_ng_ml": self.histamine,
+                "eosinophils": self.eosinophils,
+                "basophils": self.basophils,
+                "tissue_neutrophils": self.tissue_neutrophils,
+                "tissue_il6_pg_ml": self.tissue_il6,
+                "tissue_macrophages": self.tissue_macrophages,
+                "tissue_blood_divergence": self.tissue_blood_divergence,
             },
             "disease_ode": {
                 "tumor_volume": self.tumor_volume,
@@ -995,6 +1037,18 @@ class VirtualPatient:
             cortisol_level=cortisol,
             immunosuppression=immunosuppression,
         )
+        # doc/40 Phase B–D: drive adaptive vaccine, PD-1 blockade, and
+        # IL-6-biologic occupancy from immune_configs so these are reachable
+        # through the production VirtualPatient pipeline (not just direct calls).
+        for cfg in self.config.immune_configs:
+            if cfg.get("vaccine_dose", 0.0) > 0.0:
+                self._immune.vaccinate(float(cfg["vaccine_dose"]))
+            if cfg.get("checkpoint_blockade", 0.0) > 0.0:
+                self._immune.set_checkpoint_blockade(
+                    float(cfg["checkpoint_blockade"]))
+            if cfg.get("il6_biologic_occupancy", 0.0) > 0.0:
+                self._immune.set_il6_biologic_occupancy(
+                    float(cfg["il6_biologic_occupancy"]))
         # Store base values for dynamic feedback during simulation
         self._immune._base_infection_severity = infection  # type: ignore[attr-defined]
         self._immune._base_autoimmune_activation = autoimmune  # type: ignore[attr-defined]
@@ -1980,10 +2034,56 @@ class VirtualPatient:
                     result.il6.append(self._immune.get_il6())
                     result.tnf_alpha.append(self._immune.get_tnf())
                     result.neutrophils.append(self._immune.get_neutrophils())
+                    # doc/40 Phase B–D extended immune observables
+                    result.igg.append(self._immune.get_igg())
+                    result.igm.append(self._immune.get_igm())
+                    result.total_antibody.append(self._immune.get_total_antibody())
+                    result.effector_t.append(self._immune.get_effector_t())
+                    result.memory_t.append(self._immune.get_memory_t())
+                    result.checkpoint_blockade.append(
+                        self._immune.get_checkpoint_blockade())
+                    result.il6_biologic_occupancy.append(
+                        getattr(self._immune, "il6_biologic_occupancy", 0.0))
+                    result.c3a.append(self._immune.get_c3a())
+                    result.c5a.append(self._immune.get_c5a())
+                    result.mac.append(self._immune.get_mac())
+                    result.opsonization.append(self._immune.get_opsonization())
+                    result.nk_cells.append(self._immune.get_nk_cells())
+                    result.mast_cells.append(self._immune.get_mast_cells())
+                    result.histamine.append(self._immune.get_histamine())
+                    result.eosinophils.append(self._immune.get_eosinophils())
+                    result.basophils.append(self._immune.get_basophils())
+                    result.tissue_neutrophils.append(
+                        self._immune.get_tissue_neutrophils())
+                    result.tissue_il6.append(self._immune.get_tissue_il6())
+                    result.tissue_macrophages.append(
+                        self._immune.get_tissue_macrophages())
+                    result.tissue_blood_divergence.append(
+                        self._immune.get_tissue_blood_divergence())
                 else:
                     result.il6.append(1.0)
                     result.tnf_alpha.append(5.0)
                     result.neutrophils.append(4.0)
+                    result.igg.append(0.0)
+                    result.igm.append(0.0)
+                    result.total_antibody.append(0.0)
+                    result.effector_t.append(0.0)
+                    result.memory_t.append(0.0)
+                    result.checkpoint_blockade.append(0.0)
+                    result.il6_biologic_occupancy.append(0.0)
+                    result.c3a.append(0.0)
+                    result.c5a.append(0.0)
+                    result.mac.append(0.0)
+                    result.opsonization.append(0.0)
+                    result.nk_cells.append(0.0)
+                    result.mast_cells.append(0.0)
+                    result.histamine.append(0.0)
+                    result.eosinophils.append(0.0)
+                    result.basophils.append(0.0)
+                    result.tissue_neutrophils.append(0.0)
+                    result.tissue_il6.append(0.0)
+                    result.tissue_macrophages.append(0.0)
+                    result.tissue_blood_divergence.append(0.0)
                 if self._disease_ode is not None and hasattr(self._disease_ode, 'tumor_volume'):
                     result.tumor_volume.append(self._disease_ode.tumor_volume)
                 else:

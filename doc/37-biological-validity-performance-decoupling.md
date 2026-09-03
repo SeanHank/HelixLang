@@ -133,6 +133,26 @@ Each biological validity check produces an `EvidenceChain` (extending `validatio
 with the full Reference → Expected → Actual → Error → Reproducibility chain, plus
 the new `OutOfScopeReport` and `UncertaintyResult` fields.
 
+### 2.5 Decoupling Knob: `skip_validity` (P2 — shipped 2026.9.0)
+
+The biological-validity / realism checks are a *cost* that the accelerated path
+can safely bypass.  A first-class opt-in knob decouples them from the hot loop:
+
+- `LanguageConfig.skip_validity: bool = False` (default: realism enforced).
+- Parsed from `#config skip_validity=true|false` and exposed on the CLI as
+  `--skip-validity`.
+- The `CellVM` mirrors the flag (`vm.skip_validity`) so its hot loop can consult
+  validity without re-reading the program object; `VMProfileResult.validity_skipped`
+  records it as an observation (`src/helixlang/core/performance.py`).
+
+Consumed by the GRN path (§3.4): when realism is fully enforced (`skip_validity=False`,
+the default) the VM advances the GRN through the accelerated kernel pinned to the
+byte-identical python reference; when the user opts out (`skip_validity=True`) it may
+use the faster compiled native kernel (which is only exact to ~1e-16).
+
+Covered by `tests/test_performance.py::TestValidityDecoupling` and the strengthened
+`tests/test_vm.py::test_vm_routes_grn_through_step_accel_when_use_accel`.
+
 ---
 
 ## 3 — Part B: Performance Optimization
@@ -191,6 +211,14 @@ This eliminates the Python fallback for noisy/Hill GRNs. **Status:** shipped —
 over the kernel mean on the same RNG, so noisy and Hill graphs advance through
 the accelerated kernel with results identical to the scalar path (verified
 draw-for-draw in `tests/test_accel_foundation.py`).
+
+**2026.9.0 fidelity note.** "Identical" is precise only for the reference python
+kernel: `prefer="python"` is byte-identical to scalar `step()` (the docs' `prefer`
+override previously existed but was not honored — fixed).  The compiled native/
+numpy kernels are exact only to ~1e-16 (one ULP drift), so the VM's default
+realism path pins the python kernel via `prefer="python"` unless `skip_validity`
+opts out (see §2.5), keeping traces and goldens ULP-stable.  Assertions:
+`tests/test_performance.py::test_step_accel_prefer_python_is_byte_identical_to_step`.
 
 ### 3.5 Profiling Harness
 
@@ -343,7 +371,11 @@ explicitly.
 | `src/helixlang/plugins/runtime/bio_validity.py` | Biological validity framework |
 | `src/helixlang/core/performance.py` | Performance optimization integration |
 | `src/helixlang/core/vm.py` (modified) | Snapshot downsampling + accel dispatch |
-| `src/helixlang/plugins/runtime/grn.py` (modified) | Extended step_accel with Hill/noise |
+| `src/helixlang/plugins/runtime/grn.py` (modified) | Extended step_accel with Hill/noise; honors `prefer="python"` |
+| `src/helixlang/core/ast_nodes.py` (modified) | `skip_validity` decoupling flag on `LanguageConfig` (P2) |
+| `src/helixlang/core/parser.py` (modified) | Parses `#config skip_validity=...` |
+| `src/helixlang/cli.py` (modified) | `--skip-validity` flag (P2) |
+| `src/helixlang/core/vm.py` (modified) | `skip_validity` mirror + GRN hot loop routes through `step_accel(prefer=...)` |
 | `tests/test_bio_validity.py` | Biological validity unit tests |
 | `tests/test_performance.py` | Performance optimization tests |
 | `tests/test_decoupling.py` | Decoupling verification tests |

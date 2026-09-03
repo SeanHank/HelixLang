@@ -193,12 +193,16 @@ class Parser(ParserGrammarMixin):
         # Simulation backend selector (12-helix-language-wiring.md §6.1)
         if "backend" in fields:
             prog.config.backend = fields["backend"]
+        # doc/37 §2 (P2): decouple biological-validity checks from the fast path
+        if "skip_validity" in fields:
+            prog.config.skip_validity = fields["skip_validity"].lower() in ("true", "1", "yes")
         # Every remaining #config key is a sim parameter: preserved verbatim
         # for the backend adapter (12-helix-language-wiring.md §7.1). The classic
         # pipeline never reads `sim`, so its behaviour is untouched.
         consumed = {
             "ticks", "output", "table", "ops_per_tick", "react_steps",
             "use_central_dogma", "species", "backend",
+            "skip_validity",
             # ``#config sim <fields>`` documents that the following fields are
             # sim parameters (12-helix-language-wiring.md §6.1); the marker is
             # consumed, not stored as an empty-valued sim parameter.

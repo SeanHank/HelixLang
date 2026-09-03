@@ -252,6 +252,9 @@ class VMProfileResult:
     snapshot_interval: int = 1
     accel_used: bool = False
     accel_ops: int = 0
+    # doc/37 §2 (P2): whether the run skipped biological-validity/realism
+    # checks (a pure observation of config.skip_validity, never a request).
+    validity_skipped: bool = False
     component_times: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -268,6 +271,7 @@ class VMProfileResult:
             "snapshot_interval": self.snapshot_interval,
             "accel_used": self.accel_used,
             "accel_ops": self.accel_ops,
+            "validity_skipped": self.validity_skipped,
             "component_times": {
                 k: round(v, 2) for k, v in self.component_times.items()
             },
@@ -337,6 +341,9 @@ class VMProfiler:
         result.ops_executed = vm.ops_executed
         result.accel_ops = vm.accel_native_ops
         result.accel_used = vm.accel_native_ops > 0
+        # doc/37 §2 (P2): reflect the decoupling knob as an observation only.
+        result.validity_skipped = bool(
+            getattr(program.config, "skip_validity", False))
         if result.vm_run_time_ms > 0:
             result.ops_per_sec = (
                 result.ops_executed / (result.vm_run_time_ms / 1000))

@@ -88,6 +88,65 @@ class TestVMProfiler:
         json.dumps(result.to_dict())
 
 
+class TestValidityDecoupling:
+    """doc/37 §2 (P2): a first-class skip-validity knob decouples realism
+    checks from the accelerated path."""
+
+    def _prog(self, *, skip: bool):
+        src = (
+            "#gene name=gfp\n"
+            "ATG GCT GGT GCT TAA\n"
+            "#end\n"
+            f"#config ticks=5 skip_validity={'true' if skip else 'false'}\n"
+        )
+        prog = parse_source(src)
+        SemanticAnalyzer(prog).check()
+        return prog
+
+    def test_parser_defaults_and_toggle(self):
+        assert self._prog(skip=True).config.skip_validity is True
+        assert self._prog(skip=False).config.skip_validity is False
+        # default False (validity enforced)
+        prog = parse_source("#gene name=g\nATG GCT TAA\n#end\n#config ticks=2\n")
+        assert prog.config.skip_validity is False
+
+    def test_cellvm_and_profiler_observe_skip(self):
+        import helixlang.core.language as lang
+        from helixlang.core.compiler import Compiler
+        from helixlang.core.performance import VMProfiler
+        from helixlang.core.vm import CellVM
+        config = lang.LanguageConfig.for_table("standard")
+        prog = self._prog(skip=True)
+        chunk = Compiler(config).compile(prog)
+        vm = CellVM(chunk, prog)
+        assert vm.skip_validity is True
+        prof = VMProfiler(enable_tracemalloc=False).profile(prog, max_ticks=5)
+        assert prof.validity_skipped is True
+
+    def test_profiler_reports_validity_kept_by_default(self):
+        from helixlang.core.performance import VMProfiler
+        prof = VMProfiler(enable_tracemalloc=False)
+        result = prof.profile(self._prog(skip=False), max_ticks=5)
+        assert result.validity_skipped is False
+
+    def test_step_accel_prefer_python_is_byte_identical_to_step(self):
+        from helixlang.plugins.runtime.grn import GRN
+        # a multi-edge sigmoid network where the native kernel drifts a ULP
+        a, b = GRN(), GRN()
+        for g in (a, b):
+            g.add_gene("ci", threshold=0.0, initial_level=0.8)
+            g.add_gene("cro", threshold=0.0, initial_level=0.2)
+            g.add_gene("out", threshold=0.3, initial_level=0.0, decay=0.5)
+            g.add_edge("ci", "cro", -0.8)
+            g.add_edge("cro", "ci", -0.7)
+            g.add_edge("ci", "out", 1.2)
+        for _ in range(120):
+            a.step()
+            b.step_accel(prefer="python")
+            for n in a.nodes:
+                assert a.nodes[n].level == b.nodes[n].level
+
+
 class TestAcceleratedExecution:
     def test_importable(self) -> None:
         assert callable(accelerated_execute_pending)

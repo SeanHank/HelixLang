@@ -159,6 +159,11 @@ class Config:
     # optional C-dispatch accelerator. The VM observes what actually ran
     # (accel_used / accel_ops), never the request.
     use_accel: bool = True
+    # doc/37 §2 (P2): decouple biological-validity / realism checks from the
+    # accelerated path. When True the runtime may skip realism checks for
+    # speed; when False (default) validity is enforced. This is the opt-in
+    # fast-path knob that turns realism checks off.
+    skip_validity: bool = False
     # Simulation parameters not consumed by the classic pipeline, preserved
     # verbatim as strings; coerced by the backend adapter (sim_runtime.py).
     sim: dict[str, str] = field(default_factory=dict)

@@ -26,7 +26,7 @@
     "journal": "Genes, Paris",
     "note": "V_initial=0.3086, V_final=0.3038, rel_diff=0.0156 (< 0.15 threshold)"
   },
-  "runtime_seconds": 0.37058291700668633,
+  "runtime_seconds": 0.5711612919112667,
   "layer": "ecosystem",
   "name": "Ecosystem \u2014 Lotka-Volterra predator-prey dynamics",
   "level": "L1"

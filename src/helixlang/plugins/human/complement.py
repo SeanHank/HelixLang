@@ -224,7 +224,8 @@ __all__ = ["ComplementCascade", "cohort_complement_step",
 # desensitisation; and regulated terminal MAC (C5b -> C6/C7/C8/C9) assembly
 # inhibited by CD59/clusterin.
 #
-# The model exposes 142 rate-constant parameters grouped by pathway. It is
+# The model exposes 61 rate-constant parameters (all dynamics-referenced)
+# grouped by pathway. It is
 # deterministic (Euler first-order), additive and inert at baseline: with no
 # ``pathway_signal`` every anaphylatoxin/convertase/MAC pool sits at ~0 and
 # intact precursor pools (C3/C4/C5/C2/FactorB) rest at their healthy baselines,
@@ -233,7 +234,13 @@ __all__ = ["ComplementCascade", "cohort_complement_step",
 
 
 def _l7_parameter_table() -> dict[str, float]:
-    """Return the 142-parameter table (Zewde & Morikis orderings by pathway)."""
+    """Return the real, dynamics-referenced parameter table by pathway.
+
+    Every key here is actually referenced by ``FullL7Complement.step`` (or a
+    state/accessor path); there are no inert placeholder constants.  The count
+    (``len(...) == N_L7_PARAMS``) therefore reflects the number of parameters
+    that genuinely influence dynamics, not a padded headline figure.
+    """
     hl = _rate
     P: dict[str, float] = {}
 
@@ -312,26 +319,22 @@ def _l7_parameter_table() -> dict[str, float]:
     P["cr1_regulate"] = 0.010
     P["c1inh_full"] = 0.020
 
-    # --- 142 - count check: fill remaining with per-pathway secondary rates ---
-    # Fill to exactly N_L7_PARAMS deterministic secondary constants.
     return P
 
 
-N_L7_PARAMS = 142
+N_L7_PARAMS = 61
 
 
 def _complete_l7_parameters() -> dict[str, float]:
-    """Return a full 142-key parameter table (deterministic padding)."""
-    base = _l7_parameter_table()
-    total = N_L7_PARAMS
-    seed_keys = list(base)
-    # deterministic fill of the remaining slots with pseudo-unique keys
-    k = 0
-    while len(base) < total:
-        base[f"rate_{k:03d}"] = 0.010 + 0.002 * ((k * 7 + 3) % 9)
-        k += 1
-    _ = seed_keys
-    return base
+    """Return the full parameter table (all keys are dynamics-referenced).
+
+    Historically this padded the table to 142 with inert ``rate_000..080``
+    placeholder keys that had no effect on the ODEs.  Those placeholders
+    inflated the advertised parameter count without adding realism, so they
+    were removed; ``N_L7_PARAMS`` now equals the number of parameters that
+    genuinely drive the cascade.
+    """
+    return _l7_parameter_table()
 
 
 L7_PARAMETER_GROUPS: dict[str, list[str]] = {
@@ -350,7 +353,7 @@ L7_PARAMETER_GROUPS: dict[str, list[str]] = {
 
 
 class FullL7Complement:
-    """Full L7 complement cascade (142 parameters, doc/40 Phase G).
+    """Full L7 complement cascade (61 dynamics-referenced parameters).
 
     State (relative units; precursor pools near 1.0 at baseline, effectors ~0):
         c3, c4, c5, c2, factor_b   intact precursors

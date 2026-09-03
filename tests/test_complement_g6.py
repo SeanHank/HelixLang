@@ -198,12 +198,15 @@ class TestO10VectorizedTissueBlood:
 
 
 class TestFullL7Complement:
-    """doc/40 Phase G(a) — full L7 complement network (142 parameters)."""
+    """doc/40 Phase G(a) — full L7 complement network (61 dynamics refs)."""
 
-    def test_142_parameters(self):
+    def test_all_params_referenced_not_padded(self):
         m = FullL7Complement()
-        assert m.n_params() == 142
         assert m.n_params() == N_L7_PARAMS
+        # No inert placeholder keys remain (the old 142 padding rate_000..080
+        # had zero effect on the ODEs and inflated the count dishonestly).
+        assert all(not k.startswith("rate_") for k in m.p)
+        assert N_L7_PARAMS == 61
 
     def test_inert_at_baseline(self):
         m = FullL7Complement()
@@ -268,4 +271,4 @@ class TestFullL7Complement:
     def test_parameter_set_and_override(self):
         m = FullL7Complement({"c1_activation": 0.9})
         assert m.get("c1_activation") == pytest.approx(0.9)
-        assert m.n_params() == 142
+        assert m.n_params() == N_L7_PARAMS

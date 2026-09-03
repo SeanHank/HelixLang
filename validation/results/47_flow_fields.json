@@ -29,7 +29,7 @@
     "journal": "Journal de Mathematiques Pures et Appliquees",
     "note": "2D peak/mean = 1.5; Square duct peak/mean ~ 2.096"
   },
-  "runtime_seconds": 0.11814874992705882,
+  "runtime_seconds": 0.1131027500377968,
   "layer": "runtime",
   "name": "Flow field analytical solutions",
   "level": "L1"

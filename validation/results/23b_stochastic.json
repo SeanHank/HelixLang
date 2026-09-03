@@ -23,7 +23,7 @@
     "journal": "Theoretical Population Biology",
     "note": "F = 1 + b\u00b7k_on/(k_on+k_off)\u00b71/(1+\u03b3/(k_on+k_off)); theoretical=1.5984"
   },
-  "runtime_seconds": 0.7181603340432048,
+  "runtime_seconds": 0.45745058392640203,
   "layer": "stochastic",
   "name": "Gillespie SSA telegraph model",
   "level": "L1"

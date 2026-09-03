@@ -29,7 +29,7 @@
     "initial_hepatic_glr": 2.0,
     "final_hepatic_glr": 2.385103
   },
-  "runtime_seconds": 0.8884752080775797,
+  "runtime_seconds": 0.76314333290793,
   "layer": "human",
   "name": "Disease ODE model simulation",
   "level": "L3"

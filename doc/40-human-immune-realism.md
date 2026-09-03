@@ -364,8 +364,8 @@ answer: **Content** — what we will build; **Method** — modeling method from 
 
 - **Phase G — Full complement parameters (L7) + PD-1 expansion (3–4 wk).**
   (a) Complete C1–C9, Factor D/H/I, properdin, C4BP, MBL, MASPs, C3aR/C5aR signaling,
-  C5aR1/C5aR2 desensitization, and terminal MAC regulation in `complement.py` (142
-  parameters total, reduced model from Phase B used as intermediate milestone).
+  C5aR1/C5aR2 desensitization, and terminal MAC regulation in `complement.py` (61
+  dynamics-referenced parameters, reduced model from Phase B used as intermediate milestone).
   (b) PD-1 expansion: full PD-1/PD-L1/PD-L2 interaction network, PD-1
   internalization/trafficking, combination checkpoint blockade (PD-1 + CTLA-4 + LAG-3),
   replacing the single toggle in G14. Gate: complement knockout/overexpression predictions
@@ -376,7 +376,9 @@ answer: **Content** — what we will build; **Method** — modeling method from 
   Morikis network (`FullL7Complement`): classical (C1→C4→C2→C3), lectin (MBL/MASP),
   alternative (Factor D/B/I, properdin, C3bBb convertase), C4BP regulation, anaphylatoxin
   C3a/C5a → C3aR/C5aR1/C5aR2 signaling with desensitization, and terminal MAC assembly
-  with CD59/clusterin regulation — 142 parameters. `adaptive.py` PD-1 expanded to the full
+  with CD59/clusterin regulation — 61 parameters, all referenced by the ODE step (the
+  earlier 142-figure included ~81 inert placeholder keys removed 2026-09-02 because they
+  had no effect on dynamics). `adaptive.py` PD-1 expanded to the full
   `PD1Checkpoint` network: PD-1/PD-L1/PD-L2 binding + internalization/trafficking, plus
   combination checkpoint blockade (PD-1 + CTLA-4 + LAG-3) replacing the G14 single toggle.
 
@@ -413,9 +415,10 @@ value for ~1/2 the cost; Phases F–H extend scope to full doc/31 §2.4/§5.1 ma
   1. **Full spatial ABM (G15):** agent-based modeling of immune cells in tissue spaces,
      replacing population ODEs with spatially-resolved rules per doc/31 §2.4. This
      includes cell migration, contact-dependent signaling, and spatial heterogeneity.
-  2. **Full 142-parameter complement cascade (L7):** complete C1–C9, Factor D/H/I, properdin,
+  2. **Full L7 complement cascade:** complete C1–C9, Factor D/H/I, properdin,
      C4BP, MBL, MASPs, C3aR/C5aR signaling, C5aR1/C5aR2 desensitization, and terminal
-     MAC regulation. Reduced models (Phase B) serve as intermediate milestones.
+     MAC regulation (61 dynamics-referenced parameters). Reduced models (Phase B) serve
+     as intermediate milestones.
   3. **432-parameter GA re-fit for every patient (IIRABM-style Bayesian fits):**
      patient-specific parameter calibration via Bayesian inference (MCMC/HMC), run as a
      batch job (doc/37) feeding into virtual-population sampling (G13). Parameters include

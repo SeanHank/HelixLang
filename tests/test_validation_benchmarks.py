@@ -126,7 +126,7 @@ class TestValidationFramework:
     def test_report_has_level_column_and_skip_counts(self) -> None:
         """Report shows per-level counts; SKIP is a success, not a failure."""
         import run_all
-        rep = run_all.generate_report([
+        rep, _gate_violations = run_all.generate_report([
             {"id": "a", "status": "SKIP", "reason": "offline"},
             {"id": "b", "status": "PASS", "layer": "metabolism", "level": "L2"},
         ])

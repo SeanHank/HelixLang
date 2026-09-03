@@ -3,15 +3,15 @@
   "status": "PASS",
   "ecoli_core": {
     "n_reactions": 95,
-    "cobrapy_100_solves_s": 0.0817,
-    "helixlang_100_solves_s": 2.9192,
-    "speedup_ratio": 0.028,
-    "cobrapy_avg_ms": 0.8172,
-    "helixlang_avg_ms": 29.1916
+    "cobrapy_100_solves_s": 0.0793,
+    "helixlang_100_solves_s": 3.0535,
+    "speedup_ratio": 0.026,
+    "cobrapy_avg_ms": 0.7934,
+    "helixlang_avg_ms": 30.5348
   },
   "iml1515": null,
   "note": "Speedup > 1 means HelixLang is faster",
-  "runtime_seconds": 5.973126207944006,
+  "runtime_seconds": 6.1478423330700025,
   "layer": "metabolism",
   "name": "FBA solve-time performance vs COBRApy",
   "level": "L1"

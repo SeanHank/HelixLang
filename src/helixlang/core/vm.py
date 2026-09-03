@@ -516,6 +516,12 @@ class CellVM:
         self.skipped_unknown: int = 0
         self.use_accel: bool = program.config.use_accel \
             if use_accel is None else use_accel
+        # doc/37 §2 (P2): decoupling knob — when True the runtime skips
+        # biological-validity / realism checks for speed.  Mirrors the config
+        # so the VM's accelerated path can consult validity without re-reading
+        # the program object.
+        self.skip_validity: bool = bool(
+            getattr(program.config, "skip_validity", False))
         # All simulation quantities are in physical units (helixlang.core.units):
         # Cell energy in ATP molecules, GRN decay from the 110 min protein
         # half-life, signals in µM.
@@ -666,8 +672,19 @@ class CellVM:
                 self._feedback()
                 self._snapshot()
             else:
-                # Original GRN + bytecode path
-                triggered = self.grn.step()
+                # Original GRN + bytecode path. The GRN is advanced through
+                # the isolated hot-loop kernel (``step_accel``) when the
+                # accelerated path is enabled — a pure speed switch that keeps
+                # the fast path decoupled from realism guarantees.  Unless
+                # ``skip_validity`` opts out, the bit-identical python kernel
+                # is forced so traces/goldens never drift a ULP (doc/37 §3.4:
+                # the compiled native kernel is ~1e-16 divergent and is only
+                # safe when validity checks are explicitly skipped).
+                if self.use_accel:
+                    prefer = None if self.skip_validity else "python"
+                    triggered = self.grn.step_accel(prefer=prefer)
+                else:
+                    triggered = self.grn.step()
                 for g in triggered:
                     self._call_gene(g)
                 self._execute_pending()
@@ -713,7 +730,11 @@ class CellVM:
         species = self.program.config.species
         trna_abundance = get_species_trna(species)
         # Advance the GRN one step to get the current expression level of each gene
-        self.grn.step()
+        if self.use_accel:
+            prefer = None if self.skip_validity else "python"
+            self.grn.step_accel(prefer=prefer)
+        else:
+            self.grn.step()
         for gene in self.program.genes:
             dna = self._gene_dna.get(gene.name, "")
             if not dna:

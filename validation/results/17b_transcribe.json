@@ -25,7 +25,7 @@
     "journal": "Symposia of the Society for Experimental Biology",
     "note": "CDS length = 25 codons \u00d7 3 nt = 75 nt"
   },
-  "runtime_seconds": 0.06868466699961573,
+  "runtime_seconds": 0.05463895807042718,
   "layer": "molecular",
   "name": "DNA transcription",
   "level": "L1"

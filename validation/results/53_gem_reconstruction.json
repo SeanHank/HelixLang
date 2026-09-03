@@ -43,7 +43,7 @@
     ]
   },
   "reference": "Thiele I, Palsson BO 2010, Nat Protoc 5:93-110",
-  "runtime_seconds": 0.4644312500022352,
+  "runtime_seconds": 0.5987233329797164,
   "layer": "metabolism",
   "name": "GEM reconstruction pipeline",
   "level": "L1"

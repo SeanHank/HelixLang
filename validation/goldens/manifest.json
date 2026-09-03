@@ -313,7 +313,7 @@
     "status": "PASS"
   },
   "79_immune_complement": {
-    "sha256": "1110a412e47f66fe469b7bf207b6cb7aee5bc81149a129c4fb77d55519184843",
+    "sha256": "77bc261a7dd94d2b593b9450f94b66893ebdd3405a29b68d904e8775676f8bad",
     "status": "PASS"
   },
   "80_immune_tissue_blood": {

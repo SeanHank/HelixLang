@@ -25,7 +25,7 @@
     "journal": "Symposia of the Society for Experimental Biology",
     "note": "Protein length = 25 codons - 1 stop = 24 aa"
   },
-  "runtime_seconds": 0.08910608291625977,
+  "runtime_seconds": 0.056010334054008126,
   "layer": "molecular",
   "name": "mRNA translation",
   "level": "L1"

@@ -156,8 +156,13 @@ def merge_metadata(results: list[dict]) -> list[dict]:
 
 # ── Report generator (uses schema.py as single source of truth) ──────────────
 
-def generate_report(results: list[dict]) -> str:
-    """Generate markdown report from results using EvidenceChain normalization."""
+def generate_report(results: list[dict]) -> tuple[str, int]:
+    """Generate markdown report from results using EvidenceChain normalization.
+
+    Returns ``(report_markdown, gate_violation_count)`` so the caller can fail
+    CI when a level-gate violation occurs (doc/42 VD-3: gate violations are a
+    hard failure, not informational).
+    """
     chains: list[EvidenceChain] = []
     for r in results:
         chains.append(EvidenceChain.from_dict(r))
@@ -206,7 +211,7 @@ def generate_report(results: list[dict]) -> str:
         "| Validation levels | " + " · ".join(
             f"{lv}×{level_counts[lv]}" for lv in VALID_LEVELS
         ) + " |",
-        "| Level-gate warnings | " + (f"{len(gate_warnings)}" if gate_warnings else "0") + " |",
+        "| Level-gate violations | " + (f"{len(gate_warnings)}" if gate_warnings else "0") + " |",
         "",
         "## Evidence Chains",
         "",
@@ -219,7 +224,7 @@ def generate_report(results: list[dict]) -> str:
 
     if gate_warnings:
         lines.append("")
-        lines.append("## Level-Gate Warnings (doc/41 §3.2 Rule 5 — informational)")
+        lines.append("## Level-Gate Violations (doc/41 §3.2 Rule 5 — hard failure)")
         lines.append("")
         lines.extend(f"- {w}" for w in gate_warnings)
 
@@ -229,7 +234,7 @@ def generate_report(results: list[dict]) -> str:
         lines.append("")
         lines.extend(failures)
 
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n", len(gate_warnings)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -275,7 +280,7 @@ def main() -> None:
             (RESULTS_DIR / f"{r['id']}.json").write_text(json.dumps(r, indent=2))
 
     # Generate report
-    report = generate_report(results)
+    report, gate_violations = generate_report(results)
     REPORT_PATH.write_text(report)
     print(f"\nReport → {REPORT_PATH}")
 
@@ -284,10 +289,15 @@ def main() -> None:
     skipped = sum(1 for r in results if r.get("status") == "SKIP")
     failed = sum(1 for r in results if r.get("status") in ("FAIL", "TIMEOUT", "ERROR"))
     print(f"Summary: {len(results)} total, {passed} PASS, {skipped} SKIP, {failed} FAIL")
+    if gate_violations:
+        print(f"Level-gate violations: {gate_violations} (doc/42 VD-3 — hard failure)",
+              file=sys.stderr)
 
-    # Exit code: 0 unless a benchmark actually failed (SKIP is a success,
-    # doc/41 §2.2 — an unavailable external artefact must never fail the gate).
-    sys.exit(1 if failed else 0)
+    # Exit code: nonzero if a benchmark failed OR a level-gate violation
+    # occurred.  SKIP is a success (doc/41 §2.2 — an unavailable external
+    # artefact must never fail the gate); level-gate violations are a hard
+    # CI failure (doc/42 VD-3).
+    sys.exit(1 if (failed or gate_violations) else 0)
 
 
 if __name__ == "__main__":

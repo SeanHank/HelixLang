@@ -165,12 +165,33 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 | Metric | Value |
 |--------|-------|
 | Source modules | 219 |
-| Test cases | 3889 (81% coverage) |
+| Test cases | 3897 (81% coverage) |
 | Validation benchmarks | 85 (85 pass) |
 | `.helix` examples | 60 |
 | Documentation | 37 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
 | Runtime dependencies | **zero** (all optional) |
+
+---
+
+## 🧬 IDE Plugin
+
+Write, inspect, and debug `.helix` programs right inside **PyCharm 2022.2+** (Community or
+Professional) with the sibling repository
+**[SeanHank/HelixLang-LSP-Plugin](https://github.com/SeanHank/HelixLang-LSP-Plugin)**: live
+diagnostics, hover docs, completion, navigation, semantic highlighting, inlay hints, a bytecode
+disassembler, and a line debugger, all over Language Server Protocol.
+
+Install the language server (once, per Python interpreter):
+
+```bash
+pip install helixlang-lsp
+```
+
+Then grab the plugin zip from that repo's [Releases](https://github.com/SeanHank/HelixLang-LSP-Plugin/releases)
+page and install it via **Settings → Plugins → ⚙ → Install Plugin from Disk…**. Full install steps,
+build-from-source instructions, and the design docs live in the
+[plugin README](https://github.com/SeanHank/HelixLang-LSP-Plugin).
 
 ---
 
@@ -378,7 +399,7 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3889 test cases**(all passing, 81% coverage)
+- **3897 test cases**(all passing, 81% coverage)
 - [85/85 validation benchmarks](validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest

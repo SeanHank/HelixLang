@@ -38,8 +38,8 @@ N_PROLIF = 48          # immune-cell proliferation / differentiation rates
 N_CYTOKINE = 96        # cytokine production / clearance / feedback rates
 N_AFFINITY = 96        # receptor / ligand dissociation constants (Kd, nM; kD/h)
 N_MIGRATION = 24       # spatial migration speeds (um/h) + chemotactic gain
-N_COMPLEMENT = 120     # complement cascade rates + C3aR/C5aR signaling (142 used
-                       # in the full L7; nominal slice keeps the calibrated 120)
+N_COMPLEMENT = 120     # complement cascade rates + C3aR/C5aR signaling (the full
+                       # L7 step references 61; this nominal slice keeps 120)
 N_PD1 = 24             # PD-1/PD-L1/PD-L2 / CTLA-4 / LAG-3 network
 N_APR = 24             # acute-phase (CRP/SAA/ferritin/PCT/fibrinogen) kinetics
 N_OTHER = 0            # (reserved; currently 0)
