@@ -86,3 +86,32 @@ def test_all_backends_are_backend_instances_and_unique_ids():
 def test_provenance_uses_resolved_backend_id():
     result = run(parse("#config ticks=4\n#sim kind=stochastic\n"))
     assert result is not None and result.provenance["backend"] == "stochastic"
+
+
+def test_kind_as_id_without_kind_alias_resolves_from_id():
+    from helixlang.api.backend import Backend, BackendRegistry, SimResult
+
+    reg = BackendRegistry()
+
+    class EmptyKindBackend(Backend):
+        id = "novel"
+        kinds = ()
+
+        def run(self, req):
+            return SimResult() if req is not None else SimResult()
+
+    b = EmptyKindBackend()
+    reg.register(b)
+    assert b.capabilities() == ()
+    got = reg.resolve(kind="novel", backend=None)
+    assert got is b
+
+
+def test_base_backend_run_raises_not_implemented():
+    from helixlang.api.backend import Backend
+
+    base = Backend()
+    base.id = "base"
+    assert base.capabilities() == ()
+    with pytest.raises(NotImplementedError):
+        base.run(None)

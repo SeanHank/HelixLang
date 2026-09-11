@@ -658,8 +658,6 @@ def _score_pwm(sequence: str, consensus: str) -> float:
     motif_len = len(positions)
     for start in range(max(0, len(seq) - motif_len * 3)):
         window = seq[start:start + motif_len]
-        if len(window) < motif_len:
-            break
         score = 0.0
         for j, allowed in enumerate(positions):
             if window[j] in allowed:

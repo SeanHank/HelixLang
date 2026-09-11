@@ -162,10 +162,10 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 | Metric | Value |
 |--------|-------|
 | Source modules | 219 |
-| Test cases | 3897 (81% coverage) |
-| Validation benchmarks | 85 (85 pass) |
+| Test cases | 7322 (100% coverage) |
+| Validation benchmarks | 85 (84 pass) |
 | `.helix` examples | 60 |
-| Documentation | 37 files, 25,000+ lines |
+| Documentation | 43 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
 
 ---
@@ -300,7 +300,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **85/85** |
+| Benchmarks passing | **84/85** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
@@ -355,7 +355,7 @@ helixlang --serve --port 5000
 
 ```bash
 # Full test suite
-pytest --cov=helixlang --cov-fail-under=80
+pytest --cov=helixlang --cov-fail-under=100
 
 # Lint
 ruff check src tests
@@ -364,8 +364,8 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **3897 test cases**(all passing, 81% coverage)
-- [85/85 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
+- **7322 test cases** (7322 pass, 3 optional-fmt skips; **100% line + branch coverage**)
+- [84/85 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 
@@ -403,7 +403,7 @@ Contributions welcomed! Read **[CONTRIBUTING.md](https://github.com/SeanHank/Hel
 git clone https://github.com/SeanHank/HelixLang.git
 cd HelixLang
 pip install -e ".[dev,fast,web,bio,ml]"
-pytest --cov=helixlang --cov-fail-under=80 && ruff check src tests
+pytest --cov=helixlang --cov-fail-under=100 && ruff check src tests
 ```
 
 ---

@@ -308,3 +308,135 @@ def test_build_whole_cell_wires_all_genes() -> None:
 def test_whole_cell_benchmark_config_validation() -> None:
     with pytest.raises(ValueError):
         random_genome(0)
+
+
+# ============================================================================
+# Edge cases for 100% coverage
+# ============================================================================
+
+def test_load_genome_fasta_with_blank_lines() -> None:
+    dna = encode_gene(PROTEIN)
+    bare = dna[dna.find("ATG"):]
+    fasta = ">geneX\n\n" + bare + "\n\n"  # blank lines are skipped
+    genome = load_genome(fasta)
+    assert set(genome) == {"geneX"}
+
+
+def test_translate_orfs_no_start_codon_returns_empty() -> None:
+    from helixlang.plugins.apps.whole_cell_scale import _translate_orfs
+    assert _translate_orfs("GGGGGGGGGG") == ""  # no ATG start
+
+
+def test_gff_feature_name_fallback() -> None:
+    f = GffFeature(seqid="chr1", source=".", ftype="CDS",
+                   start=5, end=9, strand="+", attributes={})
+    assert f.name == "chr1:CDS:5-9"
+    # - strand so complement branch is taken
+    from helixlang.plugins.apps.whole_cell_scale import _revcomp
+    assert _revcomp("ACGT") == "ACGT"
+
+
+def test_parse_gff3_edge_cases() -> None:
+    text = (
+        "##gff-version 3\n"
+        "\n"                                   # blank line
+        "##sequence-region chrA 1 100\n"       # directive line
+        "###\n"                                 # row separator
+        "chrA\t.\tCDS\t5\t3\t.\t+\t0\tID=nn\n"  # start>end -> skipped
+        "chrA\t.\tCDS\t0\t3\t.\t+\t0\tID=z\n"   # start<1 -> skipped
+        "chrA\t.\tCDS\t10\t20\t.\t+\t0\t\n"     # no name keys -> fallback
+        "chrA\t.\tCDS\t30\t40\t.\t+\t0\tID=a;=;bare\n"
+        "##FASTA\n>chrA\nACGTACGT\n")
+    feats = parse_gff3(text)
+    # only the well-formed rows with valid coordinates survive
+    assert any(f.name.startswith("chrA:CDS") for f in feats)
+    assert any("bare" in f.attributes for f in feats)
+
+
+def test_load_chromosome_no_fasta_raises() -> None:
+    with pytest.raises(ValueError, match="no FASTA"):
+        load_chromosome("", "##gff-version 3\n"
+                            "chrA\t.\tCDS\t1\t9\t.\t+\t0\tID=g1\n")
+
+
+def test_load_chromosome_missing_contig_skips() -> None:
+    from helixlang.plugins.runtime.biocodec import back_translate
+    orf = back_translate("MASSWL", optimize="random")  # 18 bp ATG-start ORF
+    fasta = ">chrA\n" + orf + "\n"
+    gff = "##gff-version 3\n" \
+          "chrMISSING\t.\tCDS\t1\t9\t.\t+\t0\tgene=x\n" \
+          "chrA\t.\tCDS\t1\t18\t.\t+\t0\tgene=gA\n"
+    chrom = load_chromosome(fasta, gff)
+    assert "x" not in chrom.genome
+    assert chrom.genome  # gA still translated
+
+
+def test_load_chromosome_operon_and_other_features() -> None:
+    from helixlang.plugins.runtime.biocodec import back_translate
+    orf = back_translate("MASSWL", optimize="random")  # 18 bp ORF
+    fasta = ">chrA\n" + orf + "\n"
+    gff = "##gff-version 3\n" \
+          "chrA\t.\toperon\t1\t18\t.\t+\t0\tgene=op1\n" \
+          "chrA\t.\tncRNA\t1\t18\t.\t+\t0\tgene=nc\n" \
+          "chrA\t.\tgene\t1\t18\t.\t+\t0\tgene=gA\n" \
+          "chrA\t.\tpromoter\t1\t5\t.\t+\t0\tgene=pA\n" \
+          "chrA\t.\tterminator\t1\t5\t.\t+\t0\tgene=tA\n" \
+          "chrA\t.\tCDS\t1\t18\t.\t+\t0\tgene=gA\n"
+    chrom = load_chromosome(fasta, gff)
+    assert chrom.operons and chrom.other and chrom.genes
+    assert chrom.promoters and chrom.terminators
+    assert "gA" in chrom.genome
+
+
+def test_build_whole_cell_single_gene_no_edges() -> None:
+    cell = build_whole_cell({"only": encode_gene("MA")})
+    # single gene -> no regulation edges (continue path at sources-filter)
+    assert len(cell.genome) == 1
+    assert cell.alive
+
+
+def test_ko_model_no_reactions_returns_original() -> None:
+    ko = ko_model(ECOLI_CORE_MODEL, ())
+    assert set(ko.reactions) == set(ECOLI_CORE_MODEL.reactions)
+
+
+def test_parse_gff3_short_rows_and_bad_coords() -> None:
+    from helixlang.plugins.apps.whole_cell_scale import parse_gff3
+    text = (
+        "chrA\t.\tCDS\t1\t9\t.\t+\n"             # < 8 cols total
+        "chrA\t.\tCDS\t1\t9\n"                    # < 8 cols total
+        "chrA\t.\tCDS\tNaN\t9\t.\t+\t0\tgene=b\n"  # non-numeric start
+        "chrA\t.\tCDS\t1\t9\t.\t+\t0\tgene=ok\n"
+    )
+    feats = parse_gff3(text)
+    assert [f.name for f in feats] == ["ok"]
+
+
+def test_parse_gff3_empty_attribute_segments() -> None:
+    from helixlang.plugins.apps.whole_cell_scale import parse_gff3
+    text = (
+        "chrA\t.\tCDS\t1\t9\t.\t+\t0\tID=g1;;bare;=;\n"
+    )
+    feats = parse_gff3(text)
+    assert len(feats) == 1
+    assert feats[0].attributes.get("ID") == "g1"
+    assert "bare" in feats[0].attributes
+
+
+def test_load_chromosome_blank_and_multirecord_fasta() -> None:
+    from helixlang.plugins.runtime.biocodec import back_translate
+    orf = back_translate("MASSWL", optimize="random")
+    fasta = ">chrA\n\n" + orf + "\n>chrB\n" + orf + "\n"
+    gff = "##gff-version 3\n" \
+          "chrB\t.\tCDS\t1\t18\t.\t+\t0\tgene=gB\n"
+    chrom = load_chromosome(fasta, gff)
+    assert "gB" in chrom.genome
+
+
+def test_load_chromosome_untranslatable_cds_raises() -> None:
+    # CDS is present but does not translate to a protein -> no genome
+    fasta = ">chrA\nACGTACGTACGTACGT\n"
+    gff = "##gff-version 3\n" \
+          "chrA\t.\tCDS\t2\t10\t.\t+\t0\tgene=bad\n"
+    with pytest.raises(ValueError, match="no translatable CDS"):
+        load_chromosome(fasta, gff)

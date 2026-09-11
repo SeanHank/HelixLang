@@ -106,3 +106,46 @@ def test_sim_runtime_dispatch_population_dbtl():
     assert len(result.rows) == 3
     assert result.meta["improved"] is True
     assert result.meta["round0_growth"] < result.meta["final_growth"]
+
+
+def test_to_nt_pads_empty_to_all_a() -> None:
+    from helixlang.plugins.apps.population_dbtl import _to_nt
+    assert _to_nt("!!!", 30) == "A" * 30
+    assert _to_nt("TAC", 8) == "TACAAAAA"
+
+
+def test_strain_extinction_returns_penalty() -> None:
+    from helixlang.plugins.apps.population_dbtl import test_strain as ts
+    cfg = DbtlConfig(substrate_mm=0.0, initial_nh4_mm=0.0,
+                     carrying_capacity=0.0, evaluation_ticks=5, seed=1)
+    g = designed_strain(cfg, seed=1)
+    assert ts(g, cfg) == -10.0
+
+
+def test_design_without_surrogate_falls_back_to_all_traits() -> None:
+    from helixlang.plugins.apps.population_dbtl import _to_nt
+    p = PopulationDbtl(DbtlConfig(n_rounds=2, seed=2))
+    base = designed_strain(p.config, seed=2)
+    p.best_genome = _to_nt(base, p.config.genome_length_nt)
+    pop = p.design(1)
+    assert len(pop) == p.config.population_size
+
+
+def test_build_assembles_species() -> None:
+    p = PopulationDbtl(DbtlConfig(n_rounds=2, seed=2))
+    species = p.build(["A" * 30, "T" * 30])
+    from helixlang.plugins.apps.ecosystem import Species
+    assert isinstance(species[0], Species)
+    assert species[0].genome == "A" * 30
+
+
+def test_run_keeps_elite_when_round_does_not_improve() -> None:
+    from helixlang.plugins.apps.population_dbtl import _to_nt
+    cfg = DbtlConfig(n_rounds=1, population_size=2, seed=7)
+    p = PopulationDbtl(cfg)
+    base = _to_nt(designed_strain(cfg, seed=7), cfg.genome_length_nt)
+    p.best_genome = base
+    p.best_growth = 10000.0  # already above any achievable growth
+    res = p.run()
+    assert res["designed_strain"]["growth"] == 10000.0
+    assert res["designed_strain"]["genome"] == base

@@ -81,6 +81,31 @@ class TestDimInferencer:
         with pytest.raises(TypeError):
             DimInferencer({"not": "a program"}).infer()
 
+    def test_numeric_operands_are_dimensionless(self):
+        good = (BASIC + "#type a=Float\n#quantity c=a+4\n")
+        _compile(good)
+
+    def test_infer_dimensions_top_level(self):
+        from helixlang.core.dim_inferencer import infer_dimensions
+
+        good = (BASIC + "#type a=Float\n#quantity c=a+4\n")
+        prog = parse_source(good)
+        exprs = infer_dimensions(prog)
+        assert len(exprs) == 1
+
+    def test_collect_skips_malformed_quantity_entries(self):
+        from helixlang.core.ast_nodes import Program
+
+        p = Program()
+        p.sim_extensions["quantity"] = [
+            123,
+            {"name": "x"},
+            {"name": "y", "expr": "a+1"},
+        ]
+        exprs = DimInferencer(p).collect()
+        assert len(exprs) == 1
+        assert exprs[0].name == "y"
+
     def test_quantity_expr_parser(self):
         assert parse_quantity_expr("g+v") == ("g", "+", "v")
         assert parse_quantity_expr("a - 3") == ("a", "-", "3")

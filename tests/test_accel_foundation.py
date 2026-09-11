@@ -9,7 +9,7 @@ import importlib
 
 import pytest
 
-from helixlang._accel._loaders import choose_backend, load_hot
+from helixlang._accel._loaders import backend_for, choose_backend, load_hot
 from helixlang.core.errors import NativeBackendError
 from helixlang.plugins.runtime.grn import GRN, TelegraphPromoter
 
@@ -51,6 +51,12 @@ def test_load_hot_imports_ref(monkeypatch):
     monkeypatch.setenv("HELIX_ACCEL", "python")
     mod = load_hot("helixlang._accel.grn_step")
     assert callable(mod.step)
+
+
+def test_backend_for_imports_backend_module():
+    mod = backend_for("helixlang._accel.grn_step")
+    assert mod is not None
+    assert hasattr(mod, "backend") or mod.__name__.endswith(".backend")
 
 
 # ── GRN step kernel equivalence (same fidelity, two impls) ──────────────────

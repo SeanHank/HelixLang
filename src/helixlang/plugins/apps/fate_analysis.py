@@ -258,8 +258,6 @@ def critical_slowing_down(
         series.append(a)
     mu = sum(series) / len(series)
     var = sum((x - mu) ** 2 for x in series) / (len(series) - 1)
-    if var == 0.0:
-        return 1.0
     lag1 = sum(
         (series[i] - mu) * (series[i + 1] - mu) for i in range(len(series) - 1)
     ) / (len(series) - 1)

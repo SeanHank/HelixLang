@@ -439,8 +439,6 @@ def synthesize_netlist(table: TruthTable) -> Netlist:
         # per-term AND
         and_ids: list[str] = []
         for term in terms:
-            if not term:
-                continue
             term_inputs: list[str] = []
             for var, positive in term.items():
                 if positive:
@@ -454,20 +452,15 @@ def synthesize_netlist(table: TruthTable) -> Netlist:
                 continue
             and_id = _binary_reduce(nodes, fresh, f"and_{output}",
                                     term_inputs, _AND)
-            if and_id is not None:
-                and_ids.append(and_id)
-        if len(and_ids) == 0:
-            const_id = fresh("const")
-            nodes.append(NetlistNode(const_id, _CONST, [], value=False))
-            nodes.append(NetlistNode(output, _BUFFER, [const_id]))
-            continue
+            assert and_id is not None
+            and_ids.append(and_id)
         if len(and_ids) == 1:
             nodes.append(NetlistNode(output, _BUFFER, [and_ids[0]]))
         else:
             or_id = _binary_reduce(nodes, fresh, f"or_{output}",
                                    and_ids, _OR)
-            if or_id is not None:
-                nodes.append(NetlistNode(output, _BUFFER, [or_id]))
+            assert or_id is not None
+            nodes.append(NetlistNode(output, _BUFFER, [or_id]))
     return Netlist(inputs=list(table.inputs), outputs=list(table.outputs),
                    nodes=nodes)
 
@@ -535,6 +528,10 @@ def assign_gates(netlist: Netlist,
             buf = next((g for g in by_logic.get("BUFFER", [])), None)
             if buf is not None:
                 assignment[node.id] = buf
+                levels[node.id] = _gate_high_low(buf)
+            else:
+                v = float(node.value or 0.0)
+                levels[node.id] = (v, v)
             continue
         upstream = [levels[i] for i in node.inputs]
         candidates = by_logic.get(node.logic) or by_logic.get("BUFFER", [])

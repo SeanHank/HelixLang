@@ -18,7 +18,7 @@ executes steps 1–6 and reports pass/fail for each gate.
 - [x] bytecode roundtrip test passes (test_helixc.py)
 
 ### Validation (automated by release.py)
-- [x] 67/67 benchmarks pass in validation/
+- [x] 85/85 benchmarks pass in validation/
 - [x] validation/run_all.py runs without errors
 - [x] validation/report.md generated with results
 - [x] provenance attached to all SimResult outputs
@@ -26,7 +26,7 @@ executes steps 1–6 and reports pass/fail for each gate.
 ### Documentation (manual pre-checks)
 - [x] README.md rewritten with 5-minute proof
 - [x] doc/00-overview.md has Layer 1/2/3 framing
-- [x] All 36 docs cross-referenced
+- [x] All 43 docs cross-referenced
 - [x] No orphaned documentation
 
 ### Product (manual pre-checks)

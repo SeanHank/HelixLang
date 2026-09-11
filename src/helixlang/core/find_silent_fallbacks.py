@@ -85,10 +85,14 @@ class _Visitor(ast.NodeVisitor):
         """
         start = max(1, node.lineno - 1)
         end = node.end_lineno if node.end_lineno is not None else node.lineno
-        for lineno in range(start, end + 1):
+        lineno = start
+        while True:
             if lineno <= len(self._lines):
                 if self._benign.search(self._lines[lineno - 1]):
                     return True
+            if lineno >= end:
+                break
+            lineno += 1
         return False
 
     def _report(self, node: ast.AST, cat: str | None, detail: str) -> None:

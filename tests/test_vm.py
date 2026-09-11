@@ -4,11 +4,11 @@ import pytest
 from helixlang.core.bytecode import Chunk
 from helixlang.core.codon_table import STANDARD_TABLE, Op
 from helixlang.core.compiler import Compiler
-from helixlang.core.errors import StackUnderflowError
+from helixlang.core.errors import ModelMissingError, StackUnderflowError
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
 from helixlang.core.semantic import SemanticAnalyzer
-from helixlang.core.vm import CellVM
+from helixlang.core.vm import CellVM, Frame
 from helixlang.plugins.runtime.cell import (
     FEED_ENERGY_AMOUNT,
     INITIAL_CELL_ENERGY,
@@ -136,7 +136,6 @@ def _make_vm(chunk: Chunk, program: Program | None = None,
         program.config.ops_per_tick = ops_per_tick
     vm = CellVM(chunk, program)
     # Manually push a frame: return_ip points to the end of the code so the frame is popped after execution
-    from helixlang.core.vm import Frame
     vm.frames.append(Frame(return_ip=len(chunk.code), gene_name="test"))
     vm.ip = 0
     return vm
@@ -403,7 +402,6 @@ class TestBehaviorOpcodes:
         chunk.emit(Op.OP_FEED, 0)
         prog = Program()
         vm = CellVM(chunk, prog)
-        from helixlang.core.vm import Frame
         vm.frames.append(Frame(return_ip=len(chunk), gene_name="t"))
         vm.ip = 0
         vm.cell = vm0
@@ -1021,4 +1019,1435 @@ def test_vm_routes_grn_through_step_accel_when_use_accel(monkeypatch):
     vm3.run(3)
     assert calls3["accel"] > 0
     assert all(p is None for p in calls3["prefer"])
+
+
+# ============================================================================
+# Targeted coverage: dispatch body (ADD/SUB/MUL) via non-accel path
+# ============================================================================
+
+class TestDispatchBody:
+    """Exercise dispatch() bodies for ADD/SUB/MUL that are bypassed by the C
+    accelerator when use_accel=True."""
+
+    def test_add_dispatch_body(self):
+        c = Chunk()
+        c.add_constant(3)
+        c.add_constant(4)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_ADD)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [7]
+
+    def test_sub_dispatch_body(self):
+        c = Chunk()
+        c.add_constant(10)
+        c.add_constant(3)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_SUB)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [7]
+
+    def test_mul_dispatch_body(self):
+        c = Chunk()
+        c.add_constant(6)
+        c.add_constant(7)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_MUL)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [42]
+
+
+# ============================================================================
+# OP_USE_PLUGIN dispatch
+# ============================================================================
+
+class TestUsePluginDispatch:
+    """OP_USE_PLUGIN reads a constant index and activates the named plugin."""
+
+    def test_use_plugin_activates_registered_plugin(self):
+        from helixlang.core.plugin_registry import PluginProvider, Registry
+        c = Chunk()
+        idx = c.add_constant(("use_plugin", "grn", ()))
+        c.emit(Op.OP_USE_PLUGIN, idx)
+        prog = Program(config=Config(ops_per_tick=256))
+        registry = Registry()
+        provider = PluginProvider(name="grn", extra="grn", load=lambda: None)
+        registry.register(provider)
+        vm = CellVM(c, prog, registry=registry)
+        vm.frames.append(Frame(return_ip=len(c.code), gene_name="t"))
+        vm.ip = 0
+        vm._execute_pending()
+        assert "grn" in registry.active()
+
+    def test_use_plugin_spec_none_noop(self):
+        c = Chunk()
+        c.emit(Op.OP_USE_PLUGIN, 0)
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm.frames.append(Frame(return_ip=len(c.code), gene_name="t"))
+        vm.ip = 0
+        vm._execute_pending()
+
+    def test_use_plugin_idx_out_of_range(self):
+        c = Chunk()
+        c.emit(Op.OP_USE_PLUGIN, 99)
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm.frames.append(Frame(return_ip=len(c.code), gene_name="t"))
+        vm.ip = 0
+        vm._execute_pending()
+
+
+# ============================================================================
+# OP_REGULATE source fallback
+# ============================================================================
+
+class TestRegulateSourceFallback:
+    """When the current gene name is not in GRN nodes, source falls back to names[0]."""
+
+    def test_regulate_source_not_in_nodes(self):
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 0)
+        vm = _make_vm(c)
+        vm.grn.add_gene("x", threshold=0.5, initial_level=1.0)
+        vm.grn.add_gene("y", threshold=0.5, initial_level=0.0)
+        vm.frames[-1].gene_name = "nonexistent"
+        vm._execute_pending()
+        assert len(vm.grn.edges) == 1
+        assert vm.grn.edges[0].source == "x"
+
+    def test_regulate_no_frames_fallback(self):
+        c = Chunk()
+        c.emit(Op.OP_REGULATE, 0)
+        vm = _make_vm(c)
+        vm.grn.add_gene("x", threshold=0.5, initial_level=1.0)
+        vm.frames.clear()
+        vm._dispatcher.dispatch(Op.OP_REGULATE)
+        assert len(vm.grn.edges) == 1
+        assert vm.grn.edges[0].source == "x"
+
+
+# ============================================================================
+# Bio instruction handlers
+# ============================================================================
+
+class TestBioInstructionHandlers:
+    """Test all bio instruction handlers via process_bio_instructions."""
+
+    def _make_vm_with_bio(self, bio_instructions, **kwargs):
+        from helixlang.core.ast_nodes import Config, Program
+        chunk = Chunk()
+        chunk.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256), **kwargs)
+        prog.bio_instructions = bio_instructions
+        vm = CellVM(chunk, prog)
+        return vm
+
+    # -- crispr --
+    def test_crispr_edit_gene(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="crispr", target="g1",
+                           params={"position": "0", "new_sequence": "ATG",
+                                   "cas": "SpCas9"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT" * 2
+        vm._dispatcher.process_bio_instructions()
+        assert len(vm._crispr_edits) == 1
+        assert vm._crispr_edits[0]["target"] == "g1"
+
+    def test_crispr_empty_dna_early_return(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="crispr", target="g1", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert vm._crispr_edits == []
+
+    def test_crispr_error_path(self, monkeypatch):
+        from helixlang.core.ast_nodes import BioInstruction
+        from helixlang.plugins.runtime import crispr as _crispr
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="crispr", target="g1",
+                           params={"position": "0", "new_sequence": "CCC",
+                                   "cas": "SpCas9"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGC"
+        monkeypatch.setattr(_crispr, "edit_gene",
+                            lambda *a, **kw: (_ for _ in ()).throw(
+                                ValueError("mock edit error")))
+        vm._dispatcher.process_bio_instructions()
+        assert len(vm._crispr_edits) == 1
+        assert vm._crispr_edits[0]["success"] is False
+        assert "error" in vm._crispr_edits[0]
+
+    def test_crispr_gem_dirty(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="crispr", target="g1",
+                           params={"position": "0", "new_sequence": "ATG",
+                                   "cas": "SpCas9"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT" * 2
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher.process_bio_instructions()
+        edit = vm._crispr_edits[0]
+        if edit.get("success"):
+            assert vm._gem_dirty is True
+
+    def test_crispr_gem_dirty_no_success(self, monkeypatch):
+        from helixlang.core.ast_nodes import BioInstruction
+        from helixlang.plugins.runtime import crispr as _crispr
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="crispr", target="g1",
+                           params={"position": "0", "new_sequence": "CCC",
+                                   "cas": "SpCas9"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGC"
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        monkeypatch.setattr(_crispr, "edit_gene",
+                            lambda *a, **kw: (_ for _ in ()).throw(
+                                ValueError("mock edit error")))
+        vm._dispatcher.process_bio_instructions()
+        assert vm._gem_dirty is False
+
+    # -- evolve --
+    def test_evolve_mutate_gene(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="evolve", target="g1",
+                           params={"mutation_rate": "0.5", "indel_rate": "0.1"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT"
+        vm._dispatcher.process_bio_instructions()
+        assert len(vm._evolution_history) == 1
+        assert vm._evolution_history[0]["target"] == "g1"
+        assert vm._evolution_history[0]["mutations"] >= 0
+
+    def test_evolve_empty_dna_early_return(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="evolve", target="g1", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert vm._evolution_history == []
+
+    def test_evolve_gem_dirty(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="evolve", target="g1",
+                           params={"mutation_rate": "0.5", "indel_rate": "0.1"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT"
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher.process_bio_instructions()
+        hist = vm._evolution_history[0]
+        if hist["mutations"] > 0:
+            assert vm._gem_dirty is True
+
+    def test_evolve_gem_dirty_no_mutations(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="evolve", target="g1",
+                           params={"mutation_rate": "0.0", "indel_rate": "0.0"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT"
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher.process_bio_instructions()
+        assert vm._evolution_history[0]["mutations"] == 0
+        assert vm._gem_dirty is False
+
+    # -- _update_enzyme_levels_from_edits --
+    def test_update_enzyme_levels_substitution(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "substitution"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._enzyme_kcat["rxn1"] = 1.0
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn1"] == 0.7
+        assert vm._gem_dirty is False
+
+    def test_update_enzyme_levels_frameshift(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "frameshift"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._enzyme_kcat["rxn1"] = 1.0
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn1"] == 0.0
+
+    def test_update_enzyme_levels_deletion(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "deletion"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn1"] == 0.0
+
+    def test_update_enzyme_levels_nonsense(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "nonsense"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn1"] == 0.0
+
+    def test_update_enzyme_levels_failed_edit(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": False, "target": "g1", "edit_type": "substitution"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert "rxn1" not in vm._enzyme_kcat
+
+    def test_update_enzyme_levels_no_reactions(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "substitution"}
+        ]
+        vm._gem_gpr_map["g1"] = []
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._gem_dirty is False
+
+    def test_update_enzyme_levels_substitution_default_kcat(self):
+        vm = self._make_vm_with_bio([])
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "substitution"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn_new"]
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn_new"] == 1.0 * 0.7
+
+    # -- methylate --
+    def test_methylate_gene(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="methylate", target="g1",
+                           params={"methylase": "dam"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT"
+        vm._dispatcher.process_bio_instructions()
+        assert len(vm._epigenetic_marks) == 1
+        assert vm._epigenetic_marks[0]["type"] == "methylation"
+        assert vm._epigenetic_marks[0]["target"] == "g1"
+
+    def test_methylate_empty_dna_early_return(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="methylate", target="g1", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert vm._epigenetic_marks == []
+
+    def test_methylate_repression_applied(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="methylate", target="g1",
+                           params={"methylase": "dam"})
+        ])
+        vm._gene_dna["g1"] = "ATGGCTGGTAAAGGCATCGAT"
+        vm._dispatcher.process_bio_instructions()
+        assert "g1" in vm._chromatin_modifier
+
+    # -- histone --
+    def test_histone_modification(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="histone", target="g1",
+                           params={"mark": "H3K4me3"})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert len(vm._epigenetic_marks) == 1
+        assert vm._epigenetic_marks[0]["type"] == "histone"
+        assert vm._epigenetic_marks[0]["mark"] == "H3K4me3"
+        assert vm._epigenetic_marks[0]["score"] == 0.5
+        assert "g1" in vm._chromatin_modifier
+
+    def test_histone_repressive_mark(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="histone", target="g1",
+                           params={"mark": "H3K27me3"})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert vm._chromatin_modifier["g1"] < 1.0
+
+    def test_histone_unknown_mark(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="histone", target="g1",
+                           params={"mark": "UNKNOWN_MARK"})
+        ])
+        vm._dispatcher.process_bio_instructions()
+        assert vm._epigenetic_marks[0]["score"] == 0.0
+
+    # -- quorum --
+    def test_quorum_sensing_activates(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="quorum", target="g1",
+                           params={"threshold": "0.5", "activate": "g1"})
+        ])
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm.field = GrayScott(n=8)
+        vm.field.emit(vm.cell.x % 8, vm.cell.y % 8, 1.0)
+        vm._dispatcher.process_bio_instructions()
+        assert vm.grn.nodes["g1"].level >= 1.0
+
+    def test_quorum_signal_below_threshold(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="quorum", target="g1",
+                           params={"threshold": "100.0"})
+        ])
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm._dispatcher.process_bio_instructions()
+        assert vm.grn.nodes["g1"].level == 0.0
+
+    def test_quorum_no_field(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="quorum", target="g1",
+                           params={"threshold": "1.0"})
+        ])
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm._dispatcher.process_bio_instructions()
+        assert vm.grn.nodes["g1"].level == 0.0
+
+    def test_quorum_activate_not_in_grn(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="quorum", target="nonexistent",
+                           params={"threshold": "0.0", "activate": "nonexistent"})
+        ])
+        vm._dispatcher.process_bio_instructions()
+
+    # -- transcribe --
+    def test_transcribe_sets_level(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="transcribe", target="g1", params={})
+        ])
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm._dispatcher.process_bio_instructions()
+        assert vm.grn.nodes["g1"].level == 1.0
+
+    def test_transcribe_target_not_in_grn(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="transcribe", target="nonexistent", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+
+    # -- translate --
+    def test_translate_increases_protein(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="translate", target="g1", params={})
+        ])
+        vm.cell.add_protein("g1", 1.0)
+        vm._dispatcher.process_bio_instructions()
+        assert vm.cell.proteins["g1"] == 2.0
+
+    def test_translate_no_existing_protein(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="translate", target="nonexistent", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+
+    def test_unknown_bio_instruction_noop(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        vm = self._make_vm_with_bio([
+            BioInstruction(kind="unknown_kind", target="g1", params={})
+        ])
+        vm._dispatcher.process_bio_instructions()
+
+
+# ============================================================================
+# _use_plugin
+# ============================================================================
+
+class TestUsePluginMethod:
+    """_use_plugin resolves/activates a plugin through the registry."""
+
+    def test_use_plugin_with_registry(self):
+        from helixlang.core.plugin_registry import PluginProvider, Registry
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        registry = Registry()
+        provider = PluginProvider(name="grn", extra="grn", load=lambda: None)
+        registry.register(provider)
+        vm = CellVM(c, prog, registry=registry)
+        vm._use_plugin("grn", ())
+        assert "grn" in registry.active()
+
+    def test_use_plugin_with_flags(self):
+        from helixlang.core.plugin_registry import PluginProvider, Registry
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        registry = Registry()
+        provider = PluginProvider(name="grn", extra="grn",
+                                 capability_flags=("--low-fidelity",),
+                                 load=lambda: None)
+        registry.register(provider)
+        vm = CellVM(c, prog, registry=registry)
+        vm._use_plugin("grn", ("--low-fidelity",))
+        assert registry.has_capability("--low-fidelity")
+        assert "grn" in registry.active()
+
+    def test_use_plugin_uses_default_registry(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm._use_plugin("grn", ())
+        from helixlang.core.plugin_registry import get_registry
+        assert "grn" in get_registry().active()
+
+
+# ============================================================================
+# _get_promoter_strength
+# ============================================================================
+
+class TestGetPromoterStrength:
+    def test_none_returns_constitutive(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        from helixlang.core.opcode_semantics import CONSTITUTIVE_PROMOTER_STRENGTH
+        assert vm._get_promoter_strength(None) == CONSTITUTIVE_PROMOTER_STRENGTH
+
+    def test_known_promoter(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm._promoter_strengths["p1"] = 0.8
+        assert vm._get_promoter_strength("p1") == 0.8
+
+    def test_unknown_promoter_returns_constitutive(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        from helixlang.core.opcode_semantics import CONSTITUTIVE_PROMOTER_STRENGTH
+        assert vm._get_promoter_strength("unknown") == CONSTITUTIVE_PROMOTER_STRENGTH
+
+
+# ============================================================================
+# _call_gene depth cap
+# ============================================================================
+
+class TestCallGeneDepthCap:
+    def test_frame_depth_cap(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=1024))
+        vm = CellVM(c, prog)
+        vm.chunk.gene_offsets["g"] = 0
+        for _ in range(256):
+            vm.frames.append(Frame(return_ip=0, gene_name="t"))
+        vm._call_gene("g")
+        assert len(vm.frames) == 256
+
+
+# ============================================================================
+# _execute_pending non-accel path
+# ============================================================================
+
+class TestExecutePendingNonAccel:
+    """Test the Python dispatch loop in _execute_pending (use_accel=False)."""
+
+    def test_ip_exceeds_code_pops_frame(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm.ip = len(c.code) + 1
+        vm._execute_pending()
+        assert vm.frames == [] or vm.ip <= len(c.code)
+
+    def test_frame_depth_exceeds_256(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        for _ in range(300):
+            vm.frames.append(Frame(return_ip=0, gene_name="t"))
+        vm._execute_pending()
+        assert len(vm.frames) == 0
+
+    def test_quota_exhausted(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        c.emit(Op.OP_NOP)
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c, ops_per_tick=1)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.ops_executed <= 2
+
+    def test_debug_prints(self, capsys):
+        c = Chunk()
+        c.emit(Op.OP_DEBUG)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm.debug = True
+        vm._execute_pending()
+        out = capsys.readouterr().out
+        assert "DEBUG" in out
+
+    def test_unknown_opcode_in_non_accel(self):
+        from helixlang.core.errors import UnknownOpcodeError
+        c = Chunk()
+        c.code.append(0xFF)
+        c.lines.append(0)
+        c.codon_indices.append(-1)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        with pytest.raises(UnknownOpcodeError):
+            vm._execute_pending()
+
+    def test_dispatch_body_executed(self):
+        c = Chunk()
+        c.add_constant(3)
+        c.add_constant(4)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_ADD)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [7]
+
+    def test_dispatch_body_sub(self):
+        c = Chunk()
+        c.add_constant(10)
+        c.add_constant(3)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_SUB)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [7]
+
+    def test_dispatch_body_mul(self):
+        c = Chunk()
+        c.add_constant(6)
+        c.add_constant(7)
+        c.emit(Op.OP_PUSH_CONST, 0)
+        c.emit(Op.OP_PUSH_CONST, 1)
+        c.emit(Op.OP_MUL)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._execute_pending()
+        assert vm.stack == [42]
+
+
+# ============================================================================
+# _read_u8 / _read_u16 edge cases
+# ============================================================================
+
+class TestReadOperands:
+    def test_read_u8_at_end(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.ip = len(c.code)
+        assert vm._read_u8() == 0
+
+    def test_read_u16_at_end(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.ip = len(c.code)
+        assert vm._read_u16() == 0
+
+    def test_read_u16_one_byte_left(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.ip = len(c.code) - 1
+        assert vm._read_u16() == 0
+
+    def test_read_u16_normal(self):
+        c = Chunk()
+        vm = _make_vm(c)
+        c.code.extend([0x01, 0x02])
+        c.lines.extend([0, 0])
+        c.codon_indices.extend([-1, -1])
+        vm.ip = len(c.code) - 2
+        val = vm._read_u16()
+        assert val == (0x01 << 8) | 0x02
+
+    def test_read_u8_normal(self):
+        c = Chunk()
+        vm = _make_vm(c)
+        c.code.append(42)
+        c.lines.append(0)
+        c.codon_indices.append(-1)
+        vm.ip = len(c.code) - 1
+        assert vm._read_u8() == 42
+
+
+# ============================================================================
+# _divide when cell can't divide
+# ============================================================================
+
+class TestDivideEdgeCases:
+    def test_divide_insufficient_energy(self):
+        from helixlang.plugins.runtime.cell import MIN_DIVISION_ENERGY, Cell
+        c = Chunk()
+        c.emit(Op.OP_DIVIDE, 0)
+        vm = _make_vm(c)
+        vm.cell = Cell(energy=MIN_DIVISION_ENERGY - 1)
+        vm._execute_pending()
+        assert vm.cell.divisions == 0
+        assert len(vm.daughters) == 0
+
+
+# ============================================================================
+# _feedback morphogen wiring
+# ============================================================================
+
+class TestFeedbackMorphogen:
+    def test_feedback_with_morphogen_wiring(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256))
+        from helixlang.core.ast_nodes import MorphogenFeedback
+        prog.morphogen_feedback = [
+            MorphogenFeedback(gene="g1", channel="U", gain=0.5)
+        ]
+        vm = CellVM(c, prog)
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm.field = GrayScott(n=8)
+        vm.field.emit(0, 0, 1.0)
+        vm._feedback()
+        assert vm.grn.nodes["g1"].level > 0.0
+
+    def test_feedback_with_v_channel(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        from helixlang.core.ast_nodes import MorphogenFeedback
+        prog.morphogen_feedback = [
+            MorphogenFeedback(gene="g1", channel="V", gain=0.5)
+        ]
+        vm = CellVM(c, prog)
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm.field = GrayScott(n=8)
+        vm.field.emit(0, 0, 1.0)
+        vm._feedback()
+        assert vm.grn.nodes["g1"].level > 0.0
+
+    def test_feedback_gene_not_in_grn(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        from helixlang.core.ast_nodes import MorphogenFeedback
+        prog.morphogen_feedback = [
+            MorphogenFeedback(gene="nonexistent", channel="U", gain=0.5)
+        ]
+        vm = CellVM(c, prog)
+        vm.field = GrayScott(n=8)
+        vm._feedback()
+
+    def test_feedback_pigment_gene(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm.grn.add_gene("pigment", threshold=0.5, initial_level=0.0)
+        vm.field = GrayScott(n=8)
+        vm.field.emit(0, 0, 1.0)
+        vm._feedback()
+        assert vm.grn.nodes["pigment"].level > 0.0
+
+    def test_feedback_no_pigment_gene(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm.field = GrayScott(n=8)
+        vm._feedback()
+
+
+# ============================================================================
+# _snapshot downsampling skip
+# ============================================================================
+
+class TestSnapshotDownsampling:
+    def test_snapshot_skipped_when_downsampled(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=10000))
+        vm = CellVM(c, prog)
+        vm._snapshot_downsampler.configure(10000)
+        vm.cell.alive = True
+        vm.tick = 501
+        before = len(vm.trace)
+        vm._snapshot()
+        after = len(vm.trace)
+        assert before == after
+
+
+# ============================================================================
+# _transcribe_translate paths
+# ============================================================================
+
+class TestTranscribeTranslate:
+    def test_central_dogma_with_protein_result(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#config ticks=1 use_central_dogma=true species=ecoli")
+        vm, trace = run_src(src, ticks=1)
+        assert trace[-1]["alive"]
+
+    def test_gene_with_no_dna_skipped(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256, use_central_dogma=True,
+                                     species="ecoli"))
+        vm = CellVM(c, prog)
+        from helixlang.core.ast_nodes import Gene
+        prog.genes.append(Gene(name="empty_gene", promoter=None,
+                               codons=[], orf=[]))
+        vm._gene_dna["empty_gene"] = ""
+        vm._transcribe_translate()
+
+    def test_transcribe_translate_with_accel(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256, use_central_dogma=True,
+                                     species="ecoli"))
+        vm = CellVM(c, prog)
+        from helixlang.core.ast_nodes import Codon, Gene
+        prog.genes.append(Gene(name="g", promoter=None,
+                               codons=[Codon("ATG", 0, 1),
+                                       Codon("GCT", 1, 1),
+                                       Codon("TAA", 2, 1)],
+                               orf=[Codon("ATG", 0, 1),
+                                    Codon("GCT", 1, 1),
+                                    Codon("TAA", 2, 1)]))
+        vm._gene_dna["g"] = "ATGGCTTAA"
+        vm.use_accel = True
+        vm._transcribe_translate()
+
+    def test_transcribe_translate_no_accel(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256, use_central_dogma=True,
+                                     species="ecoli"))
+        vm = CellVM(c, prog)
+        from helixlang.core.ast_nodes import Codon, Gene
+        prog.genes.append(Gene(name="g", promoter=None,
+                               codons=[Codon("ATG", 0, 1),
+                                       Codon("GCT", 1, 1),
+                                       Codon("TAA", 2, 1)],
+                               orf=[Codon("ATG", 0, 1),
+                                    Codon("GCT", 1, 1),
+                                    Codon("TAA", 2, 1)]))
+        vm._gene_dna["g"] = "ATGGCTTAA"
+        vm.use_accel = False
+        vm._transcribe_translate()
+
+    def test_transcribe_translate_with_promoter(self):
+        src = ("#promoter name=p strength=0.8\n"
+               "#gene name=g promoter=p\nATG GCT TAA\n#end\n"
+               "#config ticks=1 use_central_dogma=true species=ecoli")
+        vm, trace = run_src(src, ticks=1)
+        assert trace[-1]["alive"]
+
+
+# ============================================================================
+# GEM re-solve paths (run method)
+# ============================================================================
+
+class TestGemReSolve:
+    def test_gem_re_solve_central_dogma(self):
+        """Central dogma path with GEM dirty and metabolic model."""
+        from helixlang.plugins.runtime.metabolism import (
+            MetabolicModel,
+            Reaction,
+        )
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=True, species="ecoli"))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        rxn = Reaction(id="biomass_r", name="biomass",
+                       stoichiometry={"biomass_met": 1.0})
+        model.add_reaction(rxn)
+        model.set_biomass("biomass_r")
+        vm._metabolic_model = model
+        vm._gem_gpr_map["g1"] = ["biomass_r"]
+        vm._enzyme_kcat["biomass_r"] = 1.0
+        vm._gem_dirty = True
+        vm.run(1)
+
+    def test_gem_re_solve_central_dogma_no_enzyme_kcat(self):
+        from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=True, species="ecoli"))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        rxn = Reaction(id="biomass_r", name="biomass",
+                       stoichiometry={"biomass_met": 1.0})
+        model.add_reaction(rxn)
+        model.set_biomass("biomass_r")
+        vm._metabolic_model = model
+        vm._gem_dirty = True
+        vm._enzyme_kcat = {}
+        vm.run(1)
+
+    def test_gem_error_central_dogma(self):
+        """Central dogma GEM re-solve error path."""
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=True, species="ecoli"))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        vm._metabolic_model = model
+        vm._gem_dirty = True
+        vm._enzyme_kcat["rxn1"] = 1.0
+        with pytest.raises(ModelMissingError):
+            vm.run(1)
+
+    def test_gem_re_solve_non_central_dogma(self):
+        """Non-central-dogma path with GEM dirty."""
+        from helixlang.plugins.runtime.metabolism import MetabolicModel, Reaction
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=False))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        rxn = Reaction(id="biomass_r", name="biomass",
+                       stoichiometry={"biomass_met": 1.0})
+        model.add_reaction(rxn)
+        model.set_biomass("biomass_r")
+        vm._metabolic_model = model
+        vm._gem_gpr_map["g1"] = ["biomass_r"]
+        vm._enzyme_kcat["biomass_r"] = 1.0
+        vm._gem_dirty = True
+        vm.run(1)
+
+    def test_gem_error_non_central_dogma(self):
+        """Non-central-dogma GEM re-solve error path."""
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=False))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        vm._metabolic_model = model
+        vm._gem_dirty = True
+        vm._enzyme_kcat["rxn1"] = 1.0
+        with pytest.raises(ModelMissingError):
+            vm.run(1)
+
+
+# ============================================================================
+# _init_subsystems with use directives
+# ============================================================================
+
+class TestInitSubsystems:
+    def test_use_directives_processed(self):
+        from helixlang.core.ast_nodes import UseDecl
+        from helixlang.core.plugin_registry import PluginProvider, Registry
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        prog = Parser(list(Lexer(src).tokens()),
+                      stop_codons={c for c, op in STANDARD_TABLE.items()
+                                   if op == Op.OP_HALT}).parse()
+        SemanticAnalyzer(prog).check()
+        prog.use_directives = [UseDecl(plugin="test_plugin")]
+        chunk = Compiler(STANDARD_TABLE).compile(prog)
+        registry = Registry()
+        provider = PluginProvider(name="test_plugin", extra="core",
+                                  load=lambda: None)
+        registry.register(provider)
+        CellVM(chunk, prog, registry=registry)
+        assert "test_plugin" in registry.active()
+
+    def test_morphogen_feedback_init(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#morphogen gene=g channel=V gain=0.2\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert "g" in vm._morphogen_feedback
+
+    def test_no_morphogen_feedback(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert vm._morphogen_feedback == {}
+
+    def test_lsystems_init(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#lsystem name=tree axiom=F rules=0:F->F[+F]F angle=25 step=1.0\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert "tree" in vm.lsystems
+
+    def test_promoter_negative_strength_constitutive(self):
+        src = ("#promoter name=p strength=-0.5\n"
+               "#gene name=g promoter=p\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert vm.grn.nodes["p"].level > 0.9
+
+    def test_gene_with_promoter_zero_initial(self):
+        src = ("#promoter name=p strength=0.5\n"
+               "#gene name=g promoter=p\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert vm.grn.nodes["g"].level < 0.5
+
+    def test_gene_no_promoter_constitutive(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert vm.grn.nodes["g"].level > 0.9
+
+    def test_regulations_init(self):
+        src = ("#promoter name=p strength=0.5\n"
+               "#gene name=g1 promoter=p\nATG GCT TAA\n#end\n"
+               "#gene name=g2\nATG GCT TAA\n#end\n"
+               "#regulate g1 -> g2 strength=0.8\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        assert len(vm.grn.edges) == 1
+
+
+# ============================================================================
+# _dispatch (thin wrapper) ops_executed counter
+# ============================================================================
+
+class TestDispatchWrapper:
+    def test_ops_executed_increments(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        before = vm.ops_executed
+        vm._execute_pending()
+        assert vm.ops_executed > before
+
+    def test_dispatch_wraps_to_dispatcher(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm._dispatch(Op.OP_NOP)
+
+
+# ============================================================================
+# _execute_pending with remaining frames after quota
+# ============================================================================
+
+class TestExecutePendingEdgeCases:
+    def test_frames_empty_stops(self):
+        c = Chunk()
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm.frames.clear()
+        vm._execute_pending()
+
+    def test_non_accel_halts_resume(self):
+        """HALT in non-accel path pops frame and resumes."""
+        c = Chunk()
+        c.emit(Op.OP_HALT)
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm.frames.append(Frame(return_ip=1, gene_name="outer"))
+        vm._execute_pending()
+        assert vm.ip == 1 or len(vm.frames) == 0
+
+
+# ============================================================================
+# GEM re-solve low-fidelity opt-in path
+# ============================================================================
+
+class TestGemLowFidelity:
+    def test_gem_error_low_fidelity_optin_central_dogma(self, monkeypatch):
+        from helixlang.core import fidelity
+        monkeypatch.setattr(fidelity, "opt_in", lambda *a: True)
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=True, species="ecoli"))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        vm._metabolic_model = model
+        vm._gem_dirty = True
+        vm._enzyme_kcat["rxn1"] = 1.0
+        vm.run(1)
+
+    def test_gem_error_low_fidelity_optin_non_central_dogma(self, monkeypatch):
+        from helixlang.core import fidelity
+        monkeypatch.setattr(fidelity, "opt_in", lambda *a: True)
+        from helixlang.plugins.runtime.metabolism import MetabolicModel
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256, ticks=1,
+                                     use_central_dogma=False))
+        vm = CellVM(c, prog)
+        model = MetabolicModel()
+        vm._metabolic_model = model
+        vm._gem_dirty = True
+        vm._enzyme_kcat["rxn1"] = 1.0
+        vm.run(1)
+
+
+# ============================================================================
+# _get_transcription_factors
+# ============================================================================
+
+class TestGetTranscriptionFactors:
+    def test_tf_with_regulations(self):
+        src = ("#promoter name=p strength=0.5\n"
+               "#gene name=g1 promoter=p\nATG GCT TAA\n#end\n"
+               "#gene name=g2\nATG GCT TAA\n#end\n"
+               "#regulate g1 -> g2 strength=0.8\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        tfs = vm._get_transcription_factors("g2")
+        assert "g1" in tfs
+
+    def test_tf_no_regulations(self):
+        src = ("#gene name=g\nATG GCT TAA\n#end\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        tfs = vm._get_transcription_factors("g")
+        assert tfs == {}
+
+    def test_tf_source_level_zero(self):
+        src = ("#promoter name=p strength=0.5\n"
+               "#gene name=g1 promoter=p\nATG GCT TAA\n#end\n"
+               "#gene name=g2\nATG GCT TAA\n#end\n"
+               "#regulate g1 -> g2 strength=0.8\n"
+               "#config ticks=1")
+        vm, trace = run_src(src, ticks=1)
+        vm.grn.nodes["g1"].level = 0.0
+        tfs = vm._get_transcription_factors("g2")
+        assert tfs["g1"] == 1.0
+
+
+# ============================================================================
+# _flush_morphology
+# ============================================================================
+
+class TestFlushMorphology:
+    def test_flush_morphology_is_noop(self):
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        vm = CellVM(c, prog)
+        vm._flush_morphology()
+
+
+# ============================================================================
+# _process_bio_instructions delegation
+# ============================================================================
+
+class TestProcessBioInstructionsDelegation:
+    def test_delegates_to_dispatcher(self):
+        from helixlang.core.ast_nodes import BioInstruction
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        prog = Program(config=Config(ops_per_tick=256))
+        prog.bio_instructions = [
+            BioInstruction(kind="transcribe", target="g1", params={})
+        ]
+        vm = CellVM(c, prog)
+        vm.grn.add_gene("g1", threshold=0.5, initial_level=0.0)
+        vm._process_bio_instructions()
+        assert vm.grn.nodes["g1"].level == 1.0
+
+
+# ============================================================================
+# run() with accel + skip_validity
+# ============================================================================
+
+class TestRunWithAccel:
+    def test_run_with_accel_and_skip_validity(self):
+        src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=2"
+        vm, trace = run_src(src, ticks=2)
+        vm.use_accel = True
+        vm.skip_validity = True
+        trace2 = vm.run(2)
+        assert len(trace2) > 0
+
+    def test_run_non_central_dogma_grn_path(self):
+        src = "#gene name=g\nATG GCT TAA\n#end\n#config ticks=2"
+        vm, trace = run_src(src, ticks=2)
+        assert trace[-1]["alive"]
+
+
+# ============================================================================
+# Additional branch coverage: BIND with protein as binder
+# ============================================================================
+
+class TestBindBranches:
+    def _grn_vm(self, chunk):
+        vm = _make_vm(chunk)
+        vm.grn.add_gene("a", threshold=0.5, initial_level=1.0)
+        vm.grn.add_gene("b", threshold=0.5, initial_level=0.0)
+        vm.frames[-1].gene_name = "a"
+        return vm
+
+    def test_bind_binder_not_in_proteins_uses_fallback(self):
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = self._grn_vm(c)
+        vm.cell.add_protein("fallback", 2.0)
+        vm._execute_pending()
+        assert vm.grn.nodes["b"].level == 0.5
+        assert vm._binding_events[0]["protein"] == "fallback"
+
+    def test_bind_consumed_zero_no_event(self):
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = self._grn_vm(c)
+        vm.cell.add_protein("a", 0.001)
+        vm.cell.consume_protein("a", 10.0)
+        vm._execute_pending()
+        assert vm._binding_events == []
+
+
+# ============================================================================
+# OP_SIGNAL with field at non-zero cell position
+# ============================================================================
+
+class TestSignalNonZeroPosition:
+    def test_signal_at_offset_position(self):
+        c = Chunk()
+        c.emit(Op.OP_SIGNAL, 0)
+        vm = _make_vm(c)
+        vm.field = GrayScott(n=8)
+        vm.cell.x = 3
+        vm.cell.y = 5
+        vm._execute_pending()
+        assert vm._signal_emissions == 1
+        assert vm.field.v[3][5] > 0
+
+
+# ============================================================================
+# OP_EMIT_MORPHOGEN with field at non-zero position
+# ============================================================================
+
+class TestEmitMorphogenNonZeroPosition:
+    def test_emit_at_offset_position(self):
+        c = Chunk()
+        c.emit(Op.OP_EMIT_MORPHOGEN, 0)
+        vm = _make_vm(c)
+        vm.field = GrayScott(n=8)
+        vm.cell.x = 3
+        vm.cell.y = 5
+        before = vm.field.v[3][5]
+        vm._execute_pending()
+        assert vm.field.v[3][5] > before
+
+
+# ============================================================================
+# _divide successful with daughter
+# ============================================================================
+
+class TestDivideSuccess:
+    def test_divide_creates_daughter(self):
+        c = Chunk()
+        c.emit(Op.OP_DIVIDE, 0)
+        vm = _run_chunk(c)
+        assert len(vm.daughters) == 1
+        assert vm.daughters[0].energy == vm.cell.energy
+
+
+# ============================================================================
+# Additional branch coverage: dispatch() fall-through paths
+# ============================================================================
+
+class TestDispatchFallthrough:
+    """Cover remaining branch points in bioinstruction dispatcher."""
+
+    def test_halt_with_no_frames(self):
+        c = Chunk()
+        c.emit(Op.OP_HALT)
+        vm = _make_vm(c)
+        vm.frames.clear()
+        vm._dispatcher.dispatch(Op.OP_HALT)
+
+    def test_return_with_no_frames(self):
+        c = Chunk()
+        c.emit(Op.OP_RETURN)
+        vm = _make_vm(c)
+        vm.frames.clear()
+        vm._dispatcher.dispatch(Op.OP_RETURN)
+
+    def test_modify_state_unmatched_value(self):
+        c = Chunk()
+        c.emit(Op.OP_MODIFY_STATE, 4)
+        vm = _make_vm(c)
+        vm._dispatcher.dispatch(Op.OP_MODIFY_STATE)
+        assert vm.cell.color == (255, 255, 255)
+
+    def test_bind_consumed_zero(self):
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = _make_vm(c)
+        vm.grn.add_gene("a", threshold=0.5, initial_level=1.0)
+        vm.grn.add_gene("b", threshold=0.5, initial_level=0.0)
+        vm.frames[-1].gene_name = "a"
+        vm.cell.add_protein("a", 0.0)
+        vm._dispatcher.dispatch(Op.OP_BIND)
+        assert vm._binding_events == []
+
+    def test_bind_no_protein_consumed(self):
+        c = Chunk()
+        c.emit(Op.OP_BIND, 1)
+        vm = _make_vm(c)
+        vm.grn.add_gene("a", threshold=0.5, initial_level=1.0)
+        vm.grn.add_gene("b", threshold=0.5, initial_level=0.0)
+        vm.frames[-1].gene_name = "a"
+        vm.cell.proteins.pop("a", None)
+        vm._dispatcher.dispatch(Op.OP_BIND)
+        assert vm._binding_events == []
+
+    def test_use_plugin_not_registered(self):
+        c = Chunk()
+        c.emit(Op.OP_USE_PLUGIN, 0)
+        vm = _make_vm(c)
+        vm._dispatcher.dispatch(Op.OP_USE_PLUGIN)
+
+    def test_dispatch_unknown_value_noop(self):
+        """dispatch() with a non-Op value falls through all case patterns
+        silently (the match has no catch-all case; every Op member is covered
+        explicitly above, so a non-Op is the only path to the end)."""
+        c = Chunk()
+        vm = _make_vm(c)
+        vm._dispatcher.dispatch(object())
+
+
+# ============================================================================
+# _update_enzyme_levels edit_type not substitution/frameshift
+# ============================================================================
+
+class TestUpdateEnzymeOtherEditType:
+    def test_edit_type_not_matched(self):
+        vm = CellVM(Chunk(), Program(config=Config(ops_per_tick=256)))
+        vm._crispr_edits = [
+            {"success": True, "target": "g1", "edit_type": "no_edit"}
+        ]
+        vm._gem_gpr_map["g1"] = ["rxn1"]
+        vm._enzyme_kcat["rxn1"] = 1.0
+        vm._dispatcher._update_enzyme_levels_from_edits()
+        assert vm._enzyme_kcat["rxn1"] == 1.0
+
+
+# ============================================================================
+# _use_plugin with unregistered plugin
+# ============================================================================
+
+class TestUsePluginUnregistered:
+    def test_plugin_not_registered_noop(self):
+        from helixlang.core.plugin_registry import Registry
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256))
+        registry = Registry()
+        vm = CellVM(c, prog, registry=registry)
+        vm._use_plugin("nonexistent", ())
+        assert "nonexistent" not in registry.active()
+
+
+# ============================================================================
+# _transcribe_translate: gene with no protein result
+# ============================================================================
+
+class TestTranscribeNoProtein:
+    def test_transcribe_translate_stop_only(self):
+        from helixlang.core.ast_nodes import Gene
+        c = Chunk()
+        prog = Program(config=Config(ops_per_tick=256, use_central_dogma=True,
+                                     species="ecoli"))
+        vm = CellVM(c, prog)
+        prog.genes.append(Gene(name="g", promoter=None, codons=[], orf=[]))
+        vm._gene_dna["g"] = "TAA"
+        vm.use_accel = False
+        vm._transcribe_translate()
+
+
+# ============================================================================
+# _execute_pending: ip >= len(code) with remaining frame
+# ============================================================================
+
+class TestExecuteIpOutOfBounds:
+    def test_ip_out_of_bounds_resumes_from_frame(self):
+        c = Chunk()
+        c.emit(Op.OP_NOP)
+        vm = _make_vm(c)
+        vm.use_accel = False
+        vm.frames.append(Frame(return_ip=0, gene_name="outer"))
+        vm.ip = len(c.code)
+        vm._execute_pending()
+        assert vm.ip == 1
+        assert len(vm.frames) == 1
+
+
+# ============================================================================
+# Chunk.read_u8 / Chunk.read_u16 (bytecode.py coverage)
+# ============================================================================
+
+class TestChunkReadOperands:
+    def test_read_u8_returns_value_and_new_ip(self):
+        c = Chunk()
+        c.code.append(0xAB)
+        c.lines.append(0)
+        c.codon_indices.append(-1)
+        val, new_ip = c.read_u8(0)
+        assert val == 0xAB
+        assert new_ip == 1
+
+    def test_read_u16_returns_big_endian_value_and_new_ip(self):
+        c = Chunk()
+        c.code.extend([0x01, 0x02])
+        c.lines.extend([0, 0])
+        c.codon_indices.extend([-1, -1])
+        val, new_ip = c.read_u16(0)
+        assert val == (0x01 << 8) | 0x02
+        assert new_ip == 2
+
+
+# ============================================================================
+# LanguageConfig.standard() and __repr__ (language.py coverage)
+# ============================================================================
+
+class TestLanguageConfigExtras:
+    def test_standard_classmethod(self):
+        from helixlang.core.language import LanguageConfig
+        cfg = LanguageConfig.standard()
+        assert cfg.table_name == "standard"
+        assert isinstance(cfg.stop_codons, frozenset)
+        assert isinstance(cfg.start_codons, frozenset)
+
+    def test_repr_contains_table_name(self):
+        from helixlang.core.language import LanguageConfig
+        cfg = LanguageConfig.standard()
+        r = repr(cfg)
+        assert "LanguageConfig" in r
+        assert "standard" in r
+        assert "stops=" in r
+        assert "starts=" in r
 

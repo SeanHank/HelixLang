@@ -6,12 +6,19 @@ ReplicationVerifier, and BioAccuracySuite.
 from __future__ import annotations
 
 from helixlang.plugins.runtime.bio_validity import (
+    BioAccuracyReport,
     BioAccuracySuite,
+    FitResult,
     OutOfScopeDetector,
+    OutOfScopeReport,
+    ParameterCheck,
     ParameterFitter,
+    ParameterRange,
+    ReplicationResult,
     ReplicationVerifier,
     ScopeLevel,
     UncertaintyQuantifier,
+    UncertaintyResult,
 )
 
 
@@ -183,3 +190,116 @@ class TestBioAccuracySuite:
         assert "scope" in d
         assert "overall_accuracy" in d
         assert "replication" in d
+
+
+class TestCoverageBranches:
+    def test_parameter_range_degenerate(self) -> None:
+        rng = ParameterRange(name="p", min_val=5.0, max_val=5.0)
+        assert rng.contains(5.0) == ScopeLevel.SAFE
+        assert rng.contains(6.0) == ScopeLevel.OUT_OF_SCOPE
+
+    def test_parameter_range_warning_band(self) -> None:
+        rng = ParameterRange(name="p", min_val=0.0, max_val=10.0)
+        assert rng.contains(12.0) == ScopeLevel.WARNING
+        assert rng.contains(16.0) == ScopeLevel.OUT_OF_SCOPE
+
+    def test_empty_report_and_missing_param(self) -> None:
+        assert OutOfScopeReport().worst_level == ScopeLevel.SAFE
+        detector = OutOfScopeDetector(
+            ranges=[ParameterRange(name="p", min_val=0.0, max_val=1.0)])
+        report = detector.check({"unknown": 5.0})
+        assert report.checks == []
+        report.checks.append(
+            ParameterCheck(name="q", value=9.0,
+                           range=ParameterRange(name="q", min_val=0.0,
+                                                max_val=1.0),
+                           level=ScopeLevel.WARNING, deviation=8.0))
+        assert report.worst_level == ScopeLevel.WARNING
+
+    def test_fit_with_objective_and_zero_target(self) -> None:
+        fitter = ParameterFitter(
+            bounds={"p": (0.0, 5.0), "q": (0.0, 5.0)},
+            objective_fn=lambda p: (p["p"] - 1.0) ** 2)
+        result = fitter.fit(
+            initial_params={"p": 2.0, "q": 2.0},
+            target_values={"p": 1.0, "q": 0.0},
+            maxiter=50)
+        assert isinstance(result, FitResult)
+        assert "fitted_params" in result.to_dict()
+        assert result.residual_before > 0.0
+
+    def test_fit_falls_back_coordinate_descent(self, monkeypatch) -> None:
+        import sys
+        real = sys.modules.get("scipy.optimize")
+        sys.modules["scipy.optimize"] = None
+        try:
+            fitter = ParameterFitter(
+                bounds={"p": (0.0, 5.0), "q": (0.0, 5.0)},
+                objective_fn=lambda p: (p["p"] - 1.0) ** 2)
+            result = fitter.fit(
+                initial_params={"p": 2.0, "q": 2.0},
+                target_values={"p": 1.0, "q": 0.0},
+                maxiter=40)
+            assert result.converged or result.n_iterations > 0
+            assert result.message == "coordinate descent completed"
+            plain = ParameterFitter(bounds={"p": (0.0, 5.0)}).fit(
+                initial_params={"p": 2.0},
+                target_values={"p": 1.0},
+                maxiter=40)
+            assert plain.converged or plain.n_iterations > 0
+        finally:
+            if real is None:
+                sys.modules.pop("scipy.optimize", None)
+            else:
+                sys.modules["scipy.optimize"] = real
+
+    def test_uncertainty_with_forward_fn(self) -> None:
+        uq = UncertaintyQuantifier(
+            forward_fn=lambda p: p["p"] * 2.0, n_bootstrap=30, seed=3)
+        boot = uq.bootstrap({"p": 1.0}, [1.0, 2.0, 3.0], noise_std=0.1)
+        assert "ci_95_lower" in boot.to_dict()
+        mc = uq.monte_carlo({"p": 1.0}, {"p": 0.1}, n_samples=30)
+        assert mc.n_samples == 30
+        assert "mean" in mc.to_dict()
+        assert isinstance(UncertaintyResult(
+            mean=1.0, std=0.0, ci_lower=1.0, ci_upper=1.0, cv=0.0,
+            n_samples=3).to_dict(), dict)
+
+    def test_replication_run_fn_numeric(self) -> None:
+        verifier = ReplicationVerifier(
+            run_fn=lambda seed, run_index: seed + run_index, n_runs=3, seed=1)
+        result = verifier.verify()
+        assert result.n_runs == 3
+        assert not result.all_identical
+        assert result.max_deviation >= 0.0
+        assert "hashes_match" in result.to_dict()
+        assert isinstance(ReplicationResult(
+            n_runs=1, all_identical=True, max_deviation=0.0,
+            hashes=["a"]).to_dict(), dict)
+
+    def test_report_statuses(self) -> None:
+        low = BioAccuracyReport(benchmark_id="low")
+        low.replication = ReplicationResult(
+            n_runs=2, all_identical=False, max_deviation=1.0, hashes=["a", "b"])
+        assert low.compute_overall() == 0.0
+        assert low.status == "FAIL"
+        high = BioAccuracyReport(benchmark_id="high")
+        high.scope = OutOfScopeReport(checks=[
+            ParameterCheck(name="p", value=1.0,
+                           range=ParameterRange(name="p", min_val=0.0,
+                                                max_val=1.0),
+                           level=ScopeLevel.SAFE, deviation=0.0)])
+        high.fit = FitResult(
+            fitted_params={"p": 1.0}, initial_params={"p": 2.0},
+            residual_before=1.0, residual_after=0.0, improvement_pct=100.0,
+            converged=True)
+        high.uncertainty = UncertaintyResult(
+            mean=1.0, std=0.0, ci_lower=1.0, ci_upper=1.0, cv=0.0, n_samples=3)
+        high.replication = ReplicationResult(
+            n_runs=2, all_identical=True, max_deviation=0.0, hashes=["h", "h"])
+        assert high.compute_overall() == 1.0
+        assert high.status == "PASS"
+        assert "fit" in high.to_dict()
+        empty = BioAccuracyReport(benchmark_id="empty")
+        assert empty.compute_overall() == 0.0
+        assert empty.status == "FAIL"

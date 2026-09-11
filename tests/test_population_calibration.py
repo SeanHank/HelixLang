@@ -130,3 +130,38 @@ def test_closure_returns_dict() -> None:
                            "recovered", "passed"}
     assert result["passed"] is True
     assert result["relative_error"]["division_threshold"] < 0.10
+
+
+def test_build_max_cells_short_circuits() -> None:
+    c = PopulationCalibration(**FAST)
+    pop = c._build(
+        seed=1, ticks=10, oxygen_max=TRUTH_OXYGEN_MAX_UPTAKE,
+        energy_scale=TRUTH_ENERGY_SCALE,
+        division_threshold=TRUTH_DIVISION_THRESHOLD, max_cells=1)
+    assert len(pop.cells) >= 1
+
+
+def test_division_probe_extreme_blowup_break() -> None:
+    c = PopulationCalibration(**FAST)
+    out = c._division_probe(
+        oxygen_max=TRUTH_OXYGEN_MAX_UPTAKE,
+        energy_scale=1000.0 * TRUTH_ENERGY_SCALE,
+        division_threshold=TRUTH_DIVISION_THRESHOLD)
+    assert out[1] > 1e9
+
+
+def test_division_probe_break_with_short_window() -> None:
+    c = PopulationCalibration(
+        division_ticks=2, n_samples=2, refine_rounds=1,
+        refine_windows=(0.35, 0.12))
+    out = c._division_probe(
+        oxygen_max=TRUTH_OXYGEN_MAX_UPTAKE,
+        energy_scale=10000.0 * TRUTH_ENERGY_SCALE,
+        division_threshold=TRUTH_DIVISION_THRESHOLD)
+    assert out == [5e8, 1e12, 3e8, 0.0]
+
+
+def test_weights_zero_scale_guard() -> None:
+    c = PopulationCalibration(**FAST)
+    c.observed = [0.0] + list(c.observed[1:])
+    assert c._weights_for(["growth"], (1.0,)) == [1.0]

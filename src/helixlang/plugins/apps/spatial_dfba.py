@@ -162,8 +162,6 @@ class SpatialDFBA:
                 batch.biomass_gdw = min(batch.biomass_gdw,
                                         cfg.max_biomass_gdw)
             removed = before - batch.glucose_mm
-            if removed < 0.0:
-                removed = 0.0
             self.consumed[i] += removed
             self.field[i] = batch.glucose_mm
         self._diffuse()

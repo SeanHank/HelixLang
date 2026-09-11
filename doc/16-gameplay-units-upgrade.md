@@ -372,7 +372,7 @@ Every batch, under `python`:
 ruff check src tests                     # lint gate
 mypy                                     # type gate
 python -m pytest -q                      # full suite
-python -m pytest -q --cov=helixlang --cov-fail-under=80
+python -m pytest -q --cov=helixlang --cov-fail-under=100
 ```
 
 Per-batch additions (the "validation suite" — these are the *point* of calibration):

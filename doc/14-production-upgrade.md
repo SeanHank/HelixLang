@@ -266,7 +266,7 @@ Per-batch additions:
 - **Tier 1.5 (central dogma)**: fast-codon vs slow-codon elongation ordering; mean-rate normalization check.
 - **Tiers 2–3**: existing suites must remain green; new tests for each added option.
 
-Coverage gate: `pytest --cov=helixlang --cov-fail-under=80` must stay ≥80% (new tables add coverage, not reduce it).
+Coverage gate: `pytest --cov=helixlang --cov-fail-under=100` must stay at 100% lines + branches (new tables add coverage, not reduce it).
 
 ---
 

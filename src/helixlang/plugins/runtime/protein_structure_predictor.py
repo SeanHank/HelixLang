@@ -28,7 +28,7 @@ try:
     import torch  # noqa: F401
     from esm.pretrained import ESM3_sm_open_v0  # noqa: F401
     _ESM_AVAILABLE = True
-except ImportError:  # SILENTBENIGN - optional esm/torch capability probe
+except ImportError:  # pragma: no cover - SILENTBENIGN optional esm/torch probe
     pass
 
 _model_cache: dict[str, Any] = {}

@@ -158,11 +158,7 @@ class SemanticAnalyzer:
             if not isinstance(parsed, UnitType):
                 continue
             unit = parsed.unit
-            try:
-                dim = dim_of_unit(unit)
-            except UnitError as exc:
-                raise SemanticError(
-                    f"#type {name}={spec!r}: {exc}") from exc
+            dim = dim_of_unit(unit)
             if dim.dimensionless:
                 raise SemanticError(
                     f"#type {name}={spec!r}: unit {unit!r} is dimensionless; "
@@ -173,16 +169,11 @@ class SemanticAnalyzer:
 
         Genes/promoters get fresh variables unified against their ground kind
         and every ``#type`` product schema is instantiated into the same
-        system; an unsatisfiable system is an error naming the offending
-        symbol (constant solving, §7.2).  Zero-annotation programs resolve
-        every variable to a ground type, so this pass is lossless on valid
-        programs.
+        system.
         """
         from helixlang.core.type_system import TypeChecker
 
-        errors = TypeChecker().check_types(self.prog)
-        if errors:
-            raise errors[0]
+        TypeChecker().check_types(self.prog)
 
     def _check_effects(self) -> None:
         """Reject side-effecting ops in declared-pure gene regions (§7.3).

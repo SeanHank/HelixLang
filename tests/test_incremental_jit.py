@@ -20,16 +20,24 @@ import io
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import pytest
+
 from helixlang.core import hxbc
+from helixlang.core.ast_nodes import Regulation
+from helixlang.core.bytecode import Chunk
 from helixlang.core.codon_table import STANDARD_TABLE, Op
 from helixlang.core.compiler import Compiler
 from helixlang.core.incr import (
     GeneDependencyGraph,
     IncrementalCache,
     IncrementalCompiler,
+    _find_fn,
+    _patch_graph,
+    _splice_chunk,
+    hash_annotations,
     hash_gene_block,
 )
-from helixlang.core.ir import IRFunction, IRProgram
+from helixlang.core.ir import IRFunction, IRInst, IRProgram
 from helixlang.core.ir_builder import IRBuilder
 from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
@@ -449,3 +457,230 @@ class TestWatch:
         assert "[jit] iteration 1: full build (3 genes)" in out
         # iteration 2 unchanged source -> nothing rebuilt
         assert "[jit] iteration 2: rebuilt (none)" in out
+
+
+# ---------------------------------------------------------------------------
+# 6. Targeted coverage gaps — hash_annotations, _find_fn, _patch_graph,
+#    _splice_chunk internals, graph=None path
+# ---------------------------------------------------------------------------
+class TestHashAnnotations:
+    def test_hash_annotations_with_type_annotations(self):
+        from helixlang.core.ast_nodes import Program
+        p = Program()
+        p.type_annotations = {"x": "Protein", "a": "Float"}
+        h = hash_annotations(p)
+        assert h.startswith("sha256:")
+        assert len(h) > 10
+        p2 = Program()
+        p2.type_annotations = {"x": "Protein", "a": "Integer"}
+        assert hash_annotations(p2) != h
+
+    def test_hash_annotations_empty(self):
+        from helixlang.core.ast_nodes import Program
+        p = Program()
+        h = hash_annotations(p)
+        assert h.startswith("sha256:")
+
+
+class TestDiffAnnotationChange:
+    def test_diff_annotation_change_forces_full_rebuild(self):
+        p = parse(SIMPLE)
+        c1 = IncrementalCache.compute(p)
+        c2 = IncrementalCache.compute(p)
+        c2.annotations = "sha256:different_from_c1"
+        stable, changed = c2.diff(c1)
+        assert stable is False
+        assert changed == set()
+
+
+class TestFindFn:
+    def test_find_fn_raises_for_missing_gene(self):
+        ir = IRProgram(functions=[IRFunction(name="a")])
+        with pytest.raises(KeyError, match="no gene 'ghost'"):
+            _find_fn(ir, "ghost")
+
+
+class TestBuildGraphEdges:
+    def test_build_without_ir(self):
+        program = parse(SIMPLE)
+        graph = GeneDependencyGraph.build(program)
+        assert graph.genes == {"a", "b", "c"}
+        assert graph.callers == {}
+        assert graph.regulators == {}
+
+    def test_build_regulation_source_not_in_genes(self):
+        program = parse(GENE_SRC)
+        program.regulations.append(
+            Regulation(source="ghost", target="x", strength=0.5))
+        graph = GeneDependencyGraph.build(program)
+        assert "ghost" not in graph.genes
+        assert graph.regulators.get("x") == {"z"}
+
+    def test_build_call_gene_target_not_in_genes(self):
+        program = parse(SIMPLE)
+        ir = IRProgram(functions=[
+            IRFunction(name="a", instrs=[
+                IRInst(Op.OP_CALL_GENE, operand="ghost"),
+            ]),
+        ])
+        graph = GeneDependencyGraph.build(program, ir)
+        assert "ghost" not in graph.callers
+
+
+class TestPatchGraph:
+    def test_patch_graph_with_regulations(self):
+        program = parse(GENE_SRC)
+        program.regulations.append(
+            Regulation(source="ghost", target="x", strength=0.5))
+        graph = GeneDependencyGraph(
+            genes={"x", "a", "b", "z", "c"},
+            regulators={"x": {"z"}},
+            callers={"a": {"b"}, "z": {"c"}},
+        )
+        old_fn = IRFunction(name="z", instrs=[])
+        new_fn = IRFunction(name="z", instrs=[])
+        result = _patch_graph(graph, program, {"z": old_fn}, {"z": new_fn})
+        assert result.genes == {"x", "a", "b", "z", "c"}
+        assert result.regulators.get("x") == {"z"}
+        assert "ghost" not in {
+            s for targets in result.regulators.values() for s in targets}
+
+    def test_patch_graph_callers_bucket_none(self):
+        program = parse(SIMPLE)
+        graph = GeneDependencyGraph(
+            genes={"a", "b", "c"},
+            callers={"a": {"b"}},
+        )
+        old_fn = IRFunction(name="b", instrs=[
+            IRInst(Op.OP_CALL_GENE, operand="x"),
+        ])
+        new_fn = IRFunction(name="b", instrs=[
+            IRInst(Op.OP_CALL_GENE, operand="a"),
+        ])
+        result = _patch_graph(graph, program, {"b": old_fn}, {"b": new_fn})
+        assert result.callers.get("a") == {"b"}
+
+    def test_patch_graph_callers_multiple_and_new_target_not_in_genes(self):
+        program = parse(SIMPLE)
+        graph = GeneDependencyGraph(
+            genes={"a", "b", "c"},
+            callers={"a": {"b", "c"}},
+        )
+        old_fn = IRFunction(name="b", instrs=[
+            IRInst(Op.OP_CALL_GENE, operand="a"),
+        ])
+        new_fn = IRFunction(name="b", instrs=[
+            IRInst(Op.OP_CALL_GENE, operand="a"),
+            IRInst(Op.OP_CALL_GENE, operand="ghost"),
+        ])
+        result = _patch_graph(graph, program, {"b": old_fn}, {"b": new_fn})
+        assert "b" in result.callers.get("a", set())
+        assert "ghost" not in result.callers
+
+
+class TestSpliceInternals:
+    def test_splice_use_directives_differ(self):
+        prev_chunk = Chunk()
+        prev_chunk.gene_offsets = {"a": 0, "b": 1}
+        prev_chunk.code = bytearray([int(Op.OP_HALT), int(Op.OP_HALT)])
+        prev_chunk.lines = [0, 0]
+        prev_chunk.codon_indices = [0, 0]
+        prev_chunk.constants = []
+        prev_ir = IRProgram(functions=[
+            IRFunction(name="a"), IRFunction(name="b")])
+        ir = IRProgram(functions=[
+            IRFunction(name="a"), IRFunction(name="b")],
+            use_directives=[("plugin", ("flag",))])
+        result = _splice_chunk(prev_chunk, prev_ir, ir, set())
+        assert result is None
+
+    def test_splice_plugin_optin_loop(self):
+        prev_chunk = Chunk()
+        prev_chunk.gene_offsets = {"a": 0, "b": 1}
+        prev_chunk.code = bytearray([int(Op.OP_HALT), int(Op.OP_HALT)])
+        prev_chunk.lines = [0, 0]
+        prev_chunk.codon_indices = [0, 0]
+        prev_chunk.constants = []
+        prev_ir = IRProgram(functions=[
+            IRFunction(name="a"), IRFunction(name="b")],
+            use_directives=[("myplugin", ("flag1",))])
+        ir = IRProgram(functions=[
+            IRFunction(name="a"), IRFunction(name="b")],
+            use_directives=[("myplugin", ("flag1",))])
+        result = _splice_chunk(prev_chunk, prev_ir, ir, set())
+        assert result is not None
+        assert ("use_plugin", "myplugin", ("flag1",)) in result.constants
+
+    def test_splice_offset_of_lookup_error(self):
+        prev_chunk = Chunk()
+        prev_chunk.gene_offsets = {"a": 0, "b": 3}
+        prev_chunk.code = bytearray([
+            int(Op.OP_CALL_GENE), 0, 0, int(Op.OP_HALT)])
+        prev_chunk.lines = [0, 0, 0, 0]
+        prev_chunk.codon_indices = [0, 0, 0, 0]
+        prev_chunk.constants = []
+        prev_ir = IRProgram(functions=[
+            IRFunction(name="a", instrs=[
+                IRInst(Op.OP_CALL_GENE, operand="b")]),
+            IRFunction(name="b", instrs=[IRInst(Op.OP_HALT)])])
+        ir = IRProgram(functions=[
+            IRFunction(name="a", instrs=[
+                IRInst(Op.OP_CALL_GENE, operand="ghost")]),
+            IRFunction(name="b", instrs=[IRInst(Op.OP_HALT)])])
+        with pytest.raises(LookupError):
+            _splice_chunk(prev_chunk, prev_ir, ir, {"a"})
+
+    def test_splice_shape_mismatch(self):
+        prev_chunk = Chunk()
+        prev_chunk.gene_offsets = {"a": 0}
+        prev_chunk.code = bytearray([int(Op.OP_HALT)])
+        prev_chunk.lines = [0]
+        prev_chunk.codon_indices = [0]
+        prev_chunk.constants = []
+        prev_ir = IRProgram(functions=[IRFunction(name="a")])
+        ir = IRProgram(functions=[
+            IRFunction(name="a"), IRFunction(name="b")])
+        result = _splice_chunk(prev_chunk, prev_ir, ir, set())
+        assert result is None
+
+    def test_splice_new_pool_entry(self):
+        prev_chunk = Chunk()
+        prev_chunk.gene_offsets = {"a": 0, "b": 6}
+        prev_chunk.code = bytearray([
+            int(Op.OP_PUSH_CONST), 0, int(Op.OP_HALT),
+            int(Op.OP_JUMP), 0, 1,
+            int(Op.OP_HALT)])
+        prev_chunk.lines = [0] * 7
+        prev_chunk.codon_indices = [0] * 7
+        prev_chunk.constants = [42]
+        prev_ir = IRProgram(functions=[
+            IRFunction(name="a", instrs=[
+                IRInst(Op.OP_PUSH_CONST, operand=42),
+                IRInst(Op.OP_HALT)]),
+            IRFunction(name="b", instrs=[IRInst(Op.OP_HALT)])])
+        ir = IRProgram(functions=[
+            IRFunction(name="a", instrs=[
+                IRInst(Op.OP_PUSH_CONST, operand=99),
+                IRInst(Op.OP_HALT)]),
+            IRFunction(name="b", instrs=[IRInst(Op.OP_HALT)])])
+        result = _splice_chunk(prev_chunk, prev_ir, ir, {"a"})
+        assert result is None
+
+
+class TestGraphNonePath:
+    def test_incremental_compile_graph_none(self):
+        compiler = IncrementalCompiler(LanguageConfig.for_table("standard"))
+        p1 = parse(SIMPLE)
+        r1 = compiler.compile(p1)
+        cache_no_graph = IncrementalCache(
+            version=r1.cache.version,
+            block_hashes=dict(r1.cache.block_hashes),
+            annotations=r1.cache.annotations,
+            graph=None,
+        )
+        edited = SIMPLE.replace("ATG CGC TGG TAA", "ATG CGG TGG TAA")
+        r2 = compiler.compile(parse(edited),
+                               previous_ir=r1.ir,
+                               previous_cache=cache_no_graph)
+        assert r2.stats.full_build is False
+        assert r2.stats.rebuilt == ["b"]

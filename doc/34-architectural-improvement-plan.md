@@ -14,10 +14,10 @@ Audience: Author (Sean) and future contributors
 
 | Metric | Value | Verified |
 |--------|-------|----------|
-| Source modules | 135 (.py) | `find src/helixlang/ -name "*.py" | wc -l` ✅ |
-| Test files | 108 | `find tests/ -name "*.py" | wc -l` ✅ |
-| Test functions | 2,984 | `grep -r "def test_" tests/ | wc -l` ✅ |
-| Documentation files | 36 | doc/00 through doc/35 ✅ |
+| Source modules | 219 (.py) | `find src/helixlang/ -name "*.py" | wc -l` ✅ |
+| Test files | 222 | `find tests/ -name "*.py" | wc -l` ✅ |
+| Test functions | 6,980 | `grep -r "def test_" tests/ | wc -l` ✅ |
+| Documentation files | 43 | doc/00 through doc/42 ✅ |
 | Version | 2026.8.4 | pyproject.toml ✅ |
 | Circular imports | 0 | Clean ✅ |
 | Mutable global state | 1 | `_DEBUG_SESSIONS` in server.py (lock-protected) ✅ |
@@ -37,11 +37,11 @@ Audience: Author (Sean) and future contributors
 | 5 | Validation benchmarks | see `validation/benchmarks/` | dirs with run.py+benchmark.yaml | ✅ Implemented |
 | 6 | Golden outputs | `GOLDEN.sha256` per benchmark | `validation/goldens/` — SHA256-verified goldens | ✅ Implemented |
 | 7 | README 5-min proof | Replace feature catalog | Rewritten with lac operon 5-min proof as first screen | ✅ Implemented |
-| 8 | Test count | 3,062 | 2,984 functions in 108 files | ✅ ~Implemented |
-| 9 | Source modules | 126 | 135 | ✅ Exceeds |
+| 8 | Test count | 3,062 | 6,980 functions in 222 files; 7,325 parametrized cases pass | ✅ Implemented |
+| 9 | Source modules | 126 | 219 | ✅ Exceeds |
 | 10 | Global mutable state | 1 (`_DEBUG_SESSIONS`) | 1 confirmed mutable | ✅ Implemented |
 | 11 | `spec/` directory | bytecode-abi.md + vm-semantics.md | Both exist | ✅ Implemented |
-| 12 | `doc/` directory | 35 docs | 36 docs | ✅ Implemented |
+| 12 | `doc/` directory | 35 docs | 43 docs | ✅ Implemented |
 | 13 | Layer 1/2/3 in `__init__.py` | Layer declarations | Full docstring with layers | ✅ Implemented |
 | 14 | `--check-bytecode-version` | CLI flag | Working flag + handler | ✅ Implemented |
 | 15 | COBRApy benchmarks | 3 | 5 | ✅ Exceeds |
@@ -57,7 +57,7 @@ Audience: Author (Sean) and future contributors
 
 | Level | Definition | Current status |
 |-------|-----------|----------------|
-| **A — Implemented** | Code exists and runs | All 135 modules |
+| **A — Implemented** | Code exists and runs | All 219 modules |
 | **B — Validated** | Tested against reference dataset/model | E. coli iML1515 FBA (COBRApy err <1e-13), iJN678 photoauto, codon translation, lac operon, repressilator, dFBA, whole-cell, population, reaction-diffusion |
 | **C — Literature-informed** | Parameters from published sources | PBPK organ volumes, CYP star alleles, disease ODE parameters, Elowitz 2000, Enjalbert 2015 |
 | **D — Predictive** | Demonstrated on held-out data | None yet |
@@ -74,7 +74,7 @@ Audience: Author (Sean) and future contributors
 
 ### 1.5 Where the risk is
 
-The project has **135 modules** and **67 validated benchmarks** covering 95%+ of modules. All 67 benchmarks pass with Tier 1 evidence quality.
+The project has **219 modules** and **85 verified benchmarks** (85/85 pass with SHA256 goldens; all Tier 1 evidence quality). Test suite exercises 100% lines + branches of all 218 instrumented modules (`__main__.py` is omitted by config).
 
 Specific high-risk boundaries:
 - `human/virtual_patient.py` (2,410 LOC) — most complex single file, 104 import dependencies
@@ -600,7 +600,7 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 **Release criteria**:
 1. Bytecode ABI frozen and documented
 2. VM semantics documented and tested
-3. 67 benchmarks passing with Tier 1 evidence quality
+3. 85 benchmarks passing with Tier 1 evidence quality
 4. Provenance attached to all simulation results
 5. README rewritten with 5-minute proof
 6. Zero `warn_unused_ignores` mypy errors in CI
@@ -625,9 +625,10 @@ This demonstrates the full chain: **DNA → language → compiler → bytecode �
 
 | Metric | Current | 30-day target | 90-day target |
 |--------|---------|---------------|---------------|
-| Source modules | 126 | 126 | 126 |
-| Validated benchmarks | see `validation/report.md` | 100% module coverage | golden outputs |
+| Source modules | 126 | 219 | 219 |
+| Validated benchmarks | see `validation/report.md` | 85/85, 100% module coverage | golden outputs |
 | Module coverage by benchmarks | 95% | 100% | 100% |
+| Test coverage (lines + branches) | 100% (all 218 instrumented modules) | 100% | 100% |
 | Tier 1 benchmarks (gold-standard) | all | all | all |
 | Determinism tests | all backends | all backends | 3 per backend |
 | Provenance coverage | 100% (SimResult) | 100% (all backends) | 100% |

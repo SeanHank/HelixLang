@@ -97,6 +97,22 @@ def test_encode_gene_has_shine_dalgarno() -> None:
     assert "ATG" in dna and dna.endswith("TAA")
 
 
+def test_encode_gene_non_methionine_first_residue() -> None:
+    # A protein not starting with M gets an explicit ATG start codon.
+    dna = encode_gene("SSK")
+    assert dna.startswith("AGGAGG")
+    assert dna.endswith("TAA")
+    from helixlang.plugins.runtime.central_dogma import transcribe, translate
+    tr = transcribe(dna, promoter_strength=1.0)
+    assert translate(tr).protein == "MSSK" or translate(tr).protein == "SSK"
+
+
+def test_encode_gene_empty_protein_raises() -> None:
+    import pytest
+    with pytest.raises(ValueError):
+        encode_gene("")
+
+
 # ============================================================================
 # VirtualCell budget model
 # ============================================================================
@@ -108,6 +124,18 @@ def test_virtual_cell_expresses_active_genes() -> None:
     # tetR starts off and stays below threshold, so it never expresses
     assert vc.proteins.get("tetR", 0.0) == 0.0
     assert all(e["alive"] for e in vc.history)
+
+
+def test_virtual_cell_ignore_unknown_gene_trigger() -> None:
+    # A GRN-active gene absent from the genome is ignored by _express
+    # (early return at line 569) without an exception.
+    g = _grn()
+    g.add_gene("ghost", 0.5)
+    g.nodes["ghost"].level = 1.0
+    vc = VirtualCell(GENOME, g, config=VirtualCellConfig())
+    vc.run(2)
+    assert "ghost" not in vc.proteins
+    assert vc.alive
 
 
 def test_virtual_cell_energy_accounting() -> None:
@@ -144,6 +172,26 @@ def test_virtual_cell_division_gate() -> None:
         vc.step()
     assert vc.divisions >= 1
     assert vc.energy < vc.config.division_energy  # halved at division
+
+
+def test_virtual_cell_division_halves_metabolite_pools() -> None:
+    # A cell that uses an FBA metabolism builds a metabolite pool; on
+    # division every pool is halved (line 711-713).
+    fba = FluxBalanceAnalysis(ECOLI_CORE_MODEL)
+    fba.set_uptake("GLC", 10.0)
+    cfg = VirtualCellConfig(
+        biomass_to_atp=1.0e9, maintenance_atp_per_min=0.0,
+        transcription_atp_per_nt=0.0, translation_atp_per_aa=0.0,
+        division_energy=1.5e9,
+        metabolite_pools_enabled=True)
+    vc = VirtualCell(GENOME, _grn(active=()), fba=fba, config=cfg)
+    for _ in range(6):
+        vc.step()
+    assert vc.divisions >= 1
+    assert vc._metabolite_pool is not None
+    # history entry records the metabolite pools even without enzyme levels
+    assert any("metabolite_pools" in e for e in vc.history)
+    assert all("enzyme_levels" not in e for e in vc.history)
 
 
 def test_virtual_cell_death_stops_run() -> None:
@@ -187,6 +235,15 @@ def _cooper_vc(**cfg_kw) -> VirtualCell:
         **cfg_kw,
     )
     return VirtualCell(DOSAGE_GENOME, _dosage_grn(), config=cfg)
+
+
+def test_cooper_fast_growth_init_skips_early_fork() -> None:
+    # tau < D so first_fire < -C: the first inherited fork candidate
+    # falls outside the C window and is skipped (seed loop 452->456).
+    vc = _cooper_vc(doubling_time_min=10.0)
+    # some birth forks are inherited once t_i enters [-C, 0]
+    assert vc.replication_forks
+    assert vc.dna_copy_number["oriGene"] >= 1.0
 
 
 def test_flat_mode_is_single_copy_bit_for_bit() -> None:
@@ -414,6 +471,37 @@ def test_fit_parameters_validation() -> None:
         fit_parameters(lambda: [1.0], [], {"a": (0.0, 1.0)})
     with pytest.raises(ValueError):
         fit_parameters(lambda: [1.0], [1.0, 2.0], {"a": (0.0, 1.0)})
+    with pytest.raises(ValueError):
+        fit_parameters(lambda: [1.0], [1.0], {"a": (0.0, 1.0)},
+                       weights=[1.0, 2.0])
+
+
+def test_fit_parameters_wrong_prediction_length() -> None:
+    # predict returns a different number of points than observed -> sse rejects it
+    def predict(k: float) -> list[float]:
+        return [k, k + 1.0]
+
+    with pytest.raises(ValueError):
+        fit_parameters(predict, [1.0], {"k": (0.0, 1.0)}, n_samples=10, seed=0)
+
+
+def test_fit_parameters_raises_on_unfittable_predict_signature() -> None:
+    # predict raises TypeError when called with the ranged kwargs -> wrapped as ValueError
+    def predict(not_a_param: float) -> float:
+        return not_a_param
+
+    with pytest.raises(ValueError):
+        fit_parameters(predict, [1.0], {"k": (0.0, 1.0)}, n_samples=5, seed=0)
+
+
+def test_fit_parameters_with_weights() -> None:
+    # A weighted fit exercises the weighted SSE branch (line 866).
+    def predict(k: float) -> list[float]:
+        return [k, k]
+
+    fit = fit_parameters(predict, [1.0, 3.0], {"k": (0.0, 10.0)},
+                         weights=[1.0, 2.0], n_samples=20, seed=0)
+    assert 0.0 <= fit["best"]["k"] <= 10.0
 
 
 def test_fit_parameters_fits_virtual_cell() -> None:
@@ -487,6 +575,22 @@ def test_biofilm_benchmark_doubling() -> None:
     bm = run_biofilm_benchmark(pop, n_steps=20, interval=1)
     assert bm["doubling_ticks"] is not None
     assert bm["doubling_ticks"] <= 20
+
+
+def test_biofilm_benchmark_all_dead() -> None:
+    # A cell born already at/below the death threshold dies on the first
+    # step: extent records 0.0 and no growth / doubling is reported
+    # (lines 960, 962->964, 965->969, 966->965).
+    cfg = PopulationConfig(grid_width=6, grid_height=6,
+                           energy_intake=10.0, division_threshold=150.0,
+                           metabolic_cost=100.0, death_threshold=1.0)
+    pop = CellPopulation([PopulationCell(id=0, energy=1.0, x=3, y=3)],
+                         cfg, seed=1)
+    bm = run_biofilm_benchmark(pop, n_steps=10, interval=2)
+    assert bm["max_extent"] == 0.0
+    assert bm["growth_rate_per_tick"] == 0.0
+    assert bm["doubling_ticks"] is None
+    assert bm["final_biomass"] == 0
 
 
 def test_calibration_prediction_closed_loop() -> None:
@@ -914,3 +1018,12 @@ def test_phase4_defaults_are_bit_compatible() -> None:
     assert "enzyme_levels" not in entry
     assert "metabolite_pools" not in entry
     assert "overflow_secretion" not in entry
+
+
+def test_adder_slope_few_events_returns_zero() -> None:
+    """_adder_slope returns (0,0) when fewer than 3 division events occur."""
+    from helixlang.plugins.apps.virtual_cell_bench import _adder_slope
+
+    slope, offset = _adder_slope(steps=1)
+    assert slope == 0.0
+    assert offset == 0.0

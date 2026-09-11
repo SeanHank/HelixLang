@@ -229,8 +229,6 @@ def _cpg_oe(seq: str) -> float:
         return 0.0
     cg_count = seq.count("CG")
     expected = (c_count * g_count) / len(seq)
-    if expected == 0:
-        return 0.0
     return cg_count / expected
 
 

@@ -177,3 +177,53 @@ def test_omics_benchmark_reports_coupling() -> None:
     assert set(r["truth_coupling"]) == {"response_gain", "hill_n"}
     assert set(r["fitted_coupling"]) == {"response_gain", "hill_n"}
     assert all(math.isfinite(v) for v in r["fitted_coupling"].values())
+
+
+def test_negative_binomial_zero_mean() -> None:
+    assert negative_binomial_noise(0.0, random.Random(1)) == 0.0
+    assert negative_binomial_noise(-1.0, random.Random(1)) == 0.0
+
+
+def test_response_correlation_edge_cases() -> None:
+    assert response_correlation([1.0], [2.0]) == 1.0  # n < 2
+    # zero variance in either series -> 0.0
+    assert response_correlation([2.0, 2.0], [1.0, 3.0]) == 0.0
+    assert response_correlation([1.0, 3.0], [2.0, 2.0]) == 0.0
+
+
+def test_de_sign_agreement_no_de_genes() -> None:
+    # no gene is differentially expressed (|t - wt| <= min_effect) -> 1.0
+    pred = [1.0, 1.0]
+    truth = [1.0, 1.0]
+    wt = [1.0, 1.0]
+    assert de_sign_agreement(pred, truth, wt) == 1.0
+
+
+def test_perturb_seq_model_with_coupling() -> None:
+    from helixlang.plugins.apps.omics_calibration import PerturbSeqModel
+
+    model = PerturbSeqModel(
+        [[1.0], [0.5]], [1.0, 2.0], wt_scale=1.0,
+        response_gain=1.0, hill_n=1.0)
+    copy = model.with_coupling(2.0, 1.5)
+    assert copy.response_gain == 2.0 and copy.hill_n == 1.5
+    assert copy.fold_change([1.0]) == [1.0, 1.0]
+    fold = copy.fold_change([2.0])
+    assert fold[0] > 1.0
+    resp = copy.response([2.0])
+    assert len(resp) == 2 and resp[0] > 0.0
+
+
+def test_perturb_seq_model_pure_python_fallback(monkeypatch) -> None:
+    import helixlang.plugins.apps.omics_calibration as oc
+    from helixlang.plugins.apps.omics_calibration import PerturbSeqModel
+
+    model = PerturbSeqModel(
+        [[1.0], [0.5]], [1.0, 2.0], wt_scale=1.0,
+        response_gain=1.0, hill_n=1.0)
+    monkeypatch.setattr(oc, "_HAS_NUMPY", False)
+    # fold_change / response fall back to pure-Python loops
+    fold = model.fold_change([2.0])
+    assert fold[0] == pytest.approx(math.exp(2.0 - 1.0), rel=1e-9)
+    resp = model.response([2.0])
+    assert len(resp) == 2 and resp[0] > 0.0

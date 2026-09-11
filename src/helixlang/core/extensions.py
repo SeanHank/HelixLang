@@ -217,7 +217,7 @@ class ProgramExtensions(Mapping[str, Any]):
         return self._sections[sid]
 
     def extension_for(self, key: str, value: Any = None) -> ExtensionSection:
-        for sid in (*_OWNERSHIP, _CORE_OPEN):
+        for sid in _OWNERSHIP:
             section = self._sections[sid]
             if section.owns_key(key, value):
                 return section

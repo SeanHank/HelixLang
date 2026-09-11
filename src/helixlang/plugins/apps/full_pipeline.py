@@ -6,6 +6,7 @@ Orchestrates the complete chain:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -208,6 +209,10 @@ def _stage_b_structure(
 ) -> dict[str, Any]:
     from helixlang.plugins.runtime.protein_structure_predictor import is_available
     if not is_available():
+        return {}
+    if os.environ.get("HELIX_BENCHMARK_OFFLINE", "") == "1":
+        # doc/41 offline-first: never block a CI run on an ESM3 weight
+        # download; treat the optional structure stage as skipped offline.
         return {}
     from helixlang.plugins.runtime.protein_structure_predictor import predict_structure_esm
     structures: dict[str, Any] = {}

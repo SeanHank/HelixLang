@@ -539,8 +539,6 @@ def calculate_fitness(dna: str,
         if len(dna) == 0 and len(target_dna) == 0:
             return 1.0
         max_len = max(len(dna), len(target_dna))
-        if max_len == 0:
-            return 1.0
         min_len = min(len(dna), len(target_dna))
         # vectorized Hamming distance calculation (numpy path)
         if _HAS_NUMPY and min_len > 0:
@@ -792,8 +790,6 @@ def _codon_mutation_table() -> dict[str, list[tuple[str, bool, bool]]]:
         c = "TCAG"[i % 4]
         codon = a + b + c
         aa_i = _aa_of_codon(codon)
-        if aa_i == "X":
-            continue
         out: list[tuple[str, bool, bool]] = []
         for pos in range(3):
             for nb in "TCAG":
@@ -801,8 +797,6 @@ def _codon_mutation_table() -> dict[str, list[tuple[str, bool, bool]]]:
                     continue
                 mut = codon[:pos] + nb + codon[pos + 1:]
                 aa_j = _aa_of_codon(mut)
-                if aa_j == "X":
-                    continue
                 is_ts = (codon[pos], nb) in _TS_TRANSITIONS
                 out.append((mut, is_ts, aa_j == aa_i))
         table[codon] = out
@@ -905,14 +899,14 @@ def dnds_codeml(dna: str, ancestral: str,
 
     # bounded golden-section maximization (stdlib)
     def _maximize(func: Callable[[float], float], lo: float, hi: float,
-                  tol: float = 1e-7, max_iter: int = 200) -> tuple[float, float]:
+                  tol: float = 1e-7) -> tuple[float, float]:
         gr = (math.sqrt(5.0) - 1.0) / 2.0
         a, b = lo, hi
         c = b - gr * (b - a)
         d = a + gr * (b - a)
         fc, fd = func(c), func(d)
         best_x, best_f = (c, fc) if fc >= fd else (d, fd)
-        for _ in range(max_iter):
+        while True:
             if fc > fd:
                 b, d = d, c
                 c = b - gr * (b - a)
@@ -1259,12 +1253,8 @@ class EvolutionaryPopulation:
         entropy = 0.0
         for count in counts.values():
             p = count / n
-            if p > 0:
-                entropy -= p * math.log(p)
-        max_entropy = math.log(n)
-        if max_entropy <= 0:
-            return 0.0
-        return entropy / max_entropy
+            entropy -= p * math.log(p)
+        return entropy / math.log(n)
 
     def get_generation_stats(self) -> list[dict]:
         """Return the per-generation statistics list.

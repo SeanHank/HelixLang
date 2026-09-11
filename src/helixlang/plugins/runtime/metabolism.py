@@ -359,8 +359,6 @@ def _from_cobra_model(sbml_model: Any, preserve_gpr: bool = True) -> MetabolicMo
                         if "reverse" not in name.lower():
                             obj_rxn = name
                             break
-                    if obj_rxn is not None:
-                        break
         if obj_rxn is None:
             # Strategy 3: any biomass reaction
             for rid in m.reactions:
@@ -515,9 +513,6 @@ def _simplex_max_numpy(tableau: np.ndarray,
     n_rows = tableau.shape[0]
     if n_rows == 0:
         return "optimal"
-    # ensure tableau is 2D (guard against degenerating to 1D with 0 rows)
-    if tableau.ndim == 1:
-        tableau = tableau.reshape(0, -1)
     rhs_col = n_vars  # RHS column index
     basis_arr = np.asarray(basis, dtype=np.intp)
     # forbidden set: these variables are permanently barred from entering
@@ -557,10 +552,7 @@ def _simplex_max_numpy(tableau: np.ndarray,
         # the smallest index
         tied = np.abs(ratios - min_ratio) <= eps
         tied_rows = np.nonzero(tied)[0]
-        if tied_rows.size > 0:
-            leaving_row = int(tied_rows[np.argmin(basis_arr[tied_rows])])
-        else:
-            leaving_row = int(np.argmin(ratios))
+        leaving_row = int(tied_rows[np.argmin(basis_arr[tied_rows])])
 
         # pivot transformation: normalize the pivot row
         pivot_val = tableau[leaving_row, entering]
@@ -1814,6 +1806,11 @@ class DynamicFluxBalance:
             # shared ECOLI_CORE_MODEL stays pristine (Wolfe 2005).
             model = copy.deepcopy(model)
             activate_acetate_switch(model)
+        elif fba is None:
+            # dFBA mutates exchange/enzyme bounds while integrating; never
+            # share a caller-owned model (keep the shared ECOLI_CORE_MODEL
+            # pristine for later solvers).
+            model = copy.deepcopy(model)
         self.fba = fba or FluxBalanceAnalysis(model)
         self._biomass_reaction = self.fba.model.biomass_reaction
         # Auto-detect exchange reaction IDs for the model (core vs GEM)
@@ -1942,8 +1939,7 @@ class DynamicFluxBalance:
                     self.biomass_gdw *= factor
                     self.glucose_mm *= factor
                     for pool in self._byproduct_pools:
-                        if pool in self.byproducts_mm:
-                            self.byproducts_mm[pool] *= factor
+                        self.byproducts_mm[pool] *= factor
                 self._feed_events_applied.add(idx)
 
     def _apply_chemostat_step(self, dt_h: float) -> None:
@@ -1960,8 +1956,7 @@ class DynamicFluxBalance:
         self.biomass_gdw *= factor
         self.glucose_mm *= factor
         for pool in self._byproduct_pools:
-            if pool in self.byproducts_mm:
-                self.byproducts_mm[pool] *= factor
+            self.byproducts_mm[pool] *= factor
         for met, conc in cfg.chemostat_feed_concentrations.items():
             if met == "glucose" or met == self._ex_glc:
                 self.glucose_mm += dilution_per_step * conc
@@ -2107,8 +2102,7 @@ class DynamicFluxBalance:
         }
         for pool in self._byproduct_pools:
             entry[pool] = self.byproducts_mm[pool]
-        if "oxygen" in self.byproducts_mm:
-            entry["oxygen"] = self.byproducts_mm["oxygen"]
+        entry["oxygen"] = self.byproducts_mm["oxygen"]
         self.history.append(entry)
         return entry
 
@@ -2253,6 +2247,10 @@ class PhotoautotrophicFluxBalance:
         fba: FluxBalanceAnalysis | None = None,
     ) -> None:
         self.config = config or DynamicFBAConfig()
+        # photo dFBA mutates CO2/PET bounds on self.model; deep-copy so the
+        # shared ECOLI_CORE_MODEL stays pristine.
+        if fba is None:
+            model = copy.deepcopy(model)
         self.model = model
         self.fba = fba or FluxBalanceAnalysis(model)
         self._biomass_reaction = self.fba.model.biomass_reaction

@@ -86,3 +86,27 @@ def test_stop_codons_per_table():
     assert "TGA" not in mito_stops
     assert "AGA" in mito_stops
     assert "AGG" in mito_stops
+
+
+def test_start_codons_from_table():
+    from helixlang.core.codon_table import start_codons_from_table
+    starts = start_codons_from_table(STANDARD_TABLE)
+    assert starts == {"ATG"}
+    mito_starts = start_codons_from_table(MITO_VERTEBRATE_TABLE)
+    assert "ATA" in mito_starts
+
+
+def test_stop_codons_from_table():
+    from helixlang.core.codon_table import stop_codons_from_table
+    stops = stop_codons_from_table(STANDARD_TABLE)
+    assert {"TAA", "TAG", "TGA"} <= stops
+
+
+def test_translation_table_from_ncbi():
+    from helixlang.core.codon_table import STANDARD_AMINO_ACIDS, translation_table_from_ncbi
+    full = translation_table_from_ncbi()
+    assert len(full) == 64
+    assert full["TTT"] == "F" and full["TAA"] == "*"
+    limited = translation_table_from_ncbi({"TTT": 0, "TTC": 1})
+    assert limited == {"TTT": "F", "TTC": "F"}
+    assert STANDARD_AMINO_ACIDS["ATG"] == "M"

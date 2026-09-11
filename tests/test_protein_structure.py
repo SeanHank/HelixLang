@@ -887,3 +887,43 @@ class TestRealProteinFragments:
         report = predict_structure(seq)
         # sheet fraction should be high (> 0.4)
         assert report.sheet_fraction > 0.3
+
+class TestCoverageBranches:
+    """Exercise the remaining algorithm branches."""
+
+    def test_sheet_extension_left_stops_at_helix(self):
+        ss, segments = predict_secondary("AAAAAACCCTTTTT")
+        assert ss[:6] == "H" * 6
+        assert ss[6:] == "E" * 8
+        assert [s.ss_type for s in segments] == ["H", "E"]
+
+    def test_sheet_propagation_both_directions(self):
+        ss, _ = predict_secondary("LGVVVIIIGGGG")
+        assert ss[:7] == "E" * 7
+        assert ss[7:] == "T" * 5
+
+    def test_build_ss_segments_empty(self):
+        from helixlang.plugins.runtime.protein_structure import _build_ss_segments
+        assert _build_ss_segments("", []) == []
+
+    def test_tm_merge_close_segments(self):
+        tms = predict_transmembrane("IIIRIII", window=1, threshold=1.6,
+                                    min_length=2)
+        assert [t.length for t in tms] == [7]
+
+    def test_tm_stretch_peak_below_threshold(self):
+        assert predict_transmembrane("AAASAAASAAASAAASAAA") == []
+
+    def test_tm_stretch_too_short(self):
+        assert predict_transmembrane("I" * 17 + "R" * 8 + "I" * 17) == []
+
+    def test_iupred_empty_composition_window(self):
+        assert iupred_scores("A") == [pytest.approx(0.671169)]
+
+    def test_iupred_boundary_clamp_scores(self):
+        scores = iupred_scores("K" * 8)
+        assert all(s == 1.0 for s in scores)
+        assert iupred_scores("V" * 8)[0] == 0.0
+
+    def test_predict_disorder_empty_iupred(self):
+        assert predict_disorder("", method="iupred") == []

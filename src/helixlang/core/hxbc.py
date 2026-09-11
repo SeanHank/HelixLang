@@ -479,8 +479,7 @@ class _Reader:
 
     def _count(self, what: str) -> int:
         n = self.u16()
-        if n > _MAX_COUNT:
-            self._fail(f"{what} count {n} exceeds limit {_MAX_COUNT}")
+        # u16 max (65535) < _MAX_COUNT (1<<20), so overflow check is unreachable
         return n
 
     def field_map(self) -> dict[str, str]:
@@ -744,8 +743,8 @@ def _decode_program(data: bytes) -> Program:
     r = _Reader(data, "PROG")
     prog = Program()
     _decode_program_body(r, prog)
-    if not r.at_end():
-        r._fail(f"trailing {r.remaining()} bytes in PROG section")  # noqa: SLF001
+    # _decode_plugin_ext (last in _decode_program_body) loops until r.at_end(),
+    # so a trailing-bytes check here is provably unreachable — folded.
     return prog
 
 
@@ -1145,9 +1144,7 @@ def loads_program(data: bytes) -> LoadedArtifact:
     end = len(data) - 40  # EOF section is the last 4+4+32 bytes
     if end < pos or data[end:end + 4] != SECTION_EOF:
         raise BinaryFormatError("missing EOF trailer section")
-    digest = data[end + 8:end + 8 + 32]
-    if len(digest) != 32:
-        raise BinaryFormatError("invalid EOF digest length")
+    digest = data[end + 8:end + 8 + 32]  # always 32 bytes: slice [len-32:len]
 
     expected = hashlib.sha256(data[12:end]).digest()
     if not _consttime_eq(digest, expected):

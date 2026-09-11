@@ -909,9 +909,7 @@ def _run_codon_usage(program: Program) -> ScoreResult:
     rows: list[dict[str, Any]] = []
     for name, dna in orfs:
         protein = translate_dna(dna)
-        stop = protein.find("*")
-        if stop != -1:
-            protein = protein[:stop]
+        protein = protein.split("*")[0]
         for s in species_list:
             rows.append({
                 "gene": name,
@@ -1198,19 +1196,18 @@ def _run_gem_full_model(
             dyn_trajectory: list[dict] = []
             for _ in range(n_steps):
                 dyn_trajectory.append(batch.step())
-            if dyn_trajectory:
-                growth_rate = max(
-                    e.get("growth_rate", 0.0) for e in dyn_trajectory)
-                _end = dyn_trajectory[-1]
-                for e in reversed(dyn_trajectory):
-                    if e.get("co2", 0.0) > 0.01 and e.get("growth_rate", 0.0) > 1e-6:
-                        _end = e
-                        break
-                key_fluxes = {
-                    k: round(v, 4)
-                    for k, v in _end.items()
-                    if isinstance(v, (int, float)) and abs(v) > 1e-6
-                }
+            growth_rate = max(
+                e.get("growth_rate", 0.0) for e in dyn_trajectory)
+            _end = dyn_trajectory[-1]
+            for e in reversed(dyn_trajectory):
+                if e.get("co2", 0.0) > 0.01 and e.get("growth_rate", 0.0) > 1e-6:
+                    _end = e
+                    break
+            key_fluxes = {
+                k: round(v, 4)
+                for k, v in _end.items()
+                if isinstance(v, (int, float)) and abs(v) > 1e-6
+            }
             fba_status = "ok"
             _extra_meta["dynamic"] = True
             _extra_meta["duration_h"] = duration
@@ -1538,13 +1535,12 @@ def _run_gem(program: Program) -> SimResult:
                 try:
                     from helixlang.plugins.gem.bridge import apply_regulatory_bounds
                     _gpr_map: dict[str, list[str]] = {}
-                    if result.consensus is not None:
-                        for rxn_id, genes in getattr(
-                                result.consensus, "gene_reaction_rules",
-                                {}).items():
-                            if isinstance(genes, list):
-                                for g in genes:
-                                    _gpr_map.setdefault(cast(str, g), []).append(rxn_id)
+                    for rxn_id, genes in getattr(
+                            result.consensus, "gene_reaction_rules",
+                            {}).items():
+                        if isinstance(genes, list):
+                            for g in genes:
+                                _gpr_map.setdefault(cast(str, g), []).append(rxn_id)
                     _n = apply_regulatory_bounds(
                         model, result.grn.regulatory_edges, _gpr_map)
                     _extra_meta["grn_bounds_applied"] = _n
@@ -1592,40 +1588,35 @@ def _run_gem(program: Program) -> SimResult:
                 for _ in range(n_steps):
                     dyn_trajectory.append(batch.step())
                 # Summarise dynamic results
-                if dyn_trajectory:
-                    # Report the maximum (exponential-phase) growth rate
-                    # from the trajectory, not the final step which may
-                    # reflect post-substrate-depletion stationary phase
-                    # (doc/22 §6 Step 6: target 0.7–0.9 h⁻¹).
-                    growth_rate = max(
-                        _row.get("growth_rate", _row.get("mu", 0.0))
-                        for _row in dyn_trajectory
-                    )
-                    # Find the last trajectory entry where substrate
-                    # (glucose) is still available AND the model is
-                    # actively growing — this is the end of the
-                    # productive exponential phase.  The final biomass
-                    # and key_fluxes come from this entry, not from
-                    # post-depletion stationary phase or infeasible FBA.
-                    _glucose_key = "glucose"
-                    _gr_key = "growth_rate"
-                    _end_entry = dyn_trajectory[-1]
-                    for _row in reversed(dyn_trajectory):
-                        if (_row.get(_glucose_key, 0.0) > 0.01
-                                and _row.get(_gr_key, 0.0) > 1e-6):
-                            _end_entry = _row
-                            break
-                    final_biomass = _end_entry.get(
-                        "biomass", _end_entry.get("total_biomass", 0.0))
-                    key_fluxes = {
-                        k: round(v, 4)
-                        for k, v in _end_entry.items()
-                        if isinstance(v, (int, float)) and abs(v) > 1e-6
-                    }
-                else:
-                    final_biomass = 0.0
-                    growth_rate = 0.0
-                    key_fluxes = {}
+                # Report the maximum (exponential-phase) growth rate
+                # from the trajectory, not the final step which may
+                # reflect post-substrate-depletion stationary phase
+                # (doc/22 §6 Step 6: target 0.7–0.9 h⁻¹).
+                growth_rate = max(
+                    _row.get("growth_rate", _row.get("mu", 0.0))
+                    for _row in dyn_trajectory
+                )
+                # Find the last trajectory entry where substrate
+                # (glucose) is still available AND the model is
+                # actively growing — this is the end of the
+                # productive exponential phase.  The final biomass
+                # and key_fluxes come from this entry, not from
+                # post-depletion stationary phase or infeasible FBA.
+                _glucose_key = "glucose"
+                _gr_key = "growth_rate"
+                _end_entry = dyn_trajectory[-1]
+                for _row in reversed(dyn_trajectory):
+                    if (_row.get(_glucose_key, 0.0) > 0.01
+                            and _row.get(_gr_key, 0.0) > 1e-6):
+                        _end_entry = _row
+                        break
+                final_biomass = _end_entry.get(
+                    "biomass", _end_entry.get("total_biomass", 0.0))
+                key_fluxes = {
+                    k: round(v, 4)
+                    for k, v in _end_entry.items()
+                    if isinstance(v, (int, float)) and abs(v) > 1e-6
+                }
                 fba_status = "ok"
                 _extra_meta["dynamic"] = True
                 _extra_meta["duration_h"] = duration
@@ -1663,36 +1654,31 @@ def _run_gem(program: Program) -> SimResult:
                 dyn_trajectory = []
                 for _ in range(n_steps):
                     dyn_trajectory.append(batch.step())
-                if dyn_trajectory:
-                    # Report the maximum (exponential-phase) growth rate
-                    # from the trajectory, not the final step which may
-                    # reflect post-CO₂-depletion stationary phase
-                    # (doc/22 §7.5: target 0.14 h⁻¹ during growth).
-                    growth_rate = max(
-                        _row.get("growth_rate", 0.0)
-                        for _row in dyn_trajectory
-                    )
-                    # Find the last entry where CO₂ is still available
-                    # for productive growth AND the model is actively
-                    # growing (doc/22 §7.5).
-                    _co2_key = "co2"
-                    _gr_key = "growth_rate"
-                    _end_entry = dyn_trajectory[-1]
-                    for _row in reversed(dyn_trajectory):
-                        if (_row.get(_co2_key, 0.0) > 0.01
-                                and _row.get(_gr_key, 0.0) > 1e-6):
-                            _end_entry = _row
-                            break
-                    final_biomass = _end_entry.get("biomass", 0.0)
-                    key_fluxes = {
-                        k: round(v, 4)
-                        for k, v in _end_entry.items()
-                        if isinstance(v, (int, float)) and abs(v) > 1e-6
-                    }
-                else:
-                    final_biomass = 0.0
-                    growth_rate = 0.0
-                    key_fluxes = {}
+                # Report the maximum (exponential-phase) growth rate
+                # from the trajectory, not the final step which may
+                # reflect post-CO₂-depletion stationary phase
+                # (doc/22 §7.5: target 0.14 h⁻¹ during growth).
+                growth_rate = max(
+                    _row.get("growth_rate", 0.0)
+                    for _row in dyn_trajectory
+                )
+                # Find the last entry where CO₂ is still available
+                # for productive growth AND the model is actively
+                # growing (doc/22 §7.5).
+                _co2_key = "co2"
+                _gr_key = "growth_rate"
+                _end_entry = dyn_trajectory[-1]
+                for _row in reversed(dyn_trajectory):
+                    if (_row.get(_co2_key, 0.0) > 0.01
+                            and _row.get(_gr_key, 0.0) > 1e-6):
+                        _end_entry = _row
+                        break
+                final_biomass = _end_entry.get("biomass", 0.0)
+                key_fluxes = {
+                    k: round(v, 4)
+                    for k, v in _end_entry.items()
+                    if isinstance(v, (int, float)) and abs(v) > 1e-6
+                }
                 fba_status = "ok"
                 _extra_meta["dynamic"] = True
                 _extra_meta["duration_h"] = duration
@@ -2236,9 +2222,8 @@ def _run_ode_model(program: Program) -> ScoreResult:
                          species_order) for i, (s, tpl) in enumerate(compiled.items())]
         k4 = [_eval_rate(tpl, [v + dt * k3[i] for i, v in enumerate(state)],
                          species_order) for i, (s, tpl) in enumerate(compiled.items())]
-        for i, s in enumerate(species_order):
-            if s in compiled:
-                state[i] += dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
+        for i, _s in enumerate(species_order):
+            state[i] += dt / 6.0 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
 
     final = {s: state[species_order.index(s)] for s in species_order}
     rows = [{

@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import itertools
 
+import pytest
+
 from helixlang.interop import (
     SBOL_ROLE_GENE,
     SBOL_ROLE_PROMOTER,
@@ -29,14 +31,18 @@ from helixlang.interop import (
     sbol3_loads,
 )
 from helixlang.plugins.apps.synbio_automation import (
+    _BUFFER,
+    _CONST,
     GATE_LIBRARY,
     RBS_SEQ,
     REPRESSOR_CDS,
     BooleanCircuitDesign,
+    CelloWorkflowReport,
     CharacterizedGate,
     Netlist,
     NetlistNode,
     TruthTable,
+    _decompose_xor,
     assemble_dna,
     assign_gates,
     boolean_apply,
@@ -46,6 +52,8 @@ from helixlang.plugins.apps.synbio_automation import (
     nand_gate,
     not_gate,
     run_cello_workflow,
+    score_gate,
+    simulate_expression_curves,
     simulate_netlist,
     simulate_truth_table,
     synthesize_netlist,
@@ -403,3 +411,127 @@ def test_design_is_dataclass() -> None:
     for node in d.netlist.nodes:
         assert isinstance(node, NetlistNode)
         assert isinstance(d.assignment[node.id], CharacterizedGate)
+
+
+# ============================================================================
+# Coverage edge cases
+# ============================================================================
+
+def test_boolean_apply_unknown_logic_raises() -> None:
+    with pytest.raises(ValueError):
+        boolean_apply("XOR", [True, False])
+
+
+def test_decompose_xor_string() -> None:
+    out = _decompose_xor("a", "b")
+    assert "a AND NOT b" in out and "NOT a AND b" in out
+
+
+def test_truth_table_from_function_single_bool_result() -> None:
+    tt = TruthTable.from_function(["a"], ["y"], lambda v: v[0])
+    assert tt.to_truth_value((True,)) is True
+
+
+def test_truth_table_from_function_wrong_output_count_raises() -> None:
+    with pytest.raises(ValueError):
+        TruthTable.from_function(["a"], ["y"], lambda v: (True, False))
+
+
+def test_truth_table_missing_row_raises() -> None:
+    tt = TruthTable(inputs=["a"], outputs=["y"], rows=[])
+    with pytest.raises(ValueError):
+        tt.to_truth_value((True,))
+
+
+def test_netlist_node_const_evaluate() -> None:
+    const = NetlistNode("c", _CONST, [], value=True)
+    assert const.evaluate({}) is True
+
+
+def test_constant_false_table_uses_const_buffer_and_assigns_gates() -> None:
+    # all-False output -> minimize returns [] -> always_off const path; also
+    # exercises the CONST-node gate assignment branch
+    tt = TruthTable.from_function(["a"], ["y"], lambda v: (False,))
+    nl = synthesize_netlist(tt)
+    nodes = {n.id: n.logic for n in nl.nodes}
+    assert _CONST in nodes.values() and _BUFFER in nodes.values()
+    assignment = assign_gates(nl)
+    assert {n.id for n in nl.nodes} <= set(assignment)
+
+
+def test_score_gate_num_inputs_mismatch() -> None:
+    gate = next(g for g in GATE_LIBRARY if g.num_inputs == 2)
+    node = NetlistNode("n", "AND", ["a", "b"], None)
+    assert score_gate(gate, node, [(0.0, 1.0)]) == -float("inf")
+
+
+def test_assign_gates_with_empty_library_raises() -> None:
+    tt = TruthTable.from_function(["a"], ["y"], lambda v: (not v[0],))
+    nl = synthesize_netlist(tt)
+    with pytest.raises(ValueError):
+        assign_gates(nl, library=[])
+
+
+def test_simulate_netlist_const_and_unassigned_nodes() -> None:
+    const = NetlistNode("c", _CONST, [], value=False)
+    unassigned = NetlistNode("u", "NOT", ["x"], None)
+    netlist = Netlist(inputs=["x"], outputs=["o"], nodes=[const, unassigned])
+    levels = simulate_netlist(netlist, {}, (1.0,), max_iter=5)
+    assert levels["c"] == 0.0
+    assert levels["u"] == 0.0
+
+
+def test_simulate_netlist_converges_early() -> None:
+    # FAST-transfer gates stabilize in one iteration -> delta < tol break
+    d = not_gate()
+    levels = simulate_netlist(d.netlist, d.assignment, (0.0,), max_iter=2000)
+    assert isinstance(levels, dict)
+
+
+def test_simulate_netlist_runs_to_max_iter() -> None:
+    # a single iteration cannot converge -> delta >= tol -> loop runs to
+    # natural completion rather than breaking
+    d = not_gate()
+    levels = simulate_netlist(d.netlist, d.assignment, (0.0,), max_iter=1)
+    assert isinstance(levels, dict)
+
+
+def test_assign_gates_const_without_buffer_in_library() -> None:
+    # a lone CONST node with a library that has no BUFFER -> buf is None
+    netlist = Netlist(inputs=["x"], outputs=["c"],
+                      nodes=[NetlistNode("c", _CONST, [], value=True)])
+    no_buffer = [g for g in GATE_LIBRARY if g.logic != "BUFFER"]
+    assignment = assign_gates(netlist, library=no_buffer)
+    assert "c" not in assignment
+
+
+def test_assemble_dna_skips_const_and_unassigned() -> None:
+    const = NetlistNode("c", _CONST, [], value=True)
+    netlist = Netlist(inputs=["x"], outputs=["c"], nodes=[const])
+    dna, order = assemble_dna(netlist, {})
+    assert dna == "" and order == []
+
+
+def test_simulate_expression_curves_skips_const_and_unassigned() -> None:
+    const = NetlistNode("c", _CONST, [], value=True)
+    netlist = Netlist(inputs=["x"], outputs=["c"], nodes=[const])
+    curves = simulate_expression_curves(netlist, {}, time_course_min=10.0)
+    assert curves == {}
+
+
+def test_build_plasmid_without_mcs() -> None:
+    d = not_gate()
+    plasmid, length, order = build_plasmid(d, include_mcs=False)
+    assert len(plasmid) == length and order
+
+
+def test_report_properties_surface_design_fields() -> None:
+    report = run_cello_workflow(TruthTable.from_function(
+        ["a"], ["y"], lambda v: (not v[0],)))
+    report: CelloWorkflowReport
+    assert isinstance(report.truth_table, TruthTable)
+    assert isinstance(report.netlist, Netlist)
+    assert isinstance(report.assignment, dict)
+    assert isinstance(report.gate_order, list)
+    assert isinstance(report.sbol3_xml, str)
+    assert report.gate_order == list(report.design.gate_order)

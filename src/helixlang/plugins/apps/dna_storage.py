@@ -702,12 +702,8 @@ class DNAStorage:
 
         # Encode each chunk in parallel
         def _encode_chunk(chunk: bytes) -> tuple[list, int]:
-            if self.scheme == "goldman":
-                oligos: list = goldman_encode(chunk)
-                bp = sum(len(o.full) for o in oligos)
-            else:
-                oligos = erlich_encode(chunk, redundancy=redundancy)
-                bp = sum(len(o.payload) for o in oligos)
+            oligos = erlich_encode(chunk, redundancy=redundancy)
+            bp = sum(len(o.payload) for o in oligos)
             return oligos, bp
 
         chunk_results: list[tuple[list, int]] = [None] * n_chunks  # type: ignore

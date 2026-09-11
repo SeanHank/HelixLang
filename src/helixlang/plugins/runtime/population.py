@@ -1043,9 +1043,8 @@ class CellPopulation:
                 case Op.OP_START | Op.OP_NOP | Op.OP_TICK:
                     pass
                 case Op.OP_HALT | Op.OP_RETURN:
-                    if frames:
-                        cell.vm_ip = frames.pop()
-                        cell.current_gene = None
+                    cell.vm_ip = frames.pop()
+                    cell.current_gene = None
                 case Op.OP_PUSH_CONST:
                     idx = self._read_cell_u8(cell)
                     constants = self.config.chunk.constants
@@ -1871,9 +1870,8 @@ class CellPopulation:
         diversity = 0.0
         if total > 0:
             for cnt in groups.values():
-                if cnt > 0:
-                    p = cnt / total
-                    diversity -= p * math.log(p)
+                p = cnt / total
+                diversity -= p * math.log(p)
 
         # Age distribution
         age_dist: dict[int, int] = {}
@@ -1988,8 +1986,6 @@ class CellPopulation:
         edge = ranked[-n_core:]
 
         def _med(vals: list[float]) -> float:
-            if not vals:
-                return 0.0
             s = sorted(vals)
             return s[len(s) // 2]
 

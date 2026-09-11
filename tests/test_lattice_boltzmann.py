@@ -208,3 +208,59 @@ def test_run_advances_and_observables() -> None:
     u, v = lbm.velocity_fields()
     assert u.shape == (16, 16) and v.shape == (16, 16)
     assert np.allclose(u[0, :], 0.0, atol=1e-12)  # closed walls stay put
+
+
+def test_set_occupancy_rejects_wrong_shape() -> None:
+    lbm = LatticeBoltzmann(8, 8)
+    with pytest.raises(ValueError):
+        lbm.set_occupancy(np.ones((3, 3), dtype=bool))
+
+
+def test_flow_field_spreads_velocity_into_solid_cells() -> None:
+    height, width = 12, 12
+    lbm = LatticeBoltzmann(width, height, omega=1.0, closed=True)
+    occ = [[2 <= y <= 4 for _ in range(width)] for y in range(height)]
+    lbm.set_occupancy(occ)
+    lbm.run(40)
+    ff = lbm.flow_field(substeps=2)
+    assert ff.width == width and ff.height == height
+    u = np.asarray(ff.u)
+    assert u.shape == (height, width)
+    # solid obstacle cells have a finite, spread velocity (not NaN)
+    assert np.all(np.isfinite(u))
+
+
+def test_flow_field_spread_fills_fully_enclosed_and_repeats_passes() -> None:
+    height, width = 10, 10
+    lbm = LatticeBoltzmann(width, height, omega=1.0, closed=True)
+    # a 2x2 solid block in the centre has nodes stranded away from fluid
+    occ = [[(5 <= y <= 6 and 5 <= x <= 6) for x in range(width)]
+           for y in range(height)]
+    lbm.set_occupancy(occ)
+    lbm.run(20)
+    ff = lbm.flow_field()
+    # both displacement components come back and are finite everywhere
+    assert np.all(np.isfinite(ff.u)) and np.all(np.isfinite(ff.v))
+
+
+def test_open_channel_inlet_array_profile() -> None:
+    height, width = 17, 40
+    vel = np.full(height, 0.05)
+    lbm = LatticeBoltzmann(
+        width, height, omega=1.0,
+        inlet_velocity=vel,
+        inlet_density=1.0005, outlet_density=0.9995)
+    lbm.run(200)
+    u, _ = lbm.velocity_fields()
+    assert np.all(np.isfinite(u))
+
+
+def test_flow_field_fully_solid_stops_spread() -> None:
+    height, width = 6, 6
+    lbm = LatticeBoltzmann(width, height, omega=1.0, closed=True)
+    # every interior node solid too -> no fluid neighbour for any solid node
+    occ = [[True for _ in range(width)] for _ in range(height)]
+    lbm.set_occupancy(occ)
+    lbm.run(5)
+    ff = lbm.flow_field()
+    assert np.all(np.isfinite(ff.u)) and np.all(np.isfinite(ff.v))

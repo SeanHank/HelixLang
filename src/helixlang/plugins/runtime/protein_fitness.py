@@ -35,8 +35,9 @@ References:
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 #: canonical amino-acid ordering (alphabetical, matches BLOSUM62)
 AA20: tuple[str, ...] = tuple("ARNDCQEGHILKMFPSTWYV")
@@ -150,24 +151,26 @@ def blosum62_normalized(reference: str, variant: str) -> float:
         raw += BLOSUM62[r][v]
         best += BLOSUM62[r][r]
         worst += _BLOSUM_MIN[r]
-    if best == worst:
-        return 1.0
     return max(0.0, min(1.0, (raw - worst) / (best - worst)))
 
 
-class FitnessOracle(Protocol):
+class FitnessOracle:
     """Pluggable fitness oracle: ``score(reference, variant) -> float``.
 
     Higher score = fitter variant; the reference is the wild type.
+    Concrete oracles (``BLOSUMOracle``, ``ESM2Oracle``) override
+    ``score``/``available``; this base scores as identity-agnostic by
+    forwarding to the BLOSUM62 oracle.
     """
 
-    def score(self, reference: str, variant: str) -> float: ...
+    def score(self, reference: str, variant: str) -> float:
+        return BLOSUMOracle().score(reference, variant)
 
     @property
     def available(self) -> bool:
         """Whether this oracle can actually score (False when the
         optional model/dependency is missing)."""
-        ...
+        return True
 
 
 @dataclass(slots=True)
@@ -187,6 +190,13 @@ def _load_esm(model_name: str) -> tuple[Any, Any]:
 
     Returns ``(model, tokenizer)`` or raises ImportError.
     """
+    if os.environ.get("HELIX_BENCHMARK_OFFLINE", "") == "1":
+        # doc/41 offline-first CI: never download weights; fail fast if the
+        # model is not already cached instead of waiting on a socket.  These
+        # must be set before ``transformers``/``huggingface_hub`` are first
+        # imported, since their offline state is cached at import time.
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        os.environ["HF_HUB_OFFLINE"] = "1"
     try:
         import torch  # noqa: F401
         from transformers import EsmForMaskedLM, EsmTokenizer

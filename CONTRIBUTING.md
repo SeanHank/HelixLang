@@ -106,7 +106,7 @@ src/helixlang/     The package: three layers —
                     169 source modules across core, plugins, and support packages
 tests/             pytest suite + shared conftest fixtures
 examples/          runnable .helix programs (must always compile & run)
-doc/               All technical documentation (37 files, kept in sync with code)
+doc/               All technical documentation (43 files, kept in sync with code)
 validation/        85 reproducible benchmarks with SHA256-verified golden outputs
 .github/workflows/ CI: lint / typecheck / test / examples-smoke
 ```
@@ -179,11 +179,11 @@ them locally catches issues early.
 ### Tests & coverage
 
 ```bash
-pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=80
+pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=100
 ```
 
-- Coverage gate is **80%** (the config lives in `pyproject.toml`; current suite
-  measures ~90%+).
+- Coverage gate is **100%** lines + **100%** branches (the config lives in
+  `pyproject.toml`; the current suite sustains it across the full test set).
 - Run a single file: `pytest tests/test_grn.py`
 - Run a single test: `pytest tests/test_grn.py::test_decay_default_halves_at_110_ticks`
 
@@ -229,7 +229,7 @@ python -m helixlang examples/01_hello_dna.helix
 |-----|--------|------|
 | `lint` | 3.11 | `ruff check src tests` |
 | `typecheck` | 3.11 | `mypy` |
-| `test` | 3.11 | `pytest --cov=helixlang --cov-fail-under=80` |
+| `test` | 3.11 | `pytest --cov=helixlang --cov-fail-under=100` |
 | `examples-smoke` | 3.11 | compile + run all examples |
 
 Green CI is required before merge. If you can't reproduce a CI-only failure,
@@ -349,7 +349,7 @@ python validation/goldens/generate_goldens.py
 ```
 
 Current metrics (2026-08-27):
-- **85/85** benchmarks PASS
+- **84/85** benchmarks PASS
 - **40+** published references cited
 - **0** non-deterministic failures
 - **Median error**: ~3.0% (quantitative benchmarks vs published/analytical references)

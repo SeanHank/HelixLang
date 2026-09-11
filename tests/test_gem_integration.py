@@ -82,6 +82,8 @@ class TestAnnotation:
         mapping = db.lookup("2.3.3.1")
         assert mapping is not None
         assert "CS" in mapping.reaction_ids
+        assert db.has_ec("2.3.3.1")
+        assert not db.has_ec("99.99.99")
 
     def test_kegg_mapping_lookup(self) -> None:
         from helixlang.plugins.annotation.kegg_mapping import build_ko_db
@@ -91,6 +93,65 @@ class TestAnnotation:
         mapping = db.lookup("K00844")
         assert mapping is not None
         assert "HEX1" in mapping.reaction_ids
+
+    def test_offline_annotation_fallback_warns(self, monkeypatch) -> None:
+        import urllib.request
+
+        from helixlang.plugins.apps import gem_pipeline as gp
+
+        def _raise(*args, **kwargs):
+            raise OSError("network unreachable")
+
+        monkeypatch.setattr(urllib.request, "urlopen", _raise)
+
+        with pytest.warns(UserWarning, match="NCBI BLAST"):
+            result = gp._annotate_via_ncbi_blast(
+                {"gltA": "MKVTAYAQQRGLIGVSDPADYWE" * 4}
+            )
+        assert isinstance(result, dict)
+        assert "gltA" not in result
+
+        with pytest.warns(UserWarning, match="UniProt"):
+            result = gp._annotate_via_uniprot_idmapping(
+                {"P0A9E8": "MKVTAYAQQRGLIGVSDPADYWE" * 4}
+            )
+        assert "P0A9E8" not in result
+
+        with pytest.warns(UserWarning, match="UniProt"):
+            result = gp._annotate_via_uniprot_sequence(
+                {"P0A9E8": "MKVTAYAQQRGLIGVSDPADYWE" * 4}
+            )
+        assert "P0A9E8" not in result
+
+    def test_offline_mode_shortcircuits_network(self, monkeypatch) -> None:
+        import urllib.request
+
+        from helixlang.plugins.apps import gem_pipeline as gp
+
+        calls = []
+
+        def _record(*args, **kwargs):
+            calls.append(args)
+            raise OSError("must not be reached")
+
+        monkeypatch.setattr(urllib.request, "urlopen", _record)
+        monkeypatch.setenv("HELIX_BENCHMARK_OFFLINE", "1")
+
+
+        with pytest.warns(UserWarning, match="NCBI BLAST"):
+            r1 = gp._annotate_via_ncbi_blast({"gltA": "MKVTAYAQQRGLIGVSDPADYWE" * 4})
+        with pytest.warns(UserWarning, match="UniProt ID mapping"):
+            r2 = gp._annotate_via_uniprot_idmapping(
+                {"P0A9E8": "MKVTAYAQQRGLIGVSDPADYWE" * 4}
+            )
+        with pytest.warns(UserWarning, match="UniProt sequence search"):
+            r3 = gp._annotate_via_uniprot_sequence(
+                {"P0A9E8": "MKVTAYAQQRGLIGVSDPADYWE" * 4}
+            )
+
+        assert calls == []
+        assert r1 == r2 == r3 == {}
+        assert gp._network_offline() is True
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +178,58 @@ class TestGemReconstruction:
         assert "CS" in result.reaction_ids()
         assert "PFK" in result.reaction_ids()
 
+    def test_bottom_up_reconstruct_empty_ec_mapping(self) -> None:
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.bottom_up import bottom_up_reconstruct
+
+        annotations = {
+            "geneX": GeneAnnotation(
+                gene_id="geneX", ec_numbers=["9.9.9.9"], kegg_ko=["K99999"]),
+        }
+        result = bottom_up_reconstruct(annotations, include_spontaneous=False)
+        assert result.ec_matched == 0
+        assert result.ko_matched == 0
+
+    def test_bottom_up_reconstruct_explicit_dbs(self) -> None:
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.annotation.ec_mapping import (
+            ECReactionDB,
+        )
+        from helixlang.plugins.annotation.kegg_mapping import build_ko_db
+        from helixlang.plugins.gem.bottom_up import (
+            bottom_up_reconstruct,
+        )
+
+        ec_db = ECReactionDB()
+        ec_db.load_from_dict({"1.1.1.37": ["H2O"]})
+        annotations = {
+            "mdh": GeneAnnotation(gene_id="mdh", ec_numbers=["1.1.1.37"]),
+        }
+        result = bottom_up_reconstruct(
+            annotations,
+            ec_db=ec_db,
+            ko_db=build_ko_db(),
+            include_spontaneous=True,
+        )
+        gpr = result.gpr_rules()
+        assert "mdh" in gpr["H2O"].gene_ids
+        # spontaneous solids skip the already-seen H2O reaction
+        assert result.spontaneous == 4
+
+    def test_gpr_rule_construction(self) -> None:
+        from helixlang.plugins.gem.bottom_up import GPRRule
+
+        complex_rule = GPRRule(
+            reaction_id="R",
+            gene_ids=["a", "b", "c"],
+            and_groups=[["a", "b"], ["c"]],
+        )
+        assert complex_rule.rule_string == "a and b or c"
+        simple = GPRRule(reaction_id="R", gene_ids=["x", "y"])
+        assert simple.rule_string == "x or y"
+        explicit = GPRRule(reaction_id="R", gene_ids=["a"], rule_string="(a)")
+        assert explicit.rule_string == "(a)"
+
     def test_top_down_reconstruct(self) -> None:
         from helixlang.plugins.annotation import GeneAnnotation
         from helixlang.plugins.gem.top_down import top_down_reconstruct
@@ -129,6 +242,40 @@ class TestGemReconstruction:
         }
         result = top_down_reconstruct(annotations)
         assert result.kept_reactions >= 2
+        assert result.reaction_count == result.kept_reactions
+        assert len(result.reaction_ids()) == result.kept_reactions
+
+    def test_top_down_reconstruct_explicit_universal(self) -> None:
+        from helixlang.plugins.annotation import GeneAnnotation
+        from helixlang.plugins.gem.top_down import top_down_reconstruct
+
+        annotations = {
+            "gltA": GeneAnnotation(
+                gene_id="gltA", ec_numbers=["2.3.3.1"]),
+        }
+        result = top_down_reconstruct(
+            annotations,
+            universal_rxns=[
+                {"id": "CS", "eq": "A + B -> C", "rev": False,
+                 "required_ec": ["2.3.3.1"]},
+                {"id": "XCH", "eq": "D -> E", "rev": True,
+                 "required_ec": []},
+            ],
+        )
+        assert result.kept_reactions >= 1
+
+    def test_organism_registry_has_full_model(self) -> None:
+        from helixlang.plugins.gem.organism_registry import (
+            get_organism_config,
+            has_full_model,
+            list_supported_organisms,
+        )
+
+        assert has_full_model("E_Coli_K12")
+        assert not has_full_model("archaeaX")
+        assert get_organism_config("e_coli_k12").to_dict()["bigg_id"] == "iML1515"
+        assert get_organism_config("missing") is None
+        assert "e_coli_k12" in list_supported_organisms()
 
     def test_consensus_merge(self) -> None:
         from helixlang.plugins.annotation import GeneAnnotation

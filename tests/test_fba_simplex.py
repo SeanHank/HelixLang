@@ -349,6 +349,46 @@ class TestSimplexMaxIterAndUnbounded:
 
 
 # ============================================================================
+# Pure-Python simplex kernel branch coverage
+# ============================================================================
+
+class TestSimplexPythonKernel:
+    """Direct branches of the byte-identical ``impl_python.run`` kernel."""
+
+    def test_run_with_forbidden_set(self) -> None:
+        from helixlang._accel.simplex.impl_python import run
+
+        # vars = [x1, x2, s1, s2]; RHS is the last column.
+        tab = [[1.0, 1.0, 1.0, 0.0, 4.0], [2.0, 1.0, 0.0, 1.0, 5.0]]
+        basis = [2, 3]
+        status = run(tab, basis, [3.0, 2.0, 0.0, 0.0], 4, forbidden={0})
+        assert status in ("optimal", "max_iter")
+
+    def test_run_unbounded_direct(self) -> None:
+        from helixlang._accel.simplex.impl_python import run
+
+        # no constraint rows -> any positive-cost column is unbounded
+        assert run([], [], [1.0], 1) == "unbounded"
+
+    def test_run_max_iter_exhausted(self) -> None:
+        from helixlang._accel.simplex.impl_python import run
+
+        tab = [[1.0, 1.0, 1.0, 0.0, 4.0], [2.0, 1.0, 0.0, 1.0, 5.0]]
+        basis = [2, 3]
+        assert run(tab, basis, [3.0, 2.0, 0.0, 0.0], 4, max_iter=1) == "max_iter"
+
+    def test_run_ratio_tie_break_checks_smaller_basis(self) -> None:
+        from helixlang._accel.simplex.impl_python import run
+
+        # Two rows share the same ratio for the entering column; the second
+        # keeps the incumbent because its basic-index is not smaller.
+        tab = [[1.0, 0.0, 1.0, 0.0, 2.0], [2.0, 0.0, 0.0, 1.0, 4.0]]
+        basis = [2, 3]
+        status = run(tab, basis, [1.0, 0.0, 0.0, 0.0], 4)
+        assert status in ("optimal", "max_iter")
+
+
+# ============================================================================
 # FBA edge cases: infeasible models
 # ============================================================================
 

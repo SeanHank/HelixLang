@@ -541,8 +541,6 @@ def _find_rho_independent_terminator(dna: str) -> tuple[int, int] | None:
             stem1 = dna[i:i + stem_len]
             for loop_len in (3, 4, 5):
                 j = i + stem_len + loop_len
-                if j + stem_len > n:
-                    continue
                 stem2 = dna[j:j + stem_len]
                 if not _is_reverse_complement(stem1, stem2):
                     continue

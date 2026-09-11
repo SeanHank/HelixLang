@@ -648,3 +648,32 @@ class TestParallelConcurrent:
             futs = [ex.submit(worker, s) for s in range(200, 204)]
             results = [f.result() for f in as_completed(futs)]
         assert all(results), "mixed concurrent load round-trip failed"
+
+
+class TestFormatAndParseEdgeCases:
+    def test_format_fasta_unknown_scheme_raises(self):
+        storage = DNAStorage(scheme="goldman")
+        report = storage.store(b"edge")
+        with pytest.raises(BioError):
+            format_fasta(report.oligos, scheme="nope")
+
+    def test_parse_fasta_non_numeric_index_uses_count(self):
+        # A header with a non-numeric index (e.g. >erlich_abc) falls back
+        # to the running oligo count instead of failing.
+        fasta = ">erlich_abc\nACGTACGT\n>erlich_xyz\nACGTACGT\n"
+        parsed = parse_fasta(fasta)
+        assert parsed and parsed[0].index == 0 and parsed[1].index == 1
+
+    def test_goldman_retrieve_concurrent_with_manual_chunks(self):
+        storage = DNAStorage(scheme="goldman")
+        data = b"goldman concurrent chunk"
+        report = storage.store(data)
+        # force the concurrent-retrieve goldman branch with explicit metadata
+        chunks = [(len(data), len(report.oligos))]
+        recovered = storage.retrieve_concurrent(report.oligos, chunks)
+        assert recovered == data
+
+    def test_benchmark_unknown_scheme_raises(self):
+        from helixlang.plugins.apps.dna_storage import benchmark_codecs
+        with pytest.raises(BioError):
+            benchmark_codecs(data=b"x", seed=1, schemes=("bogus",))

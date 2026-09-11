@@ -185,7 +185,7 @@ def _vector_apply(engine: Any, op: Op, operand: int | None,
     elif op is Op.OP_LT:
         engine.write_col(rows, d - 2, np.asarray(a < b, dtype=float))
         engine.bump_depth(rows, -1)
-    elif op is Op.OP_NOT:
+    else:  # Op.OP_NOT (the only remaining op in _ARITH_ARITY)
         nz = np.asarray(b != 0, dtype=float)
         engine.write_col(rows, d - 1, 1.0 - nz)
 

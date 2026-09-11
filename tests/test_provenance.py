@@ -150,6 +150,27 @@ class TestProvenanceContract:
         prov = build_provenance(seed=1, source="ATG TAA")
         assert prov["source_hash"].startswith("sha256:")
 
+    def test_source_hash_bytes(self) -> None:
+        prov = build_provenance(source=b"ATG TAA")
+        assert prov["source_hash"].startswith("sha256:")
+        assert len(prov["source_hash"]) == 71
+
+    def test_native_probe_failure_safe(self, monkeypatch) -> None:
+        def _boom(name):
+            raise ImportError("no native")
+
+        monkeypatch.setattr("importlib.util.find_spec", _boom)
+        prov = build_provenance(seed=1, backend="fba")
+        assert prov["backend_implementation"]["native"] is False
+
+    def test_dependency_probe_failure_safe(self, monkeypatch) -> None:
+        def _boom(name):
+            raise ImportError("no metadata")
+
+        monkeypatch.setattr("importlib.metadata.version", _boom)
+        prov = build_provenance(seed=1)
+        assert "python" in prov["dependencies"]
+
     def test_model_version_key(self) -> None:
         prov = build_provenance(model_version="iML1515@1.0")
         assert prov["model_version"] == "iML1515@1.0"

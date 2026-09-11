@@ -20,7 +20,7 @@ try:
     import numpy as np
     from numba import njit
     _HAS_NUMBA = True
-except ImportError:  # pragma: no cover - numba is optional
+except ImportError:
     np = cast(Any, None)
     njit = cast(Any, None)
     _HAS_NUMBA = False

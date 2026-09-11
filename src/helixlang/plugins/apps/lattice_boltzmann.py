@@ -194,8 +194,6 @@ class LatticeBoltzmann:
         solver value (near zero).
         """
         fluid = ~self.solid
-        if fluid.all():
-            return u, v
         u_out = np.array(u)
         v_out = np.array(v)
         offsets = ((-1, 0), (1, 0), (0, -1), (0, 1),

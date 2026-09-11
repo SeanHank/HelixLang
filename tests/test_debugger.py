@@ -1,4 +1,6 @@
 """HelixDebugger unit tests."""
+import pytest
+
 from helixlang.core.codon_table import STANDARD_TABLE, Op
 from helixlang.core.compiler import Compiler
 from helixlang.core.lexer import Lexer
@@ -388,3 +390,218 @@ def test_format_disasm_around_marker_at_correct_offset():
     # The first line should carry the >>> marker and be OP_START (offset 0)
     assert ">>>" in lines[0]
     assert "OP_START" in lines[0]
+
+
+# ------------------------------------------------------------------ #
+# Edge-case coverage
+# ------------------------------------------------------------------ #
+def test_start_with_no_genes_returns():
+    dbg = make_debugger("#config ticks=3\n")
+    # no frames pushed, no error
+    dbg.start()
+    assert dbg.vm.frames == []
+
+
+def test_step_one_pops_single_frame_out_of_bounds():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.ip = len(dbg.vm.chunk.code)
+    result = dbg._step_one()
+    assert result is None
+    assert len(dbg.vm.frames) == 0
+
+
+def test_step_one_pops_inner_frame_to_return_ip():
+    src = """#gene name=caller
+ATG CGT TAA
+#end
+#gene name=target
+ATG GCT TAA
+#end
+"""
+    dbg = make_debugger(src)
+    dbg.start("caller")
+    dbg.step()  # OP_START
+    dbg.step()  # OP_CALL_GENE -> enter target (2 frames)
+    assert len(dbg.vm.frames) == 2
+    dbg.vm.ip = len(dbg.vm.chunk.code)
+    result = dbg._step_one()
+    assert result is None
+    # inner (target) frame popped, back to caller's return_ip
+    assert len(dbg.vm.frames) == 1
+    assert dbg.vm.frames[0].gene_name == "caller"
+
+
+def test_step_one_unknown_opcode_raises():
+    from helixlang.core.errors import UnknownOpcodeError
+
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.chunk.code[0] = 0xFF  # not a valid opcode
+    with pytest.raises(UnknownOpcodeError):
+        dbg._step_one()
+
+
+def test_step_out_when_no_frames():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.continue_run()  # run to HALT, frames empty
+    assert len(dbg.vm.frames) == 0
+    state = dbg.step_out()
+    assert isinstance(state, DebugState)
+
+
+def test_get_state_none_when_idle():
+    # no frames, no last op, ip out of bounds -> op "<none>"
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.vm.ip = 999
+    state = dbg.get_state()
+    assert state.op == "<none>"
+
+
+def test_get_state_unknown_opcode_at_ip():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.chunk.code[0] = 0xFF  # not a valid opcode
+    state = dbg.get_state()
+    assert state.op == "<unknown 0xFF>"
+
+
+def test_condition_unparsable_is_true():
+    dbg = make_debugger("#gene name=g\nATG GCT GCT TAA\n#end")
+    dbg.start()
+    bp = dbg.set_breakpoint(offset=3, condition="not a valid condition")
+    assert dbg._eval_condition(bp.condition) is True
+
+
+def test_condition_unknown_var_is_false():
+    dbg = make_debugger("#gene name=g\nATG GCT GCT TAA\n#end")
+    dbg.start()
+    bp = dbg.set_breakpoint(offset=3, condition="nonexistent > 5")
+    assert dbg._eval_condition(bp.condition) is False
+
+
+def test_condition_non_numeric_var_is_false():
+    dbg = make_debugger("#gene name=g\nATG GCT GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.cell.proteins["abc"] = "not-a-number"
+    bp = dbg.set_breakpoint(offset=3, condition="protein.abc > 5")
+    assert dbg._eval_condition(bp.condition) is False
+
+
+def test_condition_all_remaining_operators():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.cell.energy = 100
+    assert dbg._eval_condition("energy > 50") is True    # >
+    assert dbg._eval_condition("energy >= 100") is True  # >=
+    assert dbg._eval_condition("energy <= 100") is True  # <=
+    assert dbg._eval_condition("energy != 0") is True    # !=
+
+
+def test_eval_var_protein_numeric_string_key():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    assert dbg._eval_var("protein.abc") == 0.0
+
+
+def test_eval_var_slot_branches():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    assert dbg._eval_var("slot.0") is None       # valid index, empty slot
+    assert dbg._eval_var("slot.999") is None     # out of range
+    assert dbg._eval_var("slot.xyz") is None     # non-numeric index
+
+
+def test_gene_at_offset_empty_offsets():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.chunk.gene_offsets = {}
+    assert dbg._gene_at_offset(0) is None
+
+
+def test_gene_at_offset_break_between_genes():
+    src = """#gene name=caller
+ATG CGT TAA
+#end
+#gene name=target
+ATG GCT TAA
+#end
+"""
+    dbg = make_debugger(src)
+    # offset 0 -> caller; a later gene offset triggers break
+    assert dbg._gene_at_offset(0) == "caller"
+
+
+def test_format_state_empty_grn():
+    cs = {
+        "x": 0.0, "y": 0.0, "energy": 100.0, "alive": True,
+        "age": 0, "divisions": 0, "color": "red", "proteins": {},
+    }
+    state = DebugState(ip=0, op="OP_START", stack=[], cell_state=cs,
+                       grn_state={}, gene="g", line=1, codon_index=0)
+    out = format_state(state)
+    assert "grn: (empty)" in out
+
+
+def test_format_disasm_around_empty_chunk():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.vm.chunk.code = []
+    assert format_disasm_around(dbg.vm.chunk, 0) == "<empty chunk>"
+
+
+def test_format_disasm_around_unknown_opcode():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.vm.chunk.code[0] = 0xFD
+    out = format_disasm_around(dbg.vm.chunk, 0)
+    assert "<unknown" in out
+
+
+def test_step_out_steps_to_frame_exit():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    state = dbg.step_out()  # loop: len>=start_depth -> step until frame empty
+    assert isinstance(state, DebugState)
+    assert len(dbg.vm.frames) == 0
+
+
+def test_continue_run_with_no_frames_returns_none():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    # frames empty from the start
+    assert dbg.continue_run() is None
+
+
+def test_gene_resolution_returns_none_in_call_stack():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.frames[0].gene_name = "<call>"
+    dbg.vm.chunk.gene_offsets = {}
+    stack = dbg.get_call_stack()
+    # gene stays "<call>" because _gene_at_offset returns None
+    assert stack[0]["gene"] == "<call>"
+
+
+def test_gene_resolution_returns_none_in_state():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.start()
+    dbg.vm.frames[0].gene_name = "<call>"
+    dbg.vm.chunk.gene_offsets = {}
+    state = dbg.get_state()
+    assert state.gene == "<call>"
+
+
+def test_format_disasm_around_ip_beyond_last_instruction():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    out = format_disasm_around(dbg.vm.chunk, 999, context=5)
+    # ip beyond everything: idx stays at the last instruction, marker present
+    assert ">>>" in out
+
+
+def test_format_disasm_around_short_codon_and_zero_lines():
+    dbg = make_debugger("#gene name=g\nATG GCT TAA\n#end")
+    dbg.vm.chunk.codon_indices = []
+    dbg.vm.chunk.lines = [0, 0, 0, 0]
+    out = format_disasm_around(dbg.vm.chunk, 0, context=5)
+    # codon and line annotations are empty, but instructions are still listed
+    assert "OP_START" in out
+

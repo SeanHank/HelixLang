@@ -94,7 +94,8 @@ class KmEstimator:
             return km
 
         # Strategy 2: Heuristic from sequence properties
-        if sequence:
+        # (skipped when an ML model is available, which is preferred)
+        if sequence and not self.ml_model:
             return self._heuristic_km(sequence, molecular_weight)
 
         # Strategy 3: ML prediction

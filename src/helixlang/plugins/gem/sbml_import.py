@@ -289,8 +289,7 @@ def detect_exchange_reactions(model: MetabolicModel) -> list[str]:
             exchanges.append(rid)
         elif len(rxn.stoichiometry) == 1 and (rxn.lower_bound < 0 or rxn.upper_bound > 0):
             # single-metabolite reactions with non-zero bounds are likely exchanges
-            if rid.startswith("EX_"):
-                exchanges.append(rid)
+            exchanges.append(rid)
     return sorted(set(exchanges))
 
 

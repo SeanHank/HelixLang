@@ -1018,12 +1018,12 @@ def perturbation_response(grn: GRN, target: str,
     perturbed_final = perturbed[-1]
     fold = (perturbed_final / control_final if control_final > 0
             else float("inf"))
-    settling = None
     tol = 0.05 * abs(perturbed_final)
-    for t, v in zip(result.times, perturbed, strict=True):
-        if abs(v - perturbed_final) <= tol:
-            settling = t
-            break
+    settling = next(
+        (t for t, v in zip(result.times, perturbed, strict=True)
+         if abs(v - perturbed_final) <= tol),
+        None,
+    )
     return {
         "control_final": control_final,
         "perturbed_final": perturbed_final,

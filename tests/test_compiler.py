@@ -1,7 +1,14 @@
 """Compiler unit tests."""
+import pytest
+
 from helixlang.core.codon_table import MITO_VERTEBRATE_TABLE, STANDARD_TABLE, Op
-from helixlang.core.compiler import Compiler
+from helixlang.core.compiler import (
+    Compiler,
+    _table_name_of,
+)
 from helixlang.core.disassembler import disassemble
+from helixlang.core.errors import CompileError
+from helixlang.core.language import LanguageConfig
 from helixlang.core.lexer import Lexer
 from helixlang.core.parser import Parser
 
@@ -102,3 +109,37 @@ def test_disassemble_output():
     assert "OP_START" in out
     assert "OP_HALT" in out
     assert "hello" in out
+
+
+class _CustomTable:
+    pass
+
+
+def test_table_name_unknown_falls_back_to_standard() -> None:
+    assert _table_name_of({"A": Op.OP_NOP}) == "standard"
+    custom = _CustomTable()
+    assert _table_name_of(custom) == "standard"
+
+
+def test_config_and_table_conflict_raises() -> None:
+    with pytest.raises(CompileError):
+        Compiler(STANDARD_TABLE, config=LanguageConfig.for_table("standard"))
+
+
+def test_config_only_constructor_and_property() -> None:
+    cfg = LanguageConfig.for_table("standard")
+    comp = Compiler(config=cfg)
+    assert comp.config is cfg
+    assert comp.table == dict(cfg.codon_to_op)
+
+
+def test_compile_optimized_and_build_ir() -> None:
+    src = "#gene name=g\nATG TAA\n#end"
+    prog = Parser(list(Lexer(src).tokens()),
+                  stop_codons={c for c, op in STANDARD_TABLE.items()
+                               if op == Op.OP_HALT}).parse()
+    comp = Compiler(STANDARD_TABLE)
+    ir, chunk = comp.compile_ir(prog, optimize=True, passes=[])
+    assert chunk is not None
+    ir2 = comp.build_ir(prog)
+    assert ir2 is not None

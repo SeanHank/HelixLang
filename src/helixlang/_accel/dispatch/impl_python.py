@@ -41,7 +41,7 @@ def run_quota(code, constants, *, quota: int = 4096, gene_table=None):
             stack.append(constants[idx])
         elif op == _OP_POP:
             stack.pop()
-        elif op in (_OP_ADD, _OP_SUB, _OP_MUL):
+        else:
             b = stack.pop()
             a = stack.pop()
             if op == _OP_ADD:

@@ -28,6 +28,7 @@ from helixlang.plugins.runtime.protein_fitness import (
     BLOSUM62,
     BLOSUMOracle,
     ESM2Oracle,
+    FitnessOracle,
     blosum62_normalized,
     blosum62_raw,
     dna_fitness,
@@ -106,6 +107,13 @@ def test_oracle_score_invalid_aa_raises() -> None:
         blosum62_raw(WT, WT + "Z")
 
 
+def test_concrete_base_oracle_is_available_and_scores() -> None:
+    base = FitnessOracle()
+    assert base.available
+    assert base.score(WT, WT) == 1.0
+    assert oracle_score(WT, WT, oracle=base) == 1.0
+
+
 def test_blosum62_length_mismatch_raises() -> None:
     with pytest.raises(ValueError):
         blosum62_raw(WT, WT[:-1])
@@ -165,3 +173,51 @@ def test_esm2_oracle_degrades_gracefully() -> None:
         pll = oracle.pseudo_log_likelihood(WT)
         assert pll < 0.0  # log-likelihoods are negative
         assert oracle.score(WT, WT) >= 0.0  # wt - wt == 0 or tiny float
+
+
+def test_esm2_unavailable_score_raises_on_oracle_method() -> None:
+    from helixlang.plugins.runtime.protein_fitness import ESM2Oracle
+    oracle = ESM2Oracle()
+    oracle._model = None
+    with pytest.raises(RuntimeError):
+        oracle.pseudo_log_likelihood(WT)  # pragma: no cover - optional extra
+
+
+def test_oracle_score_esm2_unavailable_raises(monkeypatch) -> None:
+    from helixlang.plugins.runtime import protein_fitness as pf
+    from helixlang.plugins.runtime.protein_fitness import oracle_score
+
+    monkeypatch.setattr(pf, "_load_esm", lambda *a: (_ for _ in ()).throw(
+        RuntimeError("no esm")))
+    with pytest.raises(RuntimeError, match="esm2"):
+        oracle_score(WT, WT, oracle="esm2")
+
+
+def test_esm2_score_length_mismatch_raises() -> None:
+    from helixlang.plugins.runtime.protein_fitness import ESM2Oracle
+    oracle = ESM2Oracle(device="cpu")
+    if not oracle.available:  # pragma: no cover - optional extra
+        pytest.skip("esm2 unavailable")
+    with pytest.raises(ValueError, match="equal length"):
+        oracle.score(WT, WT[:5])
+
+
+def test_oracle_score_esm2_string_available() -> None:
+    from helixlang.plugins.runtime.protein_fitness import ESM2Oracle, oracle_score
+    if not ESM2Oracle().available:  # pragma: no cover - optional extra
+        pytest.skip("esm2 unavailable")
+    score = oracle_score("ACD", "ACD", oracle="esm2")
+    assert score >= 0.0
+
+
+def test_validate_rejects_empty_and_invalid() -> None:
+    from helixlang.plugins.runtime.protein_fitness import _validate
+    with pytest.raises(ValueError, match="non-empty"):
+        _validate("", "ref")
+    with pytest.raises(ValueError, match="invalid amino acid"):
+        _validate("ACZ", "var")
+
+
+def test_blosum62_normalized_length_mismatch_raises() -> None:
+    with pytest.raises(ValueError, match="equal length"):
+        blosum62_normalized(WT, WT[:-2])

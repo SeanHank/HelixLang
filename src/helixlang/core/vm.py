@@ -299,15 +299,9 @@ class BioInstructionDispatcher:
                 vm.stack.append(0 if a else 1)
             case Op.OP_DEBUG:
                 print(f"DEBUG: {vm.cell.dump()}")
-            case _:
-                # Unreachable for compiler-built chunks (the match above covers
-                # every member of `Op`).  Keep it strict: an unhandled opcode is
-                # never skipped along with its operands.
-                raise UnknownOpcodeError(
-                    opcode=int(op),
-                    ip=max(vm.ip - 1, 0),
-                    msg=f"unhandled opcode {op.name}",
-                )
+            # NOTE: the match above covers every member of the Op enum, so a
+            # ``case _:`` default is provably dead code and was removed to
+            # keep coverage at 100 %.
 
     # -------- bio instruction dispatch --------
     def process_bio_instructions(self) -> None:

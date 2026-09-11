@@ -246,8 +246,6 @@ class LatticeBoltzmann3D:
         solver value (near zero).
         """
         fluid = ~self.solid
-        if fluid.all():
-            return u, v, w
         u_out = np.array(u)
         v_out = np.array(v)
         w_out = np.array(w)

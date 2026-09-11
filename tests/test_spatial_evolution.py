@@ -92,3 +92,31 @@ def test_mutation_reuses_evolution_primitive() -> None:
     genome = random_genome(30, rng)
     child, events = mutate(genome, mutation_rate=0.5, rng=rng)
     assert events or child != genome or len(genome) != 30
+
+
+def test_phenotype_empty_genome_defaults() -> None:
+    assert phenotype_of("") == (1.0, 1.0)
+
+
+def test_run_with_indels_pads_child_length() -> None:
+    cfg = SpatialEvolutionConfig(
+        generations=3,
+        population_size=6,
+        genome_length_nt=30,
+        substitution_rate=0.05,
+        indel_rate=0.4,
+        seed=3,
+    )
+    evo = SpatialEvolution(cfg)
+    rows = evo.run()
+    assert rows
+
+
+def test_evaluate_all_cells_dead_returns_zero() -> None:
+    cfg = SpatialEvolutionConfig(
+        energy_intake=0.0, base_division_threshold=0.0,
+        inner_population_size=5, colonization_ticks=200,
+        grid_width=4, grid_height=4,
+    )
+    result = evaluate("A" * 30, cfg, seed=1)
+    assert result == {"radius_sites": 0.0, "survival": 0.0, "fitness": 0.0}

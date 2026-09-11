@@ -315,7 +315,7 @@ Each tier ships with tests + benchmarks; coverage/ruff/mypy gates stay enforced.
 
 Regression gates: every existing example must keep running; new examples added under
 `examples/` must compile + run in the CI smoke test; `pytest --cov=helixlang
---cov-fail-under=80`, `ruff check src tests`, `mypy` stay green.
+--cov-fail-under=100`, `ruff check src tests`, `mypy` stay green.
 
 ---
 

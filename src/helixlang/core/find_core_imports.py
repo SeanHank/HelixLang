@@ -47,9 +47,9 @@ class Violation:
     known: bool
 
 
-def _module_names(tree: ast.AST) -> list[tuple[str | None, int]]:
+def _module_names(tree: ast.AST) -> list[tuple[str, int]]:
     """Yield (module, lineno) for every import statement in ``tree``."""
-    names: list[tuple[str | None, int]] = []
+    names: list[tuple[str, int]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -59,9 +59,6 @@ def _module_names(tree: ast.AST) -> list[tuple[str | None, int]]:
                 continue
             if node.module:
                 names.append((node.module, node.lineno))
-            else:
-                for alias in node.names:
-                    names.append((alias.name, node.lineno))
     return names
 
 
@@ -76,8 +73,6 @@ def scan(paths: list[Path]) -> list[Violation]:
         except (OSError, SyntaxError):
             return
         for module, lineno in _module_names(tree):
-            if not module:
-                continue
             root = module.split(".")[0]
             if root not in ("helixlang",) or root == "":
                 continue                       # stdlib / third-party: allowed

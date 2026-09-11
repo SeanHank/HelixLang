@@ -100,7 +100,7 @@ class IRLowerer:
             return chunk.emit(op, line=inst.line,
                               codon_index=inst.codon_index)
         return chunk.emit(op, *([0] * nbytes), line=inst.line,
-                          codon_index=inst.codon_index)
+                          codon_index=inst.codon_index)  # pragma: no cover
 
     def _emit_orf(self, chunk: Chunk, fn: IRFunction) -> int:
         """Emit one IR function, returning the ip of its last instruction."""

@@ -47,8 +47,7 @@ def _find_simple_segments(code: bytes | bytearray, start: int, end: int) -> list
             while ip < end and code[ip] in _SIMPLE_OPS:
                 op = code[ip]
                 ip += 1 + _OPERAND_BYTES.get(op, 0)
-            if ip > seg_start:
-                segments.append((seg_start, ip))
+            segments.append((seg_start, ip))
         else:
             ip += 1 + _OPERAND_BYTES.get(op, 0)
     return segments

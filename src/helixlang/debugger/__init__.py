@@ -11,6 +11,7 @@ Features:
 """
 from __future__ import annotations
 
+import operator
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -62,6 +63,17 @@ _COND_RE = re.compile(
     r'(>=|<=|==|!=|>|<)\s*'
     r'(-?\d+(?:\.\d+)?)\s*$'
 )
+
+# NOTE: _COND_RE only ever yields these six comparison operators, so a plain
+# dict lookup covers the full operator space with no dead fall-through branch.
+_COMPARE = {
+    '>': operator.gt,
+    '<': operator.lt,
+    '>=': operator.ge,
+    '<=': operator.le,
+    '==': operator.eq,
+    '!=': operator.ne,
+}
 
 
 class HelixDebugger:
@@ -322,19 +334,7 @@ class HelixDebugger:
         except (TypeError, ValueError):
             return False
         target = float(val_str)
-        if op == '>':
-            return cur_n > target
-        if op == '<':
-            return cur_n < target
-        if op == '>=':
-            return cur_n >= target
-        if op == '<=':
-            return cur_n <= target
-        if op == '==':
-            return cur_n == target
-        if op == '!=':
-            return cur_n != target
-        return False
+        return bool(_COMPARE[op](cur_n, target))
 
     def _eval_var(self, expr: str) -> Any:
         """Evaluate a variable expression, supporting energy / x / y / age / protein.X / grn.X / slot.N, etc."""

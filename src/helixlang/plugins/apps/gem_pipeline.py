@@ -1,6 +1,7 @@
 """GEM reconstruction pipeline (doc/20 §6.5)."""
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -210,6 +211,28 @@ def _extract_ec_from_hit(title: str) -> str | None:
     return None
 
 
+def _network_offline() -> bool:
+    """Whether network-dependent GEM annotation steps must run offline.
+
+    When ``HELIX_BENCHMARK_OFFLINE`` is set (CI offline-first mode, doc/41),
+    live NCBI/UniProt requests are never attempted; the caller falls back to
+    the header heuristic and warns explicitly.  Locally the flag is unset, so
+    real requests are attempted and only warn on genuine failure.
+    """
+    import os
+
+    return os.environ.get("HELIX_BENCHMARK_OFFLINE") == "1"
+
+
+def _warn_offline(service: str) -> None:
+    """Emit the explicit offline-fallback warning for ``service``."""
+    warnings.warn(
+        f"{service} not reachable (offline mode); "
+        "falling back to local header heuristic",
+        stacklevel=2,
+    )
+
+
 def _annotate_via_uniprot_api(
     proteins: dict[str, str],
 ) -> dict[str, GeneAnnotation]:
@@ -265,6 +288,11 @@ def _annotate_via_uniprot_idmapping(
 
     annotations: dict[str, GeneAnnotation] = {}
     gene_ids = list(proteins.keys())[:100]
+
+    # Offline mode (CI): never hit UniProt, fall back with explicit warning
+    if _network_offline():
+        _warn_offline("UniProt ID mapping")
+        return annotations
 
     try:
         query_data = json.dumps({
@@ -345,8 +373,11 @@ def _annotate_via_uniprot_idmapping(
 
         time.sleep(0.5)
 
-    except Exception:  # SILENTBENIGN - best-effort annotation download
-        pass
+    except Exception as exc:  # best-effort annotation download
+        warnings.warn(
+            f"UniProt ID-mapping annotation failed; falling back offline: {exc}",
+            stacklevel=2,
+        )
 
     return annotations
 
@@ -367,6 +398,11 @@ def _annotate_via_ncbi_blast(
     from pathlib import Path
 
     annotations: dict[str, GeneAnnotation] = {}
+
+    # Offline mode (CI): never hit NCBI, fall back with explicit warning
+    if _network_offline():
+        _warn_offline("NCBI BLAST")
+        return annotations
 
     # Write proteins to temp FASTA
     tmp_fasta = Path(tempfile.mktemp(suffix=".fasta"))
@@ -442,8 +478,11 @@ def _annotate_via_ncbi_blast(
         except (json.JSONDecodeError, KeyError):  # SILENTBENIGN - malformed reply
             pass
 
-    except Exception:  # SILENTBENIGN - best-effort BLAST annotation
-        pass
+    except Exception as exc:  # best-effort BLAST annotation
+        warnings.warn(
+            f"NCBI BLAST annotation failed; falling back offline: {exc}",
+            stacklevel=2,
+        )
     finally:
         tmp_fasta.unlink(missing_ok=True)
 
@@ -456,11 +495,6 @@ def _extract_ec_from_blast_title(title: str) -> str | None:
 
     # UniProt format: "recName: Full=... EC=x.x.x.x"
     match = re.search(r"EC[:\s]+(\d+\.\d+\.\d+\.\d+)", title)
-    if match:
-        return match.group(1)
-
-    # KEGG format: "EC:x.x.x.x"
-    match = re.search(r"\bEC:(\d+\.\d+\.\d+\.\d+)\b", title)
     if match:
         return match.group(1)
 
@@ -485,6 +519,12 @@ def _annotate_via_uniprot_sequence(
     import urllib.request
 
     annotations: dict[str, GeneAnnotation] = {}
+    warned = False
+
+    # Offline mode (CI): never hit UniProt, fall back with explicit warning
+    if _network_offline():
+        _warn_offline("UniProt sequence search")
+        return annotations
 
     # Process in small batches
     items = list(proteins.items())[:10]
@@ -526,7 +566,13 @@ def _annotate_via_uniprot_sequence(
 
             time.sleep(0.3)
 
-        except Exception:
+        except Exception as exc:
+            if not warned:
+                warnings.warn(
+                    f"UniProt sequence search failed; falling back offline: {exc}",
+                    stacklevel=2,
+                )
+                warned = True
             continue
 
     return annotations

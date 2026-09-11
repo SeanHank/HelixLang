@@ -697,7 +697,7 @@ class CenturyPools:
                 for dst, frac in t.items():
                     if dst == "respired":
                         resp += decayed * frac
-                    elif dst in pools:
+                    else:
                         transfers[dst] = transfers.get(dst, 0.0) + decayed * frac
         for dst, amount in transfers.items():
             pools[dst] += amount
@@ -1080,8 +1080,7 @@ class Patch:
         """
         bio_n = 0.0
         for sname, sp in self.species.items():
-            if sname in self.biomass:
-                bio_n += self.total_biomass_of(sname) / max(sp.cn_ratio, 1e-30)
+            bio_n += self.total_biomass_of(sname) / max(sp.cn_ratio, 1e-30)
         return (self.nitrogen.nh4_mm + self.nitrogen.no3_mm
                 + bio_n + self._som_n)
 
@@ -1227,10 +1226,9 @@ class Patch:
                             growth_c = g * bx * consumption_ratio
                             # CO2 produced by FBA (positive EX_co2_e
                             # flux), scaled by consumption ratio.
-                            if "co2" in self.fields and _fba_fluxes:
-                                co2_flux = max(
-                                    0.0, _fba_fluxes.get("EX_co2_e", 0.0))
-                                if co2_flux > 0 and g_c > 0:
+                            co2_flux = max(
+                                0.0, _fba_fluxes.get("EX_co2_e", 0.0))
+                            if co2_flux > 0 and g_c > 0:
                                     co2_rate = (co2_flux * _H_PER_TICK
                                                 * g / g_c * bx
                                                 * consumption_ratio)
@@ -1274,10 +1272,9 @@ class Patch:
                     sec_total = 0.0
                     gem_active = is_fba and g_c > 0
                     for sub, rate in sp.secretion.items():
-                        if sub in self.fields:
-                            sec = rate * bx if not gem_active else 0.0
-                            self.fields[sub].add(x, y, sec)
-                            sec_total += sec * self._cpm(sub)
+                        sec = rate * bx if not gem_active else 0.0
+                        self.fields[sub].add(x, y, sec)
+                        sec_total += sec * self._cpm(sub)
                     if sec_total > 0.0:
                         self.nitrogen.excrete(sec_total / sp.cn_ratio)
                     new = (bx * (1.0 - sp.maintenance)
@@ -1517,8 +1514,7 @@ class Patch:
             c_units = removed * cpm
             respired = c_units * (1.0 - traits.yield_c)
             if respired > 0.0:
-                if "co2" in self.fields:
-                    self.fields["co2"].add(x, y, respired)
+                self.fields["co2"].add(x, y, respired)
                 if "oxygen" in self.fields:
                     self.fields["oxygen"].deplete(x, y, respired)
                 self.respired_c[sp.name] += respired
@@ -1545,9 +1541,7 @@ class Patch:
                 self._add_biomass(pred_name, gain)
                 self.predation_c[pred_name] += gain
                 self.respired_c[pred_name] += eaten * (1.0 - conversion)
-                if "co2" in self.fields:
-                    self.fields["co2"].add(
-                        0, 0, eaten * (1.0 - conversion))
+                self.fields["co2"].add(0, 0, eaten * (1.0 - conversion))
                 # the C respired from prey carries N (egestion/excretion,
                 # closes the trophic N loop at equal C:N ratios)
                 prey_sp = self.species.get(prey_name)
@@ -2069,8 +2063,7 @@ def build_multi_species_ecosystem(
         consumption: dict[str, tuple[float, float]] = {}
         vmax = float(params.get("vmax", 0))
         ks = float(params.get("ks", 0.1))
-        if vmax > 0:
-            consumption[primary_sub] = (vmax, ks)
+        consumption[primary_sub] = (vmax, ks)
 
         # Photoautotrophs
         is_photo = primary_sub == "co2"
@@ -2091,7 +2084,7 @@ def build_multi_species_ecosystem(
         )
         # Propagate secretion from FBA
         secretion = params.get("secretion")
-        if isinstance(secretion, dict):
+        if secretion is not None:
             sp.secretion.update(secretion)
 
         species_list.append(sp)

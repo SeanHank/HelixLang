@@ -44,6 +44,9 @@ def test_for_table_derives_everything():
         # translation never leaks codons the table does not define
         assert set(cfg.translation) <= set(table)
 
+    # repr() reflects the table and bounds sets
+    assert "standard" in repr(LanguageConfig.for_table("standard"))
+
 
 def test_config_known_boundary_sets():
     std = LanguageConfig.for_table("standard")

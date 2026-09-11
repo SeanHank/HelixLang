@@ -266,6 +266,33 @@ def test_flow_field_spreads_into_solid_cells() -> None:
     assert abs(u_arr[9, 7, 9]) < 1e-3
 
 
+def test_flow_field_fully_solid_interior_no_spread() -> None:
+    # A domain whose entire interior is solid has no fluid neighbours:
+    # the 26-offset loop hits the empty-mask continue and, with nothing
+    # open, the spread loop breaks after the first pass (261->262, 268->269).
+    depth, height, width = 6, 6, 6
+    lbm = LatticeBoltzmann3D(width, height, depth, omega=1.0, closed=True)
+    occ = np.full((depth, height, width), True)
+    lbm.set_occupancy(occ)
+    field = lbm.flow_field(substeps=3)
+    assert (field.width, field.height, field.depth) == (width, height, depth)
+    assert np.asarray(field.u).shape == (depth, height, width)
+
+
+def test_open_channel_array_inlet_profile() -> None:
+    # An open (non-periodic) channel with a 2-D array inlet velocity uses
+    # the array-profile branch in _apply_inlet (line 411).
+    depth, height, width = 5, 5, 10
+    profile = np.full((depth, height), 0.4)
+    lbm = LatticeBoltzmann3D(
+        width, height, depth, omega=1.0,
+        inlet_velocity=profile, inlet_density=1.0, outlet_density=1.0)
+    lbm.run(3)
+    u, _, _ = lbm.velocity_fields()
+    assert u.shape == (depth, height, width)
+    assert not np.isnan(u).any()
+
+
 def test_run_advances_and_observables() -> None:
     lbm = LatticeBoltzmann3D(12, 12, 12, omega=1.0, closed=True)
     lbm.run(5)

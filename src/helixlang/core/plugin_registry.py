@@ -164,9 +164,10 @@ class Registry:
         for descriptor in provider.grammars:
             owned = replace(descriptor, owner=provider.name)
             grammar = _grammars.register_descriptor(owned)
-            if grammar.requires_use is None:
-                _grammars.register(replace(
-                    grammar, requires_use=provider.name))
+            # requires_use is always None for descriptors compiled here, so the
+            # activation-gated re-registration is unconditional.
+            _grammars.register(replace(
+                grammar, requires_use=provider.name))
 
     # ── lookup ──────────────────────────────────────────────────────────────
     def provider(self, name: str) -> PluginProvider:

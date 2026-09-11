@@ -303,8 +303,7 @@ class Lexer:
         self._advance()                      # backslash
         if self.pos < len(self.src) and self.src[self.pos] == '\r':
             self._advance()                  # CR (CRLF line ending)
-        if self.pos < len(self.src) and self.src[self.pos] == '\n':
-            self._advance(newline=True)      # newline (updates line/col)
+        self._advance(newline=True)          # newline (updates line/col)
         while self.pos < len(self.src) and self.src[self.pos] in ' \t':
             self._advance()                  # next line's indentation
 

@@ -32,6 +32,7 @@ KNOWN_FLAGS = (
     "--pure-python",    # use a pure-Python implementation even if a native one exists
     "--approx-euler",   # use the approximate fixed-step Euler integrator (vs adapative)
     "--low-fidelity",   # allow reduced-fidelity scientific models when deps are missing
+    "native",           # prefer a native (accelerated) implementation when available
 )
 
 # Flags that may NOT be combined because they are contradictory.

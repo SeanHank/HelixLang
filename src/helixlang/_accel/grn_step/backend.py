@@ -61,5 +61,3 @@ def step_mixed(levels, src, dst, weights, decays, thresholds, default_decay,
                               default_decay, hill_ns, kds)
     return impl_python.step_mixed(levels, src, dst, weights, decays, thresholds,
                                   default_decay, hill_ns, kds)
-    return impl_python.step_mixed(levels, src, dst, weights, decays, thresholds,
-                                  default_decay, hill_ns, kds)

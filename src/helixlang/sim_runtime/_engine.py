@@ -731,8 +731,6 @@ def _attach_gem_to_ecosystem_species(
                 ]
                 model = None
                 for org in org_candidates:
-                    if not org:
-                        continue
                     try:
                         model = build_functional_model_full(
                             organism=org, medium=medium_name)
@@ -1082,13 +1080,12 @@ def _add_gem_transport_reactions(model: Any) -> None:
         if len(met_set) >= 2:
             if rxn_id not in model.reactions:
                 filtered = {k: v for k, v in stoich.items() if k in model.metabolites}
-                if filtered:
-                    model.add_reaction(Reaction(
-                        id=rxn_id, name=rxn_id,
-                        stoichiometry=filtered,
-                        lower_bound=-1000.0, upper_bound=1000.0,
-                        subsystem="transport",
-                    ))
+                model.add_reaction(Reaction(
+                    id=rxn_id, name=rxn_id,
+                    stoichiometry=filtered,
+                    lower_bound=-1000.0, upper_bound=1000.0,
+                    subsystem="transport",
+                ))
 
     # ── 5. Add biomass-precursor transport (e → internal) ───────────
     for ext_met, int_met in _BIOMASS_TRANSPORT:

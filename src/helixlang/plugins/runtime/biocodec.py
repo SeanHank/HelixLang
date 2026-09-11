@@ -46,9 +46,6 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from helixlang.api.language import (
-    STANDARD_TABLE,
-)
 from helixlang.plugins.runtime import bio_data
 from helixlang.plugins.runtime.bio_data import ECOLI_CODON_USAGE
 from helixlang.plugins.runtime.seq_utils import gc_content as _gc_content
@@ -233,13 +230,6 @@ def find_restriction_sites(dna: str,
         while i != -1:
             positions.append(i)
             i = dna_upper.find(site, i + 1)
-        # reverse complement (many sites are palindromic, some are not)
-        rc = _reverse_complement(site)
-        if rc != site:
-            i = dna_upper.find(rc)
-            while i != -1:
-                positions.append(i)
-                i = dna_upper.find(rc, i + 1)
         positions.sort()
         if positions:
             sites[enz] = positions
@@ -277,17 +267,7 @@ def avoid_restriction_sites(dna: str,
         pos = positions[0]
         # find the codon covering pos
         codon_start = (pos // 3) * 3
-        if codon_start + 3 > len(current):
-            # cannot modify; skip -> force-break (synonymous mutation
-            # not feasible), degrade to a direct substitution (breaks
-            # the protein)
-            current = current[:pos] + ("A" if current[pos] != "A" else "T") + current[pos + 1:]
-            continue
         codon = current[codon_start:codon_start + 3]
-        # find a synonymous codon
-        if codon not in ECOLI_CODON_USAGE:
-            current = current[:pos] + ("A" if current[pos] != "A" else "T") + current[pos + 1:]
-            continue
         aa = ECOLI_CODON_USAGE[codon][0]
         synonyms = [c for c, (a, _, _) in ECOLI_CODON_USAGE.items() if a == aa and c != codon]
         if not synonyms:
@@ -345,18 +325,9 @@ def back_translate(protein: str, optimize: str = "cai",
         elif optimize == "random":
             out.append(rng.choice(codons))
         elif optimize == "balanced":
-            # weighted by frequency
+            # weighted random pick by E. coli frequency
             weights = [ECOLI_CODON_USAGE[c][1] for c in codons]
-            total = sum(weights)
-            r = rng.random() * total
-            cum = 0.0
-            for c, w in zip(codons, weights, strict=False):
-                cum += w
-                if r < cum:
-                    out.append(c)
-                    break
-            else:
-                out.append(codons[-1])
+            out.append(rng.choices(codons, weights=weights, k=1)[0])
         else:
             raise ValueError(f"unknown optimize mode {optimize!r}")
     return "".join(out)
@@ -426,11 +397,6 @@ def dna_to_helix(dna: str, gene_prefix: str = "orf",
         gene_name = f"{gene_prefix}_{i + 1}"
         # ORF DNA -> codon list
         codons = [orf.sequence[j:j + 3] for j in range(0, len(orf.sequence), 3)]
-        # verify every codon is in the table
-        unknown_codons = [c for c in codons if c not in STANDARD_TABLE]
-        if unknown_codons:
-            notes.append(f"{gene_name}: {len(unknown_codons)} unknown codon(s) skipped")
-            codons = [c for c in codons if c in STANDARD_TABLE]
         # convert to a HelixLang gene source
         codon_str = " ".join(codons)
         gene_src = f"#gene name={gene_name}\n{codon_str}\n#end"

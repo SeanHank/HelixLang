@@ -54,6 +54,46 @@ def test_section_ids_and_owner_routing():
     assert ext.extension_for("grid", "8").id == "core"   # #sim long-tail
 
 
+def test_owned_key_falls_back_to_core_open():
+    from helixlang.core.extensions import ExtensionSection
+
+    core = ExtensionSection(id="core", store={}, open_=True)
+    assert core.owns_key("anything", 3)
+
+
+def test_non_core_key_is_owned_by_open_fallback():
+    prog = parse(HUMAN_SRC)
+    assert prog.extensions.extension_for("custom_anything", "v").id == "core"
+
+
+def test_extension_unknown_section_raises():
+    prog = parse(HUMAN_SRC)
+    with pytest.raises(KeyError):
+        prog.extensions.extension("nope")
+
+
+def test_store_missing_attribute_names():
+    prog = parse(HUMAN_SRC)
+    with pytest.raises(AttributeError):
+        _ = prog.extensions._private
+    with pytest.raises(AttributeError):
+        _ = prog.extensions.no_such_section
+
+
+def test_store_to_dict():
+    prog = parse(HUMAN_SRC)
+    d = prog.extensions.to_dict()
+    assert set(d) == {"core", "gem", "human", "population"}
+    assert "person_age" in d["human"]
+
+
+def test_append_to_existing_list():
+    prog = parse(HUMAN_SRC)
+    h = prog.extensions.human
+    h.append("drugs", {"name": "extra"})
+    assert len(h.get("drugs")) == 2
+
+
 def test_typed_attribute_access():
     prog = parse(HUMAN_SRC)
     human = prog.extensions.human

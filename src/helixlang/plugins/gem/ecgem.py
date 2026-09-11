@@ -201,15 +201,17 @@ class ECGEMBuilder:
                 ))
         produced_mets: set[str] = set()
         consumed_mets: set[str] = set()
+        # Every reaction in ``added_rxns`` came from a ``_EC_TO_REACTION``
+        # entry, so an info record is guaranteed to exist for each one.
+        info_by_id: dict[str, dict[str, Any]] = {}
+        for info in _EC_TO_REACTION.values():
+            info_by_id.setdefault(info["id"], info)
         for rxn_id in added_rxns:
-            for info in _EC_TO_REACTION.values():
-                if info["id"] == rxn_id:
-                    for met, coeff in info.get("stoich", {}).items():
-                        if coeff > 0:
-                            produced_mets.add(met)
-                        elif coeff < 0:
-                            consumed_mets.add(met)
-                    break
+            for met, coeff in info_by_id[rxn_id].get("stoich", {}).items():
+                if coeff > 0:
+                    produced_mets.add(met)
+                elif coeff < 0:
+                    consumed_mets.add(met)
         for met in consumed_mets:
             model.add_reaction(Reaction(
                 id=f"EX_{met}", name=f"EX_{met}",
@@ -234,14 +236,15 @@ class ECGEMBuilder:
             if not biomass_mets:
                 for met in produced_mets:
                     biomass_mets[met] = -0.5
-            if added_rxns:
-                model.add_reaction(Reaction(
-                    id="BIOMASS", name="BIOMASS",
-                    stoichiometry=biomass_mets,
-                    lower_bound=0.0, upper_bound=1000.0,
-                    subsystem="biomass",
-                ))
-                model.set_biomass("BIOMASS")
+            # ``produced_mets`` is only populated from ``added_rxns``, so the
+            # set is guaranteed non-empty here.
+            model.add_reaction(Reaction(
+                id="BIOMASS", name="BIOMASS",
+                stoichiometry=biomass_mets,
+                lower_bound=0.0, upper_bound=1000.0,
+                subsystem="biomass",
+            ))
+            model.set_biomass("BIOMASS")
         return model
 
     def build(self) -> ECGEMResult:

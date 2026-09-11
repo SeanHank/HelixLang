@@ -282,7 +282,7 @@ HelixLang/
 │   ├── 07_evolution.helix            # Evolution simulation
 │   ├── 08_epigenetics.helix          # Epigenetic regulation
 │   └── ... (52 more examples)
-└── tests/                            # Verification tests (108 files, 2,984+ test functions)
+└── tests/                            # Verification tests (222 files, 6,980+ test functions)
     ├── test_codon_table.py
     ├── test_lexer.py
     ├── test_parser.py

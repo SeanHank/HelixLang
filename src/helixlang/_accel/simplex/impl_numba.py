@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import math
 
-try:  # pragma: no cover - numba is optional
+try:
     from numba import njit
-except ImportError:  # pragma: no cover - numba is optional
+except ImportError:
     njit = None
 
 _EPS = 1e-9
@@ -86,13 +86,13 @@ def _run_nb(tableau, basis, n_rows, n_vars, obj, eps, max_iter, rhs_col,
 
 if njit is not None:
     _RUN_NB = njit(cache=True)(_run_nb)
-else:  # pragma: no cover - exercised only in pure-wheel-without-numba CI
+else:
     _RUN_NB = _run_nb
 
 
 def run(tableau, basis, obj, n_vars, eps=_EPS, max_iter=10000, forbidden=None):
     """See ``backend`` docstring.  Mutates ``tableau``/``basis`` in place."""
-    if njit is None:  # pragma: no cover - numba is optional
+    if njit is None:
         raise RuntimeError(
             "numba is required for the numba simplex stack but is not installed"
         )

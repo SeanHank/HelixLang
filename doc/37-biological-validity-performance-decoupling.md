@@ -40,8 +40,9 @@ This document covers four interconnected objectives:
 
 ### 2.1 Problem Statement
 
-Current validation (doc/00–36, `validation/`) has 67 benchmarks, but only ~8 perform
-true quantitative comparison against published data. The remaining ~59 are boolean
+Current validation (`validation/`) has 85 benchmarks; the 2026-09-02 tier audit
+(doc/42) classifies them L1×48 · L2×7 · L3×16 · L4×14 · L5×0, so 30 (L3+L4) perform
+true quantitative comparison against published data. The remaining ~55 are boolean
 checks (does the API exist? does it import?). There is no systematic framework for:
 
 - Detecting when simulation input falls outside the reference data domain

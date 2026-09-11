@@ -168,6 +168,9 @@ def infer_expression(
         for entry in targets:
             all_genes.add(entry[0])  # tf_id
             # target is the key of tf_effects
+    # A target that is not itself a registered TF and has no annotation entry
+    # must still have its expression inferred — its id is the key of tf_effects.
+    all_genes.update(model.tf_effects.keys())
 
     # Default TF levels (assume all TFs at basal level)
     tf_levels: dict[str, float] = {}

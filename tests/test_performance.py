@@ -312,3 +312,278 @@ class TestVMProfilerCounters:
         assert result.accel_ops == 0
         assert result.ops_executed > 0
         assert result.ops_per_sec > 0
+
+
+# ============================================================================
+# _segment_admissible edge cases
+# ============================================================================
+class TestSegmentAdmissibleEdgeCases:
+    def test_pop_empty_stack_returns_none(self) -> None:
+        """POP with kernel-stack depth=0 → inadmissible."""
+        from helixlang.core.performance import _segment_admissible
+        code = bytes([0x21])  # just POP
+        assert _segment_admissible(code, 0, 1, n_consts=10) is None
+
+    def test_pop_at_depth_one_succeeds(self) -> None:
+        """PUSH_CONST + POP is admissible."""
+        from helixlang.core.performance import _segment_admissible
+        # PUSH_CONST 0x00, POP
+        code = bytes([0x20, 0x00, 0x21])
+        assert _segment_admissible(code, 0, 3, n_consts=10) == 2
+
+    def test_add_needs_two_values(self) -> None:
+        """ADD with depth < 2 → inadmissible."""
+        from helixlang.core.performance import _segment_admissible
+        # PUSH_CONST 0, ADD  (depth=1 when ADD reached)
+        code = bytes([0x20, 0x00, 0x90])
+        assert _segment_admissible(code, 0, 3, n_consts=10) is None
+
+    def test_halt_only_segment(self) -> None:
+        """HALT-only segment is admissible."""
+        from helixlang.core.performance import _segment_admissible
+        code = bytes([0x11])
+        assert _segment_admissible(code, 0, 1, n_consts=10) == 1
+
+    def test_push_const_out_of_range_returns_none(self) -> None:
+        """PUSH_CONST with operand >= n_consts → inadmissible."""
+        from helixlang.core.performance import _segment_admissible
+        # PUSH_CONST 0x05 but n_consts=2
+        code = bytes([0x20, 0x05])
+        assert _segment_admissible(code, 0, 2, n_consts=2) is None
+
+    def test_push_const_at_seg_end_returns_none(self) -> None:
+        """PUSH_CONST whose operand byte is past seg_end → inadmissible."""
+        from helixlang.core.performance import _segment_admissible
+        # Segment covers only the opcode byte, not the operand
+        code = bytes([0x20])
+        assert _segment_admissible(code, 0, 1, n_consts=10) is None
+
+    def test_empty_segment_returns_zero(self) -> None:
+        """Empty segment [start, start) → 0 ops."""
+        from helixlang.core.performance import _segment_admissible
+        code = bytes([0x11])
+        assert _segment_admissible(code, 0, 0, n_consts=10) == 0
+
+
+# ============================================================================
+# accelerated_execute_pending edge cases
+# ============================================================================
+class TestAcceleratedExecuteEdgeCases:
+    def _make_vm(self, simple_program, *, code_ops=None):
+        """Helper: build a minimal VM with a hand-crafted chunk."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        if code_ops is None:
+            chunk.emit(Op.OP_START)
+            chunk.emit(Op.OP_PUSH_CONST, c0)
+            chunk.emit(Op.OP_HALT)
+        else:
+            for op, *args in code_ops:
+                chunk.emit(op, *args)
+        return CellVM(chunk, simple_program)
+
+    def test_quota_zero_returns_immediately(self, simple_program) -> None:
+        """ops_per_tick=0 → function returns without execution."""
+        vm = self._make_vm(simple_program)
+        vm.program.config.ops_per_tick = 0
+        accelerated_execute_pending(vm)
+        assert vm.ops_executed == 0
+
+    def test_import_failure_falls_back_to_python(self, monkeypatch,
+                                                  simple_program) -> None:
+        """run_quota import failure → can_accel=False → Python dispatch."""
+        import sys
+        import types
+        fake = types.ModuleType('helixlang._accel.dispatch.backend')
+        monkeypatch.setitem(sys.modules,
+                            'helixlang._accel.dispatch.backend', fake)
+        vm = self._make_vm(simple_program)
+        from helixlang.core.vm import Frame
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        accelerated_execute_pending(vm)
+        assert vm.ops_executed > 0
+
+    def test_too_many_frames_clears_and_breaks(self, simple_program) -> None:
+        """len(frames) > 256 → frames.clear() + break."""
+        from helixlang.core.vm import Frame
+        vm = self._make_vm(simple_program)
+        vm.frames = [Frame(return_ip=0, gene_name="gfp") for _ in range(257)]
+        accelerated_execute_pending(vm)
+        assert vm.frames == []
+
+    def test_ip_past_code_with_remaining_frames(self, simple_program) -> None:
+        """ip >= len(code) with frames → pop frame, resume at return_ip."""
+        from helixlang.core.vm import Frame
+        vm = self._make_vm(simple_program)
+        vm.ip = len(vm.chunk.code) + 1
+        vm.frames = [
+            Frame(return_ip=0, gene_name="gfp"),
+            Frame(return_ip=0, gene_name="gfp"),
+        ]
+        accelerated_execute_pending(vm)
+        assert len(vm.frames) == 1
+        assert vm.ip == 0
+
+    def test_ip_past_code_no_remaining_frames(self, simple_program) -> None:
+        """ip >= len(code) with one frame → pop, break (no resume)."""
+        from helixlang.core.vm import Frame
+        vm = self._make_vm(simple_program)
+        vm.ip = len(vm.chunk.code) + 1
+        vm.frames = [Frame(return_ip=0, gene_name="gfp")]
+        accelerated_execute_pending(vm)
+        assert vm.frames == []
+
+    def test_continue_after_accel_reaches_code_end(self, simple_program) -> None:
+        """Accel segment consumes code to end → continue → frame pop."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM, Frame
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        # No OP_START — just simple ops so the whole code is one native segment
+        chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_POP)
+        vm = CellVM(chunk, simple_program)
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        accelerated_execute_pending(vm)
+        assert vm.accel_native_ops == 2
+        assert vm.frames == []
+
+    def test_unknown_opcode_raises(self, simple_program) -> None:
+        """Unknown opcode byte → UnknownOpcodeError (strict runtime error)."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.errors import UnknownOpcodeError
+        from helixlang.core.vm import CellVM, Frame
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        chunk.emit(Op.OP_PUSH_CONST, c0)   # positions 0-1
+        chunk.code.append(0xFF)              # position 2: unknown opcode
+        chunk.emit(Op.OP_HALT)              # position 3
+        vm = CellVM(chunk, simple_program)
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        with pytest.raises(UnknownOpcodeError):
+            accelerated_execute_pending(vm)
+
+    def test_debug_prints_to_stdout(self, simple_program, capsys) -> None:
+        """vm.debug=True → debug info printed for each op."""
+        from helixlang.core.vm import Frame
+        vm = self._make_vm(simple_program)
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        vm.debug = True
+        accelerated_execute_pending(vm)
+        captured = capsys.readouterr()
+        assert "[tick=" in captured.out
+        assert "PUSH_CONST" in captured.out or "START" in captured.out
+
+    def test_seg_ops_exceeds_quota_breaks(self, simple_program) -> None:
+        """Segment with more ops than remaining quota → break (no accel)."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM, Frame
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        # 5 PUSH_CONST ops = 10 native ops (> small quota of 3)
+        for _ in range(5):
+            chunk.emit(Op.OP_PUSH_CONST, c0)
+        chunk.emit(Op.OP_HALT)
+        vm = CellVM(chunk, simple_program)
+        vm.program.config.ops_per_tick = 3
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        accelerated_execute_pending(vm)
+        # Segment had 11 ops (10 PUSH_CONST + 1 HALT) > quota=3, so
+        # the accelerator breaks and falls back to Python dispatch for the
+        # remaining quota.
+        assert vm.ops_executed >= 3
+
+    def test_non_simple_segment_gap_breaks(self, simple_program) -> None:
+        """Non-simple op between simple segments → for-loop break (gap)."""
+        from helixlang.core.bytecode import Chunk
+        from helixlang.core.codon_table import Op
+        from helixlang.core.vm import CellVM, Frame
+        chunk = Chunk()
+        chunk.gene_offsets["gfp"] = 0
+        c0 = chunk.add_constant(1.0)
+        chunk.emit(Op.OP_START)              # non-simple (not in _SIMPLE_OPS)
+        chunk.emit(Op.OP_PUSH_CONST, c0)     # simple segment starts here
+        chunk.emit(Op.OP_HALT)
+        vm = CellVM(chunk, simple_program)
+        vm.frames.append(Frame(return_ip=0, gene_name="gfp"))
+        accelerated_execute_pending(vm)
+        # OP_START dispatched in Python (1 op), then accel handles
+        # PUSH_CONST+HALT if they form an admissible segment starting at ip=1.
+        assert vm.ops_executed > 0
+
+
+# ============================================================================
+# VMProfiler edge cases
+# ============================================================================
+class TestVMProfilerEdgeCases:
+    def test_tracemalloc_enabled(self, simple_program) -> None:
+        """enable_tracemalloc=True → start/stop tracemalloc, record peak."""
+        import tracemalloc
+        if tracemalloc.is_tracing():
+            tracemalloc.stop()
+        profiler = VMProfiler(enable_tracemalloc=True)
+        result = profiler.profile(simple_program, max_ticks=5)
+        assert result.peak_memory_bytes >= 0
+        assert not tracemalloc.is_tracing()
+
+    def test_tracemalloc_already_running(self, simple_program) -> None:
+        """tracemalloc already running → don't restart, just read peak."""
+        import tracemalloc
+        tracemalloc.start()
+        profiler = VMProfiler(enable_tracemalloc=True)
+        result = profiler.profile(simple_program, max_ticks=5)
+        assert result.peak_memory_bytes >= 0
+        assert tracemalloc.is_tracing()
+        tracemalloc.stop()
+
+    def test_snapshot_interval_override(self, simple_program) -> None:
+        """snapshot_interval kwarg → custom downsampler interval."""
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=10,
+                                  snapshot_interval=5)
+        assert result.ticks_executed == 10
+
+    def test_zero_runtime_skips_rates(self, monkeypatch, simple_program) -> None:
+        """vm_run_time_ms=0 → ticks_per_sec and ops_per_sec stay at 0."""
+        import time
+        monkeypatch.setattr(time, 'perf_counter', lambda: 0.0)
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=5)
+        assert result.vm_run_time_ms == 0.0
+        assert result.ticks_per_sec == 0.0
+        assert result.ops_per_sec == 0.0
+
+    def test_to_dict_roundtrip(self, simple_program) -> None:
+        """VMProfileResult.to_dict returns correct structure."""
+        import json
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=10)
+        d = result.to_dict()
+        assert isinstance(d, dict)
+        assert "compile_time_ms" in d
+        assert "vm_run_time_ms" in d
+        assert "ticks_executed" in d
+        assert "ops_executed" in d
+        assert "accel_used" in d
+        assert "component_times" in d
+        # Verify JSON-serializable
+        json.dumps(d)
+
+    def test_component_times_recorded(self, simple_program) -> None:
+        """profile() records compile and vm_run component times."""
+        profiler = VMProfiler(enable_tracemalloc=False)
+        result = profiler.profile(simple_program, max_ticks=5)
+        assert "compile" in result.component_times
+        assert "vm_run" in result.component_times
+        assert result.component_times["compile"] >= 0
+        assert result.component_times["vm_run"] >= 0

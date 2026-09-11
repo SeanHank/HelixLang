@@ -33,6 +33,8 @@ from helixlang.plugins.runtime.crispr import (
     PAMIndex,
     _gc_content,
     _hsu_score,
+    _on_target_score_simplified,
+    _pam_to_strictness_key,
     _reverse_complement,
     _sample_indel,
     cut_dna,
@@ -803,3 +805,151 @@ class TestPAMIndex:
         results = off_target_score_indexed(guide, index, max_mismatches=3)
         assert len(results) >= 1
         assert results[0].mismatches == 1
+
+
+# ============================================================================
+# Coverage gap closures
+# ============================================================================
+
+class TestCoverageEdgeCases:
+    def test_find_pam_sites_unknown_cas_raises(self):
+        with pytest.raises(BioError):
+            find_pam_sites("ACGT" * 10, "NonExistentCas")
+
+    def test_find_pam_sites_pam_at_start(self):
+        # PAM right at base 0 for a 3prime Cas -> spacer_start < 0 -> skip
+        sites = find_pam_sites("CGG" + "A" * 30, "SaCas9", both_strands=False)
+        assert len(sites) == 0 or all(s["position"] >= 20 for s in sites)
+
+    def test_design_guide_unknown_cas_raises(self):
+        with pytest.raises(BioError):
+            design_guide("ACGT" * 20, "NonExistentCas", position=0)
+
+    def test_simplified_score_variants(self):
+        g_empty = GuideRNA("", "AGG", "3prime", "SpCas9", 0, "+")
+        assert _on_target_score_simplified(g_empty) == 0.0
+        g_mid = GuideRNA("ACGATCGTACGTACGTACGA", "AGG", "3prime", "SpCas9", 0, "+")  # gc ~0.4
+        g_high = GuideRNA("GCGCGCGCGCCCGCGCGCGCG", "AGG", "3prime", "SpCas9", 0, "+")  # gc ~0.95
+        assert 0.0 <= _on_target_score_simplified(g_mid) <= 1.0
+        assert 0.0 <= _on_target_score_simplified(g_high) <= 1.0
+        g_tttt = GuideRNA("ACGTTTTTACGTACGTACGT", "AGG", "3prime", "SpCas9", 0, "+")
+        s_tt = _on_target_score_simplified(g_tttt)
+        assert 0.0 <= s_tt <= 1.0
+        # gc mid-bucket (0.30-0.40 / 0.70-0.80)
+        g_lo = GuideRNA("GGGGGGGAAAAAAAAAAAAA", "AGG", "3prime", "SpCas9", 0, "+")  # gc 0.35
+        g_hi = GuideRNA("GGGGGGGGGGGGGGGAAAAA", "AGG", "3prime", "SpCas9", 0, "+")  # gc 0.75
+        assert 0.0 <= _on_target_score_simplified(g_lo) <= 1.0
+        assert 0.0 <= _on_target_score_simplified(g_hi) <= 1.0
+
+    def test_hsu_exact_match_with_and_without_pam(self):
+        with_pam = _hsu_score([], 20, pam="NGG")
+        assert with_pam == 1.0
+        without_pam = _hsu_score([], 20)
+        assert without_pam == 1.0
+
+    def test_off_target_very_high_mismatch_below_threshold(self):
+        spacer_off = "TGCATGCATGCATGCATGCA"  # differs in every base from guide
+        dna = spacer_off + "TGG" + "A" * 30
+        guide = GuideRNA("ACGTACGTACGTACGTACGT", "AGG", "3prime", "SpCas9", 0, "+")
+        # 20 mismatches -> hsu score ~3.8e-6 < 0.01 -> filtered out (continue)
+        ots = off_target_score(guide, dna, max_mismatches=20)
+        assert ots == []
+
+    def test_index_very_high_mismatch_below_threshold(self):
+        # with K=10 (2 buckets) and max_mismatches=1, an index search runs and a
+        # single PAM-distal mismatch drives the hsu score below 0.01 -> filtered
+        guide_sp = "ACGTACGTACGTACGTACGT"
+        cand = "T" + guide_sp[1:]
+        dna = cand + "TGG" + "A" * 30
+        guide = GuideRNA(guide_sp, "AGG", "3prime", "SpCas9", 0, "+")
+        index = PAMIndex(dna, "SpCas9", K=10)
+        results = off_target_score_indexed(guide, index, max_mismatches=1)
+        assert results == []
+
+    def test_edit_gene_hdr_and_nhej_outcomes(self):
+        spacer = "ACGTACGTACGTACGTACGT"
+        dna = spacer + "TGG" + "A" * 20
+        hdr = edit_gene(dna, target_position=20, new_sequence="GGGG",
+                        rng=random.Random(31))
+        assert hdr.edit_type == "HDR" and hdr.success
+        nhej = edit_gene(dna, target_position=20, new_sequence="GGGG",
+                         rng=random.Random(0))
+        assert nhej.edit_type == "NHEJ" and nhej.success
+
+    def test_sample_indel_out_of_range_random_loops_to_end(self):
+        # a random() draw above the cumulative sum makes the selection loop
+        # run to natural completion (defaults to 1bp deletion)
+        class HugeRandom:
+            def random(self):
+                return 2.0
+            def randint(self, a, b):
+                return a
+            def choice(self, seq):
+                return seq[0]
+        t, length, offset = _sample_indel(HugeRandom())
+        assert t == "1bp_deletion"
+        assert length == -1
+        assert offset in (-1, 0)
+
+
+    def test_pam_to_strictness_key_short(self):
+        assert _pam_to_strictness_key("GG") == "NGG"
+        assert _pam_to_strictness_key("NGG") == "NGG"
+
+    def test_off_target_different_length_skipped(self):
+        guide = GuideRNA("ACGTACGTACGTACGTACGT", "AGG", "3prime", "SpCas9", 0, "+")
+        dna = "C" * 10 + "TGG" + "A" * 30 + "ACGTACGTACGTACGTACGT" + "AGG" + "A" * 20
+        ots = off_target_score(guide, dna, max_mismatches=3)
+        ots = [o for o in ots if o.position != 0]
+        assert all(o.mismatches == 1 for o in ots)
+
+    def test_pam_index_invalid_k(self):
+        with pytest.raises(BioError):
+            PAMIndex("ACGT" * 20, "SpCas9", K=2)
+        idx = PAMIndex("ACGTACGTACGTACGTACGT", "SpCas9", K=4)
+        assert idx.K == 4
+
+    def test_pam_index_search_wrong_len_return_empty(self):
+        dna = "A" * 5 + "TGG" + "ACGTACGTACGTACGTACGT" + "AGG" + "A" * 30
+        index = PAMIndex(dna, "SpCas9")
+        short = GuideRNA("ACG", "AGG", "3prime", "SpCas9", 0, "+")
+        assert index.search(short, max_mismatches=3) == []
+
+    def test_cut_dna_default_rng_and_out_of_range(self):
+        guide = GuideRNA("ACGTACGTACGTACGTACGT", "CGG", "5prime", "Cas12a", 0, "+")
+        assert cut_dna("ACGT", guide) == "ACGT"
+
+    def test_edit_gene_use_index_false_and_default_rng(self):
+        spacer = "ACGTACGTACGTACGTACGT"
+        dna = spacer + "TGG" + "A" * 20
+        result = edit_gene(dna, target_position=20, new_sequence="GGGG",
+                           use_index=False)
+        assert isinstance(result, EditResult)
+        assert result.original_dna == dna
+        assert isinstance(result.guide, GuideRNA)
+
+    def test_cut_dna_hdr_without_template_no_edit(self):
+        spacer = "ACGTACGTACGTACGTACGT"
+        dna = spacer + "TGG" + "A" * 20
+        guide = design_guide(dna, "SpCas9", position=20)
+        out = cut_dna(dna, guide, repair="HDR", rng=random.Random(0))
+        assert out == dna
+
+    def test_edit_gene_no_edit_via_short_dna(self):
+        spacer = "ACGTACGTACGTACGTACGT"
+        dna = spacer + "TGG" + "A"  # len 24, cut_site 37 >= len
+        guide = design_guide(dna, "SpCas9", position=20)
+        assert guide.target_position + 17 >= len(dna)
+        r = edit_gene(dna, target_position=20, new_sequence="GGGG",
+                      rng=random.Random(0))
+        assert not r.success
+        assert r.edit_type == "no_edit"
+        assert r.edited_dna == dna
+
+    def test_edit_gene_explicit_template(self):
+        spacer = "ACGTACGTACGTACGTACGT"
+        dna = spacer + "TGG" + "A" * 20
+        r = edit_gene(dna, target_position=20, new_sequence="GGGG",
+                      template="CCCC", rng=random.Random(31))
+        assert r.original_dna == dna
+        assert r.edit_type in ("HDR", "NHEJ", "no_edit")

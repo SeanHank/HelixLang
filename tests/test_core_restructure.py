@@ -56,8 +56,15 @@ def test_dependency_error_suggests_flag():
 
 
 def test_abi_and_native_errors():
+    from helixlang.core.errors import HelixError
+
     assert "OPCODE_VERSION" in str(ABIVersionError(5, 4))
     assert "--pure-python" in str(NativeBackendError("failed", rebuild="make"))
+    # NativeBackendError without a rebuild command exercises the empty-rebuild
+    # branch (no extra hint appended).
+    assert "failed" in str(NativeBackendError("failed"))
+    # A codon-indexed error formats its location with a codon annotation.
+    assert "codon #7" in str(HelixError("boom", line=3, col=1, codon_index=7))
 
 
 def test_model_missing():
@@ -89,12 +96,32 @@ def test_parse_use_no_plugin():
 
 
 def test_known_flags_complete():
-    assert {"--pure-python", "--approx-euler", "--low-fidelity"} == set(KNOWN_FLAGS)
+    assert {"--pure-python", "--approx-euler", "--low-fidelity", "native"} == set(
+        KNOWN_FLAGS)
+
+
+def test_parse_use_incompatible_flags_rejected():
+    with pytest.raises(UseError):
+        parse_use_line("grn --pure-python native")
 
 
 def test_parse_use_rejects_invalid_plugin():
     with pytest.raises(UseError):
         parse_use_line("not-a-valid-ident")
+
+
+def test_use_directive_provides():
+
+    d = parse_use_line("grn --pure-python")
+    assert d.provides("--pure-python")
+    assert not d.provides("--low-fidelity")
+
+
+def test_emit_use_statements_renders():
+    from helixlang.core.use_stmt import emit_use_statements
+
+    assert emit_use_statements("grn") == "#use grn"
+    assert emit_use_statements("grn", ("--pure-python",)) == "#use grn --pure-python"
 
 
 # ── plugin registry ─────────────────────────────────────────────────────────
@@ -259,6 +286,36 @@ def test_semantic_known_plugin_ok_and_declares_flag():
     prog = _parse("#use grn --pure-python\n")
     SemanticAnalyzer(prog, registry=r).check()
     assert r.has_capability("--pure-python")
+
+
+def test_semantic_rejects_non_integer_config():
+    from helixlang.core.ast_nodes import Program
+    from helixlang.core.errors import SemanticError
+    from helixlang.core.semantic import SemanticAnalyzer
+
+    p = Program()
+    p.config.ticks = 2.5
+    with pytest.raises(SemanticError, match="ticks"):
+        SemanticAnalyzer(p).check()
+    p2 = Program()
+    p2.config.ops_per_tick = 7.7
+    with pytest.raises(SemanticError, match="ops_per_tick"):
+        SemanticAnalyzer(p2).check()
+
+
+def test_semantic_rejects_malformed_and_dimensionless_type():
+    from helixlang.core.ast_nodes import Program
+    from helixlang.core.errors import SemanticError
+    from helixlang.core.semantic import SemanticAnalyzer
+
+    p = Program()
+    p.type_annotations["x"] = "Float<bogus>"
+    with pytest.raises(SemanticError, match="bogus"):
+        SemanticAnalyzer(p).check()
+    p2 = Program()
+    p2.type_annotations["y"] = "Float<>"
+    with pytest.raises(SemanticError, match="dimensionless"):
+        SemanticAnalyzer(p2).check()
 
 
 def test_apply_use_directives_activates():

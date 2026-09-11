@@ -123,12 +123,28 @@ class TestEndocrineSystem:
         sys.step(1.0)
         assert sys.get_glucose_mg_dl() > 0
         assert sys.get_cortisol_ug_dl() > 0
+        assert sys.get_insulin_uuml() >= 0
+        assert sys.get_tsh() >= 0
 
     def test_diabetes_disease(self):
         sys = create_endocrine(diabetes_severity=0.8)
         for _ in range(48):
             sys.step(1.0)
         assert sys.get_insulin_sensitivity() < 0.5
+
+    def test_ft3_ft4_getters(self):
+        sys = create_endocrine()
+        sys.step(1.0)
+        assert sys.get_ft3() > 0.0
+        assert sys.get_ft4() > 0.0
+
+    def test_hypothyroid_disease(self):
+        sys = create_endocrine()
+        sys.set_disease_state(hypothyroid_severity=0.5)
+        t4_before = sys.get_ft4()
+        for _ in range(10):
+            sys.step(1.0)
+        assert sys.get_ft4() < t4_before
 
 
 # ============================================================================

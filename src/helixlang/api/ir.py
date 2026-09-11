@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 __all__ = ["OperandMode", "OperandSlot", "OperandSchema", "IRExtension"]
 
@@ -32,12 +32,18 @@ class OperandSlot:
 OperandSchema = tuple[OperandSlot, ...]
 
 
-class IRRuntime(Protocol):
-    """The IR interpreter surface an ``execute`` hook drives."""
+class IRRuntime:
+    """The IR interpreter surface an ``execute`` hook drives.
 
-    def read(self, slot: OperandSlot) -> Any: ...
+    Concrete runtimes override ``read``/``write``; these defaults reject an
+    undefined slot so a partially-implemented runtime fails loudly.
+    """
 
-    def write(self, slot: OperandSlot, value: Any) -> None: ...
+    def read(self, slot: OperandSlot) -> Any:
+        raise KeyError(f"slot {slot.name!r} is not defined on this runtime")
+
+    def write(self, slot: OperandSlot, value: Any) -> None:
+        raise KeyError(f"slot {slot.name!r} is read-only on this runtime")
 
 
 @dataclass(frozen=True)

@@ -13,7 +13,7 @@ The design plan in §5 is grounded in the multi-species / multi-population /
 multi-environment modeling literature (mapping table in §5.2).
 
 Target version: 2026.8.3 (48 `.helix` examples, 72 test files, quality gates
-`ruff check src tests` + `mypy` + `pytest --cov-fail-under=80`).
+`ruff check src tests` + `mypy` + `pytest --cov-fail-under=100`).
 
 Landing (Phases A–D): `apps/ecosystem.py` `Species`/`Patch`/`Ecosystem` spine
 (`#sim kind=ecosystem`, `#species`, `#patch`), Levins metapopulation (L7),
@@ -574,7 +574,7 @@ the `ecosystem` backend emits these for `--csv`/`--json` in `cli.py`.
 
 All phases inherit the project gates:
 `ruff check src tests` · `mypy` (src only, `mypy.ini`) ·
-`pytest --cov=helixlang --cov-fail-under=80`.
+`pytest --cov=helixlang --cov-fail-under=100`.
 
 | Phase | Hard gates |
 |---|---|

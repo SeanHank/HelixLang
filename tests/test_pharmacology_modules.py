@@ -15,7 +15,7 @@ from helixlang.plugins.human.bayesian_denoiser import (
     DenoiseResult,
     multi_assay_average,
 )
-from helixlang.plugins.human.calibration_cascade import CalibrationCascade, CascadeResult
+from helixlang.plugins.human.calibration_cascade import CalibrationCascade, CascadeResult, GPLayer
 from helixlang.plugins.human.dose_optimizer import BayesianEstimate, DoseOptimizer, PKProfile
 from helixlang.plugins.human.emergent_complexity import (
     EmergentComplexityModel,
@@ -58,7 +58,9 @@ from helixlang.plugins.human.proteome_binding import (
     ProteomeDDIPrediction,
 )
 from helixlang.plugins.human.reduced_order_organ import (
+    PODMode,
     PODModeGenerator,
+    ReducedOrderOrgan,
 )
 from helixlang.plugins.human.stochastic_ode import (
     SDEConfig,
@@ -317,6 +319,25 @@ class TestSDEEnsemble:
         )
         assert default.trajectories == explicit.trajectories
 
+    def test_default_config_branch(self) -> None:
+        """Omitting config exercises the ``config is None`` default."""
+        dist = solve_sde_ensemble(
+            t_end=1.0, dt=0.5, state0=10.0,
+            drift_fn=_mod_drift, workers=1,
+        )
+        assert isinstance(dist, SDEDistribution)
+
+    def test_empty_ensemble_produces_empty_stats(self) -> None:
+        """n_patients=0 yields empty trajectories (final_vals False branch)."""
+        config = SDEConfig(n_patients=0, seed=0)
+        dist = solve_sde_ensemble(
+            t_end=1.0, dt=0.5, state0=10.0,
+            drift_fn=_mod_drift, config=config, workers=1,
+        )
+        assert dist.trajectories == []
+        assert dist.means == []
+        assert dist.stds == []
+
 
 # =============================================================================
 # Physiology Constraints Tests
@@ -437,6 +458,15 @@ class TestMechanisticDDIPredictor:
         assert len(preds) > 0
         assert all(isinstance(p, DDIPrediction) for p in preds)
 
+    def test_predict_all_pairs_skips_unknown(self) -> None:
+        """Pairs involving an unknown drug are skipped (None branch)."""
+        predictor = MechanisticDDIPredictor()
+        preds = predictor.predict_all_pairs(
+            ["warfarin", "amiodarone", "not_a_real_drug"]
+        )
+        assert all(isinstance(p, DDIPrediction) for p in preds)
+        assert len(preds) == 2
+
 
 # =============================================================================
 # Dose Optimizer Tests
@@ -520,6 +550,28 @@ class TestCalibrationCascade:
         acc = cascade.total_accuracy()
         expected_prior = math.sqrt(sum(l.sigma_prior**2 for l in cascade.layers))
         assert acc == pytest.approx(expected_prior, rel=0.01)
+
+    def test_layer_preserves_positive_posterior(self) -> None:
+        layer = GPLayer("x", input_dim=1, sigma_posterior=0.3)
+        assert layer.sigma_posterior == 0.3
+
+    def test_calibrate_identical_observations(self) -> None:
+        cascade = CalibrationCascade()
+        for _ in range(5):
+            cascade.calibrate_layer(0, predicted=7.0, observed=7.0)
+        layer = cascade.layers[0]
+        assert layer.sigma_posterior >= 0
+
+    def test_calibrate_layer_out_of_range(self) -> None:
+        cascade = CalibrationCascade()
+        assert cascade.calibrate_layer(99, predicted=1.0, observed=1.0) == 0.0
+        assert cascade.calibrate_layer(-1, predicted=1.0, observed=1.0) == 0.0
+
+    def test_predict_out_of_range_returns_result(self) -> None:
+        cascade = CalibrationCascade()
+        result = cascade.predict(99, x=5.0)
+        assert isinstance(result, CascadeResult)
+        assert result.predicted_value == 5.0
 
 
 # =============================================================================
@@ -758,6 +810,24 @@ class TestReducedOrderOrgan:
         mean = brain.get_mean_concentration()
         assert mean == brain.modes[0].amplitude
 
+    def test_empty_modes_return_zero(self) -> None:
+        organ = ReducedOrderOrgan(
+            organ="test", modes=[], decay_rates=[], perfusion_rate=1.0,
+            volume=1.0, baseline_concentration=0.0,
+        )
+        assert organ.get_mean_concentration() == 0.0
+        assert organ.get_gradient() == 0.0
+
+    def test_single_mode_gradient_zero(self) -> None:
+        mode = PODMode(index=0, label="m0", spatial_values=[1.0],
+                       energy_fraction=1.0, amplitude=2.0)
+        organ = ReducedOrderOrgan(
+            organ="test", modes=[mode], decay_rates=[0.1],
+            perfusion_rate=1.0, volume=1.0, baseline_concentration=0.0,
+        )
+        assert organ.get_mean_concentration() == 2.0
+        assert organ.get_gradient() == 0.0
+
 
 # =============================================================================
 # Pharmacogenomic AE Tests (doc/32 §7.6)
@@ -974,6 +1044,16 @@ class TestEpigeneticModulation:
         for gene, mod in mods.items():
             assert 0.5 <= mod <= 1.5, f"{gene} expression {mod} out of range"
 
+    def test_update_inducer_and_suppressor_drugs(self) -> None:
+        ep = EpigeneticModulation()
+        ep.update(10.0, {"rifampicin": 50.0, "isoniazid": 50.0}, 1.0, 5.0)
+        mods = ep.update(10.0, {}, 1.0, 5.0)
+        assert set(mods) == set(ep._states)
+
+    def test_get_expression_modifier_unknown_gene(self) -> None:
+        ep = EpigeneticModulation()
+        assert ep.get_expression_modifier("NOT_A_GENE") == 1.0
+
 
 class TestLiverGutFeedback:
     def test_init(self) -> None:
@@ -1058,6 +1138,10 @@ class TestEmergentComplexityModel:
         signals = ecm.step(1.0, 0.0, {}, 50.0, 50.0, 100.0, 1.0, 30.0)
         # Very high CRP should produce fever
         assert signals["fever_c"] > 0
+
+    def test_get_cyp_modifier(self) -> None:
+        ecm = EmergentComplexityModel()
+        assert ecm.get_cyp_modifier("CYP3A4") > 0.0
 
 
 # ============================================================================

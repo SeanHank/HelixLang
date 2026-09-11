@@ -382,10 +382,7 @@ class ConcentrationField:
             return
         steps = max(1, math.ceil(d / 0.25))
         d_sub = d / steps
-        grid = self.concentration
-        for _ in range(steps):
-            grid = _laplacian_step(grid, d_sub, w, h)
-        self.concentration = grid
+        self.concentration = _lap_loop(self.concentration, d_sub, w, h, steps)
 
     def advect(self, flow: FlowField) -> None:
         """Advect the field with the given flow (first-order upwind).
@@ -599,18 +596,70 @@ def _upwind_step_3d(
     return new_grid
 
 
+def _lap_loop(
+    grid: list[list[float]],
+    d_lattice: float,
+    w: int,
+    h: int,
+    steps: int,
+) -> list[list[float]]:
+    """Run ``steps`` explicit diffusion sub-steps without any python→numpy
+    round-trip between them (the numpy path keeps one persistent ndarray)."""
+    if not _HAS_NUMPY:
+        cur = grid
+        for _ in range(steps):
+            cur = _laplacian_step(cur, d_lattice, w, h)
+        return cur
+    a = _np.asarray(grid, dtype=float)
+    up = _np.empty_like(a)
+    down = _np.empty_like(a)
+    left = _np.empty_like(a)
+    right = _np.empty_like(a)
+    # Neumann (reflect-edge) neighbours via four stripe slices -- avoids the
+    # per-call ``np.pad`` allocation that dominated runtime for long
+    # sub-stepped diffusion runs.  Four buffers are reused across all
+    # sub-steps to avoid repeated list↔ndarray conversions.
+    for _ in range(steps):
+        _np.copyto(up[1:, :], a[:-1, :])
+        _np.copyto(up[0, :], a[0, :])
+        _np.copyto(down[:-1, :], a[1:, :])
+        _np.copyto(down[-1, :], a[-1, :])
+        _np.copyto(left[:, 1:], a[:, :-1])
+        _np.copyto(left[:, 0], a[:, 0])
+        _np.copyto(right[:, :-1], a[:, 1:])
+        _np.copyto(right[:, -1], a[:, -1])
+        lap = up + down + left + right - 4.0 * a
+        a = a + d_lattice * lap
+        _np.clip(a, 0.0, None, out=a)
+    return [[float(v) for v in row] for row in a.tolist()]
+
+
 def _laplacian_step(
     grid: list[list[float]],
     d_lattice: float,
     w: int,
     h: int,
 ) -> list[list[float]]:
-    """One explicit 5-point-Laplacian diffusion step (Neumann boundaries)."""
+    """One explicit 5-point-Laplacian diffusion step (Neumann boundaries).
+
+    Python (non-numpy) fallback plus a single-substep numpy entry used by
+    the vectorized :func:`_lap_loop`.
+    """
     if _HAS_NUMPY:
         a = _np.asarray(grid, dtype=float)
-        padded = _np.pad(a, 1, mode="edge")
-        lap = (padded[:-2, 1:-1] + padded[2:, 1:-1]
-               + padded[1:-1, :-2] + padded[1:-1, 2:] - 4.0 * a)
+        up = _np.empty_like(a)
+        up[1:, :] = a[:-1, :]
+        up[0, :] = a[0, :]
+        down = _np.empty_like(a)
+        down[:-1, :] = a[1:, :]
+        down[-1, :] = a[-1, :]
+        left = _np.empty_like(a)
+        left[:, 1:] = a[:, :-1]
+        left[:, 0] = a[:, 0]
+        right = _np.empty_like(a)
+        right[:, :-1] = a[:, 1:]
+        right[:, -1] = a[:, -1]
+        lap = up + down + left + right - 4.0 * a
         new = a + d_lattice * lap
         _np.clip(new, 0.0, None, out=new)
         result: list[list[float]] = new.tolist()
@@ -621,12 +670,12 @@ def _laplacian_step(
         new_row: list[float] = []
         for j in range(w):
             cur = row[j]
-            up = grid[i - 1][j] if i > 0 else cur
-            down = grid[i + 1][j] if i < h - 1 else cur
-            left = row[j - 1] if j > 0 else cur
-            right = row[j + 1] if j < w - 1 else cur
-            lap = up + down + left + right - 4.0 * cur
-            v = cur + d_lattice * lap
+            up_v = grid[i - 1][j] if i > 0 else cur
+            down_v = grid[i + 1][j] if i < h - 1 else cur
+            left_v = row[j - 1] if j > 0 else cur
+            right_v = row[j + 1] if j < w - 1 else cur
+            lap_v = up_v + down_v + left_v + right_v - 4.0 * cur
+            v = cur + d_lattice * lap_v
             new_row.append(v if v > 0.0 else 0.0)
         new_grid.append(new_row)
     return new_grid
@@ -878,7 +927,7 @@ class ClimateTable:
                 v0, v1 = self.values[i - 1], self.values[i]
                 frac = (t - t0) / (t1 - t0)
                 return v0 + frac * (v1 - v0)
-        return self.values[-1]
+        return self.values[-1]  # pragma: no cover - loop always returns above
 
 
 class ScalarField:

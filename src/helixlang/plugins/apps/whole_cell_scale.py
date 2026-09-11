@@ -234,10 +234,6 @@ def parse_gff3(text: str) -> list[GffFeature]:
         line = line.strip()
         if not line or line.startswith("#") or line == "###":
             continue
-        if line.startswith("##FASTA"):
-            break
-        if line.startswith("##"):
-            continue
         cols = line.split("\t")
         if len(cols) < 8:
             continue

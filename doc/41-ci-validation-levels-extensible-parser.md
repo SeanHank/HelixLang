@@ -37,7 +37,7 @@ Real findings from the investigation (all anchored below):
 
 ### 2.1 Root-cause analysis (evidence)
 
-The failure log is a `test`-job run (`ci.yml:73-95`: `pytest --cov-fail-under=80`). Six
+The failure log is a `test`-job run (`ci.yml:73-95`: `pytest --cov-fail-under=100`). Six
 parameterized cases of `test_benchmark_runs` failed with **returncode 1**:
 
 | Benchmark | Failure text (CI) | Cause |

@@ -343,8 +343,7 @@ def build_genome(
     # ensure the FBA-gated core genes and the literature master regulators
     # are present as nodes (the latter are the regulon-layer hubs)
     for c in core + list(GLOBAL_REGULATORS):
-        if c not in names:
-            names.append(c)
+        names.append(c)
 
     edges: list[tuple[str, str, float]] = []
     if tf_map in ("regulon", "random"):
@@ -383,9 +382,8 @@ def build_genome(
     # expression rises above the 0.5 trigger (FBA-gated reactions open)
     for c in core:
         w = rng.uniform(1.2, 2.0)
-        if (c, c) not in seen:
-            unique.append((c, c, w))
-            seen.add((c, c))
+        unique.append((c, c, w))
+        seen.add((c, c))
 
     grn = GRN()
     for _i, name in enumerate(names):

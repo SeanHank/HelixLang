@@ -527,6 +527,13 @@ class TestEColiCodonUsageRealism:
         # after CAI optimization should be 0.6-1.0
         assert cai > 0.6, f"CAI-optimized GFP CAI {cai:.3f} should > 0.6"
 
+    def test_cai_only_stop_codons_is_zero(self):
+        """A sequence of only stop codons (all skipped) yields n_sense == 0."""
+        from helixlang.plugins.runtime.bio_data import cai
+
+        assert cai("TAA" * 5) == 0.0
+        assert cai("TAGTAGTAG") == 0.0
+
 
 # ============================================================================
 # Regulatory element realism (lac operon / rrnB T1)

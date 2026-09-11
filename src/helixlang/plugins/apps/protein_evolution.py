@@ -32,6 +32,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from typing import Any
 
 from helixlang.plugins.runtime.protein_fitness import (
     AA20,
@@ -84,12 +85,10 @@ def gbi_landscape(variant: str, reference: str = GB1_WT) -> float:
         raw += w * BLOSUM62[r][v]
         best += w * BLOSUM62[r][r]
         worst += w * _BLOSUM_MIN[r]
-    if best == worst:
-        return 1.0
     return max(0.0, min(1.0, (raw - worst) / (best - worst)))
 
 
-def make_oracle(prefer_esm: bool = True) -> tuple[FitnessOracle, str]:
+def make_oracle(prefer_esm: bool = True) -> tuple[Any, str]:
     """Build the fitness oracle: ESM-2 when available, else BLOSUM62.
 
     Returns ``(oracle, name)`` where ``name`` is ``"esm2"`` or

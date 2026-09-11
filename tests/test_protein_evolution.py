@@ -122,3 +122,22 @@ def test_oracle_vs_landscape_spearman_public() -> None:
     variants = [_single_mutant(GB1_WT, rng) for _ in range(40)]
     rho = oracle_vs_landscape_spearman(variants)
     assert rho > 0.4
+
+
+def test_validate_sequence_errors() -> None:
+    from helixlang.plugins.apps.protein_evolution import _validate
+    with pytest.raises(ValueError, match="non-empty"):
+        _validate("", "genome")
+    with pytest.raises(ValueError, match="invalid amino acid"):
+        _validate("ACZ", "genome")
+
+
+def test_spearman_constant_input_returns_zero() -> None:
+    assert spearman_rank_correlation([2.0, 2.0, 2.0], [2.0, 2.0, 2.0]) == 0.0
+
+
+def test_oracle_name_from_object_instance() -> None:
+    from helixlang.plugins.apps.protein_evolution import _oracle_name
+    from helixlang.plugins.runtime.protein_fitness import BLOSUMOracle
+    assert _oracle_name(BLOSUMOracle()) == "blosum"
+    assert _oracle_name("esm2") == "esm2"

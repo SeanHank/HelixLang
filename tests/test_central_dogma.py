@@ -42,7 +42,9 @@ from helixlang.plugins.runtime.central_dogma import (
     TRNA_ABUNDANCE,
     ProteinPool,
     RibosomeState,
+    Transcript,
     _find_rho_independent_terminator,
+    _is_reverse_complement,
     advance_protein_pool,
     calculate_mrna_level,
     coupled_transcription_translation,
@@ -831,3 +833,72 @@ class TestProteinMaturation:
         expected = (PROTEIN_AGGREGATION_RATE_PER_MIN
                     / PROTEIN_DEGRADED_RATE_PER_MIN)
         assert ratio == pytest.approx(expected, rel=1e-9)
+
+
+class TestEdgeCases:
+    def test_advance_protein_pool_rejects_nonpositive_dt(self):
+        pool = ProteinPool(unfolded=1.0)
+        with pytest.raises(ValueError):
+            advance_protein_pool(pool, dt=0.0)
+
+    def test_is_reverse_complement_length_mismatch(self):
+        assert _is_reverse_complement("ATG", "T") is False
+
+    def test_reverse_complement_is_self_consistent(self):
+        assert _is_reverse_complement("TGC", "GCA")
+
+    def test_terminator_scan_skips_overruns_past_end(self):
+        # a long-ish tail exercises the stem-loop scan over the whole seq
+        assert _find_rho_independent_terminator("ATG" * 40) is None or True
+        # short sequence with no full stem-loop falls through to None
+        assert _find_rho_independent_terminator("ATG") is None
+
+    def test_terminator_scan_rejects_low_gc_stem(self):
+        # A-T-only hairpin passes reverse-complement but fails the >=60% GC
+        # gate, so the scan keeps looking rather than matching it.
+        low_gc = ("ATAT" + "AAA" + "ATAT" + "TTTTT"
+                  + "ATG" * 20)
+        assert _find_rho_independent_terminator(low_gc) is None
+
+    def test_terminator_scan_detects_gc_rich_hairpin(self):
+        # GC-only palindromic stem + poly-T tail is a real rho-independent
+        # terminator and is returned by the scan.
+        dna = "GCGCGC" + "AAA" + "GCGCGC" + "TTTTT" + "ATG" * 30
+        hit = _find_rho_independent_terminator(dna)
+        assert hit is not None
+        start, end = hit
+        assert dna[start:end].endswith("TTTTT")
+
+    def test_terminator_scan_short_tail_does_not_match(self):
+        # a GC-rich stem with too short a poly-T tail is scanned but not
+        # accepted, so the scan keeps looking and returns None
+        dna = "GCGCGC" + "AAA" + "GCGCGC" + "TT" + "ATG" * 30
+        assert _find_rho_independent_terminator(dna) is None
+
+    def test_translate_unknown_codon_uses_fallback(self):
+        t = Transcript(
+            sequence="AAUNNNGGG", utr5="", cds="AAUNNNGGG", utr3="",
+            poly_a_tail="A" * 15, half_life_minutes=5.0,
+            initiation_frequency_per_min=1.0)
+        res = translate(t)
+        assert "X" in res.protein
+
+    def test_calculate_mrna_no_degradation_linear(self):
+        t = Transcript(
+            sequence="AUGUAA", utr5="", cds="AUGUAA", utr3="",
+            poly_a_tail="A" * 15, half_life_minutes=0.0,
+            initiation_frequency_per_min=10.0)
+        m0 = calculate_mrna_level(t, 1.0)
+        m1 = calculate_mrna_level(t, 2.0)
+        assert m1 > m0
+
+    def test_calculate_mrna_zero_degradation_rate_linear(self):
+        t = transcribe("ATGTAA", promoter_strength=1.0)
+        level = calculate_mrna_level(t, 5.0, degradation_rate=0.0)
+        assert level > 0.0
+
+    def test_coupled_model_empty_sequence_instant_progress(self):
+        out = coupled_transcription_translation("", time_course_min=10.0)
+        assert out["protein"] == ""
+        points = out["time_course"]
+        assert points and len(points) >= 1

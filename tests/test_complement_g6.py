@@ -174,6 +174,30 @@ class TestO10VectorizedComplement:
             assert cs[r].get_total_activation() == pytest.approx(
                 refs[r].get_total_activation(), abs=1e-9)
 
+    def test_complement_auto_detects_numpy(self):
+        """Omitting use_numpy defaults to the installed-backend detection."""
+        cs = [ComplementCascade() for _ in range(2)]
+        sigs = [0.7, 0.2]
+        cohort_complement_step(cs, 1.0, sigs)
+        for m in cs:
+            assert m.get_total_activation() >= 0.0
+
+    def test_param_set_reset(self):
+        m = FullL7Complement()
+        orig = m.get("c1_activation")
+        m.set("c1_activation", 0.5)
+        assert m.get("c1_activation") == 0.5
+        m.set("c1_activation", orig)
+        m.step(1.0, 0.5)
+        m.reset()
+        assert m.get_mac() >= 0.0
+
+    def test_c5ar2_desensitise_off_branch(self):
+        m = FullL7Complement(c5ar2_desensitise=False)
+        for _ in range(10):
+            m.step(1.0, 0.9)
+        assert m.get_c5a() >= 0.0
+
 
 class TestO10VectorizedTissueBlood:
     def test_tissue_blood_vectorized_matches_scalar(self):

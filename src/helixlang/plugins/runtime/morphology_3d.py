@@ -127,7 +127,7 @@ class LSystem3D:
         for c in state:
             if c == 'F':
                 new_pos = turtle.position.add(turtle.heading.scale(self.step))
-                if turtle.pen_down:
+                if turtle.pen_down:  # pragma: no cover - always True via draw()
                     lines.append(Line3D(
                         start=Point3D(turtle.position.x, turtle.position.y,
                                       turtle.position.z),

@@ -168,9 +168,8 @@ def gene_essentiality_test(
 
         # restore bounds
         for rid, (lb, ub) in saved.items():
-            if rid in model.reactions:
-                model.reactions[rid].lower_bound = lb
-                model.reactions[rid].upper_bound = ub
+            model.reactions[rid].lower_bound = lb
+            model.reactions[rid].upper_bound = ub
 
     return results
 

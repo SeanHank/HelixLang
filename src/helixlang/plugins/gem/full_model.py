@@ -199,14 +199,15 @@ class FullModelAdapter:
         for met, rate in uptake.items():
             matched_rid: str | None = met_to_exchange.get(met) or met_to_exchange.get(self._normalize_met(met))
             if matched_rid is not None:
-                rxn = self.model.reactions.get(matched_rid)
-                if rxn is not None:
-                    for _m2, coef in rxn.stoichiometry.items():
-                        if coef < 0:
-                            rxn.lower_bound = -abs(rate)
-                        else:
-                            rxn.upper_bound = abs(rate)
-                    opened_rids.add(matched_rid)
+                # ``met_to_exchange`` is built only from exchange reactions
+                # present in the model, so the reaction is guaranteed to exist.
+                rxn = self.model.reactions[matched_rid]
+                for _m2, coef in rxn.stoichiometry.items():
+                    if coef < 0:
+                        rxn.lower_bound = -abs(rate)
+                    else:
+                        rxn.upper_bound = abs(rate)
+                opened_rids.add(matched_rid)
             else:
                 # Fallback: scan all exchanges for this metabolite
                 for rid2 in self.exchange_reactions:

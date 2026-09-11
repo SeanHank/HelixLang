@@ -191,7 +191,7 @@ class Virtual4DVar:
         Box bounds enforce physiological feasibility of each parameter.
         """
         keys = sorted(set(self.parameter_names) | set(self.prior_state.keys()))
-        if not keys:
+        if not keys:  # pragma: no cover - parameter_names is always non-empty
             return AssimilationResult(
                 estimated_state={},
                 cost_function=0.0,

@@ -14,7 +14,9 @@ from helixlang.core.dimensions import (
     UnitError,
     compatible,
     convert,
+    declare_unit,
     dim_of_unit,
+    factor_to_si,
     parse_quantity,
 )
 
@@ -106,3 +108,62 @@ def test_available_units_cover_runtime_anchors():
     assert compatible("gDW", "g")
     assert compatible("molecule", "mol")  # same dimension (amount)
     assert compatible("mol", "µM") is False
+
+
+def test_dimension_non_dimension_binary_ops_return_not_implemented():
+    d = DIM_LENGTH
+    assert d.__add__(5) is NotImplemented
+    assert d.__sub__(5) is NotImplemented
+    assert d.tree()  # smoke
+
+
+def test_dimension_tree_variants():
+    assert DIM_LENGTH.tree() == "length"
+    assert DIM_VOLUME.tree() == "length^3"
+    assert DIMENSIONLESS.tree() == "dimensionless"
+    assert Dimension(2, 0, -1, 0, 0, 0, 0).tree() == "length^2 * time^-1"
+    assert Dimension(1, 1, 0, 0, 0, 0, 0).tree() == "length * mass"
+
+
+def test_dim_of_unit_unknown_raises():
+    with pytest.raises(UnitError):
+        dim_of_unit("furlong")
+    with pytest.raises(UnitError):
+        factor_to_si("furlong")
+
+
+def test_declare_unit_conflict_and_idempotent():
+    declare_unit("candela", DIM_LENGTH, 2.0)  # new registration
+    assert factor_to_si("candela") == 2.0
+    # identical re-declaration is a no-op (name present, same value)
+    declare_unit("candela", DIM_LENGTH, 2.0)
+    # conflicting declaration raises
+    with pytest.raises(UnitError):
+        declare_unit("candela", DIM_MASS, 2.0)
+    # a different-but-conflicting factor also raises
+    with pytest.raises(UnitError):
+        declare_unit("candela", DIM_LENGTH, 3.0)
+
+
+def test_quantity_convert_to_incompatible_raises():
+    q = Quantity(5, "min")
+    with pytest.raises(UnitError):
+        q.convert_to("µM")
+
+
+def test_quantity_add_non_quantity_not_implemented():
+    q = Quantity(1, "min")
+    assert q.__add__(5) is NotImplemented
+    assert q.__radd__(5) is NotImplemented
+    assert q.__sub__(5) is NotImplemented
+    assert q.__eq__(5) is NotImplemented
+
+
+def test_quantity_radd_and_sub_same_result():
+    q1 = Quantity(10, "min")
+    q2 = Quantity(15, "s")
+    assert q1.__radd__(q1) == Quantity(20, "min")  # __radd__
+    assert (q1 - q2).value == 9.75  # 10 min - 15 s = 9.75 min
+    assert hash(q1)  # __hash__
+    assert Quantity(1, "min") == Quantity(60, "s")  # equal via base
+    assert not (Quantity(1, "min") == Quantity(1, "µM"))  # differing dims

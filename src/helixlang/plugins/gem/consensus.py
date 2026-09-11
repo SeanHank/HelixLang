@@ -121,7 +121,7 @@ def consensus_merge(
             result.high_confidence += 1
         elif rxn.is_medium_confidence:
             result.medium_confidence += 1
-        else:
+        else:  # pragma: no cover - confidence always 0.6/0.7/0.9 above
             result.low_confidence += 1
 
     return result

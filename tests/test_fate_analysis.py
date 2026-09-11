@@ -9,6 +9,7 @@ from helixlang.plugins.apps.fate_analysis import (
     fate,
     make_toggle_grn,
     run_fate_analysis,
+    simulate_toggle_trajectories,
     switching_rate,
 )
 from helixlang.plugins.runtime.grn import integrate_grn
@@ -104,3 +105,15 @@ def test_run_fate_analysis_summary_structure() -> None:
     assert set(summary["switching_rates"]) == {0.0, 0.5, 1.0}
     assert summary["switching_rates"][0.0] < summary["switching_rates"][1.0]
     assert len(summary["critical_slowing_down"]) == 4
+
+
+def test_fixed_points_dedups_nearby_roots() -> None:
+    from helixlang.plugins.apps.fate_analysis import _fixed_points
+
+    stable, unstable = _fixed_points(0.0)
+    assert len(stable) + len(unstable) == 1
+
+
+def test_simulate_trajectories_rejects_negative_resource() -> None:
+    with pytest.raises(ValueError, match="resource_strength"):
+        simulate_toggle_trajectories(1.0, resource_strength=-1.0)

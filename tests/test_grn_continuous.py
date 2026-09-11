@@ -192,3 +192,26 @@ def test_integrate_ode_validation() -> None:
         integrate_ode(lambda t, y: [0.0], [0.0], (0.0, 1.0), method="nope")
     with pytest.raises(ValueError):
         rate_constant_from_decay(1.0)
+
+
+def test_dopri5_max_steps_break() -> None:
+    """RK45 raw solver honors the max_steps safety cap (break path)."""
+    from helixlang.plugins.runtime.grn import _dopri5
+
+    times, ys, fs = _dopri5(lambda t, y: [1.0], 0.0, [0.0], 100.0, 1e-9,
+                            1e-8, 1e-6, max_steps=10)
+    assert len(times) == len(ys) == len(fs)
+    assert len(times) <= 11
+    assert times[-1] < 100.0
+
+
+def test_dopri5_normal_exit_return() -> None:
+    """Dopri5 returns when t reaches t_end (normal loop exit / return path)."""
+    from helixlang.plugins.runtime.grn import _dopri5
+
+    times, ys, fs = _dopri5(lambda t, y: [2.0], 0.0, [0.0], 10.0, 0.5,
+                            1e-8, 1e-6, max_steps=100_000)
+    assert times[-1] >= 10.0
+    assert ys[-1][0] == pytest.approx(20.0, rel=0.01)
+    assert len(fs) == len(times)
+    assert all(len(row) == 1 for row in ys)

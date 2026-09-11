@@ -278,16 +278,18 @@ def gapfill(
                     upper_bound=1000.0,
                     subsystem="exchange",
                 )
-                if candidate["id"] not in model.reactions:
-                    model.add_reaction(rxn)
-                    existing_rxns.add(candidate["id"])
-                    result.added_reactions.append(ConsensusReaction(
-                        reaction_id=candidate["id"],
-                        equation=candidate["eq"],
-                        sources=["gapfill"],
-                        confidence=0.3,
-                    ))
-                    exchange_added = True
+                # ``candidate["id"]`` not in ``existing_rxns`` (checked above)
+                # and every exchange reaction is added through this very loop,
+                # so the id cannot already exist in the model.
+                model.add_reaction(rxn)
+                existing_rxns.add(candidate["id"])
+                result.added_reactions.append(ConsensusReaction(
+                    reaction_id=candidate["id"],
+                    equation=candidate["eq"],
+                    sources=["gapfill"],
+                    confidence=0.3,
+                ))
+                exchange_added = True
         iteration += 1
 
     # check if biomass is already producible
@@ -332,23 +334,25 @@ def gapfill(
             model, candidate, model.biomass_reaction or "",
         )
         if found:
+            # ``_try_add_reaction`` only returns True for parseable
+            # equations, and the guard above already excluded ids present in
+            # the model or in ``existing_rxns``.
             stoich = _parse_equation_to_stoich(candidate["eq"])
-            if stoich and candidate["id"] not in existing_rxns:
-                model.add_reaction(Reaction(
-                    id=candidate["id"],
-                    name=candidate["id"],
-                    stoichiometry=stoich,
-                    lower_bound=0.0,
-                    upper_bound=1000.0,
-                    subsystem="gapfill",
-                ))
-                existing_rxns.add(candidate["id"])
-                result.added_reactions.append(ConsensusReaction(
-                    reaction_id=candidate["id"],
-                    equation=candidate["eq"],
-                    sources=["lp_gapfill"],
-                    confidence=0.4,
-                ))
+            model.add_reaction(Reaction(
+                id=candidate["id"],
+                name=candidate["id"],
+                stoichiometry=stoich,
+                lower_bound=0.0,
+                upper_bound=1000.0,
+                subsystem="gapfill",
+            ))
+            existing_rxns.add(candidate["id"])
+            result.added_reactions.append(ConsensusReaction(
+                reaction_id=candidate["id"],
+                equation=candidate["eq"],
+                sources=["lp_gapfill"],
+                confidence=0.4,
+            ))
 
     # Check if biomass is now producible
     if model.biomass_reaction and model.biomass_reaction in model.reactions:

@@ -3,10 +3,16 @@
 Shared by all test modules to avoid redeclaring common fixtures (Flask test
 client, example source code, the examples directory path, etc.).
 """
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+# Run numba kernels in pure-Python mode for the whole test session so coverage
+# can trace the `_accel/*/impl_numba.py` sources (identical numerics, no JIT).
+# Must be set before any `import numba`.
+os.environ.setdefault("NUMBA_DISABLE_JIT", "1")
 
 # Let tests find src/ even when the package is not installed
 SRC = Path(__file__).resolve().parent.parent / "src"

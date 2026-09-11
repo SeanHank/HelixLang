@@ -65,6 +65,11 @@ class TestFribergLineage:
         with pytest.raises(ValueError):
             lineage.step(-1.0, 0.0)
 
+    def test_erythropoiesis_negative_dt_rejected(self):
+        epo = ErythropoiesisModel()
+        with pytest.raises(ValueError):
+            epo.step(-1.0, 0.0)
+
 
 class TestHematologyHomeostasis:
     def test_one_year_flat(self):
@@ -281,3 +286,25 @@ class TestErythropoiesis:
             model.bleed(-1.0)
         with pytest.raises(ValueError):
             model.administer_epo_bolus(-1.0)
+        model.administer_epo_bolus(40.0)
+        assert model.epo == pytest.approx(model.epo0 + 40.0)
+
+
+class TestSupportInterventions:
+    def test_tpo_mimetic_and_gcsf_are_clamped(self):
+        system = create_hematology_system()
+        system.set_tpo_mimetic(1.5)
+        assert system._tpo_level == 1.0
+        system.set_growth_factor_support(1.5)
+        assert system._gcsf_level == 1.0
+
+    def test_renal_function_propagates_to_erythropoiesis(self):
+        system = create_hematology_system(renal_function_fraction=1.0)
+        system.set_renal_function_fraction(0.4)
+        assert system.erythropoiesis.renal_function_fraction == pytest.approx(0.4)
+
+    def test_reticulocyte_zero_when_hemoglobin_depleted(self):
+        model = ErythropoiesisModel()
+        model.hemoglobin = 0.0
+        model.blood_retic = 5.0
+        assert model.reticulocyte_percent() == 0.0

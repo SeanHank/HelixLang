@@ -870,3 +870,116 @@ class TestRealisticScenario:
         assert vector.cassette.promoter_seq == PROMOTER_SEQUENCES["araBAD"]
         assert vector.origin_seq == ORIGIN_SEQUENCES["pSC101"]
         assert vector.marker_seq == SELECTION_MARKERS["CamR"]
+
+
+class TestEdgeCases:
+    def test_translate_orf_roundtrip(self):
+        from helixlang.plugins.apps.synbio_designer import _translate_orf
+        dna = _translate_orf("ATGGCATCAAAATCACTGTCTCCG".upper())
+        assert isinstance(dna, str) and len(dna) > 0
+
+    def test_balance_gc_default_rng_and_short_inputs(self):
+        from helixlang.plugins.apps.synbio_designer import _balance_gc
+        # rng defaults to Random(0); empty / non-triplet input is returned
+        assert _balance_gc("") == ""
+        assert _balance_gc("ATG") or True  # triplet returns a string
+        assert len(_balance_gc("ATGAA")) == 5  # non-multiple fixed length
+        # an unknown codon (NNN) makes synonyms() return [] -> unchanged
+        assert _balance_gc("ATGNNNATGNNNATG", target=0.6) == "ATGNNNATGNNNATG"
+        # converges to a plateau below tolerance then stops improving
+        assert _balance_gc("ATGAGCATGAGC", target=0.45, rng=__import__("random").Random(3)) == "ATGAGCATGTCT"
+        # exhaust max_iter after one improvement without reaching tolerance
+        assert _balance_gc("ATGAGCATGAGC", target=0.45, max_iter=1,
+                           rng=__import__("random").Random(3)) == "ATGAGCATGTCT"
+
+    def test_validate_cassette_length_error(self):
+        report = validate_cassette("ATGC")  # length 4 not a multiple of 3
+        assert not report["length_multiple_of_3"]
+        assert any("multiple of 3" in e for e in report["errors"])
+
+    def test_genbank_format_missing_locus_and_features(self):
+        # name normalizes to empty -> SEQUENCE
+        gb = genbank_format("ATGC", "", features=[
+            {"type": "CDS", "start": 1, "end": 4, "strand": -1,
+             "label": "orf1"},
+            {"type": "misc", "start": 1, "end": 4, "strand": 1,
+             "translation": ""},
+        ])
+        assert "SEQUENCE" in gb
+        assert "complement(1..4)" in gb
+        assert '/label="orf1"' in gb
+        assert '/translation=""' in gb
+
+    def test_genbank_format_long_translation_wraps(self):
+        # translation longer than 60 chars -> wrapped across a second line
+        long_prot = "M" * 130
+        gb = genbank_format("ATGC" * 100, "longprot", features=[
+            {"type": "CDS", "start": 1, "end": 400, "strand": 1,
+             "translation": long_prot},
+        ])
+        assert '/translation="' in gb
+        assert "MMMM" in gb
+
+    def test_validate_finds_orf_in_flanked_sequence(self):
+        from helixlang.plugins.runtime.biocodec import back_translate
+        prot = "MASKSKLSPLANGELDGASMV"
+        dna = "GGGGGG" + back_translate(prot, optimize="random") + "TAA"
+        designer = SynBioDesigner(seed=1)
+        report = designer.validate(dna)
+        assert report["orf_found"]
+        assert report["orf_length"] >= 10 * 3
+        assert report["orf_start"] >= 0
+
+    def test_avoid_restriction_valueerror_swallowed(self, monkeypatch):
+        # when avoid_restriction_sites cannot remove every site it raises
+        # ValueError; design_cassette must swallow it and keep going.
+        import helixlang.plugins.apps.synbio_designer as sd
+
+        def _boom(dna, **kwargs):
+            raise ValueError("could not remove all restriction sites")
+
+        monkeypatch.setattr(sd, "avoid_restriction_sites", _boom)
+        designer = SynBioDesigner(seed=5)
+        cfg = CassetteConfig(avoid_restriction=True, optimize_codons=True)
+        cassette = designer.design_cassette(SHORT_PROTEIN, cfg)
+        assert cassette.protein == SHORT_PROTEIN
+
+    def test_designer_unknown_regulatory_sequences_raise(self):
+        designer = SynBioDesigner(seed=1)
+        with pytest.raises(BioError):
+            designer._get_promoter_seq("does_not_exist")
+        with pytest.raises(BioError):
+            designer._get_terminator_seq("does_not_exist")
+        with pytest.raises(BioError):
+            designer._get_origin_seq("does_not_exist")
+        with pytest.raises(BioError):
+            designer._get_marker_seq("does_not_exist")
+        with pytest.raises(BioError):
+            designer._build_mcs(["definitely_not_a_site"])
+        # a RESTRICTION_SITES entry (not in MCS_SITES) is accepted
+        site = next(n for n in RESTRICTION_SITES if n not in MCS_SITES)
+        mcs = designer._build_mcs([site])
+        assert mcs == RESTRICTION_SITES[site]
+
+    def test_design_cassette_with_mbd_and_his_tags(self):
+        designer = SynBioDesigner(seed=7)
+        cfg = CassetteConfig(add_mbd_tag=True, add_histidine_tag=True,
+                             avoid_restriction=False)
+        cassette = designer.design_cassette(SHORT_PROTEIN, cfg)
+        assert cassette.protein.startswith("M")
+        assert cassette.protein.endswith("HHHHHH")
+
+    def test_design_vector_via_design_cassette_path(self):
+        # design_vector internally calls design_cassette; assert full vector
+        designer = SynBioDesigner(seed=3)
+        vc = VectorConfig(
+            cassette=CassetteConfig(promoter="T7", terminator="T7",
+                                    add_histidine_tag=False, gc_target=0.55),
+            origin_of_replication="pBR322",
+            selection_marker="KanR",
+            mcs_sites=["EcoRI", "BamHI"],
+        )
+        vector = designer.design_vector(SHORT_PROTEIN, vc)
+        assert vector.origin_seq == ORIGIN_SEQUENCES["pBR322"]
+        assert vector.marker_seq == SELECTION_MARKERS["KanR"]
+        assert vector.mcs_seq == MCS_SITES["EcoRI"] + MCS_SITES["BamHI"]

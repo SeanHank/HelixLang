@@ -6,7 +6,7 @@ subclass registered by id, with ``kinds`` aliases usable as ``#sim kind=...``.
 """
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -74,8 +74,9 @@ class Backend(ABC):
     id: str
     kinds: tuple[str, ...] = ()
 
-    @abstractmethod
-    def run(self, req: RunRequest) -> SimResult: ...
+    def run(self, req: RunRequest) -> SimResult:
+        raise NotImplementedError(
+            f"backend {self.id!r} does not implement run()")
 
     def capabilities(self) -> tuple[Capability, ...]:
         return ()

@@ -889,7 +889,7 @@ src/helixlang/
 | GRN 1000 nodes | 260 us | — | **~8 us** |
 | Diffusion 128×128 | 122 us | — | **~15-25 us** |
 
-The validation suite (`validation/`, 67 benchmarks) is **stack-agnostic**: it runs
+The validation suite (`validation/`, 85 benchmarks) is **stack-agnostic**: it runs
 against whichever backend the loader chose and records the backend in the result
 JSON provenance.
 
@@ -1135,7 +1135,7 @@ Phase 3 (GRN Cython/C, simplex Cython, VM+population C, numba diffusion) is now
 Phase 4 (full plugin migration + dual-wheel shipping) is now **DONE — the
 no-silent-fallback policy is enforced across `core/` + `_accel/` + the full
 tree**. Tests run in the project env (3.11 + Cython for
-native builds) and the canonical 3.13 test env; 67/67 validation benchmarks
+native builds) and the canonical 3.13 test env; 85/85 validation benchmarks
 remain green.
 
 ### Phase 5 — Hardening — **DONE (2026-08-27)**

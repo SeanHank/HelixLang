@@ -303,8 +303,6 @@ def _predict_helix(seq: str, ss: list[str], assigned: list[bool]) -> None:
             while start > 0:
                 seg_lo = max(0, start - 4)
                 seg_window = seq[seg_lo:start]
-                if not seg_window:
-                    break
                 avg_pa = sum(CHOU_FASMAN_TABLE[c][0] for c in seg_window) / len(seg_window)
                 if avg_pa >= HELIX_PROPAGATION_THRESHOLD and seq[start - 1] != "P":
                     start -= 1
@@ -314,20 +312,17 @@ def _predict_helix(seq: str, ss: list[str], assigned: list[bool]) -> None:
             while end < n - 1:
                 seg_hi = min(n, end + 5)
                 seg_window = seq[end + 1:seg_hi]
-                if not seg_window:
-                    break
                 avg_pa = sum(CHOU_FASMAN_TABLE[c][0] for c in seg_window) / len(seg_window)
                 if avg_pa >= HELIX_PROPAGATION_THRESHOLD and seq[end + 1] != "P":
                     end += 1
                 else:
                     break
-            # mark the helix region (minimum length 6)
-            if end - start + 1 >= HELIX_NUCLEATION_LENGTH:
-                for k in range(start, end + 1):
-                    assigned[k] = True
-                    ss[k] = "H"
-                i = end + 1
-                continue
+            # mark the helix region
+            for k in range(start, end + 1):
+                assigned[k] = True
+                ss[k] = "H"
+            i = end + 1
+            continue
         i += 1
 
     # Pro is a helix breaker: force Pro positions from H back to C
@@ -364,8 +359,6 @@ def _predict_sheet(seq: str, ss: list[str],
                     break
                 seg_lo = max(0, start - 4)
                 seg_window = seq[seg_lo:start]
-                if not seg_window:
-                    break
                 avg_pb = sum(CHOU_FASMAN_TABLE[c][1] for c in seg_window) / len(seg_window)
                 if avg_pb >= SHEET_PROPAGATION_THRESHOLD:
                     start -= 1
@@ -377,21 +370,18 @@ def _predict_sheet(seq: str, ss: list[str],
                     break
                 seg_hi = min(n, end + 5)
                 seg_window = seq[end + 1:seg_hi]
-                if not seg_window:
-                    break
                 avg_pb = sum(CHOU_FASMAN_TABLE[c][1] for c in seg_window) / len(seg_window)
                 if avg_pb >= SHEET_PROPAGATION_THRESHOLD:
                     end += 1
                 else:
                     break
-            # mark the sheet region
-            if end - start + 1 >= SHEET_NUCLEATION_LENGTH:
-                for k in range(start, end + 1):
-                    if not helix_assigned[k]:
-                        sheet_assigned[k] = True
-                        ss[k] = "E"
-                i = end + 1
-                continue
+            # mark the sheet region (helix positions are never included:
+            # extension stops at helix boundaries)
+            for k in range(start, end + 1):
+                sheet_assigned[k] = True
+                ss[k] = "E"
+            i = end + 1
+            continue
         i += 1
     return sheet_assigned
 
@@ -10071,8 +10061,6 @@ def predict_disorder(
         lo = max(0, i - half)
         hi = min(n, i + half + 1)
         chunk = seq[lo:hi]
-        if not chunk:
-            continue
         n_charged = sum(1 for c in chunk if c in charged)
         charge_ratio[i] = n_charged / len(chunk)
 

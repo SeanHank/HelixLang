@@ -500,3 +500,98 @@ class TestSemanticFromSource:
                "#regulate g -> ghost strength=+0.5\n")
         prog = self._parse(src)
         _check_raises(prog, RegulationError)
+
+
+class TestConfigValidationEdges:
+    def test_float_ticks_raises(self):
+        prog = _program(config=Config(ticks=3.5),
+                        genes=[_gene("g", ["ATG", "TAA"])])
+        _check_raises(prog)
+
+    def test_float_ops_per_tick_raises(self):
+        prog = _program(config=Config(ops_per_tick=3.5),
+                        genes=[_gene("g", ["ATG", "TAA"])])
+        _check_raises(prog)
+
+
+class TestUnitAnnotations:
+    def test_valid_unit_annotation_passes(self):
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.type_annotations = {"a": "Float<µM>"}  # type: ignore[attr-defined]
+        _check_ok(prog)
+
+    def test_malformed_annotation_raises(self):
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.type_annotations = {"a": "!!!bad!!!@@"}  # type: ignore[attr-defined]
+        _check_raises(prog)
+
+    def test_dimensionless_unit_annotation_raises(self):
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.type_annotations = {"a": "Float<>"}  # type: ignore[attr-defined]
+        _check_raises(prog)
+
+    def test_non_unit_annotation_passes(self):
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.type_annotations = {"a": "Float"}  # type: ignore[attr-defined]
+        _check_ok(prog)
+
+
+class TestUseDirectiveValidation:
+    def test_unknown_plugin_raises(self):
+        from helixlang.core.ast_nodes import UseDecl
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.use_directives = [UseDecl(plugin="ghost_plugin")]  # type: ignore[attr-defined]
+        _check_raises(prog, SemanticError)
+
+    def test_known_plugin_with_flags_passes(self):
+        from helixlang.core.ast_nodes import UseDecl
+
+        class StubRegistry:
+            def is_registered(self, name):
+                return name == "known_plugin"
+
+            def declare_capability(self, flag):
+                self.declared = self.declared.union({flag})
+
+            def __init__(self):
+                self.declared = set()
+
+        reg = StubRegistry()
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.use_directives = [UseDecl(  # type: ignore[attr-defined]
+            plugin="known_plugin", flags={"--fast"})]
+        SemanticAnalyzer(prog, registry=reg).check()
+        assert "--fast" in reg.declared
+
+
+class TestGrammarValidators:
+    def test_custom_grammar_validator_runs(self):
+        from helixlang.core import grammar_registry as _gr
+        from helixlang.core.grammar_registry import AnnotationGrammar
+        calls = []
+        g = AnnotationGrammar(
+            keyword="x_validated", validate=lambda sa, prog: calls.append(1))
+        _gr.grammar_registry.register(g)
+        try:
+            prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+            _check_ok(prog)
+            assert calls
+        finally:
+            _gr.grammar_registry._grammars.pop("x_validated", None)
+
+
+class TestPureEffectRejection:
+    def test_pure_gene_no_side_effects_passes(self):
+        prog = _program(genes=[_gene("g", ["ATG", "TAA"])])
+        prog.genes[0].fields["pure"] = "1"
+        _check_ok(prog)
+
+    def test_pure_gene_with_side_effect_raises(self):
+        # a side-effecting op in a pure=1 gene region -> effect error
+        prog = _program(genes=[_gene("g", ["ATG", "TGG", "TAA"])])
+        prog.genes[0].fields["pure"] = "1"
+        try:
+            SemanticAnalyzer(prog).check()
+            raise AssertionError("expected SemanticError")
+        except SemanticError:
+            pass

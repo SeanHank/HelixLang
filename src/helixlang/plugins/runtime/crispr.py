@@ -673,8 +673,6 @@ def off_target_score(guide: GuideRNA, genome: str,
 
     for site in sites:
         candidate = site["spacer"].upper()
-        if len(candidate) != spacer_len:
-            continue
         # compute mismatch count, positions and types
         mismatch_positions: list[int] = []
         mismatch_types: list[tuple[str, str]] = []
@@ -787,8 +785,6 @@ class PAMIndex:
         k = self.K
         for site in sites:
             spacer = site["spacer"].upper()
-            if len(spacer) != self.spacer_len:
-                continue
             site_id = len(self._all_sites)
             self._all_sites.append(site)
             # index into buckets: add every non-overlapping K-mer to its
@@ -800,8 +796,6 @@ class PAMIndex:
                     # trailing bucket shorter than K: use the remaining
                     # substring as the key (still uniquely matchable)
                     kmer = spacer[start:]
-                    if not kmer:
-                        continue
                 else:
                     kmer = spacer[start:end]
                 self._index.setdefault((b, kmer), []).append(site_id)
@@ -844,8 +838,6 @@ class PAMIndex:
             end = start + k
             if end > self.spacer_len:
                 kmer = spacer[start:]
-                if not kmer:
-                    continue
             else:
                 kmer = spacer[start:end]
             ids = self._index.get((b, kmer))
@@ -955,38 +947,40 @@ def _sample_indel(rng: random.Random,
     """
     r = rng.random()
     cumulative = 0.0
-    for indel_type, prob in NHEJ_INDEL_SPECTRUM.items():
+    indel_type = "1bp_deletion"
+    for _type, prob in NHEJ_INDEL_SPECTRUM.items():
         cumulative += prob
         if r <= cumulative:
-            if indel_type == "1bp_deletion":
-                # 1bp deletion: 70% probability at the PAM-proximal side
-                # (1bp downstream of cut_site)
-                offset = 0 if rng.random() < 0.7 else -1
-                return indel_type, -1, offset
-            elif indel_type == "2bp_deletion":
-                # 2bp deletion: 5' bias (Paixão Fig 3)
-                offset = -1 if rng.random() < 0.6 else 0
-                return indel_type, -2, offset
-            elif indel_type == "3-5bp_deletion":
-                length = -(rng.randint(3, 5))
-                # medium-length deletions have a stronger 5' bias
-                offset = rng.choice([-2, -1, -1, 0, 0, 1])
-                return indel_type, length, offset
-            elif indel_type == "6-10bp_deletion":
-                length = -(rng.randint(6, 10))
-                # long deletions show a more pronounced 5' offset
-                offset = rng.choice([-2, -2, -1, 0, 1])
-                return indel_type, length, offset
-            elif indel_type == "1bp_insertion":
-                # insertion: 5' side (upstream of cut_site) insertion bias
-                return indel_type, 1, -1 if rng.random() < 0.65 else 0
-            elif indel_type == "2bp_insertion":
-                return indel_type, 2, -1 if rng.random() < 0.6 else 0
-            else:  # larger_indel
-                length = rng.choice([-15, -12, -8, 5, 10])
-                offset = rng.choice([-3, -2, -1, 0, 1])
-                return indel_type, length, offset
-    return "1bp_deletion", -1, 0
+            indel_type = _type
+            break
+    if indel_type == "1bp_deletion":
+        # 1bp deletion: 70% probability at the PAM-proximal side
+        # (1bp downstream of cut_site)
+        offset = 0 if rng.random() < 0.7 else -1
+        return indel_type, -1, offset
+    elif indel_type == "2bp_deletion":
+        # 2bp deletion: 5' bias (Paixão Fig 3)
+        offset = -1 if rng.random() < 0.6 else 0
+        return indel_type, -2, offset
+    elif indel_type == "3-5bp_deletion":
+        length = -(rng.randint(3, 5))
+        # medium-length deletions have a stronger 5' bias
+        offset = rng.choice([-2, -1, -1, 0, 0, 1])
+        return indel_type, length, offset
+    elif indel_type == "6-10bp_deletion":
+        length = -(rng.randint(6, 10))
+        # long deletions show a more pronounced 5' offset
+        offset = rng.choice([-2, -2, -1, 0, 1])
+        return indel_type, length, offset
+    elif indel_type == "1bp_insertion":
+        # insertion: 5' side (upstream of cut_site) insertion bias
+        return indel_type, 1, -1 if rng.random() < 0.65 else 0
+    elif indel_type == "2bp_insertion":
+        return indel_type, 2, -1 if rng.random() < 0.6 else 0
+    else:  # larger_indel
+        length = rng.choice([-15, -12, -8, 5, 10])
+        offset = rng.choice([-3, -2, -1, 0, 1])
+        return indel_type, length, offset
 
 
 def cut_dna(dna: str, guide: GuideRNA,
@@ -1034,11 +1028,8 @@ def cut_dna(dna: str, guide: GuideRNA,
             center = cut_site + deletion_offset
             start = max(0, center - del_len // 2)
             end = min(len(dna), start + del_len)
-            actual_del = end - start
-            if actual_del <= 0:
-                return dna
             return dna[:start] + dna[end:]
-        elif length > 0:
+        else:
             # insertion: insert at cut_site + deletion_offset
             insert_pos = cut_site + deletion_offset
             insert_pos = max(0, min(len(dna), insert_pos))

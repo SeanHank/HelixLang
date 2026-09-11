@@ -80,8 +80,6 @@ def execute(genome: tuple[str, ...], step_limit: int = 32) -> list[int]:
             r0 = 1 if r0 == 0 else 0
         elif op == "OUT":
             out.append(r0)
-        elif op == "NOP":
-            pass
         ip += 1
         steps += 1
     return out
@@ -223,14 +221,6 @@ class DigitalEvolution:
                 fitness=1.0,
             ) for _ in range(n)]
         fits = [o.fitness for o in pop]
-        total = sum(fits)
-        if total <= 0.0:
-            # complete meltdown: fall back to uniform sampling so the
-            # population can still drift rather than dying out
-            return [DigitalOrganism(
-                genome=pop[self.rng.randrange(n)].genome, fitness=0.0,
-            ) for _ in range(n)]
-        # stochastic acceptance sampling (no cumulative array needed)
         offspring: list[DigitalOrganism] = []
         for _ in range(n):
             while True:

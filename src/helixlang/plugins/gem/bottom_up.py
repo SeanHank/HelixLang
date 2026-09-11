@@ -137,7 +137,7 @@ def bottom_up_reconstruct(
     # Build reaction entries with GPR rules
     seen_reactions: set[str] = set()
     for rxn_id, gene_ids in gene_reactions.items():
-        if rxn_id in seen_reactions:
+        if rxn_id in seen_reactions:  # pragma: no cover - dict keys are unique
             continue
         seen_reactions.add(rxn_id)
         unique_genes = list(dict.fromkeys(gene_ids))

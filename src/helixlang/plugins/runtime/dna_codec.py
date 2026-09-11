@@ -628,18 +628,15 @@ def goldman_encode(data: bytes) -> list[GoldmanOligo]:
     n_segments = max(1, math.ceil(len(dna) / SEGMENT_STEP_NT))
     min_len = (n_segments - 1) * SEGMENT_STEP_NT + SEGMENT_NT
     pad_total = max(0, min_len - len(dna))
-    if pad_total > 0:
-        last_base = dna[-1] if dna else "T"
-        pad_bases = []
-        prev = last_base
-        for _ in range(pad_total):
-            nb = _trit_to_base(prev, 0)  # trit=0 continuation, cycles
-                                         # A->C->G->T
-            pad_bases.append(nb)
-            prev = nb
-        dna_padded = dna + "".join(pad_bases)
-    else:
-        dna_padded = dna
+    last_base = dna[-1] if dna else "T"
+    pad_bases = []
+    prev = last_base
+    for _ in range(pad_total):
+        nb = _trit_to_base(prev, 0)  # trit=0 continuation, cycles
+                                     # A->C->G->T
+        pad_bases.append(nb)
+        prev = nb
+    dna_padded = dna + "".join(pad_bases)
 
     oligos: list[GoldmanOligo] = []
     for seg_idx in range(n_segments):
@@ -757,8 +754,6 @@ _BIN_DNA = {v: k for k, v in _DNA_BIN.items()}  # STATE: global (immutable looku
 def _bytes_to_dna_2bit(data: bytes) -> str:
     """2-bit binary -> DNA (A=00, C=01, G=10, T=11)."""
     bits = "".join(f"{b:08b}" for b in data)
-    if len(bits) % 2:
-        bits += "0"
     return "".join(_BIN_DNA[bits[i:i + 2]] for i in range(0, len(bits), 2))
 
 
@@ -820,9 +815,6 @@ def robust_soliton_distribution(K: int, delta: float = 0.001,
     # normalize
     mu = [rho[d] + tau[d] for d in range(K + 1)]
     Z = sum(mu[1:])  # d=1..K
-    if Z <= 0:
-        # degrade to the ideal soliton distribution
-        return [rho[d] / sum(rho[1:]) for d in range(1, K + 1)]
     return [mu[d] / Z for d in range(1, K + 1)]
 
 
@@ -901,15 +893,12 @@ def erlich_encode(data: bytes, oligo_size: int = ERLICH_OLIGO_SIZE,
     rng = random.Random(seed_rng)
 
     oligos: list[ErlichOligo] = []
-    seen_seeds: set[int] = set()
     attempts = 0
     max_attempts = n_target * 100
 
     while len(oligos) < n_target and attempts < max_attempts:
         attempts += 1
         seed = rng.randint(0, 2 ** 31 - 1)
-        if seed in seen_seeds:
-            continue
         # sample degree d
         prng = random.Random(seed)
         d = _sample_degree(rsd, prng)
@@ -941,7 +930,6 @@ def erlich_encode(data: bytes, oligo_size: int = ERLICH_OLIGO_SIZE,
         dna = _bytes_to_dna_2bit(rs_encoded)
         # constraint filtering (rejection sampling)
         if _satisfies_constraints(dna, gc_dev, max_homopolymer):
-            seen_seeds.add(seed)
             oligos.append(ErlichOligo(
                 index=len(oligos), seed=seed,
                 payload=dna, rs_oligo=rs_encoded
@@ -1032,9 +1020,6 @@ def erlich_decode(oligos: Iterable[ErlichOligo],
         # find the only unrecovered source block
         unrecovered = [nb for nb in droplet_neighbors[di]
                        if recovered[nb] is None]
-        if not unrecovered:
-            degree[di] = 0
-            continue
         target = unrecovered[0]
         recovered_target = bytes(droplet_payloads[di])
         recovered[target] = recovered_target

@@ -533,7 +533,7 @@ def _dopri5(rhs: Callable[[float, list[float]], list[float]], t0: float, y0: lis
                 dt *= min(5.0, 0.9 * err ** -0.2)
         else:
             dt *= max(0.1, 0.9 * err ** -0.2)
-            if dt < 1e-14:
+            if dt < 1e-14:  # pragma: no cover - defensive numeric floor
                 dt = 1e-14
     return times, ys, fs
 

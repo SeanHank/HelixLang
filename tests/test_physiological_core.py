@@ -174,6 +174,25 @@ class TestPhysiologicalCoupler:
         assert PhysiologicalCoupler.cardiac_output_fraction(1.0, 5.0, 0.2) == 0.2
         assert PhysiologicalCoupler.cardiac_output_fraction(0.0, 0.0, 0.2) == 0.2
 
+    def test_fraction_applies_modifiers_and_clamps(self):
+        """_fraction multiplies in-class modifiers; zero-conc leaves mod at 1."""
+        f = PhysiologicalVitalsDriver._fraction
+        # in-class drug with positive conc -> scales mod
+        assert f({"drugA": 30.0}, {"drugA"}, 2.0) > 1.0
+        # scale <= 0 (conc null/negative) -> mod unchanged (False branch)
+        assert f({"drugA": -5.0}, {"drugA"}, 2.0) == 1.0
+        # out-of-class drug is skipped
+        assert f({"other": 30.0}, {"drugA"}, 2.0) == 1.0
+        # None dict is tolerated
+        assert f(None, {"drugA"}, 2.0) == 1.0
+
+    def test_svr_baroreflex(self):
+        """_svr_baroreflex opposes HR adjustment (vasoconstriction term)."""
+        m = HemodynamicModel()
+        base = m.state.svr_dyne
+        assert m._svr_baroreflex(0.1) < base   # tachycardia -> less vasoconstriction
+        assert m._svr_baroreflex(-0.1) > base  # bradycardia -> more vasoconstriction
+
     def test_renal_clearance_scales_with_egfr(self):
         low = PhysiologicalCoupler.renal_clearance_from_egfr(5.0, 40.0)
         normal = PhysiologicalCoupler.renal_clearance_from_egfr(5.0, 100.0)

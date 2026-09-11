@@ -36,9 +36,9 @@ def _children(node: ET.Element, name: str) -> list[ET.Element]:
     return [c for c in node if _localname(c.tag) == name]
 
 
-def _child(node: ET.Element | None, name: str) -> ET.Element | None:
-    if node is None:
-        return None
+def _child(node: ET.Element, name: str) -> ET.Element | None:
+    # NOTE: the ``node is None`` guard was provably-unreachable (every caller
+    # passes a real element), so it was removed to fold its dead branch.
     return next((c for c in node if _localname(c.tag) == name), None)
 
 

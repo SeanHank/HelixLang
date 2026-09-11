@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from helixlang.plugins.apps.digital_evolution import (
     DigitalEvolution,
     DigitalEvolutionConfig,
@@ -161,3 +163,49 @@ def test_error_catastrophe_at_high_mutation() -> None:
     # the intermediate-rate population adapts; the high-rate population
     # sits at the random baseline (error catastrophe, Eigen 1971)
     assert evo_low.mean_fitness() > 2.0 * evo_high.mean_fitness()
+
+
+def test_run_no_mutation_is_heritable() -> None:
+    # zero mutation rates skip the mutate step entirely (line 251->260);
+    # offspring faithfully inherit the parent genome.
+    cfg = DigitalEvolutionConfig(
+        population_size=50,
+        genome_length=12,
+        target=TARGET,
+        substitution_rate=0.0,
+        insertion_rate=0.0,
+        deletion_rate=0.0,
+        generations=5,
+        seed=1,
+    )
+    evo = DigitalEvolution(cfg)
+    evo.run()
+    assert evo.generation == 5
+    assert evo.history[-1]["mean_fitness"] >= 0.0
+
+
+def test_validate_configuration() -> None:
+    with pytest.raises(ValueError):
+        DigitalEvolution(DigitalEvolutionConfig(population_size=0))
+    with pytest.raises(ValueError):
+        DigitalEvolution(DigitalEvolutionConfig(target=()))
+
+
+def test_run_digital_evolution_helper() -> None:
+    from helixlang.plugins.apps.digital_evolution import (
+        run_digital_evolution,
+    )
+
+    result = run_digital_evolution(DigitalEvolutionConfig(
+        population_size=40,
+        genome_length=8,
+        target=(1, 0, 1),
+        substitution_rate=0.1,
+        insertion_rate=0.0,
+        deletion_rate=0.0,
+        generations=10,
+        seed=2,
+    ))
+    assert "history" in result and "final_genome" in result
+    assert "final_mean" in result and "final_max" in result
+    assert result["final_max"] >= 0.0

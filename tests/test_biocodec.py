@@ -38,6 +38,7 @@ from helixlang.plugins.runtime.biocodec import (
     dna_to_helix,
     find_orfs,
     find_restriction_sites,
+    has_restriction_sites,
     helix_to_dna,
     validate_biological,
 )
@@ -466,3 +467,101 @@ class TestRealisticScenario:
         assert len(result.orfs) >= 1
         # ORF should translate to M-A-S-K-G-E-E-L-F-T-G-*
         assert result.orfs[0].protein.startswith("MASKGEELFTG")
+
+
+class TestCoverageBranches:
+    def test_translate_fallback_when_biopython_blocked(self, monkeypatch):
+        import sys
+        real = sys.modules.get("Bio.Seq")
+        sys.modules["Bio.Seq"] = None
+        try:
+            from helixlang.plugins.runtime import biocodec
+            assert biocodec._translate("ATGGCCGAA") == "MAE"
+        finally:
+            if real is None:
+                sys.modules.pop("Bio.Seq", None)
+            else:
+                sys.modules["Bio.Seq"] = real
+
+    def test_find_restriction_sites_default_and_unknown(self):
+        assert find_restriction_sites("NGAATTCN")["EcoRI"] == [1]
+        assert find_restriction_sites("ATGC", enzymes=["NoSuchEnzyme"]) == {}
+        assert has_restriction_sites("GAATTC")
+
+    def test_avoid_restriction_sites_with_rng(self):
+        out = avoid_restriction_sites(
+            "GAATTC" + "N" * 6 + "GAATTC", max_attempts=2,
+            rng=random.Random(2))
+        assert "GAATTC" not in out.upper()
+
+    def test_avoid_restriction_sites_exhausted(self, monkeypatch):
+        monkeypatch.setattr(
+            "helixlang.plugins.runtime.biocodec.RESTRICTION_SITES",
+            {"Z": "ATGTAA"})
+        with pytest.raises(ValueError):
+            avoid_restriction_sites("ATGTAA" * 3, enzymes=["Z"],
+                                    max_attempts=2)
+
+    def test_helix_to_dna_silently_keeps_unavoidable_site(self, monkeypatch):
+        def _boom(*args, **kwargs):
+            raise ValueError("unavoidable")
+        monkeypatch.setattr(
+            "helixlang.plugins.runtime.biocodec.avoid_restriction_sites",
+            _boom)
+        src = "#gene name=mm\nATG ATG\n#end"
+        dna = helix_to_dna(src, add_promoter=False, add_terminator=False)
+        assert "ATG" in dna
+
+    def test_back_translate_stop_modes_and_errors(self):
+        assert back_translate("M*") == "ATG" + "TAA"
+        with pytest.raises(ValueError):
+            back_translate("O")
+        with pytest.raises(ValueError):
+            back_translate("A", optimize="nope")
+        assert len(back_translate("AAAA", optimize="random",
+                                  rng=random.Random(1))) == 12
+        assert len(back_translate("AAA", optimize="balanced",
+                                  rng=random.Random(1))) == 9
+
+    def test_dna_to_helix_with_restriction_notes(self):
+        prog = dna_to_helix("ATGGCCGAATAA" + "GAATTC")
+        assert prog.restriction_sites
+        assert any("restriction" in n for n in prog.notes)
+
+    def test_helix_to_dna_no_genes(self):
+        with pytest.raises(ValueError):
+            helix_to_dna("# just a comment\nATG GCC")
+
+    def test_helix_to_dna_no_trailing_stop(self):
+        src = "#gene name=g\nATG GCC\n#end"
+        dna = helix_to_dna(src, add_promoter=False, add_terminator=False)
+        assert "ATG" in dna
+
+    def test_helix_to_dna_promoter_terminator_flags(self):
+        src = "#gene name=g\nATG GCC GAA\n#end"
+        dna = helix_to_dna(src)
+        assert dna.startswith(LAC_PROMOTER)
+        assert dna.endswith(RRNB_T1_TERMINATOR)
+        assert not helix_to_dna(src, add_promoter=False).startswith(
+            LAC_PROMOTER)
+        assert not helix_to_dna(src, add_terminator=False).endswith(
+            RRNB_T1_TERMINATOR)
+
+    def test_helix_to_dna_unknown_regulatory_elements(self):
+        src = "#gene name=g\nATG GCC GAA\n#end"
+        with pytest.raises(ValueError):
+            helix_to_dna(src, promoter="zzz")
+        with pytest.raises(ValueError):
+            helix_to_dna(src, terminator="zzz")
+
+    def test_parse_helix_genes_edges(self):
+        from helixlang.plugins.runtime.biocodec import _parse_helix_genes
+        src = ("#gene\nATG GCC\n# just a comment\nbadx 123X\n#end\n"
+               "plain text line\n#gene name=empty\n#end\n#gene name=k\nAAA\n#end")
+        genes = _parse_helix_genes(src)
+        names = {g["name"] for g in genes}
+        assert "unnamed" in names
+        assert "k" in names
+        assert "empty" not in names
+        assert all(all(len(t) == 3 and all(c in "ACGT" for c in t)
+                       for t in g["codons"]) for g in genes)

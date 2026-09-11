@@ -122,6 +122,14 @@ def test_manifest_rejects_malformed():
     with pytest.raises(PluginError):
         parse_manifest("name = 'x'\nversion = '1'\nentry_point = 'y'\n"
                        "[provides]\nbackends = 3")
+    with pytest.raises(PluginError):
+        parse_manifest("name = 'x'\nversion = '1'\nentry_point = 'y'\n"
+                       "[native]\nmodule = 123")
+
+
+def test_manifest_file_missing_raises(tmp_path):
+    with pytest.raises(PluginError):
+        load_manifest(tmp_path / "does_not_exist.toml")
 
 
 def test_manifest_file_and_discovery(tmp_path):
@@ -179,11 +187,17 @@ def test_backend_registry_resolve():
     reg.register(_DummyBackend())
     assert reg.resolve(kind="d").id == "dummy"
     assert reg.resolve(backend="dummy").id == "dummy"
+    # a bare id works as a kind alias fallback
+    assert reg.resolve(kind="dummy").id == "dummy"
     assert reg.has(kind="d") and reg.has(backend="dummy")
     assert not reg.has(backend="nope")
     assert reg.ids() == ["dummy"]
+    # default capabilities() is empty for backends that don't override it
+    assert _DummyBackend().capabilities() == ()
     with pytest.raises(api_errors.PluginMissingError):
         reg.resolve(kind="absent")
+    with pytest.raises(api_errors.PluginMissingError):
+        reg.resolve()
 
 
 def test_backend_registry_conflict():
@@ -234,6 +248,26 @@ def test_ir_contract_types():
                       build=None, execute=None, operand_schema=schema)
     assert ext.kinds == ("ecosystem.seed",)
     assert schema[0].mode == OperandMode.LABEL
+
+
+def test_ir_runtime_concrete_defaults_reject_undefined_slots():
+    from helixlang.api.ir import IRRuntime, OperandMode, OperandSlot
+    rt = IRRuntime()
+    slot = OperandSlot("target", OperandMode.LABEL)
+    with pytest.raises(KeyError):
+        rt.read(slot)
+    with pytest.raises(KeyError):
+        rt.write(slot, 1)
+
+
+def test_program_view_and_builder_concrete_defaults():
+    pv = api_ast.ProgramView()
+    assert pv.source() is None
+    pb = api_ast.ProgramBuilder()
+    with pytest.raises(KeyError):
+        pb.extension("nope")
+    with pytest.raises(KeyError):
+        pb.set_field("nope", "k", 1)
 
 
 def test_import_scanner_fixture(tmp_path):

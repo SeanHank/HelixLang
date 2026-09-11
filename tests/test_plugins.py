@@ -131,3 +131,10 @@ def test_missing_cobra_raises_unless_low_fidelity_optin():
     assert r.activate("fba")(None) is FluxBalanceAnalysis
 
 
+def test_fba_check_import_error_returns_false():
+    import helixlang.plugins.fba as fba_mod
+
+    assert fba_mod._check("definitely_not_a_real_pkg_xyz") is False
+    assert fba_mod._check("numpy") is True
+
+

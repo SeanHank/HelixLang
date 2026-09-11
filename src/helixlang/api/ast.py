@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from helixlang.core.ast_nodes import Program  # noqa: F401
 
@@ -65,7 +65,7 @@ class ASTExtension:
     abi_version: int = 1
 
 
-class ProgramView(Protocol):
+class ProgramView:
     """Read-only view of a program handed to backends (§6.3, §6.5).
 
     Backends can read typed extension sections and the effective config but
@@ -76,12 +76,16 @@ class ProgramView(Protocol):
     config: Any
     extensions: Any
 
-    def source(self) -> str | None: ...
+    def source(self) -> str | None:
+        """The original source text this program was parsed from, if kept."""
+        return None
 
 
-class ProgramBuilder(Protocol):
+class ProgramBuilder:
     """Write-side program builder used by ``ASTExtension.parse`` hooks."""
 
-    def extension(self, ext_id: str, /) -> Any: ...
+    def extension(self, ext_id: str, /) -> Any:
+        raise KeyError(f"no extension section {ext_id!r} on this builder")
 
-    def set_field(self, ext_id: str, key: str, value: Any, /) -> None: ...
+    def set_field(self, ext_id: str, key: str, value: Any, /) -> None:
+        raise KeyError(f"cannot set {ext_id}.{key} on this builder")

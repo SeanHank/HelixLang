@@ -418,7 +418,262 @@ def test_cells_csv_roundtrip() -> None:
     assert parsed[1].cell_type == 2
 
 
+def test_cells_csv_empty_fieldnames_raises() -> None:
+    with pytest.raises(BioError):
+        cells_from_csv("")
+
+
+def test_cells_from_csv_non_numeric_custom() -> None:
+    csv_text = (
+        "position_x,position_y,position_z,cell_type,volume,note\n"
+        "1,2,0,1,2.5,hello\n"
+    )
+    cells = cells_from_csv(csv_text)
+    assert len(cells) == 1
+    assert cells[0].custom["note"] == 0.0  # non-numeric falls back to default
+
+
+def test_tissue_dumps_unserializable_raises() -> None:
+    t = _make_tissue()
+    t.cells[0].custom["bad"] = {"not": "json serializable", "set": {1, 2, 3}}
+    with pytest.raises(BioError):
+        tissue_dumps(t)
+
+
 def test_cells_csv_empty_raises() -> None:
     with pytest.raises(BioError):
         cells_from_csv("position_x,position_y,position_z\n")
+
+
+# ============================================================================
+# CellML extra coverage (MathML operator tokens + model handling)
+# ============================================================================
+
+_MATHML_OPS = """<?xml version="1.0" encoding="UTF-8"?>
+<model name="mathops" xmlns="http://www.cellml.org/cellml/1.1">
+  <component name="main">
+    <variable name="A" initial_value="1"/>
+    <variable name="B" initial_value="1"/>
+    <variable name="C" initial_value="1"/>
+    <variable name="D" initial_value="1"/>
+    <variable name="E" initial_value="1"/>
+    <variable name="F" initial_value="1"/>
+    <variable name="G" initial_value="1"/>
+    <variable name="H" initial_value="1"/>
+    <variable name="constvar" initial_value="42"/>
+    <variable name="paramvar" value="7"/>
+    <variable name="nothing"/>
+    <variable value="5"/>
+    <math xmlns="http://www.w3.org/1998/Math/MathML">
+      <apply><eq/><apply><diff/><ci>A</ci></apply><apply><minus/><ci>k1</ci></apply></apply>
+      <apply><eq/><apply><diff/><ci>B</ci></apply><apply><power/><ci>A</ci><cn>2</cn></apply></apply>
+      <apply><eq/><apply><diff/><ci>C</ci></apply><apply><eq/><ci>A</ci><ci>B</ci></apply></apply>
+      <apply><eq/><apply><diff/><ci>D</ci></apply><apply><diff/><ci>x</ci><ci>y</ci></apply></apply>
+      <apply><eq/><apply><diff/><ci>E</ci></apply><apply><cos/><ci>A</ci></apply></apply>
+      <apply><eq/><apply><diff/><ci>F</ci></apply><apply><plus/></apply></apply>
+      <apply><eq/><apply><diff/><ci>G</ci></apply><apply/></apply>
+      <apply><eq/><apply><diff/><ci>H</ci></apply></apply>
+      <apply><eq/><ci>a</ci><ci>b</ci></apply>
+      <apply><eq/><apply><plus/><ci>a</ci><ci>b</ci></apply><ci>x</ci></apply>
+    </math>
+  </component>
+</model>
+"""
+
+
+def test_cellml_mathml_operator_tokens() -> None:
+    m = cellml_to_model(_MATHML_OPS)
+    assert m["model_id"] == "mathops"
+    # all seven ODE targets become species
+    assert m["rates"]["A"] == "-(k1)"          # unary minus
+    assert m["rates"]["B"] == "pow(A, 2)"      # power + cn
+    assert m["rates"]["C"] == "A"              # eq falls through to lhs
+    assert m["rates"]["D"] == "y"              # nested diff names arg[1]
+    assert m["rates"]["E"] == "A"              # unhandled op, single arg
+    assert m["rates"]["F"] == "0"              # binary op with no args
+    assert m["rates"]["G"] == "0"              # empty apply
+    assert "H" not in m["rates"]               # no RHS -> no rate    # classification: constant, parameter, and ignored declaration
+    assert m["constants"]["constvar"] == 42.0
+    assert m["parameters"]["paramvar"] == 7.0
+    assert "nothing" not in m["species"]
+    assert "nothing" not in m["parameters"]
+    assert "nothing" not in m["constants"]
+
+
+def test_cellml_model_wrapped_in_cellml_root() -> None:
+    doc = ('<cellml xmlns="http://www.cellml.org/cellml/1.1">'
+           '<model name="wrapped"><component name="c">'
+           '<variable name="A" initial_value="1"/>'
+           '<math xmlns="http://www.w3.org/1998/Math/MathML">'
+           '<apply><eq/><apply><diff/><ci>A</ci></apply><ci>k</ci></apply>'
+           '</math></component></model></cellml>')
+    m = cellml_to_model(doc)
+    assert m["model_id"] == "wrapped"
+
+
+def test_cellml_model_wrapped_in_plain_root() -> None:
+    doc = ('<wrapper><model name="oddroot"><component name="c">'
+           '<variable name="A" initial_value="1"/>'
+           '<math xmlns="http://www.w3.org/1998/Math/MathML">'
+           '<apply><eq/><apply><diff/><ci>A</ci></apply><ci>k</ci></apply>'
+           '</math></component></model></wrapper>')
+    m = cellml_to_model(doc)
+    assert m["model_id"] == "model"
+    assert "A" in m["rates"]
+
+
+def test_cellml_load_missing_file_raises(tmp_path) -> None:
+    with pytest.raises(BioError):
+        load_cellml(str(tmp_path / "nope.cellml"))
+
+
+# ============================================================================
+# SBML + SBOL edge-case coverage
+# ============================================================================
+
+_SBML_EDGE = """<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+  <model id="edge">
+    <listOfSpecies>
+      <species id="A"/>
+      <species/>
+      <species id="B"/>
+    </listOfSpecies>
+    <listOfReactions>
+      <reaction reversible="true">
+        <listOfReactants>
+          <speciesReference species="A" stoichiometry="bad"/>
+          <speciesReference/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="B" stoichiometry="2"/>
+        </listOfProducts>
+      </reaction>
+    </listOfReactions>
+    <listOfObjectives>
+      <objective id="o2"><something/></objective>
+      <objective id="o3">
+        <listOfFluxObjectives><fluxObjective reaction="NOPE"/></listOfFluxObjectives>
+      </objective>
+    </listOfObjectives>
+  </model>
+</sbml>
+"""
+
+
+def test_sbml_edge_cases() -> None:
+    m = sbml_to_model(_SBML_EDGE)
+    # reaction without an id gets an auto-generated one
+    rxn = m.reactions["rxn_0"]
+    # species without an id is ignored, A/B present
+    assert {"A", "B"} <= m.metabolites
+    # bad stoichiometry falls back to 1.0, missing species reference ignored
+    assert rxn.stoichiometry.get("A") == -1.0
+    assert rxn.stoichiometry.get("B") == 2.0
+    assert m.biomass_reaction is None
+
+
+def test_sbml_no_model_raises() -> None:
+    with pytest.raises(BioError):
+        sbml_to_model('<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core"/>')
+
+
+def test_sbml_no_species_with_reactions() -> None:
+    doc = """<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core">
+  <model id="nospecies">
+    <listOfReactions>
+      <reaction id="R1" reversible="false">
+        <listOfReactants><speciesReference species="X" stoichiometry="1"/></listOfReactants>
+        <listOfProducts><speciesReference species="Y" stoichiometry="1"/></listOfProducts>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>"""
+    m = sbml_to_model(doc)
+    assert "X" in m.metabolites and "Y" in m.metabolites
+    assert "R1" in m.reactions
+
+
+def test_sbol3_dumps_empty_sequence_raises() -> None:
+    with pytest.raises(ValueError):
+        sbol3_dumps([{"display_id": "circuit", "components": [{
+            "display_id": "x", "sequence": ""}]}])
+
+
+def test_sbol3_dumps_without_name_and_role() -> None:
+    # cd with no name and no per-feature role (defaults applied)
+    xml = sbol3_dumps([{
+        "display_id": "Plain",
+        "components": [{"display_id": "f1", "sequence": "ACGT"}],
+    }])
+    assert "Plain" in xml
+
+
+_RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+_SBOL = "http://sbols.org/v3#"
+
+_SBOL_LOADS_EDGE = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="{_RDF}" xmlns:sbol="{_SBOL}">
+  <foo/>
+  <sbol:ComponentDefinition><sbol:displayId/></sbol:ComponentDefinition>
+  <sbol:ComponentDefinition>
+    <sbol:displayId>Top</sbol:displayId>
+    <sbol:component>
+      <sbol:Component><sbol:displayId>c_nodef</sbol:displayId></sbol:Component>
+    </sbol:component>
+    <sbol:component/>
+    <sbol:component><sbol:Component/></sbol:component>
+    <sbol:component>
+      <sbol:Component><sbol:displayId>c_part2</sbol:displayId>
+        <sbol:definition rdf:resource="#part2"/></sbol:Component>
+    </sbol:component>
+    <sbol:component>
+      <sbol:Component><sbol:displayId>c_part3</sbol:displayId>
+        <sbol:definition rdf:resource="#part3"/></sbol:Component>
+    </sbol:component>
+    <sbol:component>
+      <sbol:Component><sbol:displayId>c_part4</sbol:displayId>
+        <sbol:definition rdf:resource="#part4"/></sbol:Component>
+    </sbol:component>
+  </sbol:ComponentDefinition>
+  <sbol:ComponentDefinition rdf:about="#part2">
+    <sbol:displayId>part2</sbol:displayId>
+  </sbol:ComponentDefinition>
+  <sbol:ComponentDefinition rdf:about="#part3">
+    <sbol:displayId>part3</sbol:displayId><sbol:role/>
+  </sbol:ComponentDefinition>
+  <sbol:ComponentDefinition rdf:about="#part4">
+    <sbol:displayId>part4</sbol:displayId><sbol:role/>
+    <sbol:sequence><sbol:x/></sbol:sequence>
+  </sbol:ComponentDefinition>
+</rdf:RDF>
+"""
+
+
+def test_sbol3_loads_edge_shapes() -> None:
+    parsed = sbol3_loads(_SBOL_LOADS_EDGE)
+    assert len(parsed) >= 1
+    assert parsed[0]["display_id"] == "Top"
+    got = {c["display_id"]: c for c in parsed[0]["components"]}
+    # c_nodef had no definition -> empty sequence
+    assert got["c_nodef"]["sequence"] == ""
+    assert got["c_part2"]["sequence"] == ""
+    assert got["c_part3"]["sequence"] == ""
+    assert got["c_part4"]["sequence"] == ""
+
+
+_SBOL_LOADS_EMPTY = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF xmlns:rdf="{_RDF}" xmlns:sbol="{_SBOL}">
+  <sbol:ComponentDefinition><sbol:displayId/></sbol:ComponentDefinition>
+  <sbol:ComponentDefinition>
+    <sbol:displayId>NoComponents</sbol:displayId>
+  </sbol:ComponentDefinition>
+</rdf:RDF>
+"""
+
+
+def test_sbol3_loads_no_definitions_raises() -> None:
+    with pytest.raises(BioError):
+        sbol3_loads(_SBOL_LOADS_EMPTY)
 
