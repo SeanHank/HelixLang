@@ -70,5 +70,10 @@ release_logs/
 # Reference databases
 data/
 
+# ...but keep the shipped ChEMBL reference data under src/helixlang
+!src/helixlang/plugins/human/data/
+!src/helixlang/plugins/human/data/*.py
+src/helixlang/plugins/human/data/*.json
+
 # Stale artifacts
 -
