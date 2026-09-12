@@ -27,7 +27,9 @@ jobs:
       - name: Install ruff
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
+          # Pinned: lint results must be reproducible across runs.  Bump
+          # deliberately and re-run `ruff check src tests` before changing.
+          pip install ruff==0.16.7
       - name: Ruff check (src + tests)
         run: ruff check src tests
 
