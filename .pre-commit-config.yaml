@@ -21,3 +21,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      # Documentation reality gate: every doc/ statement must describe shipped,
+      # wired behavior (planned/proposed/deferred/blocked/out-of-scope/partial/
+      # pending/roadmap wording fails).  Benign exceptional lines carry an
+      # explicit `DOCBENIGN` token (see src/helixlang/core/audit_docs.py).
+      - id: audit-docs
+        name: audit docs (shipped-behavior gate)
+        entry: python -m helixlang.core.audit_docs doc --fail
+        language: system
+        pass_filenames: false

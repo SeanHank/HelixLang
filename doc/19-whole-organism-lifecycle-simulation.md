@@ -157,8 +157,8 @@ matters when the environment becomes the driver.
 | Folding / QC / turnover | `virtual_cell.py` (Phase 3, Balchin 2016) | cotranslational folding fraction, chaperone-mediated folding |
 | Energy accounting | `cell.py:27` (newborn ≈ 10⁹ ATP), `virtual_cell.py` maintenance ≈ 2.5×10⁷ ATP/min (Orth 2010), `units.py` | ATP-molecule unit system; 1 tick = 1 min, site = 10 µm |
 
-**Segment verdict**: the physical completeness roadmap of
-`doc/15-whole-cell-realism.md` is implemented and gated (Phases 1–5). What is
+**Segment verdict**: the physical completeness implementation record of
+`doc/15-whole-cell-realism.md` is delivered and gated (Phases 1–5). What is
 missing at this layer is *intercellular physiology*: there is no secretion/
 uptake of proteins, no inter-cell molecular flux, and no tissue/organ
 abstraction above the single cell.
@@ -646,11 +646,11 @@ and the system automatically:
 
 ## 9. Relationship to earlier documents
 
-- `doc/15-whole-cell-realism.md` — the physical-completeness roadmap for the
+- `doc/15-whole-cell-realism.md` — the physical-completeness implementation record for the
   single cell (implemented); Phases A–D of this document build *on top* of
   that layer.
 - `doc/18-programmable-cell-population-simulation.md` — the population
-  roadmap (§13 Design 1–6); Phase A generalizes Design 1’s dual loop and
+  design (§13 Design 1–6); Phase A generalizes Design 1’s dual loop and
   Design 5’s genome-scale colony to multiple species; Design 6’s LBM is
   reused unchanged in Phase D.
 - `doc/10-frontier-biology-analysis.md` — capability mapping and SOTA

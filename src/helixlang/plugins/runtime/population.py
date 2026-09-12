@@ -1662,8 +1662,8 @@ class CellPopulation:
                 elif delta < 0.0 and has_ac:
                     env.get_field("acetate").deplete(x, y, -delta)
             for cell in site_cells:
-                if cell.dfba is not None:
-                    cell.dfba.set_state(acetate_mm=0.0)
+                assert cell.dfba is not None
+                cell.dfba.set_state(acetate_mm=0.0)
         return metabolized, deaths
 
     def _sync_acetate(self,

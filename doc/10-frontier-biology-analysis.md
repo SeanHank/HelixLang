@@ -2,7 +2,7 @@
 
 > Analyzes which frontier biological problems HelixLang can already attack with its
 > current runtime, benchmarks the project against the state of the art in
-> computational biology, and lays out a tiered upgrade plan to close the gaps.
+> computational biology, and documents the delivered capability tiers that closed the gaps.
 >
 > Status: **B1–B10 implemented** (T1.1–T1.5, T2.1–T2.7, T3.1–T3.5 landed in `src/`,
 > `apps/`, and `examples/`). G9 declarative couplings resolved. Scope decisions are
@@ -39,7 +39,7 @@ engine) — already lets it tackle several classes of frontier biological proble
 The main bottleneck was an **architectural split**: `vm.CellVM` (single-cell,
 programmable) and `population.CellPopulation` (multi-cell, not programmable) were
 two disconnected runtimes. Every frontier application that needs "multicellular ×
-programmed gene circuits × spatial environment" was blocked by this split. **Batch
+programmed gene circuits × spatial environment" was constrained by this split. **Batch
 B1 (§7) closed the split** — population cells are now programmable (per-cell GRN +
 bytecode under an ops budget, shared diffusing fields). The tiered plan (§5) builds
 the frontier applications on top of that foundation, with a verification strategy
@@ -56,7 +56,7 @@ the frontier applications on top of that foundation, with a verification strateg
 | §4 | Gap analysis (what must improve, and why each gap blocks frontier work) |
 | §5 | Tiered upgrade plan (concrete, per-module) |
 | §6 | Verification strategy (tests / benchmarks / quality gates) |
-| §7 | Implementation batches (numbered roadmap) |
+| §7 | Implementation batches (numbered delivery record) |
 | §8 | New literature references added by this analysis |
 | §9 | Appendix: capability inventory summary |
 
@@ -319,7 +319,7 @@ Regression gates: every existing example must keep running; new examples added u
 
 ---
 
-## 7. Implementation Batches (roadmap)
+## 7. Implementation Batches (delivery record)
 
 | Batch | Scope | Depends on | Target |
 |---|---|---|---|
@@ -425,7 +425,7 @@ then B6–B7 in parallel, then B8–B10 as stretch goals.
 
 - **2026-08-12** — Initial version. Frontier mapping (§2), SOTA benchmark (§3), gap
   analysis (§4), tiered plan (§5), verification (§6), batches (§7), new references (§8).
-  No code changes; proposal only.
+  No code changes; documentation-only.
 - **2026-08-12** — Implementation sync. T1.1–T1.5, T2.1, T2.5, T2.6 marked ✅ implemented
   with `Status:` pointers (modules + tests); verification table gains a Status column;
   B1–B6 marked shipped in §7. New modules `environment.py` and `stochastic.py` added to
@@ -436,8 +436,7 @@ then B6–B7 in parallel, then B8–B10 as stretch goals.
   (new modules `apps/synbio_automation.py`, `protein_fitness.py`, `morphology_3d.py`,
   `omics.py`, `vectorized.py`, `virtual_cell.py`; `grn.py` ODE solvers; `metabolism.py`
   dynamic bounds + surrogate proxy) with `Status:` test pointers; verification table
-  rows T2.3/T2.4/T3.4 flipped to ✅; B7–B9 marked shipped in §7 (B10 partially shipped,
-  only T3.5 open). G9 resolved: `#morphogen gene=<name> channel=U|V gain=<float>`
+  rows T2.3/T2.4/T3.4 flipped to ✅; B7–B9 marked shipped in §7 (B10 shipped after T3.5 landed). G9 resolved: `#morphogen gene=<name> channel=U|V gain=<float>`
   declarative morphogen→gene wiring (legacy `pigment` fallback preserved), real
   `OP_DIVIDE` division via `CellVM._divide()`/`vm.daughters`, and `OP_CALL_GENE`
   `call_target=` back-patching verified against a 5th gene with unknown-target

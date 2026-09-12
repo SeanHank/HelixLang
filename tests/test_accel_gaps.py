@@ -57,7 +57,7 @@ def reload_restore():
 
 
 def test_dispatch_backend_run_quota_and_run_many(monkeypatch):
-    monkeypatch.setenv("HELIX_ACCEL", "python")
+    # C-only mandate (doc/03 §6.5): python is not a selectable dispatch backend.
     from helixlang._accel.dispatch import backend as db
 
     code = [0x20, 0, 0x20, 1, 0x92, 0x20, 2, 0x20, 3, 0x91,

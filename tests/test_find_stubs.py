@@ -31,6 +31,55 @@ def test_protocol_ellipsis_exempt(tmp_path):
     assert scan_file(p) == []
 
 
+def test_protocol_attr_base_exempt(tmp_path):
+    p = _write(tmp_path,
+               "class Model(Foo.Bar, typing.Protocol):\n"
+               "    def predict(self, s: str) -> float:\n"
+               "        ...\n")
+    assert scan_file(p) == []
+
+
+def test_plain_class_and_multistmt_body_not_flagged(tmp_path):
+    p = _write(tmp_path,
+               "class Plain:\n"
+               "    def route(self, x: int) -> int:\n"
+               "        y = x + 1\n"
+               "        return y\n")
+    assert scan_file(p) == []
+
+
+def test_async_function_multistmt_not_flagged(tmp_path):
+    p = _write(tmp_path,
+               "async def fetch(url: str) -> str:\n"
+               "    data = await load(url)\n"
+               "    return data\n")
+    assert scan_file(p) == []
+
+
+def test_raise_not_implemented_bare_name_is_s3(tmp_path):
+    p = _write(tmp_path, "def f():\n    raise NotImplementedError\n")
+    findings = scan_file(p)
+    assert findings and findings[0].category == "S3"
+
+
+def test_raise_attr_call_not_s3(tmp_path):
+    p = _write(tmp_path,
+               "def f():\n    raise core.solver.SolverError(\"x\")\n")
+    assert scan_file(p) == []
+
+
+def test_raise_attr_exc_message_not_s3(tmp_path):
+    p = _write(tmp_path, "def f():\n    raise core.SolverError\n")
+    assert scan_file(p) == []
+
+
+def test_comment_below_benign_marker_suppressed(tmp_path):
+    p = _write(tmp_path,
+               "# STUBBENIGN audited default value\n"
+               "x = 0.0  # placeholder default\n")
+    assert scan_file(p) == []
+
+
 def test_pass_only_body_is_s2(tmp_path):
     p = _write(tmp_path, "def f():\n    pass\n")
     findings = scan_file(p)

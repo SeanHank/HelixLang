@@ -186,11 +186,12 @@ def test_fuzz_unknown_opcode_raises_everywhere():
 
 def test_fuzz_loader_never_silently_reselects(monkeypatch):
     """Requesting an explicit unavailable dispatch backend raises instead of
-    silently swapping to another fidelity class (doc/36 §3ξ.5)."""
+    silently swapping to another fidelity class (doc/36 §3ξ.5), and the
+    dispatch hot loop is C-only (doc/03 §6.5): python is non-selectable."""
     from helixlang.core.errors import NativeBackendError
     monkeypatch.setenv("HELIX_ACCEL", "numba")  # dispatch has no numba impl
     with pytest.raises(NativeBackendError):
         choose_backend("helixlang._accel.dispatch", prefer="numba")
-    # python is the explicitly-declared pure path and always resolves.
-    assert choose_backend("helixlang._accel.dispatch", prefer="python") == \
-        "impl_python"
+    # C-only mandate: python must not resolve for the VM dispatch kernel.
+    with pytest.raises(NativeBackendError):
+        choose_backend("helixlang._accel.dispatch", prefer="python")

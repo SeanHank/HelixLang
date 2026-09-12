@@ -245,7 +245,7 @@ Frontier layer (delivery examples for Designs 1–9):
   "calibrate → predict" loop benchmark (Virtual Cell Challenge 2025 protocol).
 
 **Latest 2026-08 deliverables (examples 31–40) — whole-cell realism layer, dFBA
-deepening, and the population roadmap**:
+deepening, and the population simulation line**:
 
 - `31_whole_cell_adder.helix`: all four whole-cell layers on — **adder size control of
   division** (birth volume + fixed increment), **Cooper–Helmstetter chromosome replication
@@ -288,7 +288,7 @@ deepening, and the population roadmap**:
   refreshed `FlowField3D` drives 3D cell drift (x/y/z) plus substrate advection.
 - `40_spatial_evolution.helix`: **spatial range-expansion evolution** (doc/18 §13 Design 1;
   Bosshard et al. 2020, BMC Genomics 21:232) — the "large helix example" of the
-  population roadmap. `#sim kind=spatial_evolution` mutates DNA genotypes with the real
+  population simulation line. `#sim kind=spatial_evolution` mutates DNA genotypes with the real
   mutation spectrum, recompiles them, and scores each as a spatial colonizer on the
   32×32 lattice (80-cell inner colonies); fitness is
   `colony_radius_sites × core_survival − metabolic_cost`, and truncation selection feeds

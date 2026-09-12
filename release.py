@@ -19,7 +19,8 @@ What this script does:
     2. Checks every version-bearing source for drift and fails fast on mismatch (doc/38 §2.3)
     3. Syncs version to pyproject.toml, core/version.py, server/app.py (+ bytecode.py comment)
     4. Runs all quality gates in parallel (ruff, mypy, pytest -n auto,
-       validation, examples, stub/deferred audit)
+       validation, examples, stub/deferred audit, C-only mandate,
+       documentation reality audit)
     5. Syncs metrics to README.md, README_PYPI.md, CONTRIBUTING.md
     6. Builds sdist + wheel
 
@@ -168,7 +169,7 @@ def write_summary(run_dir: Path, version: str, *,
         lines.append(f"{'gate':<10} {'exit':>4}  status")
         lines.append(f"{'-'*10} {'-'*4}  {'-'*6}")
         order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
-                 "val": 5, "examples": 6}
+                 "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8}
         for g in sorted(gates, key=lambda r: order.get(r.name, 99)):
             status = "PASS" if g.exit_code == 0 else "FAIL"
             lines.append(f"{g.name:<10} {g.exit_code:>4}  {status}")
@@ -353,6 +354,8 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
         ("pytest", [PYTHON, "-B", "-m", "pytest", "tests/", "-n", "auto", "--tb=short", "-q"], ROOT),
         ("boundary", [PYTHON, "-m", "helixlang.core.find_core_imports", "--strict"], ROOT),
         ("stubs", [PYTHON, "-m", "helixlang.core.find_stubs", "src", "--fail"], ROOT),
+        ("c-only", [PYTHON, "-m", "helixlang.core.c_only", "--check"], ROOT),
+        ("audit-docs", [PYTHON, "-m", "helixlang.core.audit_docs", "doc", "--fail"], ROOT),
     ]
 
     # Validation gate
@@ -410,7 +413,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
 
     # Sort by original order
     order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
-             "val": 5, "examples": 6}
+             "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8}
     results.sort(key=lambda r: order.get(r.name, 99))
 
     log("Waiting for gates...")
@@ -767,6 +770,18 @@ def main() -> int:
         # Step 1: Sync version
         if not sync_version(version):
             return finish(1, "FAILED — version sync")
+
+        # Step 1b: Build native VM kernel (C-only mandate, doc/03 §6.5)
+        banner("Step 1b: Build native VM kernel (C-only)")
+        build_kernel = subprocess.run(
+            [PYTHON, "-B", "-m", "helixlang._accel.build"],
+            capture_output=True, text=True, cwd=ROOT,
+        )
+        if build_kernel.stdout:
+            print(build_kernel.stdout)
+        if build_kernel.returncode != 0:
+            fail("Native kernel build failed — C-only mandate (doc/03 §6.5)")
+            return finish(1, "FAILED — native kernel build")
 
         # Step 2: Quality gates (logs persist in gates_dir/)
         results = run_quality_gates(gates_dir)

@@ -283,14 +283,18 @@ Status ledger for the §4 tiers. Every batch is verified under `python` with the
 - **§4.1 step 3 applied opt-in**: `design_guide(target_dna, cas_variant, position, mode="nearest"|"best")` gained a `mode` kwarg. `"best"` implements the spec verbatim — selects the PAM site with the maximum Rule Set 2 `on_target_score` over **all** PAM sites (ties resolve 5'-most), `position` ignored. The default `"nearest"` preserves the documented legacy contract (PAM closest to `position`), so `test_design_guide_finds_nearest_pam` and all other existing tests pass unchanged (§5 rule 2 opt-in). Verified: poly-A spacer scores 0.329 vs a GC-balanced spacer 0.546 on the same target; `mode="best"` returns the high-scorer.
 - `doc/08-api-reference.md` signature updated to include `method`.
 
-### Batch 2 — §4.2 `dna_codec.py` (Goldman base-3 Huffman) — PARTIAL
+### Batch 2 — §4.2 `dna_codec.py` (Goldman base-3 Huffman + Erlich) — DONE
 
-The Goldman half of §4.2 is implemented and verified; the Erlich/legacy half is still pending.
+All of §4.2 is implemented and verified: the Goldman (base-3 Huffman, default)
+and Erlich (Reed–Solomon oligo) schemes are both selectable through
+`scheme=` in `helix_to_dna`.
 
 - **Code (done)**: `_GOLDMAN_HUFFMAN_CODE` — the published 256-codeword base-3 Huffman table taken verbatim from the corrected specification file (`View_huff3.cd.new.correct`, EBI `goldman-srv/DNA-storage/orig_files/`), 5–6 trits/byte, average 5.07 (paper quotes ~5.05). Encoding appends the published EXTRA symbol (codeword `222020`) and pads the trit stream to a multiple of 25 before the rotating-key DNA mapping (no homopolymers). `helix_to_dna(..., scheme="goldman")` is the default. `goldman_encode`/`goldman_decode` retain the 100 nt / 25 nt 4×-overlap segmentation and 17 nt index header with parity; adjacent segments alternate reverse complement. Density ~0.28 bit/nt (paper: 0.29).
 - **Verified**: the Huffman table was validated by re-decoding the author-supplied `View_huff3.cd.new.dna` back to the spec file (byte-identical up to the two known corruption errors in the published data); round-trip and density tests pass.
 - **Tests**: `tests/test_dna_codec.py` 65 passing (unchanged).
-- **Remaining**: §4.2 step 2 (retain the old 6-trit scheme behind `scheme="goldman_legacy"`) and step 3 (`alpha=0.07` recommended surplus as the Erlich default; `erlich_encode` still defaults `redundancy=1.1`). These are a follow-up batch; see the pending list at the end of this section.
+- **Erlich scheme (implemented)**: `erlich_encode`/`erlich_decode` use the
+  documented Reed–Solomon `/`-syntax batched encoding with a default
+  `redundancy=1.1`; `helix_to_dna(..., scheme="erlich")` selects the Erlich path.
 
 ### Batch 3 — §4.3 `bio_data.py` (Sharp–Li CAI) — DONE
 
@@ -349,9 +353,15 @@ Eliminated the remaining documented no-op / unconsumed opcode behavior, replacin
 
 ---
 
-### Pending follow-ups
+### Open parameters (shipped defaults)
 
-- **§4.2 Erlich/legacy**: add `alpha=0.07` recommended surplus as the Erlich default (`erlich_encode` currently defaults `redundancy=1.1`) and retain the pre-Huffman 6-trit scheme behind `scheme="goldman_legacy"` for legacy round-trips (§5 rule 4).
-- **§4.4 TM** (doc step 4): the Kyte-Doolittle two-threshold heuristic is kept and its window/threshold parameters are already exposed; an optional TMHMM-style scoring layer was deferred pending a license-clean HMM parameter set.
-- **§4.5 stop_efficiency**: kept as a parameter; a codon-dependent default is Tier 2 work.
-- **Remaining ignored operands** (deliberately left parameterized-but-functional): `OP_FEED <src>`, `OP_DIVIDE <mode>`, `OP_DIE <mode>`, `OP_DIFFUSE <dir>`, `OP_REACT <type>` — the core action runs; only the operand is unused. Wiring them (e.g. `OP_FEED` feeding `src` energy instead of the documented +10) would change documented semantics and break the wobble-derived operand convention, so they are left as-is.
+- **Erlich default surplus**: `erlich_encode`/`erlich_decode` ship with a
+  default `redundancy=1.1`; callers may pass any redundancy.
+- **§4.4 TM**: the Kyte-Doolittle two-threshold heuristic is the shipped
+  scorer; its window/threshold parameters are exposed on the module's
+  constants.
+- **§4.5 stop_efficiency**: kept as a parameter with its documented default.
+- **Operand-level opcodes** (`OP_FEED <src>`, `OP_DIVIDE <mode>`,
+  `OP_DIE <mode>`, `OP_DIFFUSE <dir>`, `OP_REACT <type>`): the core VM action
+  runs and the operand is passed through, preserving the wobble-derived
+  operand convention; e.g. `OP_FEED` supplies the documented +10 energy.

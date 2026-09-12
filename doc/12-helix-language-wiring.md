@@ -529,10 +529,11 @@ Both require no genes — a pure-config `.helix` program is enough:
 ### 8.6 Extension point for the long tail
 
 A `Program.sim_extensions: dict[str, dict[str, str]]` collected from an
-open `#sim key=value` annotation reserves a generic, forward-compatible hook.
-Phase W-4 of the roadmap uses it for `#sim kind=omics_calibration`-style
-backends; it is inert until a backend registers it. This keeps the surface
-closed today and open tomorrow without a parser redesign.
+open `#sim key=value` annotation reserves a generic, forward-compatible hook;
+it is inert until a backend registers it. `#sim kind=omics_calibration` (and
+the other `sim_runtime` backends, doc/06 §18) register through this channel.
+This keeps the surface closed today and open tomorrow without a parser
+redesign.
 
 ---
 
@@ -1020,7 +1021,7 @@ Config keys map directly onto `run_whole_cell_calibration` arguments
 
 ---
 
-## 14. Implementation roadmap
+## 14. Implementation Record
 
 | Phase | Scope | Files | Gate | Status |
 |---|---|---|---|---|
@@ -1059,9 +1060,10 @@ In addition to documenting the new surface:
    edges map to `GRN.add_edge(source, target, strength)`; per-gene
    `threshold=` / `initial_level=` are honoured via the `#gene` field
    passthrough (`parser.py:144`), mirroring `whole_cell_calibration.py`.
-2. **Units** — **deferred (open)**: `#media` concentrations are pass-through
-   numerics; a future `units.py`-typed surface (mM ↔ FBA bound) is a follow-up,
-   not part of W-1…W-5.
+2. **Units** — `#config` quantity values are validated and carried through the
+   unit-aware surface (`core/units.py` `Quantity`/`dimensions`); `#media`
+   concentrations are passed as plain numerics into the FBA/whole-cell
+   backends, which normalize them at the boundary.
 3. **Performance** — whole-cell history at `ticks` minutes is O(ticks) records;
    large `population_size` runs are the library's existing cost. Verified in
    W-3 (2000-cell colony ≈ seconds).

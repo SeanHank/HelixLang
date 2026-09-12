@@ -577,9 +577,9 @@ Operands below are read as `u8` (or `u16` where noted). "wobble" values are `0..
 | `OP_NOT` | Pop `a`, push `0` if truthy else `1`. |
 | `OP_DEBUG` | Print `cell.dump()` to stdout. |
 
-**Unknown opcode bytes** are skipped one byte at a time (in debug mode a diagnostic line is
-printed); the dispatcher falls back to skipping `OP_OPERAND_BYTES` bytes for known-but-
-unimplemented opcodes, bounded by the chunk length.
+**Unknown opcode bytes** are a strict runtime error (`UnknownOpcodeError`),
+never silently skipped (doc/38 §10).  The check is bounded by the chunk
+length.
 
 ### 6.5 Bio Instruction Processing
 

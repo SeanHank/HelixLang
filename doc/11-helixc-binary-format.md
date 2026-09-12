@@ -1,6 +1,8 @@
 # HelixLang Binary Artifact Design (`.helixc`)
 
-Status: **Draft for review** (feature not yet implemented)
+Status: **Implemented** — codec in `src/helixlang/core/hxbc.py`
+(`dumps_program`/`loads_program`, round-trip invariants verified by
+`tests/test_helixc.py`)
 Owner: compiler / tooling track
 Related docs: `02-language-spec.md` §5 (bytecode), §9 (CLI); `03-compiler-design.md` §5–§8;
 `06-engineering-design.md` §2 (module contracts).
@@ -563,7 +565,7 @@ Each milestone ends with a green gate (mypy/ruff/pytest≥80).
 | Binary `Program` carries `line` numbers that drift from `SRC` | Only used for diagnostics; breakpoints prefer the embedded `SRC` when present |
 | Field ordering in `fields` dicts is not semantically significant | Canonical sorted order on write; R2 only requires canonical input |
 | Embedded source could be tampered independently | `SRC` sits inside the checksummed section; any byte change breaks the trailer |
-| Do we need `.helixc` for the web server? | Out of scope for M1–M4; `dumps_program`/`loads_program` already provide the bytes API the server would need |
+| Do we need `.helixc` for the web server? | Not a requirement for this track; `dumps_program`/`loads_program` already provide the bytes API the server would need |
 
 ---
 

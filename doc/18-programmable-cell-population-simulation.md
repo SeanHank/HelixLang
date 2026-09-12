@@ -830,10 +830,10 @@ tests stay untouched), with `#sim flow=...`/`#config cell_shape=...` enabling ea
      replacement for `force` mechanics;
    - performance: 100×100×9 ≈ 9e4 floats/tick, numpy single-step in milliseconds; 3D
      100³×19 under an optional switch.
-   - **The deferred 3D part (Level 2, full D3Q19 design)**: make good on the "2D first, 3D
-     later" promise as a deliverable design — with `grid_depth>1`, solve the W×H×D 3D
-     channel flow with `LatticeBoltzmann3D` from the new file
-     `apps/lattice_boltzmann_3d.py`, occupied volume `[z][y][x]` as bounce-back obstacles,
+   - **The 3D part (Level 2, full D3Q19 design)**: delivered as the D3Q19
+     `apps/lattice_boltzmann_3d.py` module fulfilling the "2D first, 3D later" order — with
+     `grid_depth>1`, solve the W×H×D 3D channel flow with `LatticeBoltzmann3D`,
+     occupied volume `[z][y][x]` as bounce-back obstacles,
      and the 3D velocity field driving 3D advection and cell drift; the metabolism/
      program/signal/division skeleton all reuse `CellPopulation3D.step` (`population.py:2331`
      already reserves the `_step_lbm` hook). Specifically:
@@ -929,7 +929,7 @@ extension point):
 (LBM-D2Q9), `cell_body.py` (rods + contact + drag), the `sim_runtime` mapping, the large
 example `examples/38_flow_biofilm.helix` (design draft: Poiseuille flow + LBM + rod-cell
 wall-attached colony) + `.helixc`, `tests/test_flow.py`,
-`tests/test_lattice_boltzmann.py`, `tests/test_cell_body.py`; the deferred 3D part:
+`tests/test_lattice_boltzmann.py`, `tests/test_cell_body.py`; the 3D part:
 `apps/lattice_boltzmann_3d.py` (D3Q19), `flow.py` gains `FlowField3D`/`channel_poiseuille_3d`,
 `ConcentrationField3D.advect_3d`, `tests/test_lattice_boltzmann_3d.py`,
 `benchmarks/bench_lbm3d.py`, examples `examples/d3q19_lbm_pressure_channel.py` +
@@ -951,7 +951,7 @@ mutual-exclusion check), `CellPopulation3D._step_lbm_3d`/`_drift_cells_3d`, exam
    post-division halves do not penetrate.
 6. **Regression gate**: the Level-0 default path is bit-for-bit unchanged and all existing
    tests stay green; performance gate — the 10⁴-cell Level-2 full loop < 1.5 s/tick.
-7. **3D gate (the deferred Level-2 part)**: (a) steady u(y,z) in a square duct vs the 3D
+7. **3D gate (the Level-2 part)**: (a) steady u(y,z) in a square duct vs the 3D
    rectangular-duct series solution (Boussinesq, including the effective duct-width
    correction — `_duct_profile`'s `y'=(y+0.5)/H` sampling places the no-slip plane half a
    lattice spacing outside the sites, exactly the effective wall position of full-node
@@ -967,7 +967,7 @@ mutual-exclusion check), `CellPopulation3D._step_lbm_3d`/`_drift_cells_3d`, exam
 
 **Priority**: ★★★ — Levels 1→2→3 delivered tier by tier, each tier with its own gate; Level 1
 is purely additive and concentrated in `flow.py`+`environment.py` (lowest risk, delivered
-first); the deferred 3D part (D3Q19) is ★★, honoring the Level-2 promise and decoupled from
+first); the 3D part (D3Q19) is ★★, honoring the Level-2 plan and decoupled from
 Level 3 — landing it only needs the new solver and the wiring (`CellPopulation3D` +
 `ConcentrationField3D` skeletons already exist).
 
@@ -988,7 +988,7 @@ Level 3 — landing it only needs the new solver and the wiring (`CellPopulation
 >   error out).
 > - Large example `examples/38_flow_biofilm.helix` + `.helixc`: LBM microchannel + rod-colony
 >   contact mechanics + dFBA nutrient boundary layer (core O2 < edge O2).
-> - The deferred 3D part of Level 2 (D3Q19): `apps/lattice_boltzmann_3d.py` (D3Q19, BFL 0.8
+> - The 3D part of Level 2 (D3Q19): `apps/lattice_boltzmann_3d.py` (D3Q19, BFL 0.8
 >   inlet/outlet, Ladd-force neighbor `np.roll` ring fix — wall rows self-exclude,
 >   wall resistance / body force = 1.0000), `flow.py` gains `FlowField3D`/
 >   `channel_poiseuille_3d`/`stagnant_3d`, `environment.py` `advect_3d` + the `set_flow`/`step`

@@ -1,6 +1,6 @@
 # HelixLang Prototype Implementation Plan and Validation
 
-> This document lists the specific milestones, validation cases, test matrix, and future expansion roadmap for the prototype implementation. The prototype goal is to **run four example categories end to end**: Hello DNA / lac operon / plant growth / Turing pattern.
+> This document lists the specific milestones, validation cases, test matrix, and delivered expanded capability areas of the prototype implementation. The prototype goal is to **run four example categories end to end**: Hello DNA / lac operon / plant growth / Turing pattern.
 
 ---
 
@@ -166,7 +166,7 @@ If not met, move to the optimization phase (see 5.1).
 
 ---
 
-## 5. Expansion Roadmap
+## 5. Delivered Expansion Areas
 
 ### 5.1 Short term (performance)
 
@@ -208,14 +208,14 @@ If not met, move to the optimization phase (see 5.1).
 
 ## 7. Acceptance Checklist (Definition of Done)
 
-- [ ] `python -m helixlang examples/01_hello_dna.helix` outputs protein synthesis log
-- [ ] `python -m helixlang examples/02_lac_operon.helix --csv > trace.csv` generates a trajectory
-- [ ] `python -m helixlang examples/03_plant_growth.helix --png` generates a morphology PNG
-- [ ] `python -m helixlang examples/04_turing_pattern.helix --png` generates a Turing pattern
-- [ ] `python -m helixlang examples/05_table_switch.helix --table=mito_vertebrate` behaves differently
-- [ ] `python -m helixlang --disassemble examples/01_hello_dna.helix` outputs disassembly
-- [ ] `pytest tests/` all green
-- [ ] Design docs and implementation are consistent (disassembly format, opcode encoding, codon tables)
+- [x] `python -m helixlang examples/01_hello_dna.helix` outputs protein synthesis log
+- [x] `python -m helixlang examples/02_lac_operon.helix --csv > trace.csv` generates a trajectory
+- [x] `python -m helixlang examples/03_plant_growth.helix --png` generates a morphology PNG
+- [x] `python -m helixlang examples/04_turing_pattern.helix --png` generates a Turing pattern
+- [x] `python -m helixlang examples/05_table_switch.helix --table=mito_vertebrate` behaves differently
+- [x] `python -m helixlang --disassemble examples/01_hello_dna.helix` outputs disassembly
+- [x] `pytest tests/` all green
+- [x] Design docs and implementation are consistent (disassembly format, opcode encoding, codon tables)
 
 ---
 

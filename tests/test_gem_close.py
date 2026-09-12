@@ -360,6 +360,30 @@ class TestBridgeClose:
         assert out._fba_fluxes == {"BIOMASS": 1.0}
         assert out._adapter is not None
 
+    def test_build_functional_model_full_from_sbml_branch(self, monkeypatch) -> None:
+        from helixlang.plugins.gem import full_model as fm_mod
+
+        class FakeAdapter:
+            def __init__(self) -> None:
+                self.model = SimpleNamespace(
+                    reactions={}, biomass_reaction=None)
+                self.biomass_rxn = None
+                self.growth_rate = 0.5
+
+            def apply_medium(self, medium: str) -> None:
+                return None
+
+            def solve(self) -> dict[str, float]:
+                return {}
+
+        monkeypatch.setattr(
+            fm_mod.FullModelAdapter, "from_sbml",
+            lambda path, organism: FakeAdapter())
+        out = build_functional_model_full(
+            organism="e_coli_k12", medium="lb", sbml_path="fake.xml")
+        assert out._growth_rate == 0.5
+        assert out._adapter is not None
+
 
 # ---------------------------------------------------------------------------
 # community.py
@@ -550,6 +574,18 @@ class TestFullModelClose:
         adapter = FullModelAdapter.from_bigg("t", model_dir="/tmp")
         assert adapter.biomass_rxn == "BIOMASS"
 
+    def test_from_sbml_happy_and_summary(self, monkeypatch) -> None:
+        import helixlang.plugins.gem.sbml_import as sbml_import_mod
+
+        monkeypatch.setattr(
+            sbml_import_mod, "load_sbml_model", lambda path: self._model())
+        adapter = FullModelAdapter.from_sbml(
+            "fake.xml", "t", biomass_rxn="BIOMASS")
+        assert adapter.biomass_rxn == "BIOMASS"
+        summ = adapter.summary()
+        assert summ["organism"] == "t"
+        assert summ["biomass_rxn"] == "BIOMASS"
+
     def test_exchange_via_subsystem(self, monkeypatch) -> None:
         adapter = self._adapter(monkeypatch)
         assert "T_sub" in adapter.exchange_reactions
@@ -612,6 +648,14 @@ class TestFullModelClose:
         )
         with pytest.raises(BioError):
             adapter.apply_medium("does_not_exist")
+
+    def test_apply_medium_photo_preset_keeps_calvin(self, monkeypatch) -> None:
+        adapter = self._adapter(monkeypatch)
+        monkeypatch.setattr(
+            FullModelAdapter, "_MEDIUM_PRESETS", {"bg11": {}}
+        )
+        adapter.apply_medium("bg11")
+        assert adapter.model.reactions["RBC"].upper_bound == 1000.0
 
     def test_set_uptake(self, monkeypatch) -> None:
         adapter = self._adapter(monkeypatch)

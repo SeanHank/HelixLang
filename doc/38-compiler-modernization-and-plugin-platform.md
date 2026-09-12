@@ -7,12 +7,12 @@
 > verification passes full rigor) · 2026-09-02 · baseline `2026.9.0`
 
 This document turns twelve architecture goals into a concrete, codebase-anchored
-analysis and a phased implementation plan.  Every claim below cites the current
+analysis and implementation record.  Every claim below cites the current
 file/line so the reader can verify the state before changing it.
 
 **Implementation status (audited 2026-09-02).** All twelve goals have landed;
-the "Fix" sections below are now descriptions of shipped behavior rather than
-pending work.  Verification: real `ops_per_sec`/`accel_used` observations
+the "Fix" sections below are descriptions of shipped behavior.  Verification:
+real `ops_per_sec`/`accel_used` observations
 (`core/performance.py`), LanguageConfig (`core/codon_table.py`) + GrammarRegistry
 (`core/grammar_registry.py`) with the plugin `#keyword`s, `#type name=...` +
 `#unit` typing wired into the semantic layer (`core/type_system.py`),
@@ -109,6 +109,9 @@ for a byte-identical run (extend `tests/test_performance.py`).
 **Problem.** `use_accel` is a parameter to `VMProfiler.profile` that never reaches
 the VM.  `accelerated_execute_pending` is unwired dead code outside a test
 monkeypatch (`tests/test_performance.py:112`), so "accel used" is fabricated.
+(The dispatch hot loop is now C-only — doc/03 §6.5 / doc/06 §19 — so this
+observation doubles as the mandate's audit point: `accel_used` can never be
+`python` for the VM dispatch kernel.)
 
 **Fix.**
 
@@ -485,7 +488,8 @@ class IRExtension:
   an IR kind that is not registered at load is refused (never silently skipped).
 - `IRRuntime` dispatch consults a per-instruction extension map; the
   `CellVM`/bytecode path is unaffected unless the extension also registers an
-  opcode (out of scope — IR extensions are IR-first).
+  opcode (IR extensions are IR-first; the bytecode opcode table itself stays
+  fixed and closed, doc/38 §3).
 
 ### 6.5 — Backend interface & BackendRegistry (kills the dispatch leaks)
 

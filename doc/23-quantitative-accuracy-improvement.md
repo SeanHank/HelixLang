@@ -79,7 +79,7 @@ Given genome FASTA files, automatically:
 
 ---
 
-## 3 — Remaining Gaps and Proposed Fixes
+## 3 — Gap Analysis and Applied Fixes
 
 ### 3.1 — E. coli Dynamic Growth Rate (0.5363 → 0.87 h⁻¹)
 
@@ -88,7 +88,7 @@ by `traits.max_growth_rate` (0.87), but the Monod uptake from field
 concentration may limit the effective rate. With `dt=0.1` (now 0.05),
 the dFBA trajectory starts at a low glucose pool and ramps up.
 
-**Proposed fix:** Verify that `gem_dt=0.05` improves the dynamic
+**Fix:** Verify that `gem_dt=0.05` improves the dynamic
 trajectory. The finer time step should reduce truncation error and allow
 the LP to track the exponential phase more closely.
 
@@ -108,7 +108,7 @@ the LP to track the exponential phase more closely.
    fast (now fixed). The remaining gap may be from dt-dependent
    integration error in the exponential phase.
 
-**Proposed fixes:**
+**Fixes:**
 
 | Fix | Expected impact | Risk |
 |---|---|---|
@@ -122,7 +122,7 @@ the LP to track the exponential phase more closely.
 reconstruction, but quantitative accuracy is only validated for
 E. coli and Synechocystis.
 
-**Proposed validation targets (doc/23 §4):**
+**Validation targets (doc/23 §4):**
 
 | Organism | Growth rate | Source |
 |---|---|---|

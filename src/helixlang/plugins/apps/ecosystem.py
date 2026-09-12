@@ -1207,9 +1207,7 @@ class Patch:
                         expected_total = 0.0
                         _fba_fluxes = sp.last_fba_fluxes or {}
                         for sub, cpm, rate in comps:
-                            field = self.fields.get(sub)
-                            if field is None:
-                                continue
+                            field = self.fields[sub]
                             expected = rate * g / g_c * bx if g_c > 0 else 0.0
                             expected_total += expected * cpm
                             removed = field.deplete(x, y, expected) if g_c > 0 else 0.0
@@ -1312,9 +1310,7 @@ class Patch:
         components: list[tuple] = []
         g_c = 0.0
         for sub, (vmax, ks) in sp.consumption.items():
-            field = self.fields.get(sub)
-            if field is None:
-                continue
+            field = self.fields[sub]
             cpm = self._cpm(sub)
             s = field.get(x, y) * fluct
             uptake = monod_uptake(vmax, s, ks)
@@ -1399,9 +1395,7 @@ class Patch:
             # Use a dynamic floor: if concentration is <= 5% of ks,
             # Monod gives < 5% of vmax — treat as exhausted.
             for sub, (vmax_ks, ks_val) in sp.consumption.items():
-                field = self.fields.get(sub)
-                if field is None:
-                    continue
+                field = self.fields[sub]
                 conc = field.get(x, y) * fluct
                 gem_met = _ECOSYSTEM_TO_GEM_EXCHANGE.get(sub, sub)
                 # Dynamic floor: substrate at or below this concentration
@@ -1505,9 +1499,7 @@ class Patch:
                         self.fields["oxygen"].add(x, y, removed)
                     growth_c += removed
                 continue
-            field = self.fields.get(sub)
-            if field is None:
-                continue
+            field = self.fields[sub]
             removed = field.deplete(x, y, rate * rate_scale * bx)
             if removed <= 0.0:
                 continue
@@ -2083,9 +2075,7 @@ def build_multi_species_ecosystem(
             gem_fluxes=fluxes,
         )
         # Propagate secretion from FBA
-        secretion = params.get("secretion")
-        if secretion is not None:
-            sp.secretion.update(secretion)
+        sp.secretion.update(params.get("secretion") or {})
 
         species_list.append(sp)
 

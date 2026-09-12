@@ -19,7 +19,7 @@ This document covers four interconnected objectives:
 
 1. **Biological Validity** — A framework for comparing HelixLang simulation output
    against published experimental and computational reference data, including
-   out-of-scope detection, parameter fitting, uncertainty quantification, and
+   missing-parameter detection, parameter fitting, uncertainty quantification, and
    replication verification.
 
 2. **Performance Optimization** — Integration of the C dispatch kernel into the
@@ -71,7 +71,8 @@ when the model extrapolates beyond its validated domain.
 
 - Loads reference parameter ranges from `validation/references/`
 - Checks each parameter against `[min, max]` bounds from literature
-- Returns a scope report: which parameters are in-scope, which are out-of-scope
+- Returns a scope report: which parameters are within the validated domain,
+  which fall outside it (`OUT_OF_SCOPE`)
 - Severity: `SAFE` (within 1σ), `WARNING` (1σ–2σ), `OUT_OF_SCOPE` (>2σ)
 
 **Reference data sources:**
@@ -279,7 +280,7 @@ Layer 3: sim_runtime — integration adapter, imports core types + plugins
 Make the compiler/runtime split a genuine **IR pipeline** with Helix IR as a
 first-class, typed, portable artifact — the single object every backend
 consumes — instead of an incidental intermediate inside `compiler.py`.  The
-target chain (part of doc/34's architectural roadmap, fully implemented here):
+target chain (part of doc/34's Architecture Plan, fully implemented here):
 
 ```
 helix language (DNA codons)                    ← high-level .helix source

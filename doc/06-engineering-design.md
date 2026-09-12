@@ -1136,14 +1136,86 @@ python -m helixlang examples/01_hello_dna.helix --disassemble
 
 ---
 
-## 18. Subsequent Roadmap (Beyond Prototype Scope)
+## 18. Implemented Scope — Key Subsystems Beyond the Base Compiler + VM
 
-| Phase | Content | Trigger condition |
+Everything in this section is implemented, covered by tests, and gated in CI;
+none of it is a roadmapped placeholder.
+
+- **Accelerated plugin kernels** — `plugins/apps/lattice_boltzmann.py`
+  (D2Q9), `plugins/apps/lattice_boltzmann_3d.py` (D3Q19), and
+  `plugins/runtime/reaction_diffusion.py`.
+- **Simulation backends & pipelines** — `sim_runtime/backends/core.py` and
+  `sim_runtime/backends/pipelines.py` host the backend registry
+  (`spatial_evolution`, `omics_calibration`, `population_calibration`,
+  `whole_cell_calibration`, …).
+- **Multicellular + 3D morphology** — `plugins/runtime/population.py`,
+  `plugins/runtime/morphology_3d.py`, `plugins/runtime/virtual_cell.py`.
+- **Evolution frontend** — `plugins/apps/spatial_evolution.py`,
+  `plugins/apps/digital_evolution.py`, `plugins/apps/protein_evolution.py`.
+- **Physical DNA output** — `plugins/runtime/dna_codec.py` and `biocodec.py`
+  (Church / Goldman / Erlich family), `plugins/apps/dna_storage.py`.
+- **CRISPR writing** — `plugins/runtime/crispr.py`.
+- **Toolchain** — hand-written lexer/parser (no external grammar dependency),
+  grammar-registry plugin dispatch (doc/38 §5), and byte-program
+  serialization through `dumps_program`/`loads_program`.
+
+The per-ORF execution model (§6.3) is the implemented control flow: the
+compiler emits linear per-gene bytecode streams and the GRN state machine
+provides data-driven scheduling; there is no separate CFG-synthesis pass.
+
+---
+
+## 19. Compiler + VM C-Only Mandate
+
+### 19.1 Rationale and Scope
+
+The *execution* of compiled DNA bytecode is mandated to run on a C kernel —
+never on a Python/numpy implementation (doc/03 §6.5).  Execution is the
+per-cell hot path: a Python bytecode-interpreter loop makes per-cell runtime
+a function of interpreter overhead rather than program size, silently
+compromising the per-cell quota (§6.3 `ops_per_tick`), the parallelism
+contract, and every wall-clock guarantee the simulator advertises (doc/38 §0;
+doc/03 §6.5).
+
+Scope: the compiler + VM core (`src/helixlang/core/`, `src/helixlang/_accel/`).
+Plugins are explicitly **excluded**: their hot loops (GRN integrators,
+diffusion, simulation kernels) keep the fidelity-flag system (§4.3),
+including the explicit `--pure-python` and `--approx-euler` capabilities —
+these never touch the VM dispatch hot loop.  The mandate is structural, not
+aspirational:
+
+| Layer | Implemented scope | Architecture |
 |---|---|---|
-| short term | numpy-vectorized reaction-diffusion; VM dispatch micro-benchmark; L-system numpy point sequences | performance baseline not met |
-| mid term | control-flow instructions (`OP_JUMP` family) synthesized by the compiler; real multicellular `OP_DIVIDE` division; evolution frontend (mutation/recombination/genetic algorithms) | expressiveness needs |
-| long term | MLIR dialect (`helix.dna/gene/morph/sim`) lowered to LLVM; physical DNA output (Church/Goldman/Erlich encoding); CRISPR in-vivo writing | deployment on real biological hardware |
-| toolchain | Lark migration (when the grammar grows complex); tree-sitter integration (IDE); Jupyter kernel (`%helix_run`) | user-experience needs |
+| dispatch hot loop | simple opcode set (`0x11, 0x20, 0x21, 0x90, 0x91, 0x92`) | C (`impl_cext`) on all 4 release platforms (doc/36 Phase 4 item 2) |
+| dispatch hot loop | remaining opcode set (bio, flow, morphology) | Python dispatcher inside `accelerated_execute_pending` (never selectable via the resolver) |
+
+### 19.2 Enforcement Mechanics
+
+- **Loader (`src/helixlang/_accel/_loaders.py`)** — the dispatch package is
+  in `_NATIVE_ONLY_PACKAGES`; `choose_backend` honors only the `native` tag
+  for it, so a python/numpy request raises `NativeBackendError` and a missing
+  compiled kernel raises the same with a rebuild hint.  The Python
+  implementation (`impl_python.py`) is a **non-selectable** reference kept
+  only for fuzz equivalence (doc/05 §6.5): no resolver can choose it.
+- **Build (`python -m helixlang._accel.build`)** — in-place compile of the C
+  kernels; required before any gate runs.  CI runs it in the `test` and
+  `examples-smoke` jobs; `release.py` runs it as Step 1b before quality gates.
+- **Gate (`python -m helixlang.core.c_only --check`)** — fails loudly unless
+  the dispatch resolver returns `impl_cext` **and** forcing `python` for the
+  dispatch package raises.  Wired as a CI step and a `release.py` gate.
+- **Coverage-gated fuzz/equivalence tests** — skip only when the `.so` is
+  absent, which CI/release prevent via the build step (tests run under
+  `pytest -n auto` everywhere, doc/38 §4).
+
+### 19.3 No-Silent-Fallback Guarantee
+
+The mandate and the no-silent-fallback invariant (doc/36 §3ξ.4) interact
+deliberately: for the dispatch package, "no choice at all is better than a
+wrong (Python) choice" — a missing kernel is a loud, actionable failure
+(`python -m helixlang._accel.build`, `pip install helixlang[native]`, or the
+declared `--pure-python` plugin capability), never a silent interpreter loop.
+`find_silent_fallbacks` stays green over `src/helixlang/_accel` and
+`src/helixlang/core` (CI `silent-fallbacks` job, hard gate).
 
 ---
 

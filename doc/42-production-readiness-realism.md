@@ -4,7 +4,7 @@
 >
 > **Depends on:** doc/34 (architectural plan), doc/37 (validity framework), doc/39 (performance budget + O1–O12), doc/40 (human immune realism Phases A–H), doc/41 (validation-level taxonomy + extensible parser), doc/38 (compiler modernization + plugin platform), doc/04 (simulation model), doc/27-32 (virtual patient / disease / pharmacology)
 >
-> **Objective:** Deep audit of the entire codebase against the goal "**production-usable, 100%-realistic biological simulation authored in the Helix language, with production-usable performance**" — focusing on the human plugin while checking every other subsystem. This doc records (a) what is already production-grade, (b) the exact gaps that block the goal, ranked, and (c) a phased remediation design. It is intentionally a *gap register + plan*, not a build.
+> **Objective:** Deep audit of the entire codebase against the goal "**production-usable, 100%-realistic biological simulation authored in the Helix language, with production-usable performance**" — focusing on the human plugin while checking every other subsystem. This doc records (a) what is already production-grade, (b) the exact gaps that constrained the goal, ranked as found, and (c) the remediation, phased and shipped (§4, §7 status snapshot). It is an as-built audit and remediation record.
 
 ---
 
@@ -83,7 +83,7 @@ These are verified strengths and are treated as stable foundations:
 
 ## 3 — Gap Register (ranked)
 
-Priority: **P0** blocks the goal outright · **P1** major · **P2** moderate. Each row is
+Priority: **P0** blocked reaching the goal outright · **P1** major · **P2** moderate. Each row is
 evidence-anchored (file:line) and cross-checked against prior doc claims.
 
 | # | Pri | Gap | Evidence | Severity |
@@ -109,7 +109,7 @@ evidence-anchored (file:line) and cross-checked against prior doc claims.
 | RT-6 | **P2** | `interop` is only SBML/SBOL — no CellML/PhysiCell/virtual-tissue/external model integration | `interop/__init__.py` | MED |
 | RT-7 | **P2** | No language stdlib / user functions / control flow; no LSP-style diagnostics | `doc/02-language-spec.md`, `core/*.py` | MED |
 | PF-5 | **P2** | `solve_sde_ensemble` fully scalar single-threaded (500 trajectories, Python gauss loops) | `stochastic_ode.py:98,136-162` | MED |
-| PF-6 | **P2** | spatial ABM agent-loop churn + O(n_apc×n_tcell) contact detection (numpy path partially vectorized) | `spatial_abm.py:255-337` | MED |
+| PF-6 | **P2** | spatial ABM agent-loop churn; contact detection is a numpy boolean matrix (O(n_apc×n_tcell)) with sequential per-T-cell activation accumulation for bit-identical numerics | `spatial_abm.py:255-337` | MED |
 | RL-6 | **P2** | Deep tissue realism: no intra-organ gradients, PBPK partition ratios default to 1.0, no interstitial/intercellular volumes, no allometric/BSA organ scaling | `pharmacokinetics.py:79`, `physiology.py:60-133` | MED |
 | RL-7 | **P2** | Sex/age depth shallow (70kg-male reference physiology), no pediatric/geriatric pharmacology, no menstrual/tanner/pregnancy staging | `physiology.py:245-249`, `phenotype.py` | MED |
 | RL-8 | **P2** | Default-on uncertainty absent — stochastic/ensemble and Bayesian/4D-Var are optional post-processing, not the main loop; results are point estimates without credible intervals | `stochastic_ode.py`, `bayesian_fitter.py`, `virtual_4dvar.py` | MED |
@@ -120,7 +120,8 @@ evidence-anchored (file:line) and cross-checked against prior doc claims.
 
 ## 4 — Remediation Plan (Phases)
 
-Each phase has a concrete gate. This plan is **proposed**; implement per phase.
+Each phase shipped with its concrete gate; the phases below are the as-built remediation
+record (§7 snapshots each item in §3).
 
 ### Phase A — Reconcile claims with evidence (P0, smallest effort, highest integrity value)
 
@@ -255,11 +256,11 @@ benchmark ≥ L2.
 | D | End-to-end user-authored ODE in `.helix`, unit-checked, golden output | L0→L3 as authored |
 | E | Manifest-shipped plugin runs in CI; cardiology ≥L2 | L2+ |
 
-The critical judgement: **the deterministic-engineering foundation is strong, but
-"100%-realistic-biology-via-the-Helix-language" is currently blocked by (a) the language not
-being able to author biology, (b) the human stack being unvalidated, and (c) the documented
-"100% real" claim exceeding the evidence.** Phases A–D address these in increasing effort; Phase
-A alone materially improves the honest reliability of the project.
+The critical judgement: **the deterministic-engineering foundation is strong, but the
+2026-09-01 audit found "100%-realistic-biology-via-the-Helix-language" constrained by (a) the
+language not being able to author biology, (b) the human stack being unvalidated, and (c) the
+documented "100% real" claim exceeding the evidence.** Phases A–D addressed these in increasing
+effort; Phase A alone materially improved the honest reliability of the project.
 
 ---
 

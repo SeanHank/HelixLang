@@ -375,8 +375,7 @@ class LatticeBoltzmann3D:
 
     def _apply_body_force(self, f: np.ndarray) -> None:
         """Guo 2002 forcing: add ``(1 - w/2) w_i C_i . F`` to each link."""
-        if self.body_force is None:
-            return
+        assert self.body_force is not None
         fx, fy, fz = self.body_force
         g = 1.0 - 0.5 * self.omega
         rho = np.sum(f, axis=0)

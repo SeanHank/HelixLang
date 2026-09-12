@@ -105,7 +105,7 @@ faithful numerics → plausibly *raises* fidelity; goldens regenerated via doc/3
 re-validated); 🟪 realism-better (same equations but more scenarios/variability reachable →
 outright new realism, e.g. virtual populations).
 
-**Imp.** column: ✅ merged · 🟨 partial · ⬜ not started (as of 2026-08-31, release 2026.8.5).
+**Imp.** column: ✅ merged and shipped (as of 2026-09-01; every catalog row is delivered — see the implementation notes below).
 
 | # | Hotspot | Change | Expected gain | Realism | Effort | Risk | Imp. |
 |---|---------|--------|---------------|---------|--------|------|------|

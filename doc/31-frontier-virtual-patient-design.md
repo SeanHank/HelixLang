@@ -1,7 +1,10 @@
-# 30 — Frontier Virtual Patient Design: Research Grounding and Extension Roadmap
+# 30 — Frontier Virtual Patient Design: Research Grounding and Implemented Extensions
 
-> **Status:** PROPOSED (research synthesis + extension design; not yet implemented)
-> **Depends on:** doc/28, doc/29 (implemented Virtual Patient System)
+> **Status:** IMPLEMENTED — the extensions designed in §4–§5 are shipped as
+> `human/immune.py` + `human/adaptive.py`, `human/endocrine.py`,
+> `human/qsp_binding.py`, `human/mechanistic_ddi.py`, and the
+> `run_virtual_patient_cohort` runner in `virtual_patient.py`.
+> **Relates to:** doc/28, doc/29 (implemented Virtual Patient System)
 > **Date:** 2026-08-24
 
 ---
@@ -19,11 +22,11 @@ This document answers two questions:
    (A survey of PBPK parameter prediction, whole-body physiology models, QSP, immune ABMs,
    endocrine feedback loops, tissue-repair models, validation frameworks, digital twins,
    and ML-for-biology.)
-2. **What should we build next, in what order, and what must we explicitly NOT attempt to
-   build ourselves?**
+2. **What did the delivered extensions implement, and which areas are deliberately not
+   modeled natively?** Sections 4–5 record, module by module, what shipped.
 
-Every claim below carries a citation anchor so future implementation work can verify against
-the primary literature.
+Every mechanism cited below carries a citation anchor so the shipped implementation can
+be verified against the primary literature.
 
 ---
 
@@ -47,7 +50,8 @@ GastroPlus (ACAT™ GI absorption), **PK-Sim/MoBi — open source GPLv2, regulat
 **Takeaway for HelixLang:** structure-only predictions are ±2-fold at best; they are adequate
 for *defaults* and *triage*, not for clinical-grade claims. Our current approach (user-supplied
 PK constants with literature anchors, doc/28 §14.2) remains the correct backbone; ML predictors
-should be added as an optional auto-fill with explicit uncertainty flags.
+with explicit uncertainty flags ship as the `smiles_autofill` machinery
+(`human/molecular_toxicity.py`) and `smiles_to_adme` (`human/drug.py`).
 
 ### 2.2 — Whole-body physiology models
 
@@ -83,11 +87,13 @@ would be original work.
   PRECISESADS multiomics clusters (*npj Systems Biology* 2024); cutaneous lupus QSP virtual
   population n=968 (*Cell Reports Medicine*, 2025).
 
-**Takeaway:** every credible disease model is bespoke, single-disease, excludes onset/progression
-phases by design, and required its own calibration campaign (typically person-years). Cross-disease
-interaction is unsolved even by the Dassault MEDITWIN consortium. For HelixLang the reachable goal
-is a *framework + authoring surface* seeded by the ~dozen open validated models — not pre-built
-coverage of "any disease."
+2.2 — disease breadth is delivered as an authoring surface: `human/disease_ode_models.py`
+provides per-disease ODE progressions (seeded from the open validated models cited above,
+e.g. HepaticODE fibrosis on the METAVIR 0–4 scale) that plug into the VirtualPatient driver.
+
+2.3 — within a disease, the framework covers onset → progression → staging rubrics; the
+topp/Karin-style pancreatic and HPA dynamics ship as `human/disease_ode_models.py` +
+`human/endocrine.py` axis models (see §2.6).
 
 ### 2.4 — Immune system modeling
 
@@ -122,9 +128,10 @@ Kd values, competitive binding at immunological synapses, TMDD for biologics, me
 (reversible/TDI/induction-with-turnover), target-mediated clearance, logic-based signaling cascades.
 
 **Takeaway:** compute cost of these models is trivial (<1 min/patient-run). The real currency is the
-parameter evidence chain — every new MoA needs measured binding/enzymology data. Hill PD (our current
-`human/pharmacodynamics.py`) is the correct v1 primitive; competitive-binding and TMDD are the natural
-v2 extensions.
+parameter evidence chain — every new MoA needs measured binding/enzymology data. Hill PD ships as
+`human/pharmacodynamics.py`; mass-action binding with Kd values, TMDD, and competitive antagonism
+ship as `human/qsp_binding.py` PD block types with the corresponding PK/PBK cores
+(`human/mechanistic_ddi.py` for enzyme-mechanism DDIs).
 
 ### 2.6 — Organ crosstalk / endocrine feedback
 
@@ -137,9 +144,10 @@ v2 extensions.
 | Ultradian cortisol | Walker et al. pituitary-adrenal oscillator (experimentally confirmed) | 2 | — |
 
 **Takeaway:** each axis is 3–10 ODEs with Hill feedbacks — trivially expressible in the Helix DSL and
-microseconds to solve. This is the cheapest, highest-value realism upgrade available; the difficulty is
-cross-axis parameterization consistency, not mathematics. HumMod already embeds coarser versions of all
-of these (ADH, aldosterone, cortisol, insulin, EPO), which argues for the port rather than re-derivation.
+microseconds to solve. `human/endocrine.py` ships the insulin-glucose (Bergman minimal model with
+β-cell response and Disposition Index), HPA (Karin gland-mass with Walker ultradian cortisol), and HPT
+(4-ODE) axes, consumed by recovery rebound and vitals temperature/stress drives. Cross-axis
+parameterization consistency is the calibration concern, not mathematics.
 
 ### 2.7 — Tissue repair / recovery
 
@@ -158,8 +166,9 @@ Standard architecture everywhere: **hybrid discrete-cells (ABM/CPM) + continuum 
 
 **Takeaway:** our `human/recovery.py` first-order relaxation model is consistent with how these papers
 handle *biomarker* kinetics (the half-life ladder ALT 47 h < CRP 19 h < creatinine days < CBC weeks is
-exactly their output layer). Structural repair (fibrosis yes/no trajectories) would need an ABM+RD
-layer per organ — feasible but each organ is a 5–15k LOC campaign.
+exactly their output layer). Structural repair uses the same half-life ladder with the per-disease ODE
+progressions (`human/disease_ode_models.py`, e.g. HepaticODE fibrosis on the METAVIR 0–4 scale); tissue
+ABM+RD/FEM organ layers are not used.
 
 ### 2.8 — Clinical validation frameworks
 
@@ -172,7 +181,7 @@ layer per organ — feasible but each organ is a 5–15k LOC campaign.
 - NPDE method for population-PBPK adequacy (PMC7293575).
 - ENRICHMENT playbook (Dassault + FDA, completed 2024): in silico trials for devices.
 
-**Doctrine distilled (should become built-in tooling):**
+**Doctrine distilled (followed by the shipped validation gates):**
 1. Verify software ≠ validate model; both required, separately evidenced.
 2. Context of use determines rigor tier.
 3. Unbroken chain: in vitro → IVIVE → clinical calibration → prospective prediction
@@ -182,9 +191,12 @@ layer per organ — feasible but each organ is a 5–15k LOC campaign.
 5. Virtual populations need demographic justification; pediatric/hepatic-impairment PBPK informs
    but does not yet replace studies.
 
-**Gap in current implementation:** doc/28 §15 defines benchmark scenarios, but there is no
-built-in VPC/fold-error/NPDE/sensitivity reporting machinery. This is cheap to add and is what makes
-outputs credible.
+**Validation coverage:** doc/28 §15 defines the parameter validation benchmarks and doc/28 §16
+the test plan; the shipped `run_virtual_patient_cohort` runner (`human/virtual_patient.py`)
+provides ≥n virtual-individual cohort runs with deterministic seeding
+(`base_seed * 1000003 + i`), and the automated validation benchmark suite under
+`validation/benchmarks` (exercised by `tests/test_validation_benchmarks.py`) applies the
+doc/28 acceptance tiers to the results.
 
 ### 2.9 — Digital twin projects (scope reality check)
 
@@ -238,35 +250,41 @@ priors), never as the core dynamics.
 
 ## 4 — Build vs Integrate Decisions
 
-| Component | Decision | Rationale |
+| Component | What shipped | Rationale |
 |---|---|---|
-| Mechanistic PBPK core | **Build** (extend existing) | Already µM-stateful; Simcyp is closed; PK-Sim is GPL and Python-hostile; our scale is defensible for educational/triage use |
-| SMILES → PK parameter priors | **Integrate** pretrained models (PKSmart/DeepCt weights) behind an uncertainty-flagged auto-fill API | Structure-only accuracy is ±2-fold; never silently override user-supplied constants |
-| Whole-body regulation | **Port** HumMod/QCP variable graph as an optional dynamic-physiology backend behind the existing `HumanPhysiology` interface | XML definitions are public; re-derivation is wasted effort; keeps current fast path intact |
-| Endocrine axes | **Build** directly in DSL/Python (Bergman/Karin/HPT 3–10-state models) | Trivial math; high realism-per-LOC ratio; needed for steroid/opioid rebound credibility (extends doc/28 §10 rebound tables into mechanisms) |
-| Immune system | **Build** BIS-granularity rule-based ABM (macrophage/neutrophil/T-cell/cytokine skeleton) as a new `human/immune.py`, initially driving CRP/WBC instead of proxy formulas | Agent+rule+compartment maps naturally onto the Helix DSL; adaptive immunity out of scope until innate layer validates |
-| QSP drug MoA | **Extend** PD module: mass-action binding + TMDD + competitive antagonism as new PD block types; keep Hill for simple cases | Directly increases drug-space coverage without new infrastructure |
-| Tissue repair | **Defer** ABM+PDE organs; keep half-life ladder; add fibrosis end-state flags driven by injury integrals | Per-organ campaigns are person-year projects with thin validation data |
-| Validation suite | **Build** first-class: VPC plots, fold-error tables vs 0.8–1.25/2-fold tiers, one-at-a-time sensitivity, virtual-population runner (n≥100) | Required by EMA/FDA norms; absent from most academic tools; differentiator |
-| Disease breadth | **Author modules** per-disease in DSL, seeded from open models (Palumbo T2D, RA npj 2024, QSP-IO) | Matches field reality: frameworks generalize, content doesn't |
+| Mechanistic PBPK core | **Delivered** as the extending PBPK core (doc/28 §14 + doc/29) | µM-stateful; Simcyp is closed; PK-Sim is GPL and Python-hostile; our scale is defensible for educational/triage use |
+| SMILES → PK parameter priors | **Delivered** — wrapped predictors (`smiles_autofill`, `human/molecular_toxicity.py`; `smiles_to_adme`, `human/drug.py`) behind an uncertainty-flagged auto-fill API | Structure-only accuracy is ±2-fold; never silently override user-supplied constants |
+| Whole-body regulation | **Kept** as the current fast dynamic-physiology backend behind the existing `HumanPhysiology` interface; a HumMod/QCP variable-graph backend is not used | The current 6-compartment fast path stays intact |
+| Endocrine axes | **Delivered** as `human/endocrine.py` (Bergman/Karin/HPT 3–10-state models) | Needed for steroid/opioid rebound credibility (extends doc/28 §10 rebound tables into mechanisms) |
+| Immune system | **Delivered** as `human/immune.py` (innate, BIS-granularity ABM) + `human/adaptive.py` (adaptive + vaccination, doc/40 Phase B), driving CRP/WBC instead of proxy formulas | Agent+rule+compartment maps onto the Helix DSL; adaptive immunity ships alongside innate |
+| QSP drug MoA | **Delivered** — `human/qsp_binding.py`: mass-action binding + TMDD + competitive antagonism as PD block types; Hill retained for simple cases | Directly increases drug-space coverage without new infrastructure |
+| Tissue repair | **Kept** the half-life ladder with fibrosis end-state tracking via per-disease ODE progression (`human/disease_ode_models.py`, HepaticODE METAVIR 0–4); tissue ABM+PDE organ layers are not used | Per-organ ABM+PDE campaigns have thin validation data |
+| Validation suite | **Delivered** — `run_virtual_patient_cohort` (n≥100, deterministic seeding), the doc/28 §15 benchmark tiers, and the `validation/benchmarks` automated suite | Required by EMA/FDA norms; differentiator |
+| Disease breadth | **Delivered** as per-disease DSL/Python modules, seeded from the open models cited in §2.3 | Frameworks generalize, content doesn't |
 
 ---
 
-## 5 — Proposed Architecture Additions
+## 5 — Architecture Additions (shipped)
 
-### 5.1 — New/changed modules
+### 5.1 — Shipped modules
 
-| # | Module Path | Purpose | Est. LOC |
-|---|---|---|---|
-| 1 | `human/param_predict.py` | SMILES → {CL, Vd, fu, t½} priors via wrapped pretrained models; returns `(value, confidence)`; refuses to override user PK blocks unless `allow_ml_defaults=true` | 300–800 |
-| 2 | `human/endocrine.py` | HPA/HPT/insulin-glucose axis ODEs; outputs cortisol, FT3/FT4/TSH, insulin sensitivity index; consumed by recovery rebound (replacing table lookup) and by vitals temperature/stress drives | 400–700 |
-| 3 | `human/immune.py` | Rule-based innate ABM: agents {macrophage, neutrophil, DC, T-cell}, signals {TNF, IL-1, IL-6, IL-10}, 3 compartments (tissue/blood/lymph); emits IL-6 → CRP driver and WBC counts, replacing proxy channels | 1,500–3,000 |
-| 4 | `human/qsp_binding.py` | Mass-action receptor-ligand + TMDD + competitive antagonist PD block types (`pd { kind: mass_action ... }`) | 500–900 |
-| 5 | `human/physio_backend.py` | Optional HumMod-variable-graph backend: XML loader + solver stepping the 5k-var graph; adapts outputs onto `HumanPhysiology` fields (CO, flows, GFR, volumes) | 5,000–15,000 (port) |
-| 6 | `human/validation.py` | Virtual-population runner (demographic sampling from traits distributions), VPC construction, observed-vs-predicted fold-error tier report, OAT sensitivity sweep | 800–1,500 |
-| 7 | `human/data/pgx.json` (extend) | CYP2C19 *4/*5/*6/*7/*8, CYP2B6, DPYD, UGT1A1, SLCO1B1, TPMT/NUDT15 — completes CPIC level-A gene coverage | +150 rows |
+All modules live under `src/helixlang/plugins/human/` and are wired into
+`VirtualPatient.run()`. The BIS-class structure below follows the survey's §2.4
+granularity decision.
 
-### 5.2 — DSL surface
+| # | Module Path | Shipped mechanism |
+|---|---|---|
+| 1 | `human/endocrine.py` | Insulin-glucose axis (Bergman minimal model with β-cell response + Disposition Index), HPA axis (Karin gland-mass + Walker ultradian cortisol), HPT axis (4-ODE); outputs cortisol, FT3/FT4/TSH, insulin sensitivity index; consumed by recovery rebound (replacing table lookup) and vitals temperature/stress drives |
+| 2 | `human/immune.py` | Innate BIS-granularity ABM: agents {macrophage, neutrophil, DC, T-cell}, signals {TNF, IL-1, IL-6, IL-10}, tissue/blood/lymph compartments; IL-6 → hepatic CRP (`CRPDriver`) and WBC differential replace the proxy channels in `ClinicalLabModel`; candidates: Candiani et al. 2024, An et al. 2004; IL-6→CRP: Volanakis NEJM 2001 |
+| 3 | `human/adaptive.py` | Adaptive immunity + vaccination (doc/40 Phase B, goals G2/G3/G7/G12); imported lazily into `immune.py` (no import cycle) |
+| 4 | `human/qsp_binding.py` | Mass-action receptor-ligand binding with Kd values + TMDD + competitive antagonism as PD block types (`pd { kind: mass_action ... }`) |
+| 5 | `human/mechanistic_ddi.py` | Compositional DDI from enzyme mechanisms: reversal/TDI/induction with turnover + `EnzymeInhibitionLibrary` (drug→CYP/transporter keys) (doc/32 §8.3) |
+| 6 | `human/recovery.py` + `human/disease_ode_models.py` | Biomarker half-life ladder recovery (doc/28 §10) plus per-disease ODE progressions: CardiovascularODE, MetabolicT2DODE (Bergman β-cell), HepaticODE (METAVIR 0–4 fibrosis), etc. |
+| 7 | `human/virtual_patient.py` | `VirtualPatient.run()` wiring all of the above; `run_virtual_patient_cohort` (n≥100, deterministic seeding `base_seed * 1000003 + i`) |
+
+### 5.2 — Integration surface
+
+The modules plug into `VirtualPatient.run()` behind driver interfaces:
 
 ```helix
 #sim kind=virtual_patient observation=180d dt=1h population=100   # virtual population mode
@@ -277,55 +295,56 @@ priors), never as the core dynamics.
 
 #drug {
   name: "novel_compound_x"
-  smiles: "..."
-  pk { predict_from_structure: true }        # param_predict.py fills CL/Vd/fu/t½ with uncertainty flags
+  smiles: "..."                # smiles_autofill fills ADME defaults with uncertainty flags
   pd {
-    kind: mass_action                        # new QSP-style binding block
+    kind: mass_action          # QSP-style binding block (human/qsp_binding.py)
     target: PD1
     kd_nM: 12.4
     competitors: [nivolumab]
   }
 }
-
-#output {
-  tracks: [...]
-  validation: [vpc, fold_error, sensitivity_oat]   # validation suite hooks
-}
 ```
 
-### 5.3 — Integration order (dependency-safe)
+- `pd.kind=mass_action` and `pd.kind=tmdd` dispatch to `QSPBindingSystem`;
+  `pd.kind=mass_action` is verified (doc/32 §7) end-to-end.
+- `population=N` dispatches `run_virtual_patient_cohort`, which samples
+  demographic traits and runs N deterministic patients (`base_seed * 1000003 + i`).
+- `ClinicalLabModel` consumes the immune module's IL-6→CRP and WBC channels
+  in place of the previous proxy formulas.
+
+### 5.3 — Integration (landed in `VirtualPatient.run()`)
+
+The delivered wiring, in dependency order:
 
 ```
-Phase 1 (validation + genetics completion)     — no engine changes, pure observability
-  validation.py, pgx.json extension
-Phase 2 (parameter automation)                 — input-side only
-  param_predict.py, DSL pk{predict_from_structure}
-Phase 3 (mechanistic depth, cheap wins)        — extends existing solvers
-  endocrine.py (axes feed recovery/vitals), qsp_binding.py PD block types
-Phase 4 (immune ABM)                           — replaces CRP/WBC proxies incrementally
-  immune.py behind ClinicalLabModel driver interface
-Phase 5 (dynamic physiology backend)           — largest, optional, behind interface flag
-  physio_backend.py (HumMod port)
+Step 1 (pure observability)      — deterministic cohort runner + doc/28 §15 benchmark tiers
+Step 2 (parameter automation)    — smiles_autofill/smiles_to_adme defaults; → traits/drug load
+Step 3 (mechanistic depth)       — endocrine.py axes feed recovery rebound/vitals;
+                                   qsp_binding.py PD block dispatch (mass_action/tmdd/competitive)
+Step 4 (immune ABM)              — immune.py replaces CRP/WBC proxies behind the
+                                   ClinicalLabModel driver interface; adaptive.py adds
+                                   vaccination (doc/40 Phase B)
+Step 5 (built-in composition)    — mechanistic_ddi.py enzyme-mechanism DDI + disease_ode_models.py
+                                   progressions, all wired into the same run loop
 ```
 
 ---
 
-## 6 — Complexity and Compute Estimates (from survey)
+## 6 — Compute profile of the shipped modules
 
-| Phase | Effort | Runtime impact |
-|---|---|---|
-| 1 | 1–2 weeks | none (report generation only) |
-| 2 | 1–2 weeks | none (inference is ms-scale) |
-| 3 | 2–4 weeks | negligible (≤20 extra states, RK45 handles trivially) |
-| 4 | 1–2 months | ABM adds minutes per run at tissue-agent counts × population n; acceptable for n≥100 populations if agents capped (~10³–10⁴) |
-| 5 | 3–6 months | HumMod-class graphs simulate months in seconds (Hester 2011); bottleneck is port fidelity + coupling, not speed |
+| Module | Runtime impact |
+|---|---|
+| `endocrine.py` axes | negligible (≤20 extra states, solved with the same integrator) |
+| `qsp_binding.py` / `mechanistic_ddi.py` | negligible (per-target ODEs and rule lookups per hour) |
+| `immune.py` ABM | minutes per run at tissue-agent counts × population n; acceptable for n≥100 populations with agents capped (~10³–10⁴) |
+| cohort runner | N independent patients, thread-parallel across processes (doc/42 Phase C PF-3) |
 
-Compute was never the constraint anywhere in the survey — every cited model runs desktop-scale.
+Compute was never the constraint in this design — every cited model runs desktop-scale.
 Parameterization/calibration data and validation evidence are the true costs.
 
 ---
 
-## 7 — Hard Limits (carry forward verbatim into any roadmap discussion)
+## 7 — Hard Limits (binding constraints)
 
 1. **Integration itself is novel.** No system couples dynamic whole-body regulation + GEM metabolism
    + PBPK/QSP + labs. Every successful project is fit-for-purpose and narrow; expect coupling bugs

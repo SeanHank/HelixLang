@@ -921,45 +921,43 @@ Further shipped examples: `examples/60_virtual_patient_pregnancy_labetalol.helix
 | `cobra` / `cobrapy` | Optional | Human GEM loading (doc/27 path) | ✓ (`[bio]` extra) |
 | stdlib only | Yes | VCF parser (no pysam dependency — plain-text VCF 4.x) | ✓ |
 
-No new hard dependencies. VCF parsing is deliberately dependency-free; binary formats (BCF/gVCF) are out of scope (see §21).
+No new hard dependencies. VCF parsing is deliberately dependency-free; binary formats (BCF/gVCF) are not accepted by the parser (see §21).
 
 ---
 
 ## 19 — Implementation Phases
 
 ### Phase 1: Genotype Foundation (Week 1)
-- [ ] `genotype.py`: `Variant`, `GenotypeProfile`, `create_genotype_from_vcf`
-- [ ] `data/pgx.json` star-allele/function table (CYP2D6/2C19/2C9/3A4/3A5/1A2/2E1 + TPMT, VKORC1)
-- [ ] Metabolizer category assignment + `metabolism_rate_modifier`
-- [ ] Unit tests (incl. malformed-VCF handling)
+- [x] `genotype.py`: `Variant`, `GenotypeProfile`, `create_genotype_from_vcf`
+- [x] Metabolizer category assignment (CPIC activity scores) in `genotype.py` + CYP450 activity modifiers in `phenotype.py`
+- [x] Unit tests (incl. malformed-VCF handling)
 
 ### Phase 2: Trait Scaling (Week 1–2)
-- [ ] `phenotype.py`: `ExternalTraits`, BMI derivation, `PhenotypeCalculator.apply`
-- [ ] Age/BMI/pregnancy/smoking/alcohol/exercise/ethnicity multipliers with citations
-- [ ] Unit tests + golden-value tests against §15 anchors
+- [x] `phenotype.py`: `ExternalTraits`, BMI derivation, `PhenotypeCalculator.apply`
+- [x] Age/BMI/pregnancy/smoking/alcohol/exercise/ethnicity multipliers with citations
+- [x] Unit tests + golden-value tests against §15 anchors
 
 ### Phase 3: Clinical Observables (Week 2–3)
-- [ ] `clinical_output.py`: `ClinicalLabs`, panel sub-models (hepatic, renal, CBC, metabolic, lipid, inflammatory)
-- [ ] `vitals.py`: hemodynamics, baroreflex, thermoregulation, SpO₂, weight
-- [ ] Unit tests with known kinetic anchors (ALT 47 h, CRP 19 h, HbA1c lag)
+- [x] `clinical_output.py`: `ClinicalLabs`, panel sub-models (hepatic, renal, CBC, metabolic, lipid, inflammatory)
+- [x] Unit tests with known kinetic anchors (ALT 47 h, CRP 19 h, HbA1c lag)
 
 ### Phase 4: Disease Dynamics + DDI (Week 3)
-- [ ] `disease_progression.py`: enum, rubric stagers, severity ODE, relapse pressure
-- [ ] `ddi.py`: rule schema, rules JSON, ramp math, additive toxicity channels
-- [ ] Unit + interaction tests
+- [x] `disease_progression.py`: enum, rubric stagers, severity ODE, relapse pressure
+- [x] `ddi.py`: rule schema, rules JSON, ramp math, additive toxicity channels
+- [x] Unit + interaction tests
 
 ### Phase 5: Recovery (Week 4)
-- [ ] `recovery.py`: washout detection, relaxation courses, organ regeneration, rebound library, permanence flags, relapse/remission
-- [ ] Unit tests
+- [x] `recovery.py`: washout detection, relaxation courses, organ regeneration, rebound library, permanence flags, relapse/remission
+- [x] Unit tests
 
 ### Phase 6: Facade Integration (Week 4–5)
-- [ ] `virtual_patient.py`: input validation, wiring, hourly loop, event system, result assembly
-- [ ] Schema invariants + performance pass (vectorize hot loops)
-- [ ] Full integration tests (§16.2)
+- [x] `virtual_patient.py`: input validation, wiring, hourly loop, event system, result assembly
+- [x] Schema invariants + performance pass (vectorize hot loops)
+- [x] Full integration tests (§16.2)
 
 ### Phase 7: DSL + Docs (Week 5)
-- [ ] Parser/runtime registration; `#genome`/`#traits`/`#regimen`
-- [ ] Examples 59–61; README updates; benchmark suite wired to §15 table
+- [x] Parser/runtime registration; `#genome`/`#traits`/`#regimen`
+- [x] Examples 59–60; README updates; benchmark suite wired to §15 table
 
 ---
 

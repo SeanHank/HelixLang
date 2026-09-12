@@ -26,7 +26,7 @@
 15. [Phase 9 — Dynamic Simulation (dFBA Integration)](#15-phase-9--dynamic-simulation-dfba-integration)
 16. [Phase 10 — Environment Dynamics](#16-phase-10--environment-dynamics)
 17. [Updated Data Model](#17-updated-data-model)
-18. [Implementation Roadmap](#18-implementation-roadmap)
+18. [Implementation Record](#18-implementation-record)
 19. [References](#19-references)
 
 ---
@@ -737,7 +737,7 @@ as JSON.
 | Simulation loop | `sim_runtime.py` | `#config backend=gem` dispatch |
 | CLI | `cli.py` | `--gem` flag |
 
-### 9.7 Web API (planned)
+### 9.7 Web API
 
 ```
 POST /api/gem/reconstruct
@@ -1532,7 +1532,7 @@ class GemValidation:
 
 ---
 
-## 18. Implementation Roadmap
+## 18. Implementation Record
 
 ### Sprint 1: Fix Annotation for Universal Organisms (Weeks 1–3)
 
@@ -1748,5 +1748,5 @@ Week 13-16: Environment dynamics + spatial + production polish
   document's GEM pipeline output to the ecosystem simulation (§12.3);
   `gem_to_species()`, `Species.metabolic_model`, `Patch._growth_rate_gem()`.
 - `doc/18-programmable-cell-population-simulation.md` — the population
-  simulation roadmap; the GEM pipeline enables genome-scale metabolic
+  simulation line; the GEM pipeline enables genome-scale metabolic
   models for population-level FBA.

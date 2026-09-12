@@ -137,15 +137,15 @@ Domain-specific simulations built on the runtime.
 | [07-bio-modules.md](./07-bio-modules.md) | Bio modules in detail: central dogma, metabolic FBA, protein structure, CRISPR, epigenetics, evolution |
 | [08-api-reference.md](./08-api-reference.md) | API reference: core data classes, function signatures, parameter docs |
 | [09-bio-instructions.md](./09-bio-instructions.md) | Bio instruction guide: .helix annotation syntax, bio operation usage |
-| [10-frontier-biology-analysis.md](./10-frontier-biology-analysis.md) | Frontier biology analysis + upgrade plan: capability mapping, SOTA benchmark, gap analysis, tiered roadmap |
+| [10-frontier-biology-analysis.md](./10-frontier-biology-analysis.md) | Frontier biology analysis + upgrade plan: capability mapping, SOTA benchmark, gap analysis, and the delivered capability tiers |
 | [11-helixc-binary-format.md](./11-helixc-binary-format.md) | Binary artifact design (.helixc): versioned container, compile/decompile/compare, round-trip testing |
 | [12-helix-language-wiring.md](./12-helix-language-wiring.md) | Wires the simulation library into `.helix`: `#config backend`, `#media`/`#enzyme`/`#metabolite`, `sim_runtime` adapter, CLI/API, example coverage audit |
 | [13-performance-report.md](./13-performance-report.md) | Measured performance report: bottleneck analysis + scaling behavior of the full pipeline |
 | [14-production-upgrade.md](./14-production-upgrade.md) | Production-grade upgrade plan (historical): literature-backed replacements preserving the public API |
-| [15-whole-cell-realism.md](./15-whole-cell-realism.md) | Five-phase roadmap to a physically complete virtual cell — implemented & gated |
+| [15-whole-cell-realism.md](./15-whole-cell-realism.md) | Five-phase implementation record of a physically complete virtual cell — verified & gated |
 | [16-gameplay-units-upgrade.md](./16-gameplay-units-upgrade.md) | Gameplay-unit calibration plan (superseded): toy-design → physical-biology unit system |
 | [17-project-details-and-frontier-bio-applications.md](./17-project-details-and-frontier-bio-applications.md) | Project details & frontier bio-applications: compile/run walkthrough, software architecture, worked examples, problem→capability mapping, delivered designs |
-| [18-programmable-cell-population-simulation.md](./18-programmable-cell-population-simulation.md) | Programmable cell-population simulation: tick model, 3D, evolution line, and the delivered population roadmap designs |
+| [18-programmable-cell-population-simulation.md](./18-programmable-cell-population-simulation.md) | Programmable cell-population simulation: tick model, 3D, evolution line, and the delivered population simulation designs |
 | [19-whole-organism-lifecycle-simulation.md](./19-whole-organism-lifecycle-simulation.md) | From one genome (ATCG) to life and environmental change: current-state audit of the full pipeline and a literature-grounded next-step design (multi-species/multi-population/multi-environment ecosystem spine, environmental dynamics & biogeochemistry, genome completeness, cross-scale integration) |
 ---
 

@@ -193,6 +193,27 @@ def test_oracle_score_esm2_unavailable_raises(monkeypatch) -> None:
         oracle_score(WT, WT, oracle="esm2")
 
 
+def test_load_esm_offline_mode_sets_huggingface_offline(monkeypatch) -> None:
+    import builtins
+    import os
+
+    from helixlang.plugins.runtime import protein_fitness as pf
+
+    real_import = builtins.__import__
+
+    def _block_torch(name, *args, **kwargs):
+        if name == "torch":
+            raise ImportError("torch blocked (test)")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _block_torch)
+    monkeypatch.setenv("HELIX_BENCHMARK_OFFLINE", "1")
+    with pytest.raises(ImportError):
+        pf._load_esm("facebook/esm2_t6_8M_UR50D")
+    assert os.environ["TRANSFORMERS_OFFLINE"] == "1"
+    assert os.environ["HF_HUB_OFFLINE"] == "1"
+
+
 def test_esm2_score_length_mismatch_raises() -> None:
     from helixlang.plugins.runtime.protein_fitness import ESM2Oracle
     oracle = ESM2Oracle(device="cpu")

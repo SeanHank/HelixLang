@@ -62,6 +62,13 @@ jobs:
           # `# STUBBENIGN` audit token (see src/helixlang/core/find_stubs.py);
           # anything still unmarked is an actionable stub/deferred item.
           python -m helixlang.core.find_stubs src --fail
+      - name: Documentation reality gate — doc/ must claim only shipped behavior
+        run: |
+          # Every doc/ statement must describe implemented, wired functionality
+          # (planned/proposed/deferred/blocked/out-of-scope/partial/pending/
+          # roadmap wording fails).  Benign exceptional lines carry an explicit
+          # `DOCBENIGN` token (see src/helixlang/core/audit_docs.py).
+          python -m helixlang.core.audit_docs doc --fail
 
   typecheck:
     runs-on: ubuntu-latest
@@ -99,6 +106,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[ci]"
 
+      - name: Build native VM kernel (C-only mandate)
+        run: |
+          # The compiler + VM hot loop is C-only (doc/03 §6.5 / doc/06 §11):
+          # compile the C dispatch kernel (and the other native kernels) in
+          # place so the test suite exercises the C backend — the Python
+          # dispatch implementation is only a non-selectable reference.
+          python -m pip install cython
+          python -m helixlang._accel.build
+
+      - name: C-only mandate gate
+        run: |
+          python -m helixlang.core.c_only --check
+
       - name: Run tests with coverage
         env:
           # doc/41 offline-first CI: validation benchmarks must never hit the
@@ -106,7 +126,7 @@ jobs:
           # give real PASSes; anything else is SKIPped, never FAILed.
           HELIX_BENCHMARK_OFFLINE: "1"
         run: |
-          pytest --cov=helixlang --cov-branch --cov-report=term-missing --cov-fail-under=100
+          pytest -n auto --cov=helixlang --cov-branch --cov-report=term-missing --cov-fail-under=100
 
   examples-smoke:
     runs-on: ubuntu-latest
@@ -121,6 +141,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[ci]"
+      - name: Build native VM kernel (C-only mandate)
+        run: |
+          # examples run on the C dispatch hot loop (doc/03 §6.5)
+          python -m pip install cython
+          python -m helixlang._accel.build
       - name: Examples smoke test (all *.helix compile and run)
         run: |
           # Compile all examples

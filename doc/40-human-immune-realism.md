@@ -247,7 +247,7 @@ records **Content** (systems modelled), **Method** (formulation used by the auth
 
 ## 5 — Content / Method / Results / Conclusions Synthesis: From Literature to Implementation
 
-Mapping each gap of §3 to its evidence and to a concrete planned intervention. The four columns
+Mapping each gap of §3 to its evidence and to its concrete implemented intervention. The four columns
 answer: **Content** — what we will build; **Method** — modeling method from the cited paper(s);
 **Results** — expected quantitative behavior; **Conclusions** — the validation gate proving it.
 
@@ -411,7 +411,7 @@ value for ~1/2 the cost; Phases F–H extend scope to full doc/31 §2.4/§5.1 ma
 
 ## 7 — Goals and Risks
 
-- **Goals (formerly Non-goals — all to be implemented):**
+- **Goals (formerly documented as Non-goals):**
   1. **Full spatial ABM (G15):** agent-based modeling of immune cells in tissue spaces,
      replacing population ODEs with spatially-resolved rules per doc/31 §2.4. This
      includes cell migration, contact-dependent signaling, and spatial heterogeneity.

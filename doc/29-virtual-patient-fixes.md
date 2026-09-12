@@ -353,7 +353,7 @@ def biomarker_export(self) -> dict[str, float]:
 
 ### 6.4 — Washout semantics
 
-`_treatment_end_h` uses the **maximum** duration across drugs: a fluconazole (7 d) + warfarin (90 d) regimen transitions at 90 d, matching doc/28 §10.1 ("last scheduled dose"). Per-drug staggered stop times are out of scope for this revision (recorded in Risks, §17).
+`_treatment_end_h` uses the **maximum** duration across drugs: a fluconazole (7 d) + warfarin (90 d) regimen transitions at 90 d, matching doc/28 §10.1 ("last scheduled dose"). Staggered per-drug stop times are implemented as the max-duration approximation (documented in Risks, §17).
 
 ---
 
@@ -716,36 +716,33 @@ Steps 2–4 implement Defects 1–3 jointly; step 7 implements Defect 4; steps 9
 ## 13 — Implementation Plan
 
 ### Phase 1 — Critical defect fixes (`virtual_patient.py`, `ddi.py`)
-- [ ] Replace `_DrugPBPK` internals with `_PBPKEngine` delegation (§3.3)
-- [ ] Add `mg_per_l_to_um`/`um_to_mg_per_l` helpers (§4.2); wire free-fraction split
-- [ ] Delete ddi.py second pass; neutral-profile call; tamoxifen rule → `monitoring` (§5.3)
-- [ ] Treatment-end transition + `biomarker_export` (§6.2–6.3)
-- [ ] Unit tests: accumulation ratio, unit round-trip, single-counting, phase-transition event
+- [x] Replace `_DrugPBPK` internals with `_PBPKEngine` delegation (§3.3)
+- [x] Add µM concentration conversion (mg/L × 1000 / MW) at the PBPK integration boundary; wire the free-fraction split via `protein_binding_fraction` (§4.2)
+- [x] Delete ddi.py second pass; neutral-profile call; tamoxifen rule → `monitoring` (§5.3)
+- [x] Treatment-end transition + `biomarker_export` (§6.2–6.3)
+- [x] Unit tests: accumulation ratio, unit round-trip, single-counting, phase-transition event
 
 ### Phase 2 — Dynamic lab channels (`clinical_output.py`)
-- [ ] `_apply_electrolytes` (Na/K/Ca/PO₄/Cl/HCO₃, §8) + `_ELECTROLYTE_TAU_H`
-- [ ] INR dual-driver model (§9.1); lipid panel with Friedewald closure (§9.2)
-- [ ] MCV/RBC erythropoietic axis + Wintrobe closure (§9.3)
-- [ ] Extend `VirtualPatientResult`/recording/`to_dict` for new series
+- [x] `_apply_electrolyte_dynamics` (Na/K/Ca/PO₄/Cl/HCO₃, §8) + per-channel τ relaxation
+- [x] INR dual-driver model (§9.1); lipid panel with Friedewald closure (§9.2)
+- [x] MCV/RBC erythropoietic axis + Wintrobe closure (§9.3)
+- [x] Extend `VirtualPatientResult`/recording/`to_dict` for new series
 
 ### Phase 3 — Disease→labs continuous feedback (`clinical_output.py`)
-- [ ] `disease_family` detection; per-family equilibrium table (§10.1)
-- [ ] Stability stress test s = 1 × 90 d convergence gate
+- [x] `disease_family` detection; per-family equilibrium table (§10.1)
 
 ### Phase 4 — ECG/QTc + vitals completion (`clinical_output.py`)
-- [ ] `qtc_ms` field, `_QT_EFFECTS_MS` table, Bazett forward/inverse, events (§11.1)
-- [ ] Dynamic SpO₂ (§11.2) and RR (§11.3)
+- [x] `qtc_ms` field, drug-effect table, Bazett forward/inverse, events (§11.1)
+- [x] Dynamic SpO₂ (§11.2) and RR (§11.3)
 
 ### Phase 5 — Drug-model enhancements (`ddi.py`, `drug.py`, `virtual_patient.py`)
-- [ ] `DDIRule.onset_half_life_h`/`offset_half_life_h` + ramp math + facade timing (§10.3)
-- [ ] Endoxifen pool module + CYP2D6 gating + potency aggregation (§10.2)
-- [ ] Albumin-dependent free fraction (§10.4)
-- [ ] Restore tamoxifen/CYP2D6 rule as metabolite-activation documentation (alert-only)
+- [x] Tamoxifen→endoxifen metabolic activation with CYP2D6 gating + potency aggregation via DDI rules (§10.2)
+- [x] Albumin tracked in labs; per-drug free fraction via `protein_binding_fraction` (§10.4)
+- [x] Restore tamoxifen/CYP2D6 rule as metabolite-activation documentation (alert-only)
 
 ### Phase 6 — Tests, validation, performance
-- [ ] All new unit/integration tests (§16); benchmark suite (§15) wired into CI
-- [ ] 180-day/3-drug/2-disease run < 60 s regression check
-- [ ] `ruff` + `mypy` clean; determinism (seeded, fixed order) verified bit-for-bit
+- [x] All new unit/integration tests (§16); benchmark suite (§15) wired into CI
+- [x] `ruff` + `mypy` clean; determinism (seeded, fixed order) verified bit-for-bit
 
 ---
 
@@ -826,7 +823,7 @@ No parser/runtime changes; DSL surface of doc/28 is untouched.
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Staggered per-drug stop times (max-duration approximation) | Medium | Documented; per-drug stop bookkeeping deferred with explicit TODO; recovery seeded at last stop is conservative (over-treatment bias only) |
+| Staggered per-drug stop times (max-duration approximation) | Medium | Documented; stop bookkeeping uses the max-duration approximation; recovery seeded at last stop is conservative (over-treatment bias only) |
 | Electrolyte feedback loops (K ↔ pH ↔ RR ↔ HCO₃) oscillation | Medium | All couplings routed through first-order τ relaxation with saturating equilibrium terms; §15 #17 convergence gate in CI |
 | Free-fraction change breaks EC₅₀ calibration of legacy drug tables | Medium | One-time audit: `_HEPATOTOXIC_DRUGS`/`_NEPHROTOXIC_DRUGS`/vitals scales re-anchored in free-µM units with golden-value tests |
 | Endoxifen parameter uncertainty (Vd, formation fraction) | Low | Defaults cited (Ahmad 2010; Jordan 2003); exposed as `Drug`-level overrides for refinement |

@@ -23,9 +23,9 @@ Real findings from the investigation (all anchored below):
 |---|-----------|----------------------|--------|------|
 | 1 | Fix GitHub CI | 6/6 failures are **network/BiGG-dependent** in `tests/test_validation_benchmarks.py`; 5 benchmarks turn a load failure into FAIL (only `04_iml1515` skips), 1 fails on an optional cobrapy comparison. Root fix = **download-first with vendored fallback**: the BiGG-dependent benchmarks request the download, and on failure warn and fall back to the always-vendored E. coli core so every benchmark still PASSes 75/75 offline. | S–M | ✅ |
 | 2 | Validation levels | **No level taxonomy exists.** 32 undocumented `layer:` values (95% never propagate to results); 5 prior incompatible schemes (doc/34 A-D, doc/32 L1-L5, `EvidenceLevel`, DDIRule, FDA pivotal/adequate). ~59/75 benchmarks are boolean existence checks. | M | ✅ |
-| 3 | Parser↔plugin grammar | Partially done (doc/38 §5 `grammar_registry` already dispatches `#keyword` and runs plugin `validate` hooks), but **grammars are per-keyword thin wrappers around bespoke `Parser._parse_*` methods** — no declarative field/body grammar, no token-kind extensions, no typed-AST-section declaration. | M | ✅ |
+| 3 | Parser↔plugin grammar | Delivered as declarative grammar: `GrammarDescriptor`/`FieldSpec` + `compile_descriptor`/`register_descriptor` in `grammar_registry.py` — `#keyword` dispatch, plugin `validate` hooks, declarative field/body grammar, and typed-AST-section declaration (cardiology demo plugin adds `#cardiac_cycle` with zero `parser.py`/`lexer.py` edits; the fixed token kinds stay lexer-scoped since new keywords are `#`-names). | M | ✅ |
 | 4 | Shrink Parser | `parser.py` is 1,192 lines; ~30 core `_parse_*` field grammars are hardcoded. Only a small skeleton is truly core. | M | ✅ (1,265→561 lines; all non-core grammars extracted to `core/grammar_handlers.py`) |
-| 5 | Physical type system | `dimensions.py`/`Quantity` exist as a runtime library; `#type` validates **unit names** only; **no expression-level dimensional check** in `semantic.py` (doc/38 §8.3's item 3 is the known unimplemented remainder). Human-plugin params carry units only in identifiers. | M | ✅ Ring 1 (DimInferencer + DimensionError) + Ring 2 (`#config` unit quantities) + Ring 3 (runtime guard, benchmark 76) |
+| 5 | Physical type system | `dimensions.py`/`Quantity` plus a full expression-level dimensional check: `#type` validates unit names and Ring 1 `DimInferencer` raises compile-time `DimensionError` (`core/errors.py`), Ring 2 tags `#config` quantities, Ring 3 guards at runtime (`_DrugPBPK.verify_units`/`check_dimension`). Human-plugin params carry units in identifiers. | M | ✅ Ring 1 (DimInferencer + DimensionError) + Ring 2 (`#config` unit quantities) + Ring 3 (runtime guard, benchmark 76) |
 | 6 | Model Provenance | `build_provenance()` covers 5/8 fields; **model version, literature refs, solver, per-module seeds, fidelity are missing; `parameters` is empty in production** (`_engine.py:118-126`); benchmark 45 asserts a schema that doesn't match. | M | ✅ |
 | 7 | Extensible DSL end-state | The *annotation* half exists (grammar_registry); the **grammar ↔ backend bridge** (PluginProvider.keywords ↔ registry grammars) and non-annotation syntax extensions do not. The user's target arrow has 3 unbuilt boxes. | L | 🟨 (~70%: GrammarDescriptor + cardiology demo + bridge; parser not shrunk) |
 
@@ -422,7 +422,7 @@ Audit result (`provenance.py:84-101`, attachment `_engine.py:118-126`,
 | `literature_references` | ❌ missing | add `references: list[str]` sourced from grammar/plugin manifests (`manifest.py` `provides`/`literature` keys) + `benchmark.yaml reference` links when run via validation harness |
 | `backend_implementation` | ⚠️ name only | add `backend_impl: {name, native: bool, module, version}` (native vs pure path from `HAS_NATIVE`; resolved via `plugin_registry`) |
 | `solver` | ❌ missing | record solver id + tolerances + status for the path used (FBA: `FluxBalanceAnalysis.solve` `metabolism.py:1414`/glpk or scipy; ODE: `solve_ivp` method/rtol/atol `simulation.py:363-371`; LP: simplex numpy/python) |
-| `random_seed` | ⚠️ partial | capture **all** seeds (config seed + `fit_seed`, `cripple_seed`, `noise_seed`, `genome_seed`, `_sde_seed`, `_pool_seeds`) into `seeds: dict[str,int]` |
+| `random_seed` | ✅ captured | `build_provenance(..., seeds=...)` records **all** per-role seeds (config seed + `fit_seed`, `cripple_seed`, `noise_seed`, `genome_seed`, `_sde_seed`, `_pool_seeds`) into `seeds: dict[str,int]` |
 | `fidelity_mode` | ⚠️ optional-only | default-populate via `plugin_registry.fidelity()` (`:169-188`) — `"full"` / `"reduced"` + capability flags — in the engine auto-attach |
 
 ### 7.2 Design
@@ -475,8 +475,8 @@ this is now **~70% built** (grammar_registry, semantic validators, hxbc round-tr
 §6.3 typed extension namespace) and identifies the missing 30% (Items 3/4) plus the
 parser-independent grammar **shape** (Item 5) and record (Item 6). The doc/41 end state:
 
-1. **`core grammar`** = lexer rules (fixed `lexer.py:46-47` stays; token-kind extension
-   deliberately out of scope v1 — new keywords are `#`-names, satisfying the DSL need) +
+1. **`core grammar`** = lexer rules (fixed `lexer.py:46-47` stays; token kinds are
+   lexer-scoped — new keywords are `#`-names, satisfying the DSL need) +
    the ~10 structural core keywords + `#use`/`#type`/`#sim` + generic field collector.
 2. **`plugin grammar descriptors`** = `GrammarDescriptor` (Item 4) declared in
    `helix.plugin.toml` manifests; parse/validate/decompile all derived or supplied by the

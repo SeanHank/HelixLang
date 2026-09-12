@@ -22,6 +22,18 @@ from helixlang._accel._loaders import load_hot
 
 
 def run(tableau, basis, obj, n_vars, eps=1e-9, max_iter=10000, forbidden=None):
-    """Alias to the fastest available equivalent-fidelity implementation."""
+    """Alias to the fastest available equivalent-fidelity implementation.
+
+    ``forbidden`` is accepted as any iterable of column indices (set, list,
+    tuple) but is normalized to a sorted ``tuple`` here, once, so a raw Python
+    ``set`` never crosses into a compiled backend (numba reflects sets and
+    raises on ``getitem``/unboxing — e.g. ``TypeError: 'set' object is not an
+    instance of 'Sequence'`` — depending on the numba version, and ordering
+    must be deterministic for bit-identical pivots regardless).
+    """
+    if forbidden is None:
+        forbidden = None
+    else:
+        forbidden = tuple(sorted(int(int(j)) for j in forbidden))
     mod = load_hot("helixlang._accel.simplex")
     return mod.run(tableau, basis, obj, n_vars, eps, max_iter, forbidden)

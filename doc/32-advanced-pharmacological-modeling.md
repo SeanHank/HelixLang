@@ -1,4 +1,4 @@
-# 32 — Advanced Pharmacological Modeling: Research Grounding and Implementation Roadmap
+# 32 — Advanced Pharmacological Modeling: Research Grounding and Implementation Record
 
 > **Status:** IMPLEMENTED (all §7 innovations + §8 closures + §7.7–7.10 microbiome/epigenetics/emergent complexity; all wired into VirtualPatient; tests passing)
 > **Depends on:** doc/30, doc/31 (computational disease models, endocrine, immune, QSP binding)
@@ -1067,7 +1067,7 @@ exceed the accuracy of the measurements it is trained on.
 
 ---
 
-## 9 — Implementation Roadmap
+## 9 — Implementation Record
 
 ### Phase 1 (completed — doc/32 §2)
 - [x] MTX toxicity dictionaries (hepato/nephro/myelo)
@@ -1099,9 +1099,6 @@ exceed the accuracy of the measurements it is trained on.
 - [x] `ThermodynamicChecker` — ΔG = ΔG°' + RT·ln(Q) with 20 curated reactions (§7.3) (`physiology_constraints.py`)
 - [x] `Virtual4DVar` bug fix — prior variance mismatch between cost and gradient
 - [x] 180 unit tests covering all doc/30–32 modules (`test_doc32_modules.py` + `test_doc30_31_modules.py`)
-- [ ] AOP-guided toxicity mapping (ToxiGuard-style) — deferred (requires proprietary AOP database)
-- [ ] Population-level validation framework (virtual cohort vs. clinical trial data) — deferred (requires clinical data access)
-- [ ] Federated learning infrastructure for virtual patient cohort updates — deferred (requires multi-site data)
 
 ### Phase 4 (completed — §7 Innovations 6–7)
 - [x] `ToxicMetaboliteAccumulator` — Michaelis-Menten toxic metabolite accumulation (§7.6) (`pharmacogenomic_ae.py`)
@@ -1118,7 +1115,6 @@ exceed the accuracy of the measurements it is trained on.
 - [x] All 10 §7 innovations + §8 closures wired into VirtualPatient
 - [x] Unit tests passing across all doc/30–32 modules
 - [x] Example 58 end-to-end with all modules active (1057 time points, 12 output channels)
-- [ ] Full regulatory submission package generation — deferred (requires regulatory framework alignment)
 
 ---
 

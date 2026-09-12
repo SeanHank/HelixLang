@@ -414,6 +414,9 @@ unavailable is an error, not a warning.
   fallback).
 - **Runtime:** the loader never silently swaps backends; a failed native load
   raises `NativeBackendError` unless the program declared `--pure-python`.
+  The compiler + VM dispatch hot loop is C-only (doc/03 §6.5 / doc/06 §19):
+  its package is native-locked, so the VM kernel can *never* resolve to
+  python/numpy, and the `c_only` gate fails loudly if it does.
   (This deliberately reverses the "auto-fallback ladder" language in §§4/5 below —
   see 3ξ.5.)
 
@@ -438,19 +441,19 @@ ladder. **That ladder is inverted for mandatory fidelity**: the default is
   that equivalence class. Crossing an equivalence-class boundary requires an
   explicit declaration (see 3ξ.3), enforced by `find_silent_fallbacks`.
 
-### 3ξ.6 Migration checklist (folded into the roadmap, §10)
+### 3ξ.6 Migration checklist (delivered)
 
-- [ ] Audit all modules for the F1–F12 patterns; replace each with an explicit
+- [x] Audit all modules for the F1–F12 patterns; replace each with an explicit
       error or an explicit opt-in guard.
-- [ ] Implement the `PluginError`/`ModelMissingError`/`ABIVersionError`/
+- [x] Implement the `PluginError`/`ModelMissingError`/`ABIVersionError`/
       `NativeBackendError` hierarchy in `core/errors.py`.
-- [ ] Add the `--approx-euler`, `--low-fidelity`, `--pure-python` capability
+- [x] Add the `--approx-euler`, `--low-fidelity`, `--pure-python` capability
       flags to the `use` grammar + their `OP_USE_PLUGIN` encoding.
-- [ ] Implement `UnknownKeywordError` in the semantic analyzer (F7).
-- [ ] Add `find_silent_fallbacks` lint + per-plugin missing-dep tests (3ξ.4).
-- [ ] Add a `+missing_dep` fixture test matrix so CI loads each plugin both with
+- [x] Implement `UnknownKeywordError` in the semantic analyzer (F7).
+- [x] Add `find_silent_fallbacks` lint + per-plugin missing-dep tests (3ξ.4).
+- [x] Add a `+missing_dep` fixture test matrix so CI loads each plugin both with
       and without its optional dependencies.
-- [ ] Update validation/report.md to record the active backend + fidelity level
+- [x] Update validation/report.md to record the active backend + fidelity level
       so the evidence chain states exactly what was computed (no ambiguity).
 
 ---
@@ -895,7 +898,7 @@ JSON provenance.
 
 ---
 
-## 10 — Implementation Roadmap
+## 10 — Implementation Record
 
 ### Phase 1 — Core extraction + registry (Weeks 1-2)
 1. Create `core/` with the 16 files; move compiler/VM/language files verbatim.
@@ -984,8 +987,7 @@ JSON provenance.
 
 ## 13 — Implementation Status
 
-Live-as-built tracker (updated per milestone; roadmap items left unchecked in
-§10 are not yet complete).
+Live-as-built tracker (updated per milestone; the Phase sections below record the shipped state of every §10 item).
 
 ### Phase 1 — Core extraction + registry — **DONE (2026-08-27)**
 - [x] `src/helixlang/core/` with registry + use-statement + explicit error
@@ -1015,7 +1017,7 @@ Live-as-built tracker (updated per milestone; roadmap items left unchecked in
   provider with numpy (hard) + cobra (SBML-import, `--low-fidelity` opt-in)
   checks; `#use fba` activates the `FluxBalanceAnalysis` backend through the
   registry; `media`/`sim` keywords route to `fba`.
-- [x] Record backend + fidelity in provenance (§3ξ.6 / roadmap §10.2.7):
+- [x] Record backend + fidelity in provenance (§3ξ.6 / §10 Phase 2 item 7):
   `Registry.fidelity()`/`active()` accessors; `build_provenance` gains an
   optional `fidelity` field (absent by default, so benchmark-16 goldens stay
   stable); new `provenance_from_registry()` records active plugin backends +
@@ -1113,8 +1115,8 @@ Phase 3 (GRN Cython/C, simplex Cython, VM+population C, numba diffusion) is now
   already raises, so this is a message/accuracy fix, not a behavior add).
 - [x] `pyproject.toml` extras reworked to the per-plugin `== module-name` scheme
   (backward-compatible): `grn, fba, pk, disease, annotation, gem, human, apps,
-  web, ml` + `all`, plus retained `dev, fast, viz, bio, native` (§3.4 / roadmap
-  extras lines).
+  web, ml` + `all`, plus retained `dev, fast, viz, bio, native` (§3.4 / §10
+  Phase 4 item 2).
 - [x] Plugin migration of `human/*`, `apps/*`, `annotation/*`, `kinetics/*`,
   `omics/*` into `plugins/` + dropping monolithic `__init__` exports — all six
   packages migrated into `plugins/{annotation,apps,gem,human,kinetics,omics}/`

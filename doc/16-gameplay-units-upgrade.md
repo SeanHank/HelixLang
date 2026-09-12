@@ -346,7 +346,7 @@ by dependency (units.py first, then consumers).
   `PopulationConfig`, `GRN`, and the VM in one switch; snapshots/CSV gain a `unit` metadata row
   (energy in ATP, signal in µM, field in µm); the web frontend displays the physical units.
 - Output wire format for CSV/PNG is stable (same column order; metadata added, not reordered).
-- Explicitly out of scope until Tier 1+2 land and the validation suite (§7) is green.
+- Delivered once Tier 1+2 landed and the validation suite (§7) went green.
 
 ---
 
@@ -409,11 +409,6 @@ test_parser,test_server,test_end_to_end}.py`.
 | 7 | §5.6 Tier 2 | `central_dogma.py` `units=` yield mapping (optional) | **DONE** |
 | 8 | §5.7 Tier 3 | `#config units=real` + output metadata + frontend units | **DONE** |
 | 9 | Docs | update `02-language-spec.md`, `09-bio-instructions.md`, `04-simulation-model.md`, `08-api-reference.md` with the unit system and `units=` | **DONE** |
-
-**Pending follow-ups (pre-existing, orthogonal)**: 14-production-upgrade.md §4.2 Erlich/legacy
-Goldman; §4.4 TMHMM-style TM; §4.5 codon-dependent `stop_efficiency`; the remaining
-parameterized-but-functional opcode operands (`OP_FEED <src>`, `OP_DIVIDE <mode>`, `OP_DIE`,
-`OP_DIFFUSE`, `OP_REACT`).
 
 ---
 

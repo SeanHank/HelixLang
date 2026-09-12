@@ -106,6 +106,13 @@ def accelerated_execute_pending(vm: CellVM) -> None:
     dispatch kernel.  Bio-opcodes and control flow fall back to the Python
     dispatcher.
 
+    C-only mandate (doc/03 §6.5 / doc/06 §19): the import below always
+    succeeds (it only binds ``backend.run_quota``); the kernel lookup happens
+    inside the call at the acceleration site, *outside* this function's
+    try/except, so a missing compiled kernel raises ``NativeBackendError``
+    loudly instead of silently degrading the hot loop — the Python dispatch
+    implementation is non-selectable.
+
     The acceleration is transparent and **tick-for-tick equivalent** to the
     pure loop (doc/38 §2.2, asserted by ``tests/test_performance.py``):
     ``_segment_admissible`` only hands the kernel segments that are runnable on

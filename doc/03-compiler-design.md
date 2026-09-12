@@ -185,7 +185,10 @@ Although the codon table itself has no "jump" instruction, the compiler can **sy
 - These instructions do not appear in the source codons; they are "synthetic instructions" at the bytecode layer.
 - Advanced usage: extended codon tables use the `OP_NOP` family as placeholders, triggered via `OP_REGULATE mode=jump`.
 
-In the prototype phase **control-flow synthesis is not implemented**; the focus is on the linear-ORF + GRN-scheduling execution model. The GRN is itself the control flow (data-driven scheduling).
+Control flow is realized by **data-driven GRN scheduling**: the compiler
+emits linear per-ORF bytecode streams, and the GRN state machine (§4.2)
+triggers gene calls when activation thresholds are crossed; there is no
+separate CFG-synthesis pass in the compiler.
 
 ### 5.4 Constant Pool
 
@@ -283,6 +286,55 @@ def execute_one(self):
 - `disassemble_chunk(chunk)`: statically disassembles an entire chunk.
 - `cell.dump()`: prints the cell state (protein pool, energy, position, morphology-field statistics).
 
+### 6.5 C-Only Execution Mandate
+
+The *execution* of the compiled bytecode is mandated to run on a C kernel,
+not on a Python/numpy implementation.  Rationale (doc/06 §19):
+execution is the per-cell hot path; a Python bytecode interpreter loop makes
+per-cell runtime costs a function of interpreter overhead rather than of
+program size, and silently degrades every parallelism and quota guarantee.
+
+Scope.  The mandate covers the compiler + VM core (`src/helixlang/core/`,
+`src/helixlang/_accel/`); *plugins* are explicitly excluded — their hot
+loops (GRN integrators, diffusion fields, simulation kernels) keep the
+fidelity-flag system (doc/06 §4.3) including the explicit `--pure-python`
+capability, which applies only to plugin-side runtimes and never to the VM
+dispatch hot loop.
+
+Structure.  `src/helixlang/core/performance.py` segments compiled code into
+*simple* runs (opcodes `0x11, 0x20, 0x21, 0x90, 0x91, 0x92`) and hands the
+whole run to the compiled kernel `run_quota(code, constants, quota=…)`
+(`src/helixlang/_accel/dispatch/`).  The loader
+(`src/helixlang/_accel/_loaders.py`) marks the dispatch package as
+*native-only* (`_NATIVE_ONLY_PACKAGES`): requests for a python/numpy backend
+raise `NativeBackendError`; when the compiled kernel is absent the same
+error is raised with a rebuild hint (`python -m helixlang._accel.build`).
+The Python implementation `impl_python.py` is retained *only* as a
+non-selectable reference for fuzz equivalence — resolvers can never choose
+it.  Plugins intentionally keep python/numpy-fidelity selectability.
+
+Enforcement (what carries the mandate):
+
+- `python -m helixlang._accel.build` — in-place compile of the C kernels;
+  run by CI (test, examples-smoke) and by `release.py` (Step 1b) before any
+  gate.
+- `python -m helixlang.core.c_only --check` — quality gate (CI step, and a
+  `release.py` gate) that fails loudly unless (a) the dispatch resolver
+  returns `impl_cext` and (b) forcing `python` for the dispatch package
+  raises `NativeBackendError`.
+- fuzz tests (doc/05 §6.5 equivalence) skip when the `.so` is absent,
+  which cannot happen under CI/release because the build step precedes them.
+
+Implemented mandate coverage (doc/06 §19.1).  The implemented dispatch
+hot loop is C-only and CI always builds/exercises the C kernel.  The C kernel
+covers the simple-opcode set (`0x11, 0x20, 0x21, 0x90, 0x91, 0x92`); every
+other opcode executes in the Python dispatcher inside the same
+`accelerated_execute_pending` loop (doc/06 §19.1 table: dispatch hot loop,
+simple opcode set, C backends on all four release platforms).  The
+enforcement mechanics above are the complete mechanism for the mandate;
+extending which opcodes or which compiler stage runs in C changes *where*
+code lives, not the enforcement described here.
+
 ---
 
 ## 7. Disassembler
@@ -350,7 +402,7 @@ src/helixlang/
 - No compile-time optimization in the prototype phase (following CPython/Lua).
 - VM dispatch uses `match/case` to avoid dict-lookup overhead.
 - The reaction-diffusion field uses the `array` module or plain list-of-list (a grid smaller than 64×64 is sufficient for the prototype).
-- Large-scale simulation can later migrate to numpy + MLIR/LLVM (see the extension roadmap in [05-prototype-plan.md](./05-prototype-plan.md)).
+- Large-scale simulation runs on the numpy/cython-accelerated plugin kernels (doc/06 §18); the compiler/VM core stays dependency-free (see the delivered expansion areas in [05-prototype-plan.md](./05-prototype-plan.md)).
 
 ### 8.4 Binary Artifact (`.helixc`) Serialization
 

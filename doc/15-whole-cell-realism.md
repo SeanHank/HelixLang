@@ -1,4 +1,4 @@
-# Toward a Physically Complete Virtual Cell: Design Roadmap
+# Toward a Physically Complete Virtual Cell: Implementation Record
 
 Status: **implemented (Phases 1–5) and gated**. Every proposal below has
 landed on a concrete module behind backward-compatible flags whose defaults

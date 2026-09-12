@@ -26,6 +26,13 @@ from helixlang.core.errors import NativeBackendError
 _NATIVE_IMPLS = ("impl_cext", "impl_cython", "impl_rust")
 _SUFFIX_IMPLS = ("impl_numpy", "impl_numba", "impl_python")
 
+# Packages whose hot-loop implementation is mandated to be compiled (C only,
+# doc/03 §6.5 / doc/06 §19 "C-only mandate"; compiler+VM core, plugins
+# excluded).   For these, ``choose_backend`` never resolves to a Python/numpy
+# implementation: a missing compiled kernel raises ``NativeBackendError``
+# instead of silently degrading the VM hot loop to an interpreter loop.
+_NATIVE_ONLY_PACKAGES = frozenset({"helixlang._accel.dispatch"})
+
 
 def _importable(pkg: str, impl: str) -> bool:
     try:
@@ -42,6 +49,11 @@ def choose_backend(pkg: str, prefer: str | None = None) -> str:
     e.g. ``native,numpy,python``) or the ``prefer`` argument.  ``native`` means
     any compiled impl (cext/cython) present on disk.
 
+    For packages listed in ``_NATIVE_ONLY_PACKAGES`` (the compiler/VM dispatch
+    hot loop, doc/03 §6.5) only ``native`` tags are honored: a Python/numpy
+    request there raises ``NativeBackendError`` instead of selecting a Python
+    implementation (C-only mandate, doc/06 §19).
+
     Raises:
         NativeBackendError: when the *chosen* implementation is absent.  This is
             deliberate — there is no silent fallback to another fidelity class.
@@ -54,6 +66,21 @@ def choose_backend(pkg: str, prefer: str | None = None) -> str:
     """
     order = (prefer or os.environ.get("HELIX_ACCEL") or "native,numpy,python").split(",")
     order = [o.strip() for o in order if o.strip()]
+    if pkg in _NATIVE_ONLY_PACKAGES:
+        # C-only mandate (doc/03 §6.5 / doc/06 §19): the VM dispatch hot loop
+        # must execute on a compiled kernel.  Drop every non-`native` tag so a
+        # Python/numpy request for this package raises instead of silently
+        # selecting a Python implementation.
+        order = [tag for tag in order if tag == "native"]
+        if not order:
+            raise NativeBackendError(
+                f"{pkg} is C-only (compiler/VM mandate, doc/03 §6.5): the "
+                f"requested backend(s) {','.join(order) or 'none'} do not "
+                f"comply.  Build with `python -m helixlang._accel.build` or "
+                f"`pip install helixlang[native]`, or declare the explicit "
+                f"`--pure-python` capability flag to run the interpreter loop.",
+                rebuild="python -m helixlang._accel.build",
+            )
     tried: list[str] = []
     for tag in order:
         if tag == "native":
