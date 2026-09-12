@@ -23,10 +23,10 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.gem.ecgem import (
-            ECGEMBuilder,
+            _EC_TO_REACTION,
             CORE_ENZYME_KCAT,
             CORE_ENZYME_MW,
-            _EC_TO_REACTION,
+            ECGEMBuilder,
             _molecular_weight_from_sequence,
         )
 

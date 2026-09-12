@@ -27,12 +27,12 @@ def run() -> dict:
             CHOU_FASMAN_TABLE,
             KYTE_DOOLITTLE_SCALE,
             gravy,
+            hydropathy_profile,
+            predict_disorder,
             predict_secondary,
             predict_secondary_gor,
-            predict_transmembrane,
-            predict_disorder,
             predict_structure,
-            hydropathy_profile,
+            predict_transmembrane,
         )
 
         checks: dict[str, bool] = {}

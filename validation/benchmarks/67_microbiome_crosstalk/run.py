@@ -23,8 +23,8 @@ def run() -> dict:
     details: dict[str, object] = {}
     try:
         from helixlang.plugins.human.microbiome import (
-            MicrobiomeCompartment,
             MicrobialSpecies,
+            MicrobiomeCompartment,
             MicrobiomeState,
         )
         from helixlang.plugins.human.organ_crosstalk import (

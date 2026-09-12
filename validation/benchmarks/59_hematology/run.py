@@ -14,11 +14,9 @@ def run() -> dict:
     results: dict = {"id": "59_hematology"}
     try:
         from helixlang.plugins.human.hematology_model import (
-            FribergLineage,
             ErythropoiesisModel,
             HematologySystem,
             MyelosuppressionParams,
-            LineageConfig,
             create_hematology_system,
         )
 
@@ -58,7 +56,7 @@ def run() -> dict:
         heme2.register_myelosuppressant(
             MyelosuppressionParams(drug_name="cytotox", emax=0.9, ec50_mg_l=0.05)
         )
-        for day in range(7):
+        for _ in range(7):
             heme2.step(dt_h=24.0, exposures={"cytotox": 0.5})
         anc_end = heme2.neutrophils.count()
         checks["drug_exposure_anc_decreased"] = anc_end < anc_start

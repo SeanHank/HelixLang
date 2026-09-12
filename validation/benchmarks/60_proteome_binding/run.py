@@ -14,10 +14,10 @@ def run() -> dict:
     results: dict = {"id": "60_proteome_binding"}
     try:
         from helixlang.plugins.human.proteome_binding import (
+            BindingPrediction,
             ProteomeBindingCascade,
             ProteomeBindingProfile,
             ProteomeDDIPrediction,
-            BindingPrediction,
         )
 
         checks: dict[str, bool] = {}

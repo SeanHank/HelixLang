@@ -24,9 +24,8 @@ def run() -> dict:
         from helixlang.plugins.human.molecular_toxicity import (
             MolecularToxicityPredictor,
             ToxicityProfile,
-            ActivityProfile,
-            smiles_autofill,
             _compute_rdkit_descriptors,
+            smiles_autofill,
         )
 
         checks: dict[str, bool] = {}

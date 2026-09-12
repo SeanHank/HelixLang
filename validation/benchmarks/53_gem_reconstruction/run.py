@@ -16,15 +16,14 @@ def run() -> dict:
     details: dict[str, object] = {}
     reference = "Thiele I, Palsson BO 2010, Nat Protoc 5:93-110"
     try:
+        from helixlang.plugins.gem.bottom_up import BottomUpResult, GPRRule, ReactionEntry
+        from helixlang.plugins.gem.bridge import consensus_to_metabolic_model
         from helixlang.plugins.gem.consensus import (
-            ConsensusReaction,
             ConsensusResult,
             consensus_merge,
         )
-        from helixlang.plugins.gem.bottom_up import BottomUpResult, GPRRule, ReactionEntry
-        from helixlang.plugins.gem.top_down import TopDownResult
-        from helixlang.plugins.gem.bridge import consensus_to_metabolic_model
         from helixlang.plugins.gem.sbml_export import model_to_sbml_string
+        from helixlang.plugins.gem.top_down import TopDownResult
         checks["import_modules"] = True
 
         bu_reactions = [

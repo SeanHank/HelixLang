@@ -14,15 +14,14 @@ def run() -> dict:
     results: dict = {"id": "58_endocrine_renal"}
     try:
         from helixlang.plugins.human.endocrine import (
-            InsulinGlucoseAxis,
+            EndocrineSystem,
             HPAAxis,
             HPTAxis,
-            EndocrineSystem,
+            InsulinGlucoseAxis,
             create_endocrine,
         )
         from helixlang.plugins.human.renal_model import (
             ckd_epi_2021,
-            RenalFunctionModel,
         )
 
         checks: dict[str, bool] = {}

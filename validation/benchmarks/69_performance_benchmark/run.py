@@ -21,11 +21,11 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
+        from helixlang.core.parser import parse_source
         from helixlang.core.performance import (
             SnapshotDownsampler,
             VMProfiler,
         )
-        from helixlang.core.parser import parse_source
         from helixlang.core.semantic import SemanticAnalyzer
 
         # A moderately-sized GRN program with regulatory structure.

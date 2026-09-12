@@ -16,7 +16,6 @@ Reference: Hagen-Poiseuille law; Boussinesq duct flow solution.
 from __future__ import annotations
 
 import json
-import math
 import sys
 import time
 
@@ -27,12 +26,9 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.runtime.flow import (
-            FlowField,
-            FlowField3D,
             channel_poiseuille,
             channel_poiseuille_3d,
             stagnant,
-            stagnant_3d,
             um_s_to_sites_per_tick,
         )
 

@@ -24,7 +24,6 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "14_type_system_flow"}
     try:
-        from helixlang.plugins.runtime.flow import FlowField
         from helixlang.core.lexer import Lexer
         from helixlang.core.parser import Parser
         from helixlang.core.semantic import SemanticAnalyzer
@@ -35,6 +34,7 @@ def run() -> dict:
             TypeChecker,
             parse_type_annotation,
         )
+        from helixlang.plugins.runtime.flow import FlowField
 
         st = SymbolTable()
         st.define("lacI", HelixType.GENE)

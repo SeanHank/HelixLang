@@ -12,7 +12,6 @@ Reference: Chrousos 1995 (HPA axis);.systems biology of innate immunity.
 from __future__ import annotations
 
 import json
-import math
 import sys
 import time
 
@@ -23,9 +22,8 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.human.immune import (
-            CytokinePool,
             CRPDriver,
-            InnateImmuneModel,
+            CytokinePool,
             ImmuneCellPopulation,
             create_immune_model,
         )

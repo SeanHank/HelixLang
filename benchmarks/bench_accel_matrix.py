@@ -22,7 +22,6 @@ for the numpy backends.
 """
 from __future__ import annotations
 
-import argparse
 import gc
 import importlib
 import json
@@ -30,7 +29,7 @@ import platform
 import random
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -202,7 +201,7 @@ def _fmt_sec(v: float) -> str:
 def render_markdown(results: dict) -> str:
     out = []
     out.append("### 3.8 Cross-stack hot-loop matrix (doc/36 Phase 5)")
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     out.append(f"\n_Measured {now} with `python benchmarks/bench_accel_matrix.py`; "
                f"best-of-5, GC disabled, warm-up each._")
     out.append("\nBest per kernel/row is **bolded**; `n/a` = impl not built for "

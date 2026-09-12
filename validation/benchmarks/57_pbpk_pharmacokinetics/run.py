@@ -13,14 +13,13 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "57_pbpk_pharmacokinetics"}
     try:
+        from helixlang.plugins.human.drug import IV, Drug, DrugMolecule
         from helixlang.plugins.human.pharmacokinetics import (
             PBPKConfig,
             PBPKModel,
-            PBPKResult,
-            _trapezoid,
             _terminal_half_life,
+            _trapezoid,
         )
-        from helixlang.plugins.human.drug import Drug, DrugMolecule, IV
         from helixlang.plugins.human.physiology import create_default_physiology
 
         checks: dict[str, bool] = {}

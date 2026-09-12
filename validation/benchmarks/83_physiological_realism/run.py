@@ -31,14 +31,14 @@ def run() -> dict:
     results: dict = {"id": "83_physiological_realism"}
     try:
         from helixlang.plugins.human.physiological_core import (
-            PhysiologicalCoupler,
-            HemodynamicModel,
             GasExchangeModel,
+            HemodynamicModel,
+            PhysiologicalCoupler,
             ThermoregulationModel,
-            severinghaus_saturation,
-            po2_from_saturation,
-            henderson_hasselbalch_pH,
             alveolar_arterial_oxygen,
+            henderson_hasselbalch_pH,
+            po2_from_saturation,
+            severinghaus_saturation,
         )
         from helixlang.plugins.human.renal_model import create_renal_model
 

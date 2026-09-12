@@ -25,8 +25,8 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.runtime.morphology_3d import (
-            LSystem3D,
             PLANT_PRESETS,
+            LSystem3D,
             Point3D,
             rotate_vector,
         )

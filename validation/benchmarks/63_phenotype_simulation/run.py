@@ -22,8 +22,8 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.human.phenotype import (
-            PhenotypeCalculator,
             ExternalTraits,
+            PhenotypeCalculator,
             create_default_traits,
         )
         from helixlang.plugins.human.simulation import (

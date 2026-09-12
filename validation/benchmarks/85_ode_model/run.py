@@ -35,8 +35,8 @@ def run() -> dict:
     t0 = time.perf_counter()
     results: dict = {"id": "85_ode_model"}
     try:
-        from helixlang.core.plugin_registry import Registry
         from helixlang.core.parser import parse_source
+        from helixlang.core.plugin_registry import Registry
         from helixlang.sim_runtime import run as engine_run
 
         Registry().discover("ode_model")

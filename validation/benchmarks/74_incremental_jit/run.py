@@ -89,8 +89,8 @@ def run() -> dict:
             if i == 0:
                 old_body, new_body = "ATG TCT TAA", "ATG TCC TAA"
             else:
-                old_body = f"ATG CGG TAA"  # CALL_GENE wobble 3 (modulo n -> n-1)
-                new_body = f"ATG CGC TAA"
+                old_body = "ATG CGG TAA"  # CALL_GENE wobble 3 (modulo n -> n-1)
+                new_body = "ATG CGC TAA"
             edited = src.replace(f"#gene name={gene}\n{old_body}",
                                  f"#gene name={gene}\n{new_body}") \
                 if i == 0 else \

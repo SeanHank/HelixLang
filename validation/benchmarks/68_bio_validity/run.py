@@ -79,7 +79,6 @@ def run() -> dict:
             n_samples=100,
         )
         ci_contains_orth = unc.ci_lower <= 0.87 <= unc.ci_upper
-        ci_contains_elowitz = unc.ci_lower <= 160.0 <= unc.ci_upper
         checks["uncertainty_ci_valid"] = ci_contains_orth
         details["uncertainty_mean"] = round(unc.mean, 4)
         details["uncertainty_ci"] = [

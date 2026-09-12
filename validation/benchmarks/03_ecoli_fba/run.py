@@ -57,10 +57,9 @@ def run() -> dict:
         _orig_tqdm = _tqdm_mod.tqdm
         _tqdm_mod.tqdm = lambda *a, **kw: _orig_tqdm(*a, **{**kw, "disable": True})
 
-        from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
-
         # ── Step 1: load e_coli_core (vendored copy first; doc/41) ─────
         from helixlang.plugins.gem.sbml_import import load_bigg_cobra_model
+        from helixlang.plugins.runtime.metabolism import FluxBalanceAnalysis, _from_cobra_model
 
         try:
             cobra_model = load_bigg_cobra_model(

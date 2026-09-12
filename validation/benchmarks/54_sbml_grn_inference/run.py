@@ -62,13 +62,13 @@ def run() -> dict:
     details: dict[str, object] = {}
     reference = "Keating SM et al. 2020, Nat Biotechnol 38:534-543"
     try:
-        from helixlang.plugins.gem.sbml_import import load_sbml_model
         from helixlang.plugins.gem.grn_inference import (
+            KNOWN_REGULATORY_INTERACTIONS,
+            EvidenceLevel,
             GRNInferenceResult,
             RegulatoryEdge,
-            EvidenceLevel,
-            KNOWN_REGULATORY_INTERACTIONS,
         )
+        from helixlang.plugins.gem.sbml_import import load_sbml_model
         checks["import_modules"] = True
 
         with tempfile.NamedTemporaryFile(

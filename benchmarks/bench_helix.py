@@ -49,11 +49,11 @@ from helixlang.core.ast_nodes import Program  # noqa: E402
 from helixlang.core.bytecode import Chunk  # noqa: E402
 from helixlang.core.codon_table import Op  # noqa: E402
 from helixlang.core.compiler import Compiler  # noqa: E402
-from helixlang.plugins.runtime.grn import GRN  # noqa: E402
 from helixlang.core.lexer import Lexer, Token  # noqa: E402
 from helixlang.core.parser import Parser  # noqa: E402
 from helixlang.core.semantic import SemanticAnalyzer  # noqa: E402
 from helixlang.core.vm import CellVM  # noqa: E402
+from helixlang.plugins.runtime.grn import GRN  # noqa: E402
 
 # ============================================================================
 # Timing helpers

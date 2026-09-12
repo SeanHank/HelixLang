@@ -23,15 +23,15 @@ def run() -> dict:
     t0 = time.perf_counter()
     try:
         from helixlang.plugins.human.disease_progression import (
+            PROGRESSION_PROFILES,
             DiseaseProgressionModel,
             DiseaseStage,
             create_progression_model,
-            PROGRESSION_PROFILES,
         )
         from helixlang.plugins.human.recovery import (
+            ORGAN_RECOVERY_PROFILES,
             RecoveryModel,
             create_recovery_model,
-            ORGAN_RECOVERY_PROFILES,
         )
 
         checks: dict[str, bool] = {}
@@ -95,7 +95,7 @@ def run() -> dict:
         # Treatment active: values should stay unchanged
         recovery.set_treatment_inactive()
         prev_alt = recovery.current_biomarkers["alt"]
-        result = recovery.step(dt_h=24.0, current_time_h=1.0)
+        recovery.step(dt_h=24.0, current_time_h=1.0)
         new_alt = recovery.current_biomarkers["alt"]
         # After one day of recovery, ALT should move toward baseline (35.0)
         checks["recovery_alt_moves_toward_baseline"] = new_alt < prev_alt

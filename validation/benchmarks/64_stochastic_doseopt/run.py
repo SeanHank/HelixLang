@@ -25,18 +25,16 @@ def run() -> dict:
     checks: dict[str, bool] = {}
     details: dict[str, object] = {}
     try:
-        from helixlang.plugins.human.stochastic_ode import (
-            SDEConfig,
-            SDEDistribution,
-            SDETrajectory,
-            euler_maruyama_step,
-            solve_sde,
-            solve_sde_ensemble,
-        )
         from helixlang.plugins.human.dose_optimizer import (
             DoseOptimizer,
             DoseRecommendation,
             PKProfile,
+        )
+        from helixlang.plugins.human.stochastic_ode import (
+            SDEConfig,
+            SDETrajectory,
+            euler_maruyama_step,
+            solve_sde,
         )
         checks["import_all_classes"] = True
 
