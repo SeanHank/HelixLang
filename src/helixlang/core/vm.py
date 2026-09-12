@@ -869,7 +869,7 @@ class CellVM:
 
     # -------- morphology / feedback --------
     def _flush_morphology(self) -> None:
-        # Morphology updates are handled inline in _dispatch
+        # STUBBENIGN no-op hook: morphology handled inline in _dispatch
         pass
 
     def _divide(self) -> None:

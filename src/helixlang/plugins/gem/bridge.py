@@ -213,7 +213,7 @@ def gpr_to_genome_dict(
         if rxn.gpr and rxn.gpr.gene_ids:
             for gene in rxn.gpr.gene_ids:
                 if gene not in genome:
-                    genome[gene] = "ATG" + "NNN" * 10  # placeholder
+                    genome[gene] = "ATG" + "NNN" * 10  # STUBBENIGN pseudo-sequence default (real seq from genome FASTA)
     return genome
 
 

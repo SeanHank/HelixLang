@@ -53,6 +53,15 @@ jobs:
           # SILENTBENIGN` marker and are excluded by the linter; anything that
           # still matches is an actionable silent fallback and fails CI.
           python -m helixlang.core.find_silent_fallbacks src --fail
+      - name: Stub/deferred-code audit — full tree (hard gate)
+        run: |
+          # No simplified / stub / unimplemented / deferred item may ship:
+          # `...`/`pass`-only bodies, `raise NotImplementedError`, and the
+          # TODO/FIXME/XXX/HACK/TBD/WIP/stub/placeholder/dummy/deferred marker
+          # family fail CI.  Intentionally-kept cases must carry an explicit
+          # `# STUBBENIGN` audit token (see src/helixlang/core/find_stubs.py);
+          # anything still unmarked is an actionable stub/deferred item.
+          python -m helixlang.core.find_stubs src --fail
 
   typecheck:
     runs-on: ubuntu-latest

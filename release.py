@@ -18,7 +18,8 @@ What this script does:
     1. Validates version format
     2. Checks every version-bearing source for drift and fails fast on mismatch (doc/38 §2.3)
     3. Syncs version to pyproject.toml, core/version.py, server/app.py (+ bytecode.py comment)
-    4. Runs all quality gates in parallel (ruff, mypy, pytest -n auto, validation, examples)
+    4. Runs all quality gates in parallel (ruff, mypy, pytest -n auto,
+       validation, examples, stub/deferred audit)
     5. Syncs metrics to README.md, README_PYPI.md, CONTRIBUTING.md
     6. Builds sdist + wheel
 
@@ -166,8 +167,8 @@ def write_summary(run_dir: Path, version: str, *,
     if gates:
         lines.append(f"{'gate':<10} {'exit':>4}  status")
         lines.append(f"{'-'*10} {'-'*4}  {'-'*6}")
-        order = {"ruff": 0, "mypy": 1, "boundary": 2, "pytest": 3, "val": 4,
-                 "examples": 5}
+        order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
+                 "val": 5, "examples": 6}
         for g in sorted(gates, key=lambda r: order.get(r.name, 99)):
             status = "PASS" if g.exit_code == 0 else "FAIL"
             lines.append(f"{g.name:<10} {g.exit_code:>4}  {status}")
@@ -351,6 +352,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
         ("mypy", [PYTHON, "-m", "mypy", "src/helixlang/"], ROOT),
         ("pytest", [PYTHON, "-B", "-m", "pytest", "tests/", "-n", "auto", "--tb=short", "-q"], ROOT),
         ("boundary", [PYTHON, "-m", "helixlang.core.find_core_imports", "--strict"], ROOT),
+        ("stubs", [PYTHON, "-m", "helixlang.core.find_stubs", "src", "--fail"], ROOT),
     ]
 
     # Validation gate
@@ -407,8 +409,8 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
             results.append(future.result())
 
     # Sort by original order
-    order = {"ruff": 0, "mypy": 1, "boundary": 2, "pytest": 3, "val": 4,
-             "examples": 5}
+    order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
+             "val": 5, "examples": 6}
     results.sort(key=lambda r: order.get(r.name, 99))
 
     log("Waiting for gates...")

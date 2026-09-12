@@ -975,7 +975,7 @@ def biologics_adme(mw_da: float) -> dict[str, float]:
     clearance_ml_per_min = max(0.1, min(cl_base, 50.0))
 
     # Absorption rate: IV bolus → effectively infinite; SC → very slow
-    absorption_rate_h = 0.1  # placeholder for IV (not used if route is IV)
+    absorption_rate_h = 0.1  # STUBBENIGN default for non-IV routes (ignored when route is IV)
 
     # Hepatic extraction: low for most mAbs (FcRn recycling rescues them)
     hepatic_extraction_ratio = 0.05

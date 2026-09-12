@@ -31,6 +31,8 @@ def run_quota(code, constants, *, quota: int = 4096, gene_table=None):
         op = code[ip]
         ip += 1
         if op not in _HANDLED:
+            # STUBBENIGN error surface for an unknown opcode in the pure-python
+            # dispatch kernel (mirrors impl_cext.c), not a deferred stub.
             raise NotImplementedError(f"dispatch kernel: unhandled op 0x{op:02x}")
         if op == _OP_HALT:
             halted = True

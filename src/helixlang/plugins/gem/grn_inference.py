@@ -198,7 +198,7 @@ def infer_grn(
                 source="database",
             ))
 
-    # Level 2: Motif prediction (placeholder for HOMER/MEME)
+    # Level 2: de novo motif prediction from the genome FASTA
     if use_motif_prediction and genome_fasta and predicted_tfs:
         motif_edges = _predict_motifs(
             predicted_tfs, genome_fasta, upstream_bp

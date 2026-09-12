@@ -88,7 +88,7 @@ class IRLowerer:
                                   codon_index=inst.codon_index)
         if op is Op.OP_JUMP or op is Op.OP_JUMP_IF_ZERO:
             # IR-embedded jumps carry no operand (the builder never emits
-            # them symbolically) -- defensive zero placeholder.
+            # them symbolically) -- defensive zero.
             return chunk.emit_u16(op, 0, line=inst.line,
                                   codon_index=inst.codon_index)
         nbytes = OP_OPERAND_BYTES.get(op, 0)

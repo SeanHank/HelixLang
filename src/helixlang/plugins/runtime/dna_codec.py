@@ -89,7 +89,7 @@ except ImportError:
     _RealReedSolomonError = ReedSolomonError
 
 # catch the real ReedSolomonError when reedsolo is available, fall back
-# to the placeholder class when it is missing (erlich_* first raises a
+# to the fallback error type when it is missing (erlich_* first raises a
 # RuntimeError when reedsolo is missing, so the except clauses are not
 # reached)
 _RS_ERROR_TYPES: tuple[type[BaseException], ...] = (

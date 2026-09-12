@@ -75,6 +75,8 @@ class Backend(ABC):
     kinds: tuple[str, ...] = ()
 
     def run(self, req: RunRequest) -> SimResult:
+        # STUBBENIGN abstract base guard: subclasses must override run();
+        # reaching here is a misconfigured-backend error, not dead code.
         raise NotImplementedError(
             f"backend {self.id!r} does not implement run()")
 
