@@ -676,8 +676,11 @@ class TestPharmacoKineticsClose:
             PBPKModel(drug, create_default_physiology())
         drug.half_life_h = 2.0
         drug.route = "intrathecal"
-        with pytest.raises(ValueError, match="no PBPK input model"):
-            PBPKModel(drug, create_default_physiology())
+        # intrathecal is a fully supported PBPK input (doc/27 §7.6): the
+        # direct CNS bolus model constructs with dose_brain_mg defaulting
+        # to the administered dose.
+        model = PBPKModel(drug, create_default_physiology())
+        assert model.dose_brain_mg == drug.dose_mg
 
     def test_pbpk_volume_and_time_validations(self):
         from helixlang.plugins.human.drug import get_predefined_drug

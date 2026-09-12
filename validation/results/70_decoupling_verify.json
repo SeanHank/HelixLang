@@ -30,7 +30,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 0.2362187090329826,
+  "runtime_seconds": 0.3649991669226438,
   "layer": "architecture",
   "name": "Decoupling verification \u2014 core vs simulation vs language",
   "level": "L2"

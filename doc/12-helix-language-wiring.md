@@ -18,7 +18,7 @@ and next-step plan.
 | Phase | Scope | Status |
 |---|---|---|
 | W-1 | parser: `Config.sim`, `backend`, `#media`/`#enzyme`/`#metabolite`; golden bit-compat tests | **done** (`ast_nodes.py`, `parser.py`) |
-| W-2 | `sim_runtime.py` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | **done** (`sim_runtime.py`, `cli.py`) |
+| W-2 | `sim_runtime/` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | **done** (`sim_runtime/`, `cli.py`) |
 | W-3 | `population` backend, example 32 | **done** |
 | W-4 | `calibration`/`benchmark` backends, `/api/sim/run`, example 34, long-tail `#sim` hook (`spatial_dfba`) | **done** (`server.py`) |
 | W-5 | docs: `02-language-spec.md`, `09-bio-instructions.md`, README + drift fixes | **done** |
@@ -47,7 +47,7 @@ HelixLang contains **two runtimes**:
 Before this work the library was Python-API-only (with a few web endpoints).
 This document specified a **backend selector** in `#config` plus a small set
 of new annotations and config keys, and a single adapter module
-(`helixlang/sim_runtime.py`) that maps the parsed program onto whichever
+(`helixlang/sim_runtime/`) that maps the parsed program onto whichever
 simulator the program asks for — now implemented (W-1…W-5, §0):
 
 ```
@@ -161,7 +161,7 @@ Positional `source`, `--table`, `--disassemble`, `--debug`, `--csv`, `--png`,
 | `VirtualCell` (cell cycle, adder, maturation, enzyme caps) | **No** | `virtual_cell.py`, Python only |
 | `CellPopulation3D` (colony, per-cell programs, dFBA) | **No** | `population.py`, Python only (driver e.g. `run_consortium_quorum`) |
 | Environment / media fields | **No** | `environment.py`, Python only |
-| Whole-cell calibration / benchmark | **No** | `apps/whole_cell_calibration.py`, `apps/virtual_cell_bench.py` |
+| Whole-cell calibration / benchmark | **No** | `plugins/apps/whole_cell_calibration.py`, `plugins/apps/virtual_cell_bench.py` |
 | Spatial dFBA, omics, protein structure/fitness, 3D morphology, vectorized, other apps | **No** | Python API / web endpoints only |
 
 ### 3.5 Documentation drift found by the audit
@@ -196,7 +196,7 @@ Positional `source`, `--table`, `--disassemble`, `--debug`, `--csv`, `--png`,
    `#promoter` / `#regulate`; add only typed configuration and two structural
    annotations.
 4. Determinism: RNG (`#config seed=`) makes every sim backend reproducible.
-5. The adapter is one module (`sim_runtime.py`); it never touches the classic
+5. The adapter is one package (`sim_runtime/`); it never touches the classic
    bytecode pipeline.
 
 **Non-goals**
@@ -219,7 +219,7 @@ Positional `source`, `--table`, `--disassemble`, `--debug`, `--csv`, `--png`,
                       │  #config backend=?
               ┌───────┼──────────────┬───────────────┐
      classic  ▼            │             │              │
-   Compiler→CellVM   sim_runtime.py   (dispatch)        │
+   Compiler→CellVM   sim_runtime/    (dispatch)        │
    (unchanged)            │             │              │
               ┌───────────┼─────────────┼──────────────┤
               ▼           ▼             ▼              ▼
@@ -250,8 +250,8 @@ the CLI/server render.
 | `whole_cell` | `VirtualCell` | Phases 1–4: cell cycle, adder, maturation, enzyme caps |
 | `population` | `CellPopulation3D` | Phase 5: per-cell program + environment + dFBA colony |
 | `fba` | `FluxBalanceAnalysis` / `DynamicFluxBalance` | standalone metabolism batch |
-| `calibration` | `apps/whole_cell_calibration.py` | recover hidden parameters from mixed observables |
-| `benchmark` | `apps/virtual_cell_bench.py` | run the 4-gate whole-cell benchmark |
+| `calibration` | `plugins/apps/whole_cell_calibration.py` | recover hidden parameters from mixed observables |
+| `benchmark` | `plugins/apps/virtual_cell_bench.py` | run the 4-gate whole-cell benchmark |
 
 `backend` may also be overridden from the CLI with `--backend` (overrides the
 source's choice; useful for CI).
@@ -459,9 +459,11 @@ already gives us per-gene hooks with **no parser work**:
 
 ---
 
-## 8. The sim runtime adapter (`sim_runtime.py`)
+## 8. The sim runtime adapter (`sim_runtime/`)
 
-New module `src/helixlang/sim_runtime.py`. Public API:
+New package `src/helixlang/sim_runtime/` (backends/core.py defines
+`CORE_BACKENDS`, backends/pipelines.py holds the executors, `_engine.py` the
+engine). Public API:
 
 ```python
 run(program: Program) -> SimResult            # dispatch on config.backend
@@ -811,7 +813,7 @@ ATG GCT GGT GTA TAA
 
 Config keys for `benchmark`/`calibration` mirror the run functions' signatures
 (`VirtualCellBenchConfig` and `run_whole_cell_calibration`,
-`apps/virtual_cell_bench.py:73` / `apps/whole_cell_calibration.py:422`); the
+`plugins/apps/virtual_cell_bench.py:73` / `plugins/apps/whole_cell_calibration.py:422`); the
 dict-typed keys (`calibration_uptake`) use the §6.3 comma/equals syntax.
 
 ### 10.2 New examples
@@ -954,7 +956,7 @@ independent cells (the √n noise reduction of the Phase-5 closure).
 ```
 
 Config keys map directly onto `run_whole_cell_calibration` arguments
-(`apps/whole_cell_calibration.py:422`): `minutes`, `n_samples`,
+(`plugins/apps/whole_cell_calibration.py:422`): `minutes`, `n_samples`,
 `refine_rounds`, `fit_seed`, `adder_noise_std`, `n_cells`.
 
 ---
@@ -981,7 +983,7 @@ Config keys map directly onto `run_whole_cell_calibration` arguments
   until then they run exactly as they do today.
 - `#media`/`#enzyme`/`#metabolite` in a `classic` program produce a **warning**
   (not an error), matching today's lenient handling of unknown keys.
-- No public Python API is broken: `sim_runtime.py` is purely additive.
+- No public Python API is broken: `sim_runtime/` is purely additive.
 
 ---
 
@@ -1026,11 +1028,11 @@ Config keys map directly onto `run_whole_cell_calibration` arguments
 | Phase | Scope | Files | Gate | Status |
 |---|---|---|---|---|
 | W-1 | parser: `Config.sim`, `backend`, `#media`/`#enzyme`/`#metabolite`; golden bit-compat tests | `ast_nodes.py`, `parser.py`, `tests/` | existing suite green | **done** |
-| W-2 | `sim_runtime.py` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | `sim_runtime.py` (new), `cli.py`, `examples/` | W-1 + adapter tests | **done** |
-| W-3 | `population` backend, examples 32 | `sim_runtime.py`, `examples/` | W-2 + colony tests | **done** |
-| W-4 | `calibration`/`benchmark` backends, `/api/sim/run`, example 34, long-tail `#sim` hook | `sim_runtime.py`, `server.py`, `examples/` | W-3 + endpoint tests | **done** |
+| W-2 | `sim_runtime/` (`whole_cell`, `fba`), CLI `--backend`/`--json`, examples 31/33 | `sim_runtime/` (new), `cli.py`, `examples/` | W-1 + adapter tests | **done** |
+| W-3 | `population` backend, examples 32 | `sim_runtime/`, `examples/` | W-2 + colony tests | **done** |
+| W-4 | `calibration`/`benchmark` backends, `/api/sim/run`, example 34, long-tail `#sim` hook | `sim_runtime/`, `server.py`, `examples/` | W-3 + endpoint tests | **done** |
 | W-5 | docs: this surface into `02-language-spec.md`/`09-bio-instructions.md` + fix §3.5 drift; README | `doc/*`, `README.md` | — | **done** |
-| W-6 | long tail (§8.6, §19): register remaining apps behind `#sim`; rewire stub examples | `sim_runtime.py`, `parser.py`, `examples/` | W-5 + app tests | **done** |
+| W-6 | long tail (§8.6, §19): register remaining apps behind `#sim`; rewire stub examples | `sim_runtime/`, `parser.py`, `examples/` | W-5 + app tests | **done** |
 
 W-1…W-5 each landed behind the project's quantitative gates; `classic` stayed
 the default until the final gate, so every phase was merge-safe. W-6 shipped
@@ -1049,7 +1051,7 @@ In addition to documenting the new surface:
 - `doc/09-bio-instructions.md` — sim backend section; fix drift: remove
   `grid_width/grid_height` (replaced by real population keys), correct
   `ticks`/`ops_per_tick` defaults, `mito_vertebrate`, codon-table labels.
-- `README.md` — module map row for `sim_runtime.py`; a "simulation backends"
+- `README.md` — module map row for `sim_runtime/`; a "simulation backends"
   note in Highlights; docs table row for this document.
 
 ---
@@ -1088,8 +1090,8 @@ In addition to documenting the new surface:
 | `PopulationConfig` | `population.py:186-215` |
 | Colony observables / stratification | `population.py:1382`, `population.py:1426` |
 | FBA / dFBA / enzyme caps / pools | `metabolism.py` (`FluxBalanceAnalysis`, `DynamicFluxBalance`, `EnzymeCapacity`, `MetabolitePool`) |
-| Whole-cell calibration | `apps/whole_cell_calibration.py` |
-| 4-gate benchmark | `apps/virtual_cell_bench.py:284` |
+| Whole-cell calibration | `plugins/apps/whole_cell_calibration.py` |
+| 4-gate benchmark | `plugins/apps/virtual_cell_bench.py:284` |
 | CLI | `cli.py` |
 | Server | `server.py` |
 
@@ -1117,7 +1119,7 @@ Every `examples/*.helix` file was run end-to-end
 | DNA storage codec | CLI `--encode-dna` / `--decode-dna` | 01, 13 |
 | `#morphogen` feedback | `#morphogen` | implemented (`parser.py:205`) but no example uses it; documented in `02-language-spec.md` §6.5 |
 
-### 18.2 Wired — simulation backends (`sim_runtime.py`)
+### 18.2 Wired — simulation backends (`sim_runtime/backends`)
 
 All of the following run in-language and are verified green:
 
@@ -1154,9 +1156,11 @@ All of the following run in-language and are verified green:
 | Cello closed-loop automation | `#sim kind=cello_workflow` | 26 |
 | Codon usage / CAI analysis | `#sim kind=codon_usage` | 12 |
 
-The W-6 dispatch lives in `_SIM_BACKENDS` (`sim_runtime.py`) and takes
-precedence over the first-class backend — including the classic default — so
-`#config backend=fba` is only a neutral placeholder on those examples.
+The W-6 dispatch lives in `CORE_BACKENDS` (`sim_runtime/backends/core.py`),
+with the executor bodies in `backends/pipelines.py` and orchestration in
+`_engine.py`, and takes precedence over the first-class backend — including
+the classic default — so `#config backend=fba` is only a neutral placeholder
+on those examples.
 
 ### 18.3 NOT wired — Python-only, `.helix` file is a stub
 
@@ -1186,7 +1190,7 @@ is covered in `tests/test_sim_runtime.py`.
 
 **Completed in W-6.** The long tail registered every §18.3 feature behind the
 `#sim` extension point — one `kind=...` per app, dispatched through the
-`_SIM_BACKENDS` dict in `sim_runtime.run()`, no parser changes. The plan
+`CORE_BACKENDS` dict in `sim_runtime/backends/core.py`, no parser changes. The plan
 below is retained as the historical record of what shipped:
 
 **Tier 1 — low effort, immediate win (1–2 backends)**

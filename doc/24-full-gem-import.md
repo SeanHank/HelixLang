@@ -116,7 +116,7 @@ reaction and all necessary pathways.
 
 ### 2.5 — Organism-Aware Medium Setting
 
-`_set_gem_medium()` (`sim_runtime.py:2464`) hardcodes E. coli reaction IDs:
+`_set_gem_medium()` (`_engine.py:921`) hardcodes E. coli reaction IDs:
 - Closes `PET, RBPC, PRUK, GAPD2, FBPASE, SBPaldo, SBPase` for non-photo
 - Opens `EX_glc_e` at medium-specified rates
 - Uses `_TRACE_IMPORT_UB = 0.1` on all exchange reactions

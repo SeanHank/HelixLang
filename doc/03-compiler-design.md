@@ -298,42 +298,44 @@ Scope.  The mandate covers the compiler + VM core (`src/helixlang/core/`,
 `src/helixlang/_accel/`); *plugins* are explicitly excluded — their hot
 loops (GRN integrators, diffusion fields, simulation kernels) keep the
 fidelity-flag system (doc/06 §4.3) including the explicit `--pure-python`
-capability, which applies only to plugin-side runtimes and never to the VM
-dispatch hot loop.
+capability, which applies only to plugin-side runtimes and never to the
+compiler/VM core.
 
-Structure.  `src/helixlang/core/performance.py` segments compiled code into
-*simple* runs (opcodes `0x11, 0x20, 0x21, 0x90, 0x91, 0x92`) and hands the
-whole run to the compiled kernel `run_quota(code, constants, quota=…)`
-(`src/helixlang/_accel/dispatch/`).  The loader
-(`src/helixlang/_accel/_loaders.py`) marks the dispatch package as
-*native-only* (`_NATIVE_ONLY_PACKAGES`): requests for a python/numpy backend
-raise `NativeBackendError`; when the compiled kernel is absent the same
-error is raised with a rebuild hint (`python -m helixlang._accel.build`).
-The Python implementation `impl_python.py` is retained *only* as a
-non-selectable reference for fuzz equivalence — resolvers can never choose
-it.  Plugins intentionally keep python/numpy-fidelity selectability.
+Structure.  `src/helixlang/core/native_manifest.py` registers every
+compiler+VM stage with a status: `native` (a hand-written `impl_cext.c`
+kernel ships) or `pending` (still pure-Python until its C port lands).  The
+**lexer** — the language's first pipeline stage — and the **dispatch** hot
+loop are `native` today; `core/lexer.py` is a thin facade over the compiled
+scanner (`_accel/lexer/impl_cext`).  The loader
+(`src/helixlang/_accel/_loaders.py`) derives its native-only roster
+(`_NATIVE_ONLY_PACKAGES`) from the manifest, so requests for a python/numpy
+backend of any native stage raise `NativeBackendError`; when a compiled
+kernel is absent the same error is raised with a rebuild hint
+(`python -m helixlang._accel.build`).  Each native stage keeps an
+`impl_python.py` purely as a **non-selectable** reference for fuzz
+equivalence — resolvers can never choose it.  Plugins intentionally keep
+python/numpy-fidelity selectability.
 
 Enforcement (what carries the mandate):
 
-- `python -m helixlang._accel.build` — in-place compile of the C kernels;
-  run by CI (test, examples-smoke) and by `release.py` (Step 1b) before any
-  gate.
+- `python -m helixlang._accel.build` — in-place compile of the C kernels
+  (auto-globs `*/impl_cext.c`); run by CI (test, examples-smoke) and by
+  `release.py` (Step 1b) before any gate.
 - `python -m helixlang.core.c_only --check` — quality gate (CI step, and a
-  `release.py` gate) that fails loudly unless (a) the dispatch resolver
-  returns `impl_cext` and (b) forcing `python` for the dispatch package
-  raises `NativeBackendError`.
+  `release.py` gate) that iterates every *native* stage and fails loudly
+  unless (a) its resolver returns `impl_cext` and (b) forcing `python` for
+  its package raises `NativeBackendError`.
 - fuzz tests (doc/05 §6.5 equivalence) skip when the `.so` is absent,
   which cannot happen under CI/release because the build step precedes them.
 
-Implemented mandate coverage (doc/06 §19.1).  The implemented dispatch
-hot loop is C-only and CI always builds/exercises the C kernel.  The C kernel
-covers the simple-opcode set (`0x11, 0x20, 0x21, 0x90, 0x91, 0x92`); every
-other opcode executes in the Python dispatcher inside the same
-`accelerated_execute_pending` loop (doc/06 §19.1 table: dispatch hot loop,
-simple opcode set, C backends on all four release platforms).  The
-enforcement mechanics above are the complete mechanism for the mandate;
-extending which opcodes or which compiler stage runs in C changes *where*
-code lives, not the enforcement described here.
+Implemented mandate coverage (doc/06 §19.1).  The implemented lexer and
+dispatch hot loop are C-only and CI always builds/exercises the C kernels.
+The dispatch C kernel covers the simple-opcode set (`0x11, 0x20, 0x21,
+0x90, 0x91, 0x92`); every other opcode executes in the Python dispatcher
+inside the same `accelerated_execute_pending` loop (doc/06 §19.1 table:
+dispatch hot loop, simple opcode set, C backends on all four release
+platforms).  The lexer C kernel covers the entire dual-mode scanner; the
+parser consumes the token list eagerly, so the C scan emits once, up front.
 
 ---
 

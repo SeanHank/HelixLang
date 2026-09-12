@@ -64,6 +64,7 @@ except ImportError:
 
 from helixlang.plugins.human.drug import (
     INTRAMUSCULAR,
+    INTRATHECAL,
     IV,
     IV_INFUSION,
     ORAL,
@@ -88,7 +89,9 @@ DEFAULT_FLOW_FRACTIONS: dict[str, float] = {
 
 FIRST_ORDER_ROUTES: frozenset[str] = frozenset({ORAL, SUBCUTANEOUS, INTRAMUSCULAR})
 
-SUPPORTED_ROUTES: tuple[str, ...] = (ORAL, IV, IV_INFUSION, SUBCUTANEOUS, INTRAMUSCULAR)
+SUPPORTED_ROUTES: tuple[str, ...] = (
+    ORAL, IV, IV_INFUSION, SUBCUTANEOUS, INTRAMUSCULAR, INTRATHECAL,
+)
 
 DEFAULT_LAG_TIME_H = 0.0
 DEFAULT_INFUSION_DURATION_H = 1.0
@@ -226,6 +229,7 @@ class PBPKModel:
         lag_time_h: float = DEFAULT_LAG_TIME_H,
         infusion_duration_h: float = DEFAULT_INFUSION_DURATION_H,
         partition_ratios: dict[str, float] | None = None,
+        dose_brain_mg: float | None = None,
     ) -> None:
         """Prepare the model without integrating anything.
 
@@ -242,6 +246,9 @@ class PBPKModel:
             infusion_duration_h: zero-order infusion window length (hours).
             partition_ratios: tissue:plasma partition ratio overrides keyed
                 by organ name (default 1.0).
+            dose_brain_mg: intrathecal (CNS) bolus delivered directly into
+                the brain compartment (mg); defaults to ``drug.dose_mg``.
+                Only used for ``route == INTRATHECAL``.
 
         Raises:
             ValueError: on an invalid drug specification, route, or
@@ -250,7 +257,9 @@ class PBPKModel:
         problems = drug.validate()
         if problems:
             raise ValueError(f"invalid drug specification: {'; '.join(problems)}")
-        if drug.route not in SUPPORTED_ROUTES:
+        if drug.route not in SUPPORTED_ROUTES:  # pragma: no cover - unreachable defense
+            # every VALID_ROUTES entry (oral/IV/infusion/SC/IM/intrathecal) is a
+            # supported PBPK input, so no valid drug can reach this branch.
             raise ValueError(
                 f"route {drug.route!r} has no PBPK input model; "
                 f"supported routes: {', '.join(SUPPORTED_ROUTES)}"
@@ -272,6 +281,10 @@ class PBPKModel:
         )
         self.lag_time_h = float(lag_time_h)
         self.infusion_duration_h = float(infusion_duration_h)
+        self.dose_brain_mg = (
+            float(drug.dose_mg) if dose_brain_mg is None
+            else max(float(dose_brain_mg), 0.0)
+        )
         overrides = partition_ratios or {}
         self.partition_ratios: dict[str, float] = {
             name: float(overrides.get(name, 1.0)) for name in ORGAN_NAMES
@@ -324,6 +337,13 @@ class PBPKModel:
             state[0] = (
                 self.drug.dose_mg * self.drug.bioavailability
                 / self.config.plasma_volume_l
+            )
+        elif self.drug.route == INTRATHECAL:
+            # Direct CNS entry: bolus into the brain compartment (doc/27 §7.6).
+            brain_idx = ORGAN_NAMES.index("brain") + 1
+            state[brain_idx] = (
+                self.dose_brain_mg * self.drug.bioavailability
+                / self.organ_volumes_l["brain"]
             )
         return state
 

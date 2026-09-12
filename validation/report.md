@@ -1,6 +1,6 @@
 # HelixLang Validation Report
 
-Generated: 2026-09-11 04:31:34 UTC
+Generated: 2026-09-12 11:55:45 UTC
 
 ## Summary
 
@@ -26,7 +26,7 @@ Generated: 2026-09-11 04:31:34 UTC
 | 08_population_dynamics | Population dynamics | population | L4 | 3 automated checks → growth_curve_factor2=True, doubling_time_15_25=True, fast_species_dominance=True → passed=3, total=3 → verified | ✅ PASS |
 | 09_reaction_diffusion | Reaction-diffusion (Gray-Scott) | pattern_formation | L2 | 1952 — Turing 1952, Phil Trans R Soc B 237:37; Pearson 1993 → verified | ✅ PASS |
 | 10_whole_cell | Whole-cell division time | virtual_cell | L4 | Wanner — 1996 — E. coli K-12 generation time → division_time=37.3 min ±0.3 → 37 → 0.80% | ✅ PASS |
-| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L1 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0456, ecoli_core.helixlang_100_solves_s=1.9032 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.0456, ecoli_core.helixlang_100_solves_s=1.9032 → verified | ✅ PASS |
+| 11_performance_comparison | FBA solve-time performance vs COBRApy | metabolism | L1 | 8 metrics → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.1777, ecoli_core.helixlang_100_solves_s=2.6162 → ecoli_core.n_reactions=95, ecoli_core.cobrapy_100_solves_s=0.1777, ecoli_core.helixlang_100_solves_s=2.6162 → verified | ✅ PASS |
 | 12_parser_roundtrip | Parser roundtrip — source → AST → bytecode | language | L1 | 8 metrics → tokens=17, genes=1, gene_name=lacI → tokens=17, genes=1, gene_name=lacI → verified | ✅ PASS |
 | 13_bytecode_vm_roundtrip | Bytecode/VM roundtrip — compile → serialize → deserialize → execute | runtime | L1 | 1 functional checks → deterministic=True → passed=1, total=1 → verified | ✅ PASS |
 | 14_type_system_flow | Type system & flow — type checking + module imports | language | L1 | 5 functional checks → symbol_table_define_lookup=True, type_annotation_parsing=True, module_import_export=True → passed=5, total=5 → verified | ✅ PASS |

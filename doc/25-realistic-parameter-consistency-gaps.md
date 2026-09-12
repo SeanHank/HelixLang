@@ -15,7 +15,7 @@ each gap and its fix.
 ## Phase I-VI: Original Gap Fixes (all implemented)
 
 ### G1: GRN Inference Pipeline Wiring Bug ✅
-**Location**: `apps/gem_pipeline.py:669-673`
+**Location**: `plugins/apps/gem_pipeline.py:669-673`
 **Problem**: `run_gem_pipeline()` accepts `use_database_interactions` but never passes it
 to `infer_grn()`; `genome_gene_ids` is also never passed.
 **Consequence**: GRN always uses a hardcoded E. coli table, ignoring genome validation;
@@ -25,7 +25,7 @@ results do not change when a different organism is used.
 (True -> None uses default table, False -> [] disables).
 
 ### G2: Expression Inference Not DSL-Configurable ✅
-**Location**: `omics/expression_inference.py:111-123`, `sim_runtime.py:2240-2260`
+**Location**: `plugins/omics/expression_inference.py:111-123`, `sim_runtime/backends/pipelines.py:1481-1504`
 **Problem**: `#gene` does not support `expression_level=` (enzyme concentration /
 expression level). `infer_expression()` has hardcoded internal parameters; DSL cannot
 override per-gene.
@@ -38,7 +38,7 @@ enzyme concentrations, which cannot be calibrated with experimental data.
 4. Pass to `infer_expression(model=...)`, DSL overrides are applied via `update()` to the final result
 
 ### G3: #enzyme kcat Ignored Under gem Backend ✅
-**Location**: `sim_runtime.py:2265-2275`
+**Location**: `sim_runtime/backends/pipelines.py:1522-1526`
 **Problem**: `#enzyme gene=X reaction=Y kcat=N` only takes effect in the fba backend;
 the gem backend ignores it.
 **Consequence**: User-specified experimental kcat values in DSL are ignored.
@@ -46,7 +46,7 @@ the gem backend ignores it.
 and use DSL `kcat` to override `ec.kcat[reaction]`.
 
 ### G4: #patch Missing temperature= / ph= Direct Fields ✅
-**Location**: `apps/ecosystem.py:358-397`, `sim_runtime.py:1645-1726`
+**Location**: `plugins/apps/ecosystem.py:358-397`, `sim_runtime/_engine.py:608-693`
 **Problem**: `PatchConfig` has no temperature/pH fields. Only indirectly simulated via
 `scalar`.
 **Consequence**: DSL cannot directly declare environment temperature/pH.
@@ -56,7 +56,7 @@ and use DSL `kcat` to override `ec.kcat[reaction]`.
 3. DSL can directly write `#patch name=env temperature=30.0 ph=7.5`
 
 ### G5: Medium Preset Not Partially Overridable ✅
-**Location**: `sim_runtime.py:2665-2732`
+**Location**: `sim_runtime/_engine.py:921-996`
 **Problem**: Once you select `bg11`, you cannot change only Fe3+ concentration.
 **Consequence**: Fine-tuning experimental conditions is impractical.
 **Fix**:
@@ -66,7 +66,7 @@ and use DSL `kcat` to override `ec.kcat[reaction]`.
 4. `_run_gem_full_model` directly modifies model exchange bounds
 
 ### G6: _ORGANISM_MAX_GROWTH_RATE Not DSL-Configurable ✅
-**Location**: `sim_runtime.py:2595-2610`
+**Location**: `sim_runtime/_engine.py:907-920`
 **Problem**: e_coli=0.87, synechocystis=0.14, etc. are hardcoded; DSL cannot override.
 **Consequence**: Even when full-model FBA yields a more accurate growth rate, it is capped.
 **Fix**:

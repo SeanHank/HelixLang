@@ -153,7 +153,7 @@ Add to `validation/schema.py` a canonical enum and wire it through EvidenceChain
 | `L1` | **Analytical validation** | Solves a closed-form solution / conservation law / known algebra (mass balance, deterministic ODE with analytic solution, FBA optimality conditions) | analytic reference plus error metric | 08 (Logistic/population), 30 (PK C(t) closed-form), 47 (flow fields), FBA maxima |
 | `L2` | **Reference-implementation validation** | Same input run through a trusted second implementation (COBRApy, our pure-Python `_accel` refs, OEM tool) | reference-implementation id + error metric + `golden_hash` | 03/04/05/43 (COBRApy), 09/46/47 (`_accel` ref impl), 44, 71-74 |
 | `L3` | **Literature validation** | Parameters/ranges/curves from published literature (parameter anchoring, published ranges) | literature citation (doi/journal) + expected range/tolerance | 02, 07 (repressilator params), 29-35, 60, 75 (literature constants) |
-| `L4` | **Experimental validation** | Quantitative comparison against published *measured* data with error/range | `experimental_comparison {min,max,measured,unit}` + citation | 03 (`experimental_comparison`, `run.py:159-170`), 06, 07, 08, 10, 35 (+ new) |
+| `L4` | **Experimental validation** | Quantitative comparison against published *measured* data with error/range | `experimental_comparison {min,max,measured,unit}` + citation | 03 (`experimental_comparison`, `03_ecoli_fba/run.py:171-182`), 06, 07, 08, 10, 35 (+ new) |
 | `L5` | **Clinical validation** | Outcomes matched to patient-level clinical trials/case series | external clinical dataset + statistical report + DISCLAIMER reference | none today (aspirational; disclaimed) |
 
 Rules:
@@ -295,7 +295,7 @@ class GrammarDescriptor:
 
 ### 5.1 Target core (what the parser must keep)
 
-The truly core grammar is tiny: token stream (`lexer.py:46-198`), program skeleton
+The truly core grammar is tiny: token stream (`_accel/lexer/impl_python.py:22-306`), program skeleton
 (use-directives, annotation dispatch, codon/gene block, `#end`), and the generic
 field collector + `#type`/`#use`/generic-`#sim` plumbing. Everything else moves out
 (`parser.py` shrinks from 1,192 → ~450 lines):
@@ -379,7 +379,7 @@ In `semantic.py`, add a `DimInferencer` pass after `check()`:
   resolved map retained for error messages).
 
 **Ring 2 — Physical `#config`/parameter units end-to-end.** Extend `units.py` registry
-(already the standards store, `units.py:36-56`) with a `declare_unit(name, dim, si_factor)`
+(already the standards store, `core/units.py:36-56`) with a `declare_unit(name, dim, si_factor)`
 API and a `Q` factory so `#config dt_min=5` and human-plugin params become `Quantity`s:
 - `parser._parse_config` emits `Quantity` values for fields with `unit=` specs.
 - Human plugin param classes gain `unit` metadata without renaming the existing public
@@ -534,6 +534,6 @@ part-time, keeping 75/75 goldens and doc/39's performance budgets.
 
 - CI: `.github/workflows/ci.yml:73-95` (test), `:97-119` (examples-smoke), `:49-55` (silent-fallback gate); `tests/test_validation_benchmarks.py:39-70`; failing benchmarks `03:56/175`, `05:51/134`, `11:46-48/100-103`, `25:54/62/75`, `26:33-42/79`, `43:38-73/86`; skip-pattern model `04:41-54`; `sbml_import.py:80-125`; `validation/references/`.
 - Levels: `validation/schema.py:14-40,72-116,131-192,209-281,283-438`; `validation/README.md:62-73`; `validation/report.md:9,72`; `doc/34:56-63`; `doc/32:267-273`; `grn_inference.py:10-17`; `DISCLAIMER.md:33-42,85-93`; `bio_validity.py:31-35`.
-- Parser/grammar: `core/parser.py:101-116,167-219,1090-1192`; `core/grammar_registry.py:162-256,266-277`; `core/lexer.py:46-198`; `core/ast_nodes.py:174-206`; `core/semantic.py:23-48`; `core/plugin_registry.py:8,67,124-150`; doc/38 §5/§6.3/§8.
+- Parser/grammar: `core/parser.py:101-116,167-219,1090-1192`; `core/grammar_registry.py:162-256,266-277`; `_accel/lexer/impl_python.py:22-306`; `core/ast_nodes.py:174-206`; `core/semantic.py:23-48`; `core/plugin_registry.py:8,67,124-150`; doc/38 §5/§6.3/§8.
 - Units: `core/dimensions.py:36-246`; `core/units.py:36-56`; `core/type_system.py:91-128`; `core/semantic.py:126-153`; `validation/benchmarks/75_unit_safety/run.py:49-106`; `doc/38:612-656`; human params `drug.py:76-99`, `pharmacodynamics.py:17-39`, `pharmacokinetics.py:109-121`.
 - Provenance: `core/provenance.py:26-30,45-102,137-143`; `sim_runtime/_types.py:15-30`; `sim_runtime/_engine.py:115-126`; `core/manifest.py:35-67`; `core/plugin_registry.py:169-188`; `validation/benchmarks/45_provenance_completeness/run.py:10-18`; `16_cli_server_provenance/run.py:23-33`; `metabolism.py:1243,1414`; `simulation.py:363-371`.

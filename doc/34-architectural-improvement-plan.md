@@ -116,15 +116,15 @@ Specific high-risk boundaries:
 **Action items**:
 1. Audit all `random` calls in VM path — ensure every RNG is seeded from master seed
 2. Audit all `time.time()` / `datetime.now()` calls — replace with simulation clock
-3. Audit all module-level mutable state — `_DEBUG_SESSIONS` in server.py is the only one found; add `_STATE_LOCK` or document thread-safety assumptions
+3. Audit all module-level mutable state — `_DEBUG_SESSIONS` in server/app.py is the only one found; add `_STATE_LOCK` or document thread-safety assumptions
 4. Add `test_determinism_audit.py` — run each backend 3 times with same seed, compare outputs byte-for-byte
 5. Write `spec/vm-semantics.md` — formalize: instruction semantics, memory model, RNG behavior, error model
 
 ### 2.3 Global state elimination
 
 **Current findings**:
-- `_DEBUG_SESSIONS` in `server.py:55` — mutable dict, protected by `_get_debug_lock()` threading.Lock
-- `_DEBUG_LOCK` in `server.py:54` — lazily initialized, `# STATE: global (lazily initialized)`
+- `_DEBUG_SESSIONS` in `server/app.py:55` — mutable dict, protected by `_get_debug_lock()` threading.Lock
+- `_DEBUG_LOCK` in `server/app.py:54` — lazily initialized, `# STATE: global (lazily initialized)`
 - DNA codec trie (`_BASE_IDX`, `_DNA_BIN`, `_BIN_DNA`, `_TRANSITIONS`, `_TRANSVERSIONS` in `dna_codec.py`) — computed at import, immutable, annotated `# STATE: global`
 - Codon tables (`STANDARD_TABLE`, `WOBBLE_BITS`, `TABLES`, etc. in `codon_table.py`) — immutable, annotated `# STATE: global`
 - Population units (`UNITS` in `population.py`) — immutable, annotated `# STATE: global`

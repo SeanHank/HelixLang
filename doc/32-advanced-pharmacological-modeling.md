@@ -354,7 +354,9 @@ refinement: ±10%.
 ```
 Layer 1: SMILES → binding affinity Kd
   P(Kd | SMILES, protein) = N(μ₁(SMILES), σ₁²)
-  σ₁ calibrated against ChEMBL binding data
+  σ₁ calibrated against the vendored ChEMBL binding snapshot via leave-one-out
+  regression (`chembl_calibration.py`); measured σ₁ ≈ 0.78 log10 over the
+  53 curated reference pairs (red vs the 2.0-fold L2 band gate in §8 L2 case)
 
 Layer 2: Kd → metabolic clearance CLint
   P(CLint | Kd, CYP_profile) = N(μ₂(Kd, CYP), σ₂²)
@@ -642,9 +644,11 @@ was unnecessary given the high quality of curated data).
 
 Instead of requiring dtSFM model download, uses a curated proteome binding database
 covering ~44 drug-metabolizing enzymes + transporters with known Kd, substrate, and
-inhibitor data from PharmGKB, DrugBank, and published literature. For novel drugs,
-uses Morgan fingerprint Tanimoto similarity to interpolate binding profiles from the
-20 known drugs in the database.
+inhibitor data from PharmGKB, DrugBank, and published literature, augmented by the
+vendored ChEMBL binding snapshot (13 drugs with SMILES + binding Kd data,
+`plugins/human/data/chembl_binding.py`). For novel drugs, uses Morgan fingerprint
+Tanimoto similarity to interpolate binding profiles from the k nearest known drugs
+in the database.
 
 **Mathematical formulation:**
 
@@ -656,9 +660,12 @@ Step 1 — Proteome-wide binding (curated + similarity-based):
         Kd(D, Eⱼ) = curated_Kd[Eⱼ]  # from PharmGKB/DrugBank
         occupancy(D, Eⱼ) = [D] / (Kd(D, Eⱼ) + [D])
     Else (novel drug):
-      best_match = argmax_T similarity(s_D, s_T)  # Morgan fingerprint Tanimoto
-      If similarity > 0.3:
-        Kd(D, Eⱼ) = Kd(best_match, Eⱼ) × (1.5 - similarity)  # scaled by similarity
+      hits = kNN(s_D, drug_db, k=3, min_similarity=0.3)   # Morgan fingerprint Tanimoto
+      # similarity²-weighted geometric-mean Kd across the k neighbours
+      For each enzyme/transporter Eⱼ in proteome:
+        Kd(D, Eⱼ) = exp( Σᵢ wᵢ·ln Kd₍sᵢ,Eⱼ₎ / Σᵢ wᵢ ),  wᵢ = sim(s_D, sᵢ)²
+        substrate(D, Eⱼ) = weighted majority vote of substrate flags
+        inhibition(D, Eⱼ) = weighted mean of inhibitor flags
         occupancy(D, Eⱼ) = [D] / (Kd(D, Eⱼ) + [D])
 
 Step 2 — Competitive inhibition kinetics:

@@ -47,7 +47,7 @@ from helixlang.plugins.human.disease_progression import (
     ProgressionRate,
     create_progression_model,
 )
-from helixlang.plugins.human.drug import IV, IV_INFUSION, Drug
+from helixlang.plugins.human.drug import INTRATHECAL, IV, IV_INFUSION, Drug
 from helixlang.plugins.human.genotype import (
     CORE_CYP_ENZYMES,
     GenotypeProfile,
@@ -2612,6 +2612,12 @@ class _DrugPBPK:
             # Instantaneous bolus into the central compartment
             self.conc_um["central"] += (
                 available_mg * self._um_per_mg_per_l / self.vc_l
+            )
+        elif route == INTRATHECAL:
+            # Direct CNS entry: bolus into the brain compartment (doc/27 §7.6)
+            brain_vol_l = max(self.organ_volumes_l.get("brain", 1.4), 1e-9)
+            self.conc_um["brain"] += (
+                available_mg * self._um_per_mg_per_l / brain_vol_l
             )
         elif route in FIRST_ORDER_ROUTES:
             # Oral / subcutaneous / intramuscular: fill the absorption depot

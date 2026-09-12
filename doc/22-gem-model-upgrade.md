@@ -55,7 +55,7 @@ This upgrade addresses all three issues in a single coherent architecture:
 
 ### 3.1 Current State
 
-In `_run_gem()` (sim_runtime.py:2087–2091):
+In `_run_gem()` (sim_runtime/backends/pipelines.py:1434–1456):
 
 ```python
 _INFEASIBLE_COFACTORS = {"nad", "nadp", "coa"}
@@ -759,7 +759,7 @@ _MEDIUM_PRESETS = {
 ## 10 — Implementation Sequence
 
 ### Step 1: Phase A — Remove nad/nadp/coa exclusion
-- Delete `_INFEASIBLE_COFACTORS` filter from `sim_runtime.py:2087-2091`
+- Delete `_INFEASIBLE_COFACTORS` filter from `sim_runtime/backends/pipelines.py:1434-1456`
 - Verify LP remains feasible with Phase B reactions in place
 
 ### Step 2: Phase B — Add amino acid biosynthesis
@@ -867,7 +867,7 @@ _MEDIUM_PRESETS = {
 
 ### 15.2 Solution: Extract Shared Model Builder
 
-Move the model-assembly logic from `_run_gem` (sim_runtime.py:2031-2089) into a
+Move the model-assembly logic from `_run_gem` (sim_runtime/backends/pipelines.py:1408-1466) into a
 reusable function in `gem/bridge.py`:
 
 ```python
@@ -904,10 +904,10 @@ The function lives in `gem/bridge.py` and calls into existing helpers:
 | Step | Function | Source |
 |------|----------|--------|
 | Base model | `consensus_to_metabolic_model(consensus)` | bridge.py:22 |
-| Core metabolism | `_add_gem_core_reactions(model)` | sim_runtime.py:2663 |
-| Transport | `_add_gem_transport_reactions(model)` | sim_runtime.py:2525 |
-| Biomass | inline filtering (original/`_c`/`_e` variants) | sim_runtime.py:2057-2089 |
-| Medium | `_set_gem_medium(fba, medium, ...)` | sim_runtime.py:2457 |
+| Core metabolism | `_add_gem_core_reactions(model)` | _engine.py:1133 |
+| Transport | `_add_gem_transport_reactions(model)` | _engine.py:997 |
+| Biomass | inline filtering (original/`_c`/`_e` variants) | plugins/gem/bridge.py:352-373 |
+| Medium | `_set_gem_medium(fba, medium, ...)` | _engine.py:921 |
 | FBA solve | `fba.solve(objective="BIOMASS_reaction")` | metabolism.py |
 
 Since `_add_gem_core_reactions` and `_add_gem_transport_reactions` are in
@@ -980,7 +980,7 @@ Even after Phase F produces a functional model, the ecosystem and population
 layers don't automatically use it:
 
 - **Ecosystem**: `gem_to_species()` + `_growth_rate_gem()` work, but require
-  manual wiring in `_attach_gem_to_ecosystem_species` (sim_runtime.py:1729).
+  manual wiring in `_attach_gem_to_ecosystem_species` (_engine.py:694).
 - **Population**: `CellPopulation._new_cell_dfba` hardcodes ECOLI_CORE_MODEL.
   (Phase 5 added `PopulationConfig.metabolic_model` but no auto-attachment.)
 
@@ -989,7 +989,7 @@ layers don't automatically use it:
 After Phase F, `run_gem_pipeline` returns a working `MetabolicModel` with
 `result.growth_rate > 0`. The attachment path:
 
-1. **`_attach_gem_to_ecosystem_species`** (sim_runtime.py:1729):
+1. **`_attach_gem_to_ecosystem_species`** (_engine.py:694):
    - Already calls `run_gem_pipeline` and `gem_to_species` ✓
    - After Phase F, `result.metabolic_model` is functional ✓
    - `gem_to_species` extracts correct vmax/ks from positive fluxes ✓

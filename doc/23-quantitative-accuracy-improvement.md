@@ -64,7 +64,7 @@ co2_consumed = min(co2_per_biomass * mu * X * dt, self.co2_mm)
 **Issue:** Runtime default `gem_dt="0.1"` (0.1 h = 6 min) contradicts
 doc/22 §21.3 which specifies 0.05 h (Mahadevan 2002 standard).
 
-**Fix (sim_runtime.py:1963):** Changed default from `"0.1"` to `"0.05"`.
+**Fix (sim_runtime/backends/pipelines.py:1301):** Changed default from `"0.1"` to `"0.05"`.
 
 ### 2.3 — Phase I: Multi-Species Ecosystem from Genomes (IMPLEMENTED)
 

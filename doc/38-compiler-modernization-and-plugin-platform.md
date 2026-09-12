@@ -64,7 +64,7 @@ validation 84/85 (1 skip), goldens 85/85.
 | `core/parser.py:66-95` | monolithic annotation→handler dict (27 keywords) |
 | `core/parser.py:97-104` | `BIO_INSTRUCTION_KINDS` + `UnknownKeywordError` for unknown `#keyword` |
 | `core/parser.py:106-147` | special-cased inline DNA block after `#gem` |
-| `core/parser.py:1070` | `parse_source(source, stop_codons=None)` |
+| `core/parser.py:430-445` | `parse_source(source, stop_codons=None)` |
 | `core/compiler.py:33-34` | `Compiler(table: dict[str, Op] = STANDARD_TABLE)` |
 | `core/hxbc.py:1216` | `_ANNOTATION_PREFIX_MAP` — decompile round-trip of `#annotation` forms |
 | `sim_runtime/_engine.py:142-182` | module-level `run()` dispatcher: `_SIM_BACKENDS[kind]` (**:150-153**) + hardcoded `elif name == ...` chain (**:156-170**) |
@@ -72,7 +72,7 @@ validation 84/85 (1 skip), goldens 85/85.
 | `core/plugin_registry.py:48-76` | `NativeBackend` + `PluginProvider` (name / extra / keywords / capability_flags / checks / load) |
 | `core/plugin_registry.py:78+` | `Registry` with lazy `activate` and conflict detection; `_BUNDLED_PLUGINS` |
 | `core/type_system.py` | `Type` hierarchy (`TypeVar` / `UnitType` / `ListType` / `RecordType` / `FuncType`) + constraint-driven `TypeChecker.infer_program`/`check_types` over a Robinson `Unifier` with unit-aware (dimension-compatible) unification + occurs-check; `BioEffect` lattice (§7.3) enforced in `SemanticAnalyzer._check_effects`; unit typing (§7.4) via `_check_units` + `DimInferencer` |
-| `core/parser.py:920-948` | `#type name=...` annotation parsing; `Program.type_annotations` persisted by `hxbc.py:707-711` |
+| `core/parser.py:251-274` | `#type name=...` annotation parsing; `Program.type_annotations` persisted by `hxbc.py:667-672` |
 | `core/units.py` | physical constants + conversion helpers only — **no `Quantity`, no dimension typing** |
 | `tests/test_vm_fuzz.py` | fuzzes only the native dispatch kernel (impl_python vs impl_cext parity, 300 trials) — nothing fuzzes lexer/parser/semantic/hxbc-loader/interpreter |
 
@@ -465,7 +465,7 @@ class ASTExtension:
 | `human` | `person_*`, `trait_*`, `disease_*`, `disease_genes`, `disease_metabolites`, `drugs`, `pd_effects`, `qsp_bindings`, `endocrine_configs`, `immune_configs`, `tumor_biopsy`, `genes` (genotype) |
 | `ecosystem` | `genome`, `genome_*`, `species.<name>.*`, `patch.<name>.*` |
 | `gem` | `gem_*`, `gem_inline_genes`, `gem_inline_genome`, `gem_dynamic`, `gem_duration`, `gem_dt` |
-| `population` | `mechanics`, `lbm`, and the population `#sim` keys merged at `_engine.py:3703` |
+| `population` | `mechanics`, `lbm`, and the population `#sim` keys merged at `_engine.py:1765-1785` |
 | `fba` | dFBA/FBA `#sim` keys (dissolved from `{**config.sim, **sim_extensions}`) |
 | per-backend | each of the 21 `#sim kind=…` blocks' owning keys (§6.5) |
 

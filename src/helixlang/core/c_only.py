@@ -2,11 +2,13 @@
 
 The compiler and virtual-machine hot path are mandated to run on a compiled C
 kernel, not a Python/numpy implementation (plugins are exempt).  This gate
-verifies two properties that are structurally enforced by the loader:
+verifies, for every native stage registered in
+:mod:`helixlang.core.native_manifest`, two properties that are structurally
+enforced by the loader:
 
-1. ``helixlang._accel.dispatch`` resolves to the native C backend
+1. the stage's ``_accel`` package resolves to the native C backend
    (``impl_cext``) — never to a Python fallback;
-2. requesting a Python implementation for the dispatch package raises
+2. requesting a Python implementation for that package raises
    ``NativeBackendError`` (i.e. no silent Python hot loop).
 
 Deployments that do not carry the compiled kernel fail this gate loudly with a
@@ -18,52 +20,58 @@ from __future__ import annotations
 
 from helixlang._accel._loaders import choose_backend, load_hot
 from helixlang.core.errors import NativeBackendError
+from helixlang.core.native_manifest import native_stages
 
-_DISPATCH_PKG = "helixlang._accel.dispatch"
 
-
-def dispatch_backend() -> str | None:
-    """Resolver's backend module name for the dispatch kernel, or ``None`` if
-    no compiled kernel is importable."""
+def stage_backend(pkg: str) -> str | None:
+    """Resolver's backend module name for ``pkg``, or ``None`` if no compiled
+    kernel is importable."""
     try:
-        mod = load_hot(_DISPATCH_PKG)
+        mod = load_hot(pkg)
     except NativeBackendError:
         return None
     return str(mod.__name__)
 
 
-def python_not_selectable() -> bool:
-    """True when forcing ``python`` for the dispatch package raises (the C-only
-    guarantee that a Python hot loop can never be selected)."""
+def python_not_selectable(pkg: str) -> bool:
+    """True when forcing ``python`` for ``pkg`` raises (the C-only guarantee
+    that a Python hot loop can never be selected)."""
     try:
-        choose_backend(_DISPATCH_PKG, prefer="python")
+        choose_backend(pkg, prefer="python")
     except NativeBackendError:
         return True
     return False
 
 
-def check() -> tuple[bool, str]:
-    """Return ``(ok, message)`` for the C-only mandate on the dispatch kernel."""
-    backend = dispatch_backend()
+def _stage_check(pkg: str, name: str) -> tuple[bool, str]:
+    """Check one native stage against the C-only mandate."""
+    backend = stage_backend(pkg)
     if backend is None:
-        return (
-            False,
-            "dispatch C kernel not built; run `python -m helixlang._accel.build` "
-            "or `pip install helixlang[native]`",
+        return False, (
+            f"{name} C kernel not built; run `python -m helixlang._accel.build` "
+            "or `pip install helixlang[native]`"
         )
     if not backend.endswith("impl_cext"):
-        return (
-            False,
-            f"dispatch resolved to non-C backend {backend!r} "
-            f"(C-only mandate, doc/03 §6.5)",
+        return False, (
+            f"{name} resolved to non-C backend {backend!r} "
+            "(C-only mandate, doc/03 §6.5)"
         )
-    if not python_not_selectable():
-        return (
-            False,
-            "dispatch still permits a Python hot loop "
-            "(C-only mandate, doc/03 §6.5)",
+    if not python_not_selectable(pkg):
+        return False, (
+            f"{name} still permits a Python hot loop "
+            "(C-only mandate, doc/03 §6.5)"
         )
-    return True, f"dispatch hot loop is C-only ({backend})"
+    return True, f"{name} is C-only ({backend})"
+
+
+def check() -> tuple[bool, str]:
+    """Return ``(ok, message)`` for the C-only mandate across all native stages."""
+    verdicts = [_stage_check(pkg, name) for pkg, name in native_stages()]
+    if not verdicts:
+        return False, "no native stages registered in the manifest (doc/03 §6.5)"
+    if all(ok for ok, _ in verdicts):
+        return True, "; ".join(msg for _, msg in verdicts)
+    return False, "; ".join(msg for ok, msg in verdicts if not ok)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -75,4 +83,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

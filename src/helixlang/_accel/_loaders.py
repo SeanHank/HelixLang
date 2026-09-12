@@ -26,12 +26,19 @@ from helixlang.core.errors import NativeBackendError
 _NATIVE_IMPLS = ("impl_cext", "impl_cython", "impl_rust")
 _SUFFIX_IMPLS = ("impl_numpy", "impl_numba", "impl_python")
 
+def _native_manifest_packages() -> frozenset:
+    from helixlang.core.native_manifest import native_packages
+
+    return native_packages()
+
+
 # Packages whose hot-loop implementation is mandated to be compiled (C only,
 # doc/03 §6.5 / doc/06 §19 "C-only mandate"; compiler+VM core, plugins
-# excluded).   For these, ``choose_backend`` never resolves to a Python/numpy
-# implementation: a missing compiled kernel raises ``NativeBackendError``
-# instead of silently degrading the VM hot loop to an interpreter loop.
-_NATIVE_ONLY_PACKAGES = frozenset({"helixlang._accel.dispatch"})
+# excluded).  Derived from the stage manifest so the gate, docs and loader stay
+# in lock-step: for these, ``choose_backend`` never resolves to a Python/numpy
+# implementation — a missing compiled kernel raises ``NativeBackendError``
+# instead of silently degrading the compiler/VM core to an interpreter loop.
+_NATIVE_ONLY_PACKAGES = _native_manifest_packages()
 
 
 def _importable(pkg: str, impl: str) -> bool:
@@ -49,10 +56,12 @@ def choose_backend(pkg: str, prefer: str | None = None) -> str:
     e.g. ``native,numpy,python``) or the ``prefer`` argument.  ``native`` means
     any compiled impl (cext/cython) present on disk.
 
-    For packages listed in ``_NATIVE_ONLY_PACKAGES`` (the compiler/VM dispatch
-    hot loop, doc/03 §6.5) only ``native`` tags are honored: a Python/numpy
+    For packages listed in ``_NATIVE_ONLY_PACKAGES`` (the compiler/VM core
+    stages, doc/03 §6.5) only ``native`` tags are honored: a Python/numpy
     request there raises ``NativeBackendError`` instead of selecting a Python
-    implementation (C-only mandate, doc/06 §19).
+    implementation.  No ``--pure-python`` escape exists for these stages —
+    their kernels are mandated to be hand-written C (C-only mandate, doc/06
+    §19).  Plugin-side hot kernels keep their explicit capability flags.
 
     Raises:
         NativeBackendError: when the *chosen* implementation is absent.  This is
@@ -75,10 +84,9 @@ def choose_backend(pkg: str, prefer: str | None = None) -> str:
         if not order:
             raise NativeBackendError(
                 f"{pkg} is C-only (compiler/VM mandate, doc/03 §6.5): the "
-                f"requested backend(s) {','.join(order) or 'none'} do not "
+                f"requested backend(s) {' '.join(order) or 'none'} do not "
                 f"comply.  Build with `python -m helixlang._accel.build` or "
-                f"`pip install helixlang[native]`, or declare the explicit "
-                f"`--pure-python` capability flag to run the interpreter loop.",
+                f"`pip install helixlang[native]`.",
                 rebuild="python -m helixlang._accel.build",
             )
     tried: list[str] = []

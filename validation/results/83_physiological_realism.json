@@ -106,7 +106,7 @@
       "note": "eGFR 100->30 mL/min reduces renal clearance ~3x."
     }
   },
-  "runtime_seconds": 0.44148133299313486,
+  "runtime_seconds": 1.1616062500979751,
   "layer": "pharmacology",
   "name": "Physiological realism (CV/gas/renal/thermo + organ-failure PK)",
   "level": "L4"

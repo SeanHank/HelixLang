@@ -657,6 +657,12 @@ def simulate_pbpk(
 | **Subcutaneous** | Depot absorption: similar to oral with different `ka` | `ka_sc`, `F_sc` |
 | **Intrathecal** | Direct CNS entry: bolus into brain compartment | `dose_brain` |
 
+All six routes are wired in `pharmacokinetics.py` (`PBPKModel`, `SUPPORTED_ROUTES`)
+and `virtual_patient.py` (`_DrugPBPK._administer_dose`); the intrathecal bolus enters
+the brain compartment in µM (`dose_brain_mg` × bioavailability ÷ brain volume, or the
+full dose when `dose_brain_mg` is unset) and perfuses back into the central
+compartment through cerebral blood flow.
+
 ---
 
 ## 8 — Stage E: Pharmacodynamics

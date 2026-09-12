@@ -620,7 +620,7 @@ The backend can be specified in three ways:
 3. **CLI backend flag:** `helixlang source.helix --backend gem`
 
 The `gem` backend is included in the `BACKENDS` frozenset
-(`sim_runtime.py:141`) and is a valid `--backend` choice.
+(`_types.py:9`) and is a valid `--backend` choice.
 
 **Dispatch flow:**
 
@@ -1148,7 +1148,7 @@ def hill_function(
     """
 ```
 
-### 14.4 Wire into `_run_gem()` (`sim_runtime.py:1974-1985`)
+### 14.4 Wire into `_run_gem()` (`sim_runtime/backends/pipelines.py:1470-1529`)
 
 ```python
 # After GRN inference, compute expression levels
@@ -1181,8 +1181,8 @@ if result.grn is not None:
 |------|--------|
 | `omics/expression_inference.py` | **NEW**: expression inference from GRN |
 | `metabolism.py:1183` | Fix default: `self.enzyme_levels.get(gene, 1.0)` instead of `0.0` |
-| `sim_runtime.py:1974-1985` | Wire expression inference before enzyme capacity |
-| `gem/grn_inference.py:200-235` | Fix `_predict_motifs()` to use real gene names |
+| `sim_runtime/backends/pipelines.py:1470-1529` | Wire expression inference before enzyme capacity |
+| `plugins/gem/grn_inference.py:216-542` | Fix `_predict_motifs()` to use real gene names |
 
 ---
 
@@ -1304,7 +1304,7 @@ class DynamicSimulationResult:
 | File | Change |
 |------|--------|
 | `metabolism.py:1454-1766` | Extend `DynamicFluxBalance` for multi-substrate + expression dynamics |
-| `sim_runtime.py:1851-2072` | Add `dynamic=true` path in `_run_gem()` |
+| `sim_runtime/backends/pipelines.py:1569-1625` | Add `dynamic=true` path in `_run_gem()` |
 | `parser.py:429-457` | Parse `dynamic`, `duration`, `dt` fields from `#gem` |
 | `omics/expression_inference.py` | Provide `infer_expression_at_time()` for dynamic expression |
 
@@ -1559,7 +1559,7 @@ class GemValidation:
 | 2.1 | Fix `_predict_motifs()` to use real gene names | P0 | `gem/grn_inference.py` | 1 day |
 | 2.2 | Implement expression inference from GRN | P0 | `omics/expression_inference.py` | 5 days |
 | 2.3 | Fix default enzyme_levels to 1.0 (not 0.0) | P0 | `metabolism.py:1183` | 0.5 day |
-| 2.4 | Wire expression inference into `_run_gem()` | P0 | `sim_runtime.py:1974-1985` | 2 days |
+| 2.4 | Wire expression inference into `_run_gem()` | P0 | `sim_runtime/backends/pipelines.py:1470-1529` | 2 days |
 | 2.5 | Re-enable enzyme capacity with expression data | P0 | `sim_runtime.py` | 1 day |
 | 2.6 | Add `expression=true` field to `#gem` directive | P1 | `parser.py` | 1 day |
 | 2.7 | Validation: compare growth rate with/without expression | P1 | `tests/` | 2 days |

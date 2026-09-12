@@ -80,7 +80,7 @@ Observations:
   | 64 × 32 | 2048 | 12.36 ms → **3.14 ms** |
   | 128 × 16 | 2048 | 24.15 ms → **3.56 ms** |
 
-  Root cause was `Compiler._ends_with_halt` (compiler.py:88), which rescanned
+  Root cause was `Compiler._ends_with_halt` (ir_lower.py:113), which rescanned
   the entire emitted chunk from byte 0 for *every* gene (O(genes × chunk)).
   `_compile_orf` now returns the ip of the last emitted instruction and the
   HALT check is a single byte comparison (`_last_op_is_halt`), restoring linear
@@ -231,7 +231,7 @@ measured improvement:
 |---|---|---|---|---|
 | 1 | `GrayScott.step` array copies + Python loop | `reaction_diffusion.py` | O(cells) × 0.3 μs | **FIXED** — scratch double-buffer + numpy backend; ~0.007–0.056 μs/cell |
 | 2 | `GRN.step` full-edge scan per node | `grn.py:143-147` | O(N·E) | **FIXED** — per-target incoming-edge index → O(N+E) |
-| 3 | `Compiler._ends_with_halt` chunk rescan | `compiler.py:88-98` | O(genes × size) | **FIXED** — last instruction tracked at emission; O(1) HALT check |
+| 3 | `Compiler._ends_with_halt` chunk rescan | `ir_lower.py:105-114` | O(genes × size) | **FIXED** — last instruction tracked at emission; O(1) HALT check |
 | 4 | VM per-op dispatch overhead | `vm.py` `dispatch()` | ~770 ns/op | open — acceptable; C/numba loop is the only step change |
 | 5 | Snapshot accumulation in `trace` | `vm.py:708-725` | O(ticks) memory | open — stream/downsample snapshots |
 

@@ -161,9 +161,9 @@ HelixLang is a compiler, bytecode VM, and 22 quantitative simulation backends fo
 
 | Metric | Value |
 |--------|-------|
-| Source modules | 219 |
-| Test cases | 7322 (100% coverage) |
-| Validation benchmarks | 85 (84 pass) |
+| Source modules | 229 |
+| Test cases | 7594 (100% coverage) |
+| Validation benchmarks | 85 (85 pass) |
 | `.helix` examples | 60 |
 | Documentation | 43 files, 25,000+ lines |
 | Runtime dependencies | **zero** (all optional) |
@@ -300,7 +300,7 @@ Deterministic with `seed=`; same source + same seed = same result (verified with
 
 | Metric | Value |
 |--------|-------|
-| Benchmarks passing | **84/85** |
+| Benchmarks passing | **85/85** |
 | Published references cited | **40+** |
 | Non-deterministic failures | **0** |
 | Median error (quantitative benchmarks) | **~3.0%** |
@@ -364,8 +364,8 @@ ruff check src tests
 python tests/test_determinism_audit.py
 ```
 
-- **7322 test cases** (7322 pass, 3 optional-fmt skips; **100% line + branch coverage**)
-- [84/85 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
+- **7594 test cases** (7322 pass, 3 optional-fmt skips; **100% line + branch coverage**)
+- [85/85 validation benchmarks](https://github.com/SeanHank/HelixLang/blob/main/validation/report.md) with SHA256 goldens
 - CI matrix: Python 3.11
 - Three quality gates: ruff + mypy + pytest
 

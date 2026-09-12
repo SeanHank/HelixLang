@@ -169,7 +169,8 @@ def write_summary(run_dir: Path, version: str, *,
         lines.append(f"{'gate':<10} {'exit':>4}  status")
         lines.append(f"{'-'*10} {'-'*4}  {'-'*6}")
         order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
-                 "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8}
+                 "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8,
+                 "docs-truth": 9}
         for g in sorted(gates, key=lambda r: order.get(r.name, 99)):
             status = "PASS" if g.exit_code == 0 else "FAIL"
             lines.append(f"{g.name:<10} {g.exit_code:>4}  {status}")
@@ -356,6 +357,7 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
         ("stubs", [PYTHON, "-m", "helixlang.core.find_stubs", "src", "--fail"], ROOT),
         ("c-only", [PYTHON, "-m", "helixlang.core.c_only", "--check"], ROOT),
         ("audit-docs", [PYTHON, "-m", "helixlang.core.audit_docs", "doc", "--fail"], ROOT),
+        ("docs-truth", [PYTHON, "-m", "helixlang.core.docs_truth", "doc", "--fail"], ROOT),
     ]
 
     # Validation gate
@@ -413,7 +415,8 @@ def run_quality_gates(gate_dir: Path) -> list[GateResult]:
 
     # Sort by original order
     order = {"ruff": 0, "mypy": 1, "boundary": 2, "stubs": 3, "pytest": 4,
-             "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8}
+             "val": 5, "examples": 6, "c-only": 7, "audit-docs": 8,
+             "docs-truth": 9}
     results.sort(key=lambda r: order.get(r.name, 99))
 
     log("Waiting for gates...")

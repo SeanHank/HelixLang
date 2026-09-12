@@ -548,21 +548,21 @@ if sp.ecgem_enabled:
 
 ### 7.1 — Implementation
 
-FASTA handling lives in `src/helixlang/annotation/sequences.py`:
+FASTA handling lives in `src/helixlang/plugins/annotation/sequences.py`:
 
 1. **`extract_protein_sequences(genome_fasta, gff3_path=None)`** — dispatcher that auto-detects protein vs nucleotide FASTA
-   - Located in `src/helixlang/annotation/sequences.py:187`
+   - Located in `src/helixlang/plugins/annotation/sequences.py:171`
    - Input: path to FASTA file (protein or nucleotide)
    - Output: `list[ProteinSequence(gene_id, sequence)]`
    - Auto-detects: protein vs nucleotide (by presence of U/T ambiguity)
    - For nucleotide: translates using `translate()` (standard codon table)
 
 2. **`extract_proteins_from_fasta(fasta_path)`** — standalone FASTA parser (no GFF3 required)
-   - Located in `src/helixlang/annotation/sequences.py:58`
+   - Located in `src/helixlang/plugins/annotation/sequences.py:42`
    - Parses both protein and nucleotide FASTA files
 
 3. **`translate(seq)`** — DNA→protein translation
-   - Located in `src/helixlang/annotation/sequences.py:34`
+   - Located in `src/helixlang/plugins/annotation/sequences.py:18`
    - Standard codon table, handles stop codons
 
 4. **Pipeline integration**: `full_pipeline._stage_a_fasta()` calls `extract_protein_sequences()` at `full_pipeline.py:200`

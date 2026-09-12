@@ -58,7 +58,7 @@ Every call constructs `PBPKModel.__init__ → self._state = self._initial_state(
 
 ### 3.2 — Replacement design
 
-Reuse the **stateful, µM-based** `_PBPKEngine` from `human/simulation.py:255-398` (doc/27 engine room). It already implements:
+Reuse the **stateful, µM-based** `_PBPKEngine` from `plugins/human/simulation.py:263-441` (doc/27 engine room). It already implements:
 
 - six well-stirred compartments (central + liver/kidney/brain/muscle/adipose) with organ blood flows from `HumanPhysiology`;
 - oral/sc/im depot absorption, IV bolus, 1-h IV infusion, intrathecal bolus;

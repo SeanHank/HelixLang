@@ -1177,35 +1177,53 @@ compromising the per-cell quota (§6.3 `ops_per_tick`), the parallelism
 contract, and every wall-clock guarantee the simulator advertises (doc/38 §0;
 doc/03 §6.5).
 
-Scope: the compiler + VM core (`src/helixlang/core/`, `src/helixlang/_accel/`).
-Plugins are explicitly **excluded**: their hot loops (GRN integrators,
-diffusion, simulation kernels) keep the fidelity-flag system (§4.3),
-including the explicit `--pure-python` and `--approx-euler` capabilities —
-these never touch the VM dispatch hot loop.  The mandate is structural, not
-aspirational:
+Scope: the compiler + VM core (`src/helixlang/core/`, `src/helixlang/_accel/`)
+is ported stage-by-stage onto hand-written C kernels (`impl_cext.c`).  The
+**lexer** (`_accel/lexer`, the language's first pipeline stage) and the
+**VM dispatch hot loop** (`_accel/dispatch`) already ship as C-only;
+`core/native_manifest.py` registers every stage's status (`native` vs
+`pending`) and drives both the loader's `_NATIVE_ONLY_PACKAGES` and the
+`c_only` gate, so the remaining port order is enumerable from the manifest
+itself.  Plugins are explicitly **excluded**: their hot loops (GRN
+integrators, diffusion, simulation kernels) keep the fidelity-flag system
+(§4.3), including the explicit `--pure-python` and `--approx-euler`
+capabilities — these never touch the compiler/VM core.  The mandate is
+structural, not aspirational:
 
 | Layer | Implemented scope | Architecture |
 |---|---|---|
+| lexer | dual-mode DNA/annotation scanner (whole front-end stage) | C (`impl_cext`) on all 4 release platforms (doc/36 Phase 4 item 2) |
 | dispatch hot loop | simple opcode set (`0x11, 0x20, 0x21, 0x90, 0x91, 0x92`) | C (`impl_cext`) on all 4 release platforms (doc/36 Phase 4 item 2) |
-| dispatch hot loop | remaining opcode set (bio, flow, morphology) | Python dispatcher inside `accelerated_execute_pending` (never selectable via the resolver) |
+| remaining stages (parser → vm) | port orchestrated by `core/native_manifest.py`; each flips `pending` → `native` as its C kernel lands | pending (pure-Python until then) |
 
 ### 19.2 Enforcement Mechanics
 
-- **Loader (`src/helixlang/_accel/_loaders.py`)** — the dispatch package is
-  in `_NATIVE_ONLY_PACKAGES`; `choose_backend` honors only the `native` tag
-  for it, so a python/numpy request raises `NativeBackendError` and a missing
-  compiled kernel raises the same with a rebuild hint.  The Python
-  implementation (`impl_python.py`) is a **non-selectable** reference kept
-  only for fuzz equivalence (doc/05 §6.5): no resolver can choose it.
+- **Manifest (`src/helixlang/core/native_manifest.py`)** — single source of
+  truth for the mandate: every compiler+VM stage has an `_accel` package and
+  a status.  `native` stages feed both the loader's `_NATIVE_ONLY_PACKAGES`
+  roster and the `c_only` gate; `pending` stages stay enumerated in the same
+  order so `python -m helixlang.core.native_manifest` prints the remaining
+  port order.
+- **Loader (`src/helixlang/_accel/_loaders.py`)** — each native stage's
+  package is in `_NATIVE_ONLY_PACKAGES` (derived from the manifest);
+  `choose_backend` honors only the `native` tag for it, so a python/numpy
+  request raises `NativeBackendError` and a missing compiled kernel raises
+  the same with a rebuild hint.  Each stage's Python implementation
+  (`impl_python.py`) is a **non-selectable** reference kept only for fuzz
+  equivalence (doc/05 §6.5): no resolver can choose it.
 - **Build (`python -m helixlang._accel.build`)** — in-place compile of the C
-  kernels; required before any gate runs.  CI runs it in the `test` and
-  `examples-smoke` jobs; `release.py` runs it as Step 1b before quality gates.
-- **Gate (`python -m helixlang.core.c_only --check`)** — fails loudly unless
-  the dispatch resolver returns `impl_cext` **and** forcing `python` for the
-  dispatch package raises.  Wired as a CI step and a `release.py` gate.
-- **Coverage-gated fuzz/equivalence tests** — skip only when the `.so` is
-  absent, which CI/release prevent via the build step (tests run under
-  `pytest -n auto` everywhere, doc/38 §4).
+  kernels (auto-globs `*/impl_cext.c`); required before any gate runs.  CI
+  runs it in the `test` and `examples-smoke` jobs; `release.py` runs it as
+  Step 1b before quality gates.
+- **Gate (`python -m helixlang.core.c_only --check`)** — iterates every
+  native stage, fails loudly unless its resolver returns `impl_cext` **and**
+  forcing `python` for its package raises.  Wired as a CI step and a
+  `release.py` gate.
+- **Coverage-gated fuzz/equivalence tests** — the C lexer must match
+  `impl_python` token-for-token (including error messages) over a
+  parametrized corpus; skip only when the `.so` is absent, which CI/release
+  prevent via the build step (tests run under `pytest -n auto` everywhere,
+  doc/38 §4).
 
 ### 19.3 No-Silent-Fallback Guarantee
 

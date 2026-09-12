@@ -349,7 +349,7 @@ python validation/goldens/generate_goldens.py
 ```
 
 Current metrics (2026-08-27):
-- **84/85** benchmarks PASS
+- **85/85** benchmarks PASS
 - **40+** published references cited
 - **0** non-deterministic failures
 - **Median error**: ~3.0% (quantitative benchmarks vs published/analytical references)

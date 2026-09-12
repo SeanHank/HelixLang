@@ -127,7 +127,11 @@ from helixlang.plugins.human.physiology import (
     create_default_physiology,
 )
 from helixlang.plugins.human.physiology_constraints import PhysiologyConstraints
-from helixlang.plugins.human.proteome_binding import ProteomeBindingCascade
+from helixlang.plugins.human.proteome_binding import (
+    KnnHit,
+    ProteomeBindingCascade,
+    knn_resolve,
+)
 from helixlang.plugins.human.qsp_binding import QSPBindingSystem, create_qsp_binding
 from helixlang.plugins.human.recovery import RecoveryModel, Sequela
 from helixlang.plugins.human.reduced_order_organ import (
@@ -201,6 +205,8 @@ __all__ = [
     "ToxicMetabolite", "TOXIC_METABOLITES",
     # doc/32 §7.7 — proteome-wide binding cascade
     "ProteomeBindingCascade",
+    "knn_resolve",
+    "KnnHit",
     # microbiome-drug interaction modeling
     "MicrobiomeCompartment",
     # emergent complexity (epigenetics, multi-organ feedback)

@@ -136,7 +136,7 @@ roles are either uniform (all cells identical) or hard-coded externally
 
 | Capability | Where | Facts |
 |---|---|---|
-| Static FBA | `metabolism.py`: `FluxBalanceAnalysis:1064`, `solve:1225`, `ECOLI_CORE_MODEL:342` | 37-reaction E. coli core (Orth 2010); SBML import (`interop.py:79`) |
+| Static FBA | `metabolism.py`: `FluxBalanceAnalysis:1064`, `solve:1225`, `ECOLI_CORE_MODEL:342` | 37-reaction E. coli core (Orth 2010); SBML import (`interop/__init__.py:91`) |
 | Dynamic FBA | `metabolism.py`: `DynamicFluxBalance:1443` | Mahadevan 2002 static-optimization dFBA; Michaelis–Menten uptake bound; acetate/CO₂ by-products; diauxie phase 1 |
 | Enzyme capacity / metabolite pools | `metabolism.py`: `EnzymeCapacity:907`, `MetabolitePool:965`, `MetabolicProxy:1777` | Phase-4 GECKO-style kcat scaling (Sanchez 2017) |
 | Per-cell dFBA in populations | `population.py`: `_step_dfba_metabolism:1390`, `_step_dfba_shared_batch:1527`, `_sync_acetate:1616` | one LP per cell, or one shared LP per site (surfin-FBA style); acetate cross-feeding within the clone (`acetate_switch`) |
@@ -187,7 +187,7 @@ not coexisting organisms. A population also owns a *single* lattice
 |---|---|---|
 | Concentration fields | `environment.py`: `ConcentrationField:189` (2D), `ConcentrationField3D:518` | Fick diffusion (5-point/7-point Laplacian, Neumann), upwind advection, chemostat replenishment, CROMICS crowding |
 | Uptake kinetics | `environment.py`: `monod_uptake:89`, `michaelis_menten_rate:118`, `atp_yield:146` (38 ATP/glucose), `molecules_per_site:133` | Monod/M-M saturation; GLC D=600, O₂ 2500, acetate 1200 µm²/s; Ks 0.1 / 0.05 mM |
-| Media declaration | `sim_runtime.py:1758` (`#media` → shared substrate fields; `_environment:1524`) | arbitrary nutrient fields registered at parse time |
+| Media declaration | `_engine.py:1748` (`#media` → shared substrate fields; `_environment:1748`) | arbitrary nutrient fields registered at parse time |
 | Crowding | `population.py`: `_crowded_diffuse:875`, `crowding_diffusion_factor` (`environment.py:159`) | CROMICS volume-fraction slowdown, critical 0.14 |
 
 **Segment verdict**: diffusion/advection/uptake for 2–3 small molecules is
@@ -235,7 +235,7 @@ place (`spatial_evolution`) with a single fitness axis (expansion speed).
 
 | Capability | Where | Facts |
 |---|---|---|
-| Language wiring | `parser.py`: `_parse_genome:356`, `_parse_sim`; `sim_runtime.py`: `run:293` | `#config backend` (6 top-level: classic/whole_cell/population/fba/calibration/benchmark, `sim_runtime.py:127`) + `#sim kind` (17 registered kinds, `sim_runtime.py:1486-1504`) |
+| Language wiring | `parser.py`: `_parse_genome:356`, `_parse_sim`; `_engine.py`: `run:83` | `#config backend` (6 top-level: classic/whole_cell/population/fba/calibration/benchmark, `_types.py:9`) + `#sim kind` (17 registered kinds, `sim_runtime/backends/core.py:42-62`) |
 | CLI | `cli.py`: `main:41`, `_run_sim:253` | `--backend`, `--json`, `--csv`, table output |
 | Web | `server.py`: `/api/sim/run:152` | all backends reachable over HTTP |
 

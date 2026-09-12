@@ -211,7 +211,9 @@ def test_top_level_backslash_newline_and_leading_space():
 
 
 def test_at_line_continuation_false_for_non_backslash():
-    lx = Lexer("ATG\n")
+    from helixlang._accel.lexer.impl_python import Lexer as RefLexer
+
+    lx = RefLexer("ATG\n")
     lx.pos = 0
     # 'A' is not a backslash -> False
     assert lx._at_line_continuation() is False

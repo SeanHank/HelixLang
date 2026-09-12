@@ -31,7 +31,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 0.07236299989745021,
+  "runtime_seconds": 0.09899829188361764,
   "layer": "runtime",
   "name": "lac operon biphasic growth",
   "level": "L3"

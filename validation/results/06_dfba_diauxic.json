@@ -196,7 +196,7 @@
     },
     "note": "dFBA overpredicts acetate because simplified model lacks full regulatory mechanisms"
   },
-  "runtime_seconds": 2.3535081250593066,
+  "runtime_seconds": 2.285476875025779,
   "layer": "metabolism",
   "name": "dFBA diauxic shift",
   "level": "L4"

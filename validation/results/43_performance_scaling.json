@@ -12,18 +12,18 @@
     "model_metabolites": 37,
     "helixlang_growth_rate": 0.0,
     "cobrapy_growth_rate": 0.8739215069684307,
-    "speedup_ratio": 0.740196198351151,
+    "speedup_ratio": 30.024118614831348,
     "timing": {
       "helixlang_ecoli_core": {
-        "ms": 1.7987920437008142
+        "ms": 1.4716668520122766
       },
       "cobrapy_ecoli_core": {
-        "ms": 1.3314590323716402
+        "ms": 44.185500126332045
       },
       "comparison": {
-        "helixlang_ms": 1.7987920437008142,
-        "cobrapy_ms": 1.3314590323716402,
-        "speedup_ratio": 0.740196198351151
+        "helixlang_ms": 1.4716668520122766,
+        "cobrapy_ms": 44.185500126332045,
+        "speedup_ratio": 30.024118614831348
       }
     }
   },
@@ -38,7 +38,7 @@
     "environment": "Python 3.11.15",
     "golden_hash": "verified"
   },
-  "runtime_seconds": 0.9505948331207037,
+  "runtime_seconds": 2.38981091696769,
   "layer": "performance",
   "name": "Performance Scaling \u2014 COBRApy vs HelixLang FBA timing",
   "level": "L2"

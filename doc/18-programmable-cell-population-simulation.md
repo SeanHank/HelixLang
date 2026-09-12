@@ -33,7 +33,7 @@
 
 ## 1. Overview: one tick, five forces
 
-`CellPopulation` (`src/helixlang/population.py:504`) is the center of everything. It holds
+`CellPopulation` (`population.py:504`) is the center of everything. It holds
 three things:
 
 - **The cell list** `self.cells`: each element is a `PopulationCell` (`population.py:218`) —
@@ -71,8 +71,8 @@ One tick (`CellPopulation.step`, `population.py:624`) advances five things in a 
 Core principle (throughout the whole codebase):
 
 > **Physical units stay online the whole way.** 1 tick = 1 minute
-> (`DIFFUSION_DT_S = 60.0`, `units.py:56`), each lattice site = 10 µm
-> (`LATTICE_SPACING_UM`, `units.py:42`), signal concentration in µM, energy is ATP molecule
+> (`DIFFUSION_DT_S = 60.0`, `core/units.py:57`), each lattice site = 10 µm
+> (`LATTICE_SPACING_UM`, `core/units.py:43`), signal concentration in µM, energy is ATP molecule
 > counts. Every coefficient that "looks like a magic number on the lattice" is obtained by
 > `units.diffusion_to_lattice`, which converts physical diffusion coefficients (µm²/s) into
 > lattice substep coefficients before integration, so the analytic and numerical solutions
@@ -261,7 +261,7 @@ D_lattice = diffusion_to_lattice(config.signal_diffusion, DIFFUSION_DT_S, LATTIC
 ```
 
 `signal_diffusion` is the **physical** diffusion coefficient (default AI-2 ≈ 100 µm²/s,
-`units.py:53`); `diffusion_to_lattice` converts it to a dimensionless lattice coefficient.
+`core/units.py:54`); `diffusion_to_lattice` converts it to a dimensionless lattice coefficient.
 It is then split into substeps by `MAX_SUBSTEP_D_LATTICE = 0.25` (`population.py:101`) —
 the stability ceiling of the explicit 5-point Laplacian scheme is 1/4, and the substeps
 guarantee the numerics **never blow up**, with the analytic Gaussian broadening matching the
@@ -323,7 +323,7 @@ first; once the concentration crosses the threshold with population density, the
 flips together. Example 21 is exactly this mechanism — at `population_size=2` the signal is
 diffused below threshold (off), at `population_size=81` the concentration crosses 20 µM
 (on), and `run_consortium_quorum` judges whether consensus is reached by reading
-`cells[0].proteins["quorum"]` (`apps/consortium.py:418-461`).
+`cells[0].proteins["quorum"]` (`plugins/apps/consortium.py:418-461`).
 
 ### 5.2 Division
 
@@ -518,9 +518,9 @@ remaining gap of the evolution line, and it is HelixLang's unique differentiatin
      optionally `recombine()`.
 2. **Register `#sim kind=spatial_evolution` in `sim_runtime.py`**: reuse every key of
    `_build_population_config` (`population_size/grid_*/dfba_*/mechanics/crowding/...`,
-   `sim_runtime.py:1448`); the outer evolution parameters go through `#sim`
+   `sim_runtime/_engine.py:1765`); the outer evolution parameters go through `#sim`
    (`generations/variants_per_gen/mutation_rate/fitness/...`); registration copies the
-   `kind=digital_evolution` pattern (`sim_runtime.py:694-732`).
+   `kind=digital_evolution` pattern (`sim_runtime/backends/pipelines.py:353-385`).
 3. **Deliver the big example**: once landed, place it at `examples/35_spatial_evolution.helix`
    and add the `.helixc` (`hxbc.py --compile`); the example list in
    `doc/17-project-details-and-frontier-bio-applications.md` grows by one (see the delivery
@@ -683,7 +683,7 @@ evaluated in the same sparse matrix.
 
 1. **`#genome` language wiring (parsing layer)**: add the `#genome source=...` directive;
    its fields merge into `Program.sim_extensions` (the same open extension point as `#sim`,
-   `sim_runtime.py:1394`/wiring.md §8.6):
+   `core/parser.py:238`/wiring.md §8.6):
    - `source`: `ecoli-mg1655` (built-in deterministic synthetic genome, b-number named) |
      `synth-4300` | FASTA/GenBank file path;
    - `tf_map`: `regulon` (literature-seeded TF network) | `random` (fixed-seed scale-free) |
@@ -888,15 +888,15 @@ tests stay untouched), with `#sim flow=...`/`#config cell_shape=...` enabling ea
        (`multiprocessing.Pool`, workers holding contiguous z-segments and exchanging one
        halo layer) targeting < 0.5 s/tick; the existing 10⁴-cell 2D Level-2 full loop
        < 1.5 s/tick gate must not regress.
-     - **Language wiring** (reusing existing open keys, `_build_pop_lbm` at
-       `sim_runtime.py:1649` gains the `lbm_3d` branch):
+- **Language wiring** (reusing existing open keys, `_build_pop_lbm` at
+        `sim_runtime/_engine.py:1881` gains the `lbm_3d` branch):
        ```helix
        #sim grid_depth=50
        #sim lbm_3d=true relaxation_omega=1.2 lbm_substeps=1
        #sim lbm_inlet_density=1.001 lbm_outlet_density=0.999   # or body_force
        ```
        `lbm_3d` is mutually exclusive with `flow`/`lbm` (conflict raises `SimConfigError`,
-       reusing the mutual-exclusion check pattern of `sim_runtime.py:1563`) and requires
+       reusing the mutual-exclusion check pattern of `sim_runtime/_engine.py:1787-1802`) and requires
        `grid_depth>1`; `relaxation_omega`/`lbm_inlet_density`/`lbm_outlet_density`/
        `lbm_substeps` share the same keys as 2D.
 
@@ -914,7 +914,7 @@ tests stay untouched), with `#sim flow=...`/`#config cell_shape=...` enabling ea
    - fluid coupling: Level-2 LBM local velocity drives the drag; one-way coupling first
      (flow drags cells, cells do not alter flow), two-way coupling later.
 
-**Language wiring** (all via the open `#sim`/`#config` keys, the `sim_runtime.py:1394`
+**Language wiring** (all via the open `#sim`/`#config` keys, the `core/parser.py:238`
 extension point):
 ```helix
 #sim flow=channel_poiseuille direction=E mean_velocity_um_s=50

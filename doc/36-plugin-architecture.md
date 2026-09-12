@@ -498,7 +498,19 @@ src/helixlang/_accel/
     __init__.py  backend.py  impl_python.py  impl_numpy.py  impl_cext.c
   diffusion/
     __init__.py  backend.py  impl_python.py  impl_numpy.py  impl_cext.c
+  lexer/                 # compiler+VM core stage — C-only (doc/03 §6.5)
+    __init__.py  backend.py  impl_python.py  impl_cext.c   # raw-C scanner
 ```
+
+**Compiler + VM core (doc/06 §19): mandated, not optional.**  For the
+compiler/VM stages *inside* the mandate (`lexer` … `vm`,
+`src/helixlang/core/native_manifest.py`) the uniform pattern above is
+enforced as a C-only rule, not a preference: ``_NATIVE_ONLY_PACKAGES``
+(derived from the manifest) refuses a python/numpy backend for every
+`native` stage, their `impl_python.py` is retained only as a
+non-selectable fuzz reference, and `python -m helixlang.core.c_only
+--check` fails loudly if a native stage resolves anywhere else.  Plugin
+packages (GRN, diffusion, simplex, …) keep the open fidelity choice below.
 
 **Loader contract (uniform across all stacks) — equivalena-fidelity only:**
 

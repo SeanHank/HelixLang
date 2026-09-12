@@ -4,10 +4,12 @@ on:
   push:
     branches: [main, master]
   pull_request:
-  # Manual release: a human dispatches this workflow after the push-triggered
-  # tests have passed.  The release job (last step) only runs for the manual
-  # trigger and depends on every gate in this same run.  No version input needed:
-  # the version is read from pyproject.toml (one-click publish).
+  # Auto-release: after a push to main/master, the release job runs once EVERY
+  # gate in this same run has passed (each gate is a job dependency of it) —
+  # no human dispatch needed.  workflow_dispatch remains available as a manual
+  # override / re-publish.  No version input needed: the version is read from
+  # pyproject.toml (one-click publish).  Re-running on an unchanged version is
+  # idempotent (tag -f + gh release delete/recreate).
   workflow_dispatch:
 
 permissions:
@@ -201,10 +203,10 @@ jobs:
           name: dist-${{ matrix.osname }}
           path: dist/
 
-  # ─── Release (manual only, after all gates above pass) ─────────────────────
+  # ─── Release (auto after all gates above pass; manual dispatch also allowed) ─
   release:
     name: Build & Publish Release
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     needs: [lint, silent-fallbacks, typecheck, test, examples-smoke, build-wheels]
     runs-on: ubuntu-latest
     steps:

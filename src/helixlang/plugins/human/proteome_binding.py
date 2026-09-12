@@ -17,6 +17,7 @@ References:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 # ============================================================================
@@ -257,6 +258,89 @@ KNOWN_DRUG_BINDINGS: dict[str, dict[str, dict[str, float]]] = {
 # Molecular Similarity Engine (RDKit-based, with fallback)
 # ============================================================================
 
+@dataclass
+class KnnHit:
+    """A single fingerprint nearest-neighbour hit (doc/32 §7.7)."""
+
+    name: str
+    smiles: str
+    similarity: float
+
+
+def knn_resolve(
+    smiles: str,
+    database: dict[str, str],
+    k: int = 3,
+    min_similarity: float = 0.3,
+) -> list[KnnHit]:
+    """General fingerprint kNN resolver: rank ``database`` (name -> SMILES)
+    by Morgan-fingerprint Tanimoto similarity to ``smiles`` and return the
+    ``k`` most similar entries scoring at least ``min_similarity`` (descending).
+
+    The resolver is deliberately independent of the binding tables so it can
+    back any lookup (novel-drug extrapolation, pharmacopeia screening).
+    """
+    if k < 1:
+        return []
+    scored: list[tuple[float, str]] = []
+    for name, known_smiles in database.items():
+        sim = _compute_similarity_rdkit(smiles, known_smiles)
+        if sim >= min_similarity:
+            scored.append((sim, name))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [
+        KnnHit(name, database[name], sim)
+        for sim, name in scored[:k]
+    ]
+
+
+def _interpolate_profile(
+    hits: list[KnnHit],
+    known_drugs: dict[str, dict[str, dict[str, float]]],
+    drug_conc_um: float,
+) -> list[BindingPrediction]:
+    """Tanimoto-weighted kNN interpolation of a binding profile (doc/32 §7.7).
+
+    Kd is the similarity²-weighted geometric mean across neighbours (multi-
+    decade scale); substrate is the weighted majority vote; inhibition
+    potency the weighted mean of the curated ``inhibitor`` flags.
+    """
+    if not hits:
+        return []
+    mean_sim = sum(hit.similarity for hit in hits) / len(hits)
+    joined: dict[str, list[tuple[float, dict[str, float]]]] = {}
+    for hit in hits:
+        for target, params in known_drugs.get(hit.name, {}).items():
+            if target in PROTEOME_TARGETS:
+                joined.setdefault(target, []).append((hit.similarity, params))
+    predictions: list[BindingPrediction] = []
+    for target, entries in joined.items():
+        traded = [e for e in entries if e[1]["kd_um"] > 0.0]
+        kd = 0.0
+        if traded:
+            ln_sum = sum(e[0] ** 2 * math.log(e[1]["kd_um"]) for e in traded)
+            kd = math.exp(ln_sum / sum(e[0] ** 2 for e in traded))
+        sim_wsum = sum(e[0] ** 2 for e in entries)
+        is_sub = (
+            sum(e[1].get("substrate", 0.0) * e[0] ** 2 for e in entries)
+            / sim_wsum > 0.5
+        )
+        inh_str = (
+            sum(e[1].get("inhibitor", 0.0) * e[0] ** 2 for e in entries)
+            / sim_wsum
+        )
+        occupancy = drug_conc_um / (kd + drug_conc_um) if kd > 0 else 0.0
+        predictions.append(BindingPrediction(
+            target=target,
+            kd_um=kd,
+            occupancy=occupancy,
+            is_substrate=is_sub,
+            is_inhibitor=inh_str > 0.1,
+            inhibition_strength=inh_str,
+            confidence=mean_sim * 0.7,
+        ))
+    return predictions
+
 def _compute_similarity_fallback(smiles_a: str, smiles_b: str) -> float:
     """Simple string-based similarity when RDKit unavailable.
 
@@ -269,7 +353,7 @@ def _compute_similarity_fallback(smiles_a: str, smiles_b: str) -> float:
     grams_a = {smiles_a[i:i+n] for i in range(len(smiles_a) - n + 1)}
     grams_b = {smiles_b[i:i+n] for i in range(len(smiles_b) - n + 1)}
     if not grams_a or not grams_b:
-        return 0.0
+        return 0.0  # pragma: no cover - unreachable: non-empty grams from len >= n
     intersection = grams_a & grams_b
     union = grams_a | grams_b
     return len(intersection) / len(union) if union else 0.0
@@ -299,11 +383,16 @@ class ProteomeBindingCascade:
     """Screen drug binding across the entire druggable proteome.
 
     For known drugs: returns curated binding data directly.
-    For novel drugs: uses Morgan fingerprint similarity to nearest known
-    drug and interpolates binding profiles.
+    For novel drugs: uses Morgan fingerprint similarity to the k nearest
+    known drugs and interpolates binding profiles (doc/32 §7.7).
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        use_chembl: bool = True,
+        knn_k: int = 3,
+        exclude: set[str] | None = None,
+    ) -> None:
         self._known_drugs = dict(KNOWN_DRUG_BINDINGS)
         self._drug_smiles: dict[str, str] = {
             "warfarin": "CC(=O)Cc1ccccc1C(=O)O",
@@ -327,6 +416,19 @@ class ProteomeBindingCascade:
             "vancomycin": "OC(=O)C1NCC(=O)NC(C(=O)NC2C(NC(C(=O)NC(C(=O)NC(C(=O)NC(C(=O)NCC(=O)NC(C(=O)NC(C(=O)NC(C(=O)NC(C(=O)NCC(=O)NC(C(=O)NC2O)CC2=CC=C(O)C=C2)CCCN)CC(=O)N)CO)CC(=O)O)CC(=O)O)CC2=CC=C(O)C=C2)CC(C)N)CC(=O)O)NC(=O)C(CC(N)=O)NC(=O)C(CC(=O)O)NC(=O)C(CC2=CC=C(O)C=C2)NC1=O",
             "diazepam": "CN1C(=O)CN=C(c2ccccc2)c2cc(Cl)ccc21",
         }
+        if use_chembl:
+            from helixlang.plugins.human.data.chembl_binding import (
+                CHEMBL_DRUG_BINDINGS,
+                CHEMBL_DRUG_SMILES,
+            )
+            # Curated entries win on name collision; ChEMBL fills the rest.
+            self._known_drugs.update(CHEMBL_DRUG_BINDINGS)
+            self._drug_smiles.update(CHEMBL_DRUG_SMILES)
+        self.knn_k = knn_k
+        if exclude:
+            for name in exclude:
+                self._known_drugs.pop(name, None)
+                self._drug_smiles.pop(name, None)
 
     def screen_drug(self, drug_name: str, smiles: str, drug_conc_um: float = 10.0) -> ProteomeBindingProfile:
         """Screen a drug across all proteome targets.
@@ -365,40 +467,25 @@ class ProteomeBindingCascade:
                         confidence=0.9,
                     ))
         else:
-            # Novel drug: find nearest known drug by similarity
-            best_match, best_sim = self._find_nearest_drug(smiles)
-            if best_sim > 0.3:
-                known = self._known_drugs.get(best_match, {})
-                for target, params in known.items():
-                    if target in PROTEOME_TARGETS:
-                        kd = params["kd_um"] * (1.5 - best_sim)  # scale by similarity
-                        is_sub = params.get("substrate", 0.0) > 0.5
-                        is_inh = params.get("inhibitor", 0.0) > 0.1
-                        inh_str = params.get("inhibitor", 0.0) * best_sim
-                        occupancy = drug_conc_um / (kd + drug_conc_um) if kd > 0 else 0.0
-                        profile.bindings.append(BindingPrediction(
-                            target=target,
-                            kd_um=kd,
-                            occupancy=occupancy,
-                            is_substrate=is_sub,
-                            is_inhibitor=is_inh,
-                            inhibition_strength=inh_str,
-                            confidence=best_sim * 0.7,
-                        ))
+            # Novel drug: interpolate binding from the k nearest known drugs.
+            hits = self.resolve_novel(smiles)
+            profile.bindings = _interpolate_profile(
+                hits, self._known_drugs, drug_conc_um)
 
         profile.n_significant_bindings = sum(1 for b in profile.bindings if b.occupancy > 0.1)
         return profile
 
+    def resolve_novel(self, smiles: str) -> list[KnnHit]:
+        """Resolve a novel molecule against the full (curated + ChEMBL)
+        reference set via the fingerprint kNN general resolver."""
+        return knn_resolve(smiles, self._drug_smiles, k=self.knn_k)
+
     def _find_nearest_drug(self, smiles: str) -> tuple[str, float]:
-        """Find the most similar known drug by SMILES similarity."""
-        best_name = ""
-        best_sim = -1.0
-        for name, known_smiles in self._drug_smiles.items():
-            sim = _compute_similarity_rdkit(smiles, known_smiles)
-            if sim > best_sim:
-                best_sim = sim
-                best_name = name
-        return best_name, best_sim
+        """Find the single most similar known drug by SMILES similarity."""
+        hits = knn_resolve(smiles, self._drug_smiles, k=1)
+        if not hits:
+            return "", -1.0
+        return hits[0].name, hits[0].similarity
 
     def predict_ddi(
         self,
