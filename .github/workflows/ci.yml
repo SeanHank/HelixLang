@@ -97,7 +97,7 @@ jobs:
           # give real PASSes; anything else is SKIPped, never FAILed.
           HELIX_BENCHMARK_OFFLINE: "1"
         run: |
-          pytest --cov=helixlang --cov-report=term-missing --cov-fail-under=100
+          pytest --cov=helixlang --cov-branch --cov-report=term-missing --cov-fail-under=100
 
   examples-smoke:
     runs-on: ubuntu-latest
