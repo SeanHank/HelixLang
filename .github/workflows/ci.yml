@@ -238,9 +238,34 @@ jobs:
             echo "ERROR: invalid version format: $VERSION"
             exit 1
           fi
-          INIT_VER=$(python -c "exec(open('src/helixlang/__init__.py').read()); print(__version__)")
-          if [ "$VERSION" != "$INIT_VER" ]; then
-            echo "ERROR: pyproject.toml version ($VERSION) != __init__.py version ($INIT_VER)"
+          # Import-free check (same source-of-truth locations as release.py
+          # _VERSION_LOCATIONS).  The release job has NOT installed the package,
+          # so executing src/helixlang/__init__.py would die on its absolute
+          # imports (ModuleNotFoundError: No module named 'helixlang').
+          VERIFY_VER=$(python - <<'PY'
+          import re
+          import sys
+          patterns = {
+              "pyproject.toml": r'^version = "([^"]+)"',
+              "core/version.py": r'^__version__ = "([^"]+)"',
+              "server/app.py": r'"version": "([^"]+)"',
+          }
+          found = {}
+          for name, pat in patterns.items():
+              path = name if name == "pyproject.toml" else f"src/helixlang/{name}"
+              m = re.search(pat, open(path).read(), re.MULTILINE)
+              if not m:
+                  print(f"ERROR: version not found in {path}", file=sys.stderr)
+                  sys.exit(1)
+              found[name] = m.group(1)
+          if len(set(found.values())) != 1:
+              print(f"ERROR: version mismatch: {found}", file=sys.stderr)
+              sys.exit(1)
+          print(found["pyproject.toml"])
+          PY
+          )
+          if [ "$VERSION" != "$VERIFY_VER" ]; then
+            echo "ERROR: workflow version ($VERSION) != repo version ($VERIFY_VER)"
             exit 1
           fi
           echo "Version verified: $VERSION"
